@@ -1,0 +1,491 @@
+{% extends "base.html" %}
+{% block title %}ZTP Provisioning · Keystone{% endblock %}
+{% block page_title %}ZTP Provisioning{% endblock %}
+{% block page_subtitle %}Zero-touch bootstrap for new switches — DHCP, file server, and per-device provisioning.{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('lifecycle.static', filename='css/style.css') }}">{% endblock %}
+{% block topbar_actions %}
+<div id="ztp-demo-badge" class="demo-badge">DEMO MODE</div>
+<button id="ztp-refresh-button" class="button button-secondary">Refresh</button>
+{% endblock %}
+{% block content %}
+<div id="lifecycle-scope">
+
+    <div class="ztp-tabs" role="tablist">
+        <button type="button" class="ztp-tab-button active" data-tab-target="setup" role="tab" aria-selected="true">
+            <span class="ztp-tab-step">1</span>
+            <span class="ztp-tab-copy">
+                <span class="ztp-tab-label">Setup</span>
+                <span class="ztp-tab-sublabel">Register devices &amp; generate files</span>
+            </span>
+        </button>
+        <button type="button" class="ztp-tab-button" data-tab-target="sftp" role="tab" aria-selected="false">
+            <span class="ztp-tab-step">2</span>
+            <span class="ztp-tab-copy">
+                <span class="ztp-tab-label">SFTP Server</span>
+                <span class="ztp-tab-sublabel">Hosts the generated files</span>
+            </span>
+        </button>
+        <button type="button" class="ztp-tab-button" data-tab-target="syslog" role="tab" aria-selected="false">
+            <span class="ztp-tab-step">3</span>
+            <span class="ztp-tab-copy">
+                <span class="ztp-tab-label">Syslog Receiver</span>
+                <span class="ztp-tab-sublabel">Optional live log forwarding</span>
+            </span>
+        </button>
+        <button type="button" class="ztp-tab-button" data-tab-target="dhcp" role="tab" aria-selected="false">
+            <span class="ztp-tab-step">4</span>
+            <span class="ztp-tab-copy">
+                <span class="ztp-tab-label">DHCP Server</span>
+                <span class="ztp-tab-sublabel">Start last — right before power-on</span>
+            </span>
+        </button>
+        <button type="button" class="ztp-tab-button" data-tab-target="activity" role="tab" aria-selected="false">
+            <span class="ztp-tab-step">5</span>
+            <span class="ztp-tab-copy">
+                <span class="ztp-tab-label">Activity Log</span>
+                <span class="ztp-tab-sublabel">Watch the run happen live</span>
+            </span>
+        </button>
+    </div>
+
+    <div class="ztp-tab-panel active" data-tab-panel="setup" role="tabpanel">
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+                        <h3>Pre-Register Devices</h3>
+                        <p>
+                            Record a switch's serial number (ESN) and intended identity
+                            before it is ever powered on — this replaces typing the same
+                            information in at the console.
+                        </p>
+                    </div>
+
+                    <div class="ztp-header-actions">
+                        <a
+                            id="ztp-template-download"
+                            class="button button-secondary"
+                            href="/ztp/api/devices/template"
+                        >
+                            Download Template
+                        </a>
+                        <label for="ztp-import-file" class="button button-secondary">
+                            Import from Excel
+                        </label>
+                        <input
+                            id="ztp-import-file"
+                            type="file"
+                            accept=".xlsx,.xlsm"
+                            hidden
+                        >
+                    </div>
+
+                </div>
+
+                <div id="ztp-import-result" class="ztp-result" hidden></div>
+
+                <form id="ztp-register-form" class="form-grid">
+
+                    <div class="form-group">
+                        <label for="ztp-esn">ESN (Serial Number)</label>
+                        <input id="ztp-esn" type="text" placeholder="2102311LDL0000000806">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-mac">MAC Address</label>
+                        <input id="ztp-mac" type="text" placeholder="AA:BB:CC:DD:EE:01">
+                        <p class="field-hint">Used for the DHCP reservation, so this unit always gets the same staging IP.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-hostname">Hostname</label>
+                        <input id="ztp-hostname" type="text" placeholder="TTC-SWAC-NEW-01">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-site">Site</label>
+                        <input id="ztp-site" type="text" placeholder="TTC">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-mgmt-ip">Management IP</label>
+                        <input id="ztp-mgmt-ip" type="text" placeholder="10.50.1.11">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-mgmt-mask">Subnet Mask</label>
+                        <input id="ztp-mgmt-mask" type="text" value="255.255.255.0">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-gateway">Gateway</label>
+                        <input id="ztp-gateway" type="text" placeholder="10.50.1.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-username">SSH Username</label>
+                        <input id="ztp-username" type="text" value="ztp-admin">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-password">SSH Password</label>
+                        <input id="ztp-password" type="password" placeholder="Becomes the device's local-user password">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-firmware">Firmware Filename (optional)</label>
+                        <select id="ztp-firmware-picker" class="ztp-assist-picker">
+                            <option value="">— Pick from Firmware Repository —</option>
+                        </select>
+                        <input id="ztp-firmware" type="text" placeholder="S5735-V2_V600R025C00SPC500.cc">
+                        <p class="field-hint">Leave blank to deploy config only — ZTP won't try to re-flash firmware.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-vrp-version">Current VRP Version (optional)</label>
+                        <input id="ztp-vrp-version" type="text" placeholder="V600R025C00SPC500">
+                        <p class="field-hint">If it matches, the device skips re-downloading firmware it already has.</p>
+                    </div>
+
+                    <div class="form-actions">
+                        <button id="ztp-register-button" type="submit" class="button button-primary">
+                            Register Device
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+                        <h3>Pre-Registered Devices</h3>
+                        <p id="ztp-devices-status">Ready.</p>
+                    </div>
+
+                </div>
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+                            <tr>
+                                <th>ESN</th>
+                                <th>Hostname</th>
+                                <th>MAC</th>
+                                <th>Management IP</th>
+                                <th>Site</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+
+                        <tbody id="ztp-device-table">
+                            <tr>
+                                <td colspan="7" class="empty-state">No devices pre-registered yet.</td>
+                            </tr>
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+                        <h3>Generate Deployment Files</h3>
+                        <p>
+                            Renders the ZTP intermediate file and one bootstrap config per
+                            pending device, and writes them where the SFTP server (next tab)
+                            serves them from.
+                        </p>
+                    </div>
+
+                </div>
+
+                <form id="ztp-generate-form" class="form-grid">
+
+                    <div class="form-group form-group-full">
+                        <label for="ztp-fileserver-url">File Server URL</label>
+                        <input id="ztp-fileserver-url" type="text" placeholder="sftp://ztp_user:ztp_pass@10.50.1.5:2222/">
+                        <p class="field-hint">
+                            Must be an sftp:// URL — ZTP on this VRP family only supports SFTP.
+                            Use the same host/port/credentials you start the SFTP server with on the
+                            SFTP Server tab.
+                        </p>
+                    </div>
+
+                    <div class="form-group form-group-full">
+                        <label for="ztp-syslog-target">Live Log Target (optional)</label>
+                        <input id="ztp-syslog-target" type="text" placeholder="10.50.1.5:514">
+                        <p class="field-hint">
+                            Same host as the File Server URL above, plus the port the Syslog Receiver
+                            tab is listening on. When set, the switch is asked (via the intermediate
+                            file's SYSLOG_INFO field) to forward its own ZTP process log here in real
+                            time, so it shows up in the Activity Log tab without needing a console
+                            session on the switch. <strong>Unverified</strong> against real hardware yet —
+                            if the Activity Log stays quiet during a run while SFTP events still appear,
+                            this didn't work; leave it blank to skip trying.
+                        </p>
+                    </div>
+
+                    <div class="form-actions">
+                        <button id="ztp-generate-button" type="submit" class="button button-primary">
+                            Generate Files
+                        </button>
+                    </div>
+
+                </form>
+
+                <div id="ztp-generate-result" class="ztp-result hidden"></div>
+
+            </div>
+
+    </div>
+
+    <div class="ztp-tab-panel" data-tab-panel="sftp" role="tabpanel">
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+                        <h3>ZTP SFTP Server</h3>
+                        <p id="ztp-sftp-status">Stopped.</p>
+                    </div>
+
+                    <div class="card-actions">
+                        <button id="ztp-sftp-start-button" type="button" class="button button-primary">Start</button>
+                        <button id="ztp-sftp-stop-button" type="button" class="button button-danger" disabled>Stop</button>
+                    </div>
+
+                </div>
+
+                <p class="field-hint">
+                    Serves the files generated on the Setup tab to the switch over SFTP — the only
+                    file-transfer protocol this VRP family's ZTP supports. Start this before arming
+                    the DHCP server, so the moment the switch is pointed here it can actually download
+                    something.
+                </p>
+
+                <div class="form-grid">
+
+                    <div class="form-group">
+                        <label for="ztp-sftp-username">Username</label>
+                        <input id="ztp-sftp-username" type="text" value="ztp_user">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-sftp-password">Password</label>
+                        <input id="ztp-sftp-password" type="password" placeholder="Enter password">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-sftp-bind-ip">Bind IP</label>
+                        <select id="ztp-sftp-bind-ip-picker" class="ztp-assist-picker">
+                            <option value="0.0.0.0">0.0.0.0 (All Interfaces)</option>
+                        </select>
+                        <input id="ztp-sftp-bind-ip" type="text" value="0.0.0.0">
+                        <p class="field-hint">Pick the interface facing the switch, or type an IP directly.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-sftp-port">Port</label>
+                        <input id="ztp-sftp-port" type="text" value="2222">
+                    </div>
+
+                </div>
+
+            </div>
+
+    </div>
+
+    <div class="ztp-tab-panel" data-tab-panel="syslog" role="tabpanel">
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+                        <h3>ZTP Syslog Receiver</h3>
+                        <p id="ztp-syslog-status">Stopped.</p>
+                    </div>
+
+                    <div class="card-actions">
+                        <button id="ztp-syslog-start-button" type="button" class="button button-primary">Start</button>
+                        <button id="ztp-syslog-stop-button" type="button" class="button button-danger" disabled>Stop</button>
+                    </div>
+
+                </div>
+
+                <p class="field-hint">
+                    Receives ZTP process log lines the switch forwards during provisioning (see the
+                    "Live Log Target" field on the Setup tab) and feeds them into the Activity Log
+                    tab. Port 514 is the syslog default and needs root/administrator privileges to
+                    bind, same as the DHCP server — use a high port (e.g. 5140) here instead if that's
+                    not available, as long as the switch side can be pointed at the same port.
+                    Optional — start it if you want live process visibility, but the DHCP/SFTP servers
+                    work fine without it.
+                </p>
+
+                <div class="form-grid">
+
+                    <div class="form-group">
+                        <label for="ztp-syslog-bind-ip">Bind IP</label>
+                        <input id="ztp-syslog-bind-ip" type="text" value="0.0.0.0">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-syslog-port">Port</label>
+                        <input id="ztp-syslog-port" type="text" value="514">
+                    </div>
+
+                </div>
+
+            </div>
+
+    </div>
+
+    <div class="ztp-tab-panel" data-tab-panel="dhcp" role="tabpanel">
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+                        <h3>ZTP DHCP Server</h3>
+                        <p id="ztp-dhcp-status">Stopped.</p>
+                    </div>
+
+                    <div class="card-actions">
+                        <button id="ztp-dhcp-start-button" type="button" class="button button-primary" disabled>Start</button>
+                        <button id="ztp-dhcp-stop-button" type="button" class="button button-danger" disabled>Stop</button>
+                    </div>
+
+                </div>
+
+                <div class="ztp-warning">
+                    <strong>This is the most dangerous control on this page.</strong>
+                    A DHCP server that answers on the wrong interface becomes a rogue DHCP
+                    server and can hand out leases to production devices. Only point this at
+                    a NIC that is on an isolated staging segment — never your production LAN.
+                    Requires <code>dnsmasq</code> to be installed on this host, and root/
+                    administrator privileges to bind UDP/67 (this tries <code>sudo -n</code>
+                    automatically if Keystone itself isn't running as root — run
+                    <code>sudo -v</code> in the same terminal before clicking Start so that
+                    can succeed without a password prompt, which has nowhere to go from here).
+                    This is the last thing the switch actually needs before it can boot into
+                    ZTP, so start it last — once SFTP (and, optionally, Syslog) are already up.
+                </div>
+
+                <div class="form-grid">
+
+                    <div class="form-group">
+                        <label for="ztp-dhcp-interface">Interface</label>
+                        <select id="ztp-dhcp-interface-picker" class="ztp-assist-picker">
+                            <option value="">— Pick a detected interface —</option>
+                        </select>
+                        <input id="ztp-dhcp-interface" type="text" placeholder="eth1">
+                        <p class="field-hint">Only interfaces with an IPv4 address are listed. Pick the one physically connected to the staging switch — never your main LAN/Wi-Fi adapter.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-dhcp-range-start">Range Start</label>
+                        <input id="ztp-dhcp-range-start" type="text" placeholder="10.50.1.100">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-dhcp-range-end">Range End</label>
+                        <input id="ztp-dhcp-range-end" type="text" placeholder="10.50.1.199">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-dhcp-subnet-mask">Subnet Mask</label>
+                        <input id="ztp-dhcp-subnet-mask" type="text" value="255.255.255.0">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-dhcp-lease-time">Lease Time</label>
+                        <input id="ztp-dhcp-lease-time" type="text" value="30m" placeholder="30m">
+                        <p class="field-hint">dnsmasq lease duration (e.g. <code>15m</code>, <code>30m</code>, <code>1h</code>). Kept short by default for ZTP staging -- devices only need this address for a few minutes before rebooting into their static config, so a short lease frees the pool quickly for the next unit. Only matters for devices without a MAC filled in below (those get a pinned reservation instead and ignore this).</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-dhcp-gateway">Gateway</label>
+                        <input id="ztp-dhcp-gateway" type="text" placeholder="10.50.1.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="ztp-dhcp-dns">DNS Server</label>
+                        <input id="ztp-dhcp-dns" type="text" placeholder="10.50.1.1">
+                    </div>
+
+                    <div class="form-group form-group-full">
+                        <label for="ztp-dhcp-option67">Option 67 URL</label>
+                        <input id="ztp-dhcp-option67" type="text" maxlength="127" placeholder="sftp://ztp_user:ztp_pass@10.50.1.5:2222/ztp_script.ini">
+                        <p class="field-hint">Same host/port/credentials as the SFTP server tab, plus <code>/ztp_script.ini</code>. Max 127 characters — the switch reads this from a fixed-size DHCP field, and anything longer is silently truncated on the wire (a shorter password or an IP instead of a hostname both help).</p>
+                    </div>
+
+                    <div class="form-group form-group-full">
+                        <div class="toggle-container">
+                            <input id="ztp-dhcp-confirm" type="checkbox">
+                            <label for="ztp-dhcp-confirm">
+                                I confirm this interface is on an isolated ZTP staging segment, not shared with production DHCP.
+                            </label>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+    </div>
+
+    <div class="ztp-tab-panel" data-tab-panel="activity" role="tabpanel">
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+                        <h3>ZTP Activity Log</h3>
+                        <p id="ztp-activity-status">No activity yet.</p>
+                    </div>
+
+                    <div class="card-actions">
+                        <button id="ztp-activity-clear-button" type="button" class="button button-secondary">Clear</button>
+                    </div>
+
+                </div>
+
+                <p class="field-hint">
+                    Everything Keystone can see about an in-flight ZTP run, live — files the switch
+                    fetches over SFTP, log lines it forwards over syslog (if wired up), and server
+                    start/stop events — so there's no need to console into the switch and grep its
+                    log by hand to see how far a run got. Flip here right after arming the DHCP
+                    server and powering on the switch.
+                </p>
+
+                <div id="ztp-activity-log" class="ztp-activity-log">
+                    <div class="empty-state">Nothing yet — start the SFTP/DHCP/Syslog servers and click Generate Files to begin a run.</div>
+                </div>
+
+            </div>
+
+    </div>
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('ztp.static', filename='js/app.js') }}"></script>
+{% endblock %}

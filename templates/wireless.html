@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}Wireless Analyzer · Keystone{% endblock %}
+{% block page_title %}Wireless Analyzer{% endblock %}
+{% block page_subtitle %}Plan, validate, analyze, and generate as-built inventory for Cisco and Huawei wireless deployments.{% endblock %}
+{% block content %}
+
+<nav class="wireless-workspace-switch" aria-label="Wireless Analyzer workspace">
+  <button class="active" type="button" data-wireless-workspace="analysis" aria-pressed="true"><svg><use href="/static/icons/nes-icons.svg#pulse"></use></svg><span><strong>Analyze Environment</strong><small>Assess WLC, AP inventory, and deployment health.</small></span></button>
+  <button type="button" data-wireless-workspace="roles" aria-pressed="false"><svg><use href="/static/icons/nes-icons.svg#wireless"></use></svg><span><strong>AP Role Diff</strong><small>Compare active and standby AP roles between two controllers.</small></span></button>
+  <button type="button" data-wireless-workspace="delta" aria-pressed="false"><svg><use href="/static/icons/nes-icons.svg#swap"></use></svg><span><strong>Config Delta</strong><small>Compare Source to Target and generate implementation commands.</small></span></button>
+</nav>
+
+<div id="wireless-analysis-workspace">
+
+<div class="wireless-workspace-grid">
+  <section class="panel master-builder hidden" id="master-builder">
+    <div class="panel-heading"><div><h3>AP Master Inventory</h3><p>Generate a deployment-ready CSV template based on the selected WLC brand.</p></div><span class="version-chip">Vendor-aware</span></div>
+    <div class="form-grid two">
+      <label><span>WLC Vendor</span><select id="master-vendor"><option value="Cisco">Cisco Catalyst 9800</option><option value="Huawei">Huawei WLC</option></select></label>
+      <label><span>Number of AP</span><input id="master-quantity" type="number" min="0" max="5000" value="0" placeholder="Example: 120"></label>
+      <label><span>Site Code</span><input id="master-site" placeholder="Example: HYW"></label>
+      <label><span>Floor / Area</span><input id="master-floor" placeholder="Example: F03"></label>
+      <label><span>AP Prefix</span><input id="master-prefix" value="AP" placeholder="AP"></label>
+      <label><span>Generated Naming Preview</span><input id="naming-preview" readonly value="AP-001"></label>
+    </div>
+    <div class="master-actions"><button class="primary-button" id="download-master" type="button">Download Master Template</button><span id="vendor-fields-note">Cisco template includes Site Tag, Policy Tag, and RF Tag.</span></div>
+  </section>
+
+  <section class="panel inventory-validator hidden" id="inventory-validator">
+    <div class="panel-heading"><div><h3>Validate Master File</h3><p>Check mandatory columns, duplicates, MAC format, and deployment status before analysis.</p></div></div>
+    <form id="inventory-validation-form" enctype="multipart/form-data">
+      <label class="compact-select"><span>Template Vendor</span><select name="vendor" id="validation-vendor"><option>Cisco</option><option>Huawei</option></select></label>
+      <label class="drop-zone horizontal compact-drop"><input type="file" name="inventory_file" id="validation-file" accept=".csv,.xlsx,.xlsm"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#plus"></use></svg></span><span><strong>Select AP master</strong><small id="validation-file-label">CSV or XLSX</small></span></label>
+      <div class="inline-actions"><button class="secondary-button" type="button" id="clear-validation-file">Clear</button><button class="primary-button" type="submit" id="validate-inventory-button">Validate Inventory</button></div>
+    </form>
+    <div id="inventory-validation-result" class="hidden validation-result"></div>
+  </section>
+</div>
+
+<form id="wireless-form" class="panel wireless-upload wireless-intake" enctype="multipart/form-data">
+    <input type="hidden" name="deployment_mode" id="deployment-mode" value="existing">
+    <div class="intake-heading">
+      <div><h2>Analyze wireless environment</h2><p>Add the controller backup first, then enrich it with live AP inventory when available.</p></div>
+      <span class="intake-mode"><i></i>Local processing</span>
+    </div>
+    <div class="intake-file-grid">
+      <section class="intake-card">
+        <div class="intake-card-heading"><span class="intake-step">1</span><div><h3>WLC configuration</h3><p>Controller configuration and profile relationships.</p></div><span class="intake-badge required">Required</span></div>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="config_file" id="wireless-config-file" accept=".txt,.cfg,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select WLC config</strong><small id="wireless-file-label">TXT, CFG, or terminal capture</small></span></label>
+        <button class="clear-upload hidden" id="clear-wireless-file" type="button">Remove selected file</button>
+        <details class="capture-help"><summary>Recommended command capture</summary><div><p><strong>Huawei</strong><code>display current-configuration</code></p><p><strong>Cisco 9800</strong><code>show tech-support wireless</code></p></div></details>
+      </section>
+      <section class="intake-card">
+        <div class="intake-card-heading"><span class="intake-step">2</span><div><h3>AP runtime inventory</h3><p>Live AP status, model, version, IP, and validation.</p></div><span class="intake-badge">Recommended</span></div>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="inventory_file" id="inventory-file" accept=".csv,.xlsx,.xlsm"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#plus"></use></svg></span><span><strong>Select AP inventory</strong><small id="inventory-file-label">Huawei AP Info, AP Master, CSV or XLSX</small></span></label>
+        <button class="clear-upload hidden" id="clear-inventory-file" type="button">Remove selected file</button>
+        <div class="capture-help static"><strong>Huawei AC6508</strong><p>Upload the exported AP Info CSV to populate runtime status and device details.</p></div>
+      </section>
+    </div>
+    <div class="intake-actionbar">
+      <div class="intake-action-copy"><span class="intake-step">3</span><div><strong>Choose vendor and run analysis</strong><small>Auto Detect works for most captures; select Huawei for AC6508 exports.</small></div></div>
+      <label class="compact-select"><span>WLC Vendor</span><select name="vendor" id="analysis-vendor"><option>Auto Detect</option><option>Huawei</option><option>Cisco</option></select></label>
+      <button class="primary-button" id="analyze-button" type="submit"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#pulse"></use></svg>Analyze Wireless</button>
+    </div>
+</form>
+<textarea id="wireless-config-text" name="config_text" form="wireless-form" class="hidden" aria-hidden="true"></textarea>
+
+<div id="wireless-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#wireless"></use></svg></div><h3>Wireless Analyzer workspace is ready</h3><p>Upload actual WLC data, extract the live AP inventory, assess the current environment, and optionally compare against a customer reference inventory.</p></div>
+
+<div id="wireless-result" class="hidden">
+    <div class="wireless-summary" id="wireless-summary"></div>
+    <div class="analysis-toolbar panel"><div><strong id="wireless-source-name">WLC Analysis</strong><span id="wireless-platform"></span></div><div class="toolbar-actions"><a id="wireless-as-built" class="primary-button hidden" href="#">Export As-Built</a><a id="wireless-export" class="secondary-button" href="#">Export Analysis</a></div></div>
+    <div class="tab-shell panel">
+        <div class="tab-nav" id="wireless-tabs" role="tablist" aria-label="Wireless analysis results">
+            <button type="button" class="active" id="wireless-tab-overview" data-tab="overview" role="tab" aria-selected="true" aria-controls="tab-overview">Overview</button>
+            <button type="button" id="wireless-tab-deployment" data-tab="deployment" role="tab" aria-selected="false" aria-controls="tab-deployment" tabindex="-1">Deployment Validation</button>
+            <button type="button" id="wireless-tab-aps" data-tab="aps" role="tab" aria-selected="false" aria-controls="tab-aps" tabindex="-1">AP Inventory</button>
+            <button type="button" id="wireless-tab-wlan" data-tab="wlan" role="tab" aria-selected="false" aria-controls="tab-wlan" tabindex="-1">WLAN / SSID</button>
+            <button type="button" id="wireless-tab-vap" data-tab="vap" role="tab" aria-selected="false" aria-controls="tab-vap" tabindex="-1">VAP Profiles</button>
+            <button type="button" id="wireless-tab-groups" data-tab="groups" role="tab" aria-selected="false" aria-controls="tab-groups" tabindex="-1">AP Group / Tags</button>
+            <button type="button" id="wireless-tab-profiles" data-tab="profiles" role="tab" aria-selected="false" aria-controls="tab-profiles" tabindex="-1">AP Profiles</button>
+            <button type="button" id="wireless-tab-users" data-tab="users" role="tab" aria-selected="false" aria-controls="tab-users" tabindex="-1">Local Users</button>
+            <button type="button" id="wireless-tab-findings" data-tab="findings" role="tab" aria-selected="false" aria-controls="tab-findings" tabindex="-1">Analysis Log</button>
+        </div>
+        <div class="tab-content active" id="tab-overview" role="tabpanel" aria-labelledby="wireless-tab-overview"><div class="overview-grid">
+          <article class="wide"><div class="chart-card-heading"><h3>Assessment Dashboard</h3><p>Click a bar to jump to its underlying data.</p></div><div class="chart-canvas-wrap" id="wireless-dashboard-chart"></div></article>
+          <article><h3>WLC Information</h3><div id="wlc-information" class="kv-list"></div></article>
+          <article><h3>AP Status</h3><div id="status-breakdown" class="status-breakdown"></div></article>
+          <article class="wide"><h3>Assessment Summary</h3><div id="assessment-summary"></div></article>
+          <article class="wide ap-device-summary-card"><div class="chart-card-heading"><div><h3>AP Model &amp; Software Summary</h3><p>Device-type distribution, runtime software versions, and version consistency.</p></div><span class="version-chip">Runtime inventory</span></div><div id="ap-device-summary"></div></article>
+        </div></div>
+        <div class="tab-content" id="tab-deployment" role="tabpanel" aria-labelledby="wireless-tab-deployment"><div id="deployment-empty" class="empty-state compact">Upload an AP Master Inventory with the WLC backup to generate deployment validation.</div><div id="deployment-content" class="hidden"><div id="deployment-summary" class="deployment-summary"></div><div class="table-tools"><input data-table-search="deployment-table" aria-label="Search deployment validation" placeholder="Search validation status, AP name, serial, mismatch..."><span id="deployment-count-label"></span></div><div class="table-wrap"><table id="deployment-table"></table></div><h3 class="subsection-title">Unexpected AP Detected on WLC</h3><div class="table-wrap"><table id="unexpected-table"></table></div></div></div>
+        <div class="tab-content" id="tab-aps" role="tabpanel" aria-labelledby="wireless-tab-aps"><div class="table-tools"><input data-table-search="ap-table" aria-label="Search AP inventory" placeholder="Search AP name, MAC, serial, status..."><span id="ap-count-label"></span></div><div class="table-wrap"><table id="ap-table"></table></div></div>
+        <div class="tab-content" id="tab-wlan" role="tabpanel" aria-labelledby="wireless-tab-wlan"><div class="table-tools"><input data-table-search="wlan-table" aria-label="Search WLAN and SSID" placeholder="Search SSID, profile, VLAN..."></div><div class="table-wrap"><table id="wlan-table"></table></div></div>
+        <div class="tab-content" id="tab-vap" role="tabpanel" aria-labelledby="wireless-tab-vap">
+          <div class="vap-intro"><div><span class="eyebrow">Huawei service binding</span><h3>VAP profile inventory</h3><p>One row per VAP, with its SSID, security, VLAN, authentication, and the AP Group/site where it is delivered. Open “Full VAP config” to inspect every command inside the profile.</p></div><div class="vap-summary" id="vap-summary"></div></div>
+          <div class="table-tools"><input data-table-search="vap-table" aria-label="Search VAP profiles" placeholder="Search VAP, site/AP group, SSID, VLAN, or auth profile..."><span id="vap-count-label" aria-live="polite"></span></div>
+          <div class="table-wrap vap-table-wrap"><table id="vap-table"></table></div>
+        </div>
+        <div class="tab-content" id="tab-groups" role="tabpanel" aria-labelledby="wireless-tab-groups"><div class="table-tools"><input data-table-search="group-table" aria-label="Search AP groups and tags" placeholder="Search AP group, tag, or SSID..."></div><div class="table-wrap"><table id="group-table"></table></div></div>
+        <div class="tab-content" id="tab-profiles" role="tabpanel" aria-labelledby="wireless-tab-profiles"><div class="table-tools"><input data-table-search="profile-table" aria-label="Search AP profiles" placeholder="Search AP profile or WLAN mapping..."></div><div class="table-wrap"><table id="profile-table"></table></div></div>
+        <div class="tab-content" id="tab-users" role="tabpanel" aria-labelledby="wireless-tab-users"><div class="table-tools"><input data-table-search="user-table" aria-label="Search local users" placeholder="Search local users..."></div><div class="table-wrap"><table id="user-table"></table></div></div>
+        <div class="tab-content" id="tab-findings" role="tabpanel" aria-labelledby="wireless-tab-findings"><div id="finding-list" class="finding-list"></div></div>
+    </div>
+</div>
+</div>
+
+<section id="wireless-role-workspace" class="hidden">
+  <form id="ap-role-form" class="panel wireless-intake role-intake" enctype="multipart/form-data">
+    <div class="intake-heading">
+      <div><h2>Compare AP active and standby roles</h2><p>Match Controller A and Controller B operational inventories by MAC, serial, then AP name. Capture both WLCs within 1–2 minutes.</p></div>
+      <span class="intake-mode"><i></i>Operational state</span>
+    </div>
+    <div class="intake-file-grid">
+      <section class="intake-card">
+        <div class="intake-card-heading"><span class="intake-step">1</span><div><h3>Controller A AP State</h3><p>AP inventory captured from the first controller.</p></div><span class="intake-badge required">Required</span></div>
+        <label class="role-controller-name"><span>Controller label</span><input type="text" name="a_name" id="ap-role-a-name" value="Controller A" maxlength="80"></label>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="a_inventory" id="ap-role-a-file" accept=".csv,.xlsx,.xlsm,.txt,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Controller A AP State</strong><small id="ap-role-a-label">AP Info CSV/XLSX or display ap all TXT</small></span></label>
+        <button class="clear-upload hidden" id="clear-ap-role-a" type="button">Remove selected file</button>
+        <div class="capture-help static"><strong>Operational source</strong><p>Use AP Info with <code>Group name</code>, or a complete <code>display ap all</code> capture.</p></div>
+      </section>
+      <section class="intake-card">
+        <div class="intake-card-heading"><span class="intake-step">2</span><div><h3>Controller B AP State</h3><p>AP inventory captured from the second controller.</p></div><span class="intake-badge required">Required</span></div>
+        <label class="role-controller-name"><span>Controller label</span><input type="text" name="b_name" id="ap-role-b-name" value="Controller B" maxlength="80"></label>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="b_inventory" id="ap-role-b-file" accept=".csv,.xlsx,.xlsm,.txt,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Controller B AP State</strong><small id="ap-role-b-label">AP Info CSV/XLSX or display ap all TXT</small></span></label>
+        <button class="clear-upload hidden" id="clear-ap-role-b" type="button">Remove selected file</button>
+        <div class="capture-help static"><strong>Time-aligned snapshot</strong><p>Include <code>Group name</code> and capture within 1–2 minutes of Controller A.</p></div>
+      </section>
+    </div>
+    <div class="role-allocation-strip">
+      <div><span class="intake-badge">Optional</span><strong>Validate expected active WLC</strong><small>Add an allocation file only when Keystone should verify whether each AP is active on the intended controller.</small></div>
+      <label class="drop-zone horizontal compact-drop"><input type="file" name="allocation_file" id="ap-role-allocation-file" accept=".csv,.xlsx,.xlsm"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#plus"></use></svg></span><span><strong>Select expected allocation</strong><small id="ap-role-allocation-label">CSV or XLSX</small></span></label>
+      <div class="role-allocation-actions"><button class="secondary-button hidden" id="clear-ap-role-allocation" type="button">Clear</button><a class="secondary-button" href="/wireless/ap-role/template">Download Template</a></div>
+    </div>
+    <div class="intake-actionbar">
+      <div class="intake-action-copy"><span class="intake-step">3</span><div><strong>Build AP role matrix</strong><small>Normal identifies the active WLC; Standby identifies the peer. AP ID differences are ignored.</small></div></div>
+      <button class="primary-button" id="compare-ap-role-button" type="submit"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#wireless"></use></svg>Compare AP Roles</button>
+    </div>
+  </form>
+
+  <details class="panel ap-status-guide" open>
+    <summary><span><strong>AP Status Guide</strong><small>Arti status dengan bahasa sederhana untuk membantu tim membaca hasil Controller A dan Controller B.</small></span><em>Normal dan Standby dapat menjadi pasangan yang sehat</em></summary>
+    <div class="ap-status-guide-content">
+      <div class="ap-status-card-grid">
+        {% for item in ap_status_guide %}
+        <article class="ap-status-card {{ item.tone }}">
+          <header><span class="role-badge state {{ item.status|lower }}">{{ item.status }}</span><strong>{{ item.action }}</strong></header>
+          <p>{{ item.meaning }}</p>
+        </article>
+        {% endfor %}
+      </div>
+      <div class="ap-role-pair-guide">
+        <h3>Cara membaca pasangan status Controller A dan Controller B</h3>
+        {% for item in ap_role_pair_guide %}
+        <div><span>{{ item.pair }}</span><strong>{{ item.result }}</strong><small>{{ item.meaning }}</small></div>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+
+  <div id="ap-role-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#wireless"></use></svg></div><h3>AP Role Diff workspace is ready</h3><p>Upload Controller A and Controller B AP State snapshots to identify the active controller, standby coverage, role anomalies, and inventory differences for every AP.</p></div>
+
+  <div id="ap-role-result" class="hidden">
+    <div class="wireless-summary role-summary" id="ap-role-summary"></div>
+    <div class="analysis-toolbar panel role-toolbar"><div><strong id="ap-role-comparison-name">Controller A ↔ Controller B</strong><span id="ap-role-source-summary"></span></div><div class="toolbar-actions"><a id="ap-role-export" class="primary-button" href="#">Export Excel</a></div></div>
+    <div class="tab-shell panel">
+      <div class="tab-nav" id="ap-role-tabs" role="tablist" aria-label="AP role comparison results">
+        <button type="button" class="active" id="ap-role-tab-button-overview" data-ap-role-tab="overview" role="tab" aria-selected="true" aria-controls="ap-role-tab-overview">Overview</button>
+        <button type="button" id="ap-role-tab-button-groups" data-ap-role-tab="groups" role="tab" aria-selected="false" aria-controls="ap-role-tab-groups" tabindex="-1">AP Groups</button>
+        <button type="button" id="ap-role-tab-button-a" data-ap-role-tab="a" role="tab" aria-selected="false" aria-controls="ap-role-tab-a" tabindex="-1">Active Controller A</button>
+        <button type="button" id="ap-role-tab-button-b" data-ap-role-tab="b" role="tab" aria-selected="false" aria-controls="ap-role-tab-b" tabindex="-1">Active Controller B</button>
+        <button type="button" id="ap-role-tab-button-issues" data-ap-role-tab="issues" role="tab" aria-selected="false" aria-controls="ap-role-tab-issues" tabindex="-1">Role Issues</button>
+        <button type="button" id="ap-role-tab-button-allocation" data-ap-role-tab="allocation" role="tab" aria-selected="false" aria-controls="ap-role-tab-allocation" tabindex="-1">Allocation Mismatch</button>
+        <button type="button" id="ap-role-tab-button-attributes" data-ap-role-tab="attributes" role="tab" aria-selected="false" aria-controls="ap-role-tab-attributes" tabindex="-1">Attribute Mismatch</button>
+        <button type="button" id="ap-role-tab-button-input" data-ap-role-tab="input" role="tab" aria-selected="false" aria-controls="ap-role-tab-input" tabindex="-1">Input Issues</button>
+      </div>
+      <div class="ap-role-tab-content active" id="ap-role-tab-overview" role="tabpanel" aria-labelledby="ap-role-tab-button-overview">
+        <div class="role-overview-grid"><article><h3>Comparison policy</h3><div id="ap-role-policy" class="kv-list"></div></article><article><h3>Role distribution</h3><div id="ap-role-distribution" class="role-distribution"></div></article></div>
+        <div class="table-tools role-table-filters">
+          <label><span>AP Group</span><select id="ap-role-overview-group-filter" aria-label="Filter role matrix by AP group"><option value="">All AP Groups</option></select></label>
+          <label class="table-search-field"><span>Search role matrix</span><input id="ap-role-search" aria-label="Search AP role matrix" placeholder="Search AP name, MAC, status, role, model..."></label>
+          <span id="ap-role-count-label" aria-live="polite"></span>
+        </div>
+        <div class="table-wrap"><table id="ap-role-all-table"></table></div>
+      </div>
+      <div class="ap-role-tab-content" id="ap-role-tab-groups" role="tabpanel" aria-labelledby="ap-role-tab-button-groups">
+        <div class="ap-group-heading">
+          <div><h3>AP mapping by group</h3><p>Mapping Group menggunakan group Controller A sebagai referensi, lalu menggunakan group Controller B jika AP hanya ditemukan di Controller B.</p></div>
+          <div class="ap-group-metrics" id="ap-role-group-metrics"></div>
+        </div>
+        <div class="table-tools ap-group-summary-tools">
+          <label class="table-search-field"><span>Search group summary</span><input id="ap-role-group-summary-search" aria-label="Search AP group summary" placeholder="Search AP Group..."></label>
+          <span id="ap-role-group-summary-count" aria-live="polite"></span>
+        </div>
+        <div class="table-wrap"><table id="ap-role-group-summary-table"></table></div>
+        <section class="ap-group-detail-panel" aria-labelledby="ap-role-group-detail-title">
+          <header><div><h3 id="ap-role-group-detail-title">AP list by group</h3><p>Select a group or mapping status to inspect each AP.</p></div><span id="ap-role-group-ap-count" aria-live="polite"></span></header>
+          <div class="table-tools ap-group-detail-filters">
+            <label><span>AP Group</span><select id="ap-role-group-filter"><option value="">All AP Groups</option></select></label>
+            <label><span>Mapping Status</span><select id="ap-role-group-status-filter"><option value="">All Mapping Statuses</option><option>Matched</option><option>Group Mismatch</option><option>Peer Group Missing</option><option>Unassigned</option></select></label>
+            <label class="table-search-field"><span>Search AP</span><input id="ap-role-group-search" placeholder="Search AP name or MAC..."></label>
+          </div>
+          <div class="table-wrap"><table id="ap-role-group-ap-table"></table></div>
+        </section>
+      </div>
+      <div class="ap-role-tab-content" id="ap-role-tab-a" role="tabpanel" aria-labelledby="ap-role-tab-button-a"><div class="table-wrap"><table id="ap-role-a-table"></table></div></div>
+      <div class="ap-role-tab-content" id="ap-role-tab-b" role="tabpanel" aria-labelledby="ap-role-tab-button-b"><div class="table-wrap"><table id="ap-role-b-table"></table></div></div>
+      <div class="ap-role-tab-content" id="ap-role-tab-issues" role="tabpanel" aria-labelledby="ap-role-tab-button-issues"><div class="empty-state compact role-policy-note">Dual-active, no-active, missing peer, and non-ready backup states require review.</div><div class="table-wrap"><table id="ap-role-issues-table"></table></div></div>
+      <div class="ap-role-tab-content" id="ap-role-tab-allocation" role="tabpanel" aria-labelledby="ap-role-tab-button-allocation"><div class="empty-state compact role-policy-note">This tab is populated when an optional Expected Allocation file is supplied.</div><div class="table-wrap"><table id="ap-role-allocation-table"></table></div></div>
+      <div class="ap-role-tab-content" id="ap-role-tab-attributes" role="tabpanel" aria-labelledby="ap-role-tab-button-attributes"><div class="table-wrap"><table id="ap-role-attributes-table"></table></div></div>
+      <div class="ap-role-tab-content" id="ap-role-tab-input" role="tabpanel" aria-labelledby="ap-role-tab-button-input"><div class="table-wrap"><table id="ap-role-input-table"></table></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="wireless-delta-workspace" class="hidden">
+  <form id="delta-form" class="panel wireless-intake delta-intake" enctype="multipart/form-data">
+    <div class="intake-heading">
+      <div><h2>Generate Source-to-Target config delta</h2><p>Use the Source WLC as the reference. Target-only configuration is reported and never removed automatically.</p></div>
+      <span class="intake-mode"><i></i>Local comparison</span>
+    </div>
+    <div class="intake-file-grid">
+      <section class="intake-card">
+        <div class="intake-card-heading"><span class="intake-step">1</span><div><h3>Source WLC</h3><p>Golden or reference configuration.</p></div><span class="intake-badge required">Required</span></div>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="source_file" id="delta-source-file" accept=".txt,.cfg,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Source config</strong><small id="delta-source-label">TXT, CFG, or terminal capture</small></span></label>
+        <button class="clear-upload hidden" id="clear-delta-source" type="button">Remove selected file</button>
+        <div class="capture-help static"><strong>Source of truth</strong><p>Objects and values from this file become the desired state for the Target WLC.</p></div>
+      </section>
+      <section class="intake-card">
+        <div class="intake-card-heading"><span class="intake-step">2</span><div><h3>Target WLC</h3><p>Controller that will receive the generated delta.</p></div><span class="intake-badge required">Required</span></div>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="target_file" id="delta-target-file" accept=".txt,.cfg,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Target config</strong><small id="delta-target-label">TXT, CFG, or terminal capture</small></span></label>
+        <button class="clear-upload hidden" id="clear-delta-target" type="button">Remove selected file</button>
+        <div class="capture-help static"><strong>Safe target policy</strong><p>Target-only objects stay untouched. Device identity and secrets always require manual review.</p></div>
+      </section>
+    </div>
+    <div class="intake-actionbar">
+      <div class="intake-action-copy"><span class="intake-step">3</span><div><strong>Compare and generate implementation commands</strong><small>Same-vendor comparison only: Huawei to Huawei or Cisco 9800 to Cisco 9800.</small></div></div>
+      <label class="compact-select"><span>WLC Vendor</span><select name="vendor" id="delta-vendor"><option>Auto Detect</option><option>Huawei</option><option>Cisco</option></select></label>
+      <button class="primary-button" id="compare-button" type="submit"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Compare &amp; Generate</button>
+    </div>
+  </form>
+
+  <div id="delta-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#swap"></use></svg></div><h3>Config Delta workspace is ready</h3><p>Upload Source and Target WLC backups. NES compares every configuration section, uses structured parsing for known wireless objects, captures the rest with a safe fallback parser, and masks sensitive values.</p></div>
+
+  <div id="delta-result" class="hidden">
+    <div class="wireless-summary delta-summary" id="delta-summary"></div>
+    <div class="analysis-toolbar panel delta-toolbar"><div><strong id="delta-comparison-name">WLC Config Delta</strong><span id="delta-platform"></span></div><div class="toolbar-actions"><a id="delta-download" class="primary-button" href="#">Download Delta</a><a id="delta-rollback-download" class="secondary-button" href="#">Rollback</a><a id="delta-export" class="secondary-button" href="#">Export Excel</a></div></div>
+    <div class="tab-shell panel">
+      <div class="tab-nav" id="delta-tabs" role="tablist" aria-label="Config delta results">
+        <button type="button" class="active" id="delta-tab-button-overview" data-delta-tab="overview" role="tab" aria-selected="true" aria-controls="delta-tab-overview">Overview</button>
+        <button type="button" id="delta-tab-button-missing" data-delta-tab="missing" role="tab" aria-selected="false" aria-controls="delta-tab-missing" tabindex="-1">Missing on Target</button>
+        <button type="button" id="delta-tab-button-changed" data-delta-tab="changed" role="tab" aria-selected="false" aria-controls="delta-tab-changed" tabindex="-1">Value Mismatch</button>
+        <button type="button" id="delta-tab-button-extra" data-delta-tab="extra" role="tab" aria-selected="false" aria-controls="delta-tab-extra" tabindex="-1">Extra on Target</button>
+        <button type="button" id="delta-tab-button-mac-auth" data-delta-tab="mac-auth" role="tab" aria-selected="false" aria-controls="delta-tab-mac-auth" tabindex="-1">MAC Authentication</button>
+        <button type="button" id="delta-tab-button-manual" data-delta-tab="manual" role="tab" aria-selected="false" aria-controls="delta-tab-manual" tabindex="-1">Manual Review</button>
+        <button type="button" id="delta-tab-button-implementation" data-delta-tab="implementation" role="tab" aria-selected="false" aria-controls="delta-tab-implementation" tabindex="-1">Generated Delta</button>
+        <button type="button" id="delta-tab-button-rollback" data-delta-tab="rollback" role="tab" aria-selected="false" aria-controls="delta-tab-rollback" tabindex="-1">Rollback Plan</button>
+      </div>
+      <div class="delta-tab-content active" id="delta-tab-overview" role="tabpanel" aria-labelledby="delta-tab-button-overview"><div class="delta-overview-grid"><article><h3>Directional policy</h3><div id="delta-safety" class="kv-list"></div></article><article><h3>Difference by category</h3><div id="delta-category-summary" class="delta-category-list"></div></article></div><div class="table-wrap"><table id="delta-all-table" class="delta-result-table"></table></div></div>
+      <div class="delta-tab-content" id="delta-tab-missing" role="tabpanel" aria-labelledby="delta-tab-button-missing"><div class="table-wrap"><table id="delta-missing-table" class="delta-result-table"></table></div></div>
+      <div class="delta-tab-content" id="delta-tab-changed" role="tabpanel" aria-labelledby="delta-tab-button-changed"><div class="table-wrap"><table id="delta-changed-table" class="delta-result-table"></table></div></div>
+      <div class="delta-tab-content" id="delta-tab-extra" role="tabpanel" aria-labelledby="delta-tab-button-extra"><div class="empty-state compact delta-policy-note">Report only — no removal commands are generated for Target-only objects.</div><div class="table-wrap"><table id="delta-extra-table" class="delta-result-table"></table></div></div>
+      <div class="delta-tab-content" id="delta-tab-mac-auth" role="tabpanel" aria-labelledby="delta-tab-button-mac-auth">
+        <div class="delta-mac-auth-intro">
+          <div><span class="eyebrow">Dependency-aware view</span><h3>MAC authentication from AAA to AP group</h3><p>Checks the complete delivery chain: RADIUS and AAA, access profiles, authentication policy, WLAN bindings, then AP groups. Masked secrets and local AAA users stay in manual review.</p></div>
+          <div class="delta-mac-auth-metrics" id="delta-mac-auth-metrics"></div>
+        </div>
+        <div class="delta-dependency-stages" id="delta-mac-auth-stages" aria-label="MAC authentication dependency stages"></div>
+        <div class="table-wrap"><table id="delta-mac-auth-table" class="delta-result-table"></table></div>
+      </div>
+      <div class="delta-tab-content" id="delta-tab-manual" role="tabpanel" aria-labelledby="delta-tab-button-manual"><div class="empty-state compact delta-policy-note">Review device identity, AP assignment, certificates, licensing, and masked secrets before implementation.</div><div class="table-wrap"><table id="delta-manual-table" class="delta-result-table"></table></div></div>
+      <div class="delta-tab-content" id="delta-tab-implementation" role="tabpanel" aria-labelledby="delta-tab-button-implementation"><div class="code-panel delta-code"><header><span>Source → Target implementation candidate</span><button type="button" data-copy="delta-implementation-code">Copy</button></header><pre id="delta-implementation-code"></pre></div></div>
+      <div class="delta-tab-content" id="delta-tab-rollback" role="tabpanel" aria-labelledby="delta-tab-button-rollback"><div class="code-panel delta-code"><header><span>Rollback candidate — validate before maintenance</span><button type="button" data-copy="delta-rollback-code">Copy</button></header><pre id="delta-rollback-code"></pre></div></div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/wireless.js') }}"></script><script src="{{ url_for('static', filename='js/wireless_delta.js') }}"></script><script src="{{ url_for('static', filename='js/wireless_ap_roles.js') }}"></script>{% endblock %}

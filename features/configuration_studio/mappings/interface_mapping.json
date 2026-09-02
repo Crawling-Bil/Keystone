@@ -1,0 +1,42 @@
+{
+    "interface_types": {
+        "GigabitEthernet": "GigabitEthernet",
+        "FastEthernet": "GigabitEthernet",
+        "TenGigabitEthernet": "10GE",
+        "TwentyFiveGigE": "25GE",
+        "TwentyFiveGigabitEthernet": "25GE",
+        "FortyGigabitEthernet": "40GE",
+        "HundredGigE": "100GE",
+        "HundredGigabitEthernet": "100GE",
+        "Port-channel": "Eth-Trunk",
+        "Port-Channel": "Eth-Trunk",
+        "Loopback": "LoopBack",
+        "Vlan": "Vlanif"
+    },
+
+    "interface_numbering": {
+        "GigabitEthernet": {
+            "1/0/": "0/0/"
+        },
+
+        "FastEthernet": {
+            "0/": "0/0/"
+        }
+    },
+
+    "etherchannel": {
+        "source_prefix": "Port-channel",
+        "target_prefix": "Eth-Trunk",
+        "lacp_mode": "lacp-static"
+    },
+
+    "svi": {
+        "source_prefix": "Vlan",
+        "target_prefix": "Vlanif"
+    },
+
+    "loopback": {
+        "source_prefix": "Loopback",
+        "target_prefix": "LoopBack"
+    }
+}

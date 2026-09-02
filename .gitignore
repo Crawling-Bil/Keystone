@@ -1,0 +1,48 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+
+# ---- Editors ----
+.vscode/
+.idea/
+
+# ---- Stray manual backups / build artifacts (superseded by git itself) ----
+*.zip
+*.tar.gz
+zi0l4fY1
+_to_delete/
+
+# ---- Unrelated local tool cache (not part of this app) ----
+.impeccable/
+
+# ---- Runtime / instance data -- NEVER commit: contains real device ----
+# ---- credentials, secret keys, config backups, and generated files. ----
+# ---- Each dir keeps its .gitkeep so the folder structure still ships. ----
+data/*
+!data/.gitkeep
+uploads/*
+!uploads/.gitkeep
+exports/*
+!exports/.gitkeep
+logs/*
+!logs/.gitkeep
+
+features/ztp/data/
+features/lifecycle_manager/data/
+features/lifecycle_manager/backups/
+features/lifecycle_manager/config/settings.json
+
+# ---- Firmware binaries -- large, environment-specific, not source. ----
+# ---- Keep the folder structure via .gitkeep, ignore the actual images. ----
+features/lifecycle_manager/firmware/*/*
+!features/lifecycle_manager/firmware/*/.gitkeep

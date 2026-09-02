@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Switch Analyzer · Keystone{% endblock %}
+{% block page_title %}Switch Analyzer{% endblock %}
+{% block page_subtitle %}Analyze Cisco, Huawei, and Aruba switch configurations — hostname, routing, interfaces, DNS, and SNMP at a glance.{% endblock %}
+{% block content %}
+
+<form id="switch-form" class="panel wireless-upload" enctype="multipart/form-data">
+    <div class="upload-section"><label class="field-label">Switch Config</label><label class="drop-zone horizontal"><input type="file" name="config_file" id="switch-config-file" accept=".txt,.cfg,.conf,.config,.log"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select switch config</strong><small id="switch-file-label">Cisco, Huawei, or Aruba running-config</small></span></label><button class="clear-upload hidden" id="clear-switch-file" type="button">Cancel selected file</button>
+      <p class="field-hint">Works best with a full running-config export (e.g. <code>show running-config</code> / <code>display current-configuration</code>) plus, if you have them, <code>show ip interface brief</code>, <code>show cdp/lldp neighbors</code>, <code>show etherchannel summary</code> / <code>display eth-trunk</code>, <code>show version</code>, <code>show ip route</code>, and <code>show ip arp</code> — a raw terminal capture with all of these in one file works great.</p>
+    </div>
+    <label class="compact-select"><span>Vendor</span><select name="vendor" id="switch-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
+    <button class="primary-button" id="switch-analyze-button" type="submit">Analyze Switch</button>
+</form>
+<textarea id="switch-config-text" name="config_text" form="switch-form" class="hidden" aria-hidden="true"></textarea>
+
+<div id="switch-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Switch Analyzer workspace is ready</h3><p>Upload or paste a switch configuration to see hostname, routing, interface status, DNS, and SNMP in one dashboard.</p></div>
+
+<div id="switch-result" class="hidden">
+    <div class="analysis-toolbar panel"><div><strong id="switch-source-name">Switch Analysis</strong><span id="switch-platform"></span></div></div>
+    <div class="tab-shell panel">
+        <div class="tab-nav" id="switch-tabs">
+            <button type="button" class="active" data-tab="overview">Overview</button>
+            <button type="button" data-tab="interfaces">Interfaces</button>
+            <button type="button" data-tab="routing">Routing</button>
+            <button type="button" data-tab="vlans">VLANs</button>
+            <button type="button" data-tab="neighbors">CDP/LLDP</button>
+            <button type="button" data-tab="portchannels">Port-Channel</button>
+            <button type="button" data-tab="dns">DNS</button>
+            <button type="button" data-tab="snmp">SNMP</button>
+        </div>
+        <div class="tab-content active" id="switch-tab-overview">
+            <div class="overview-grid">
+                <article class="wide">
+                    <div class="chart-card-heading"><h3>Switch Overview</h3><p>Click a bar to jump to its underlying data.</p></div>
+                    <div class="chart-canvas-wrap" id="switch-dashboard-chart"></div>
+                </article>
+                <article><h3>Device Information</h3><div id="switch-information" class="kv-list"></div></article>
+                <article><h3>DNS</h3><div id="switch-dns-summary" class="kv-list"></div></article>
+            </div>
+        </div>
+        <div class="tab-content" id="switch-tab-interfaces">
+            <div class="table-tools"><input data-table-search="switch-interface-table" placeholder="Search interface name, VLAN, IP, status..."><span id="switch-interface-count-label"></span></div>
+            <div class="table-wrap"><table id="switch-interface-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-routing">
+            <h3 class="subsection-title">Static Routes (from running-config)</h3>
+            <div class="table-wrap"><table id="switch-route-table"></table></div>
+            <h3 class="subsection-title">Routing Table (from show ip route / display ip routing-table)</h3>
+            <div class="table-wrap"><table id="switch-routing-table-table"></table></div>
+            <h3 class="subsection-title">ARP Table</h3>
+            <div class="table-tools"><input data-table-search="switch-arp-table" placeholder="Search IP, MAC, or interface..."></div>
+            <div class="table-wrap"><table id="switch-arp-table"></table></div>
+            <h3 class="subsection-title">Routing Protocols</h3>
+            <div id="switch-routing-protocols" class="kv-list"></div>
+        </div>
+        <div class="tab-content" id="switch-tab-vlans">
+            <div class="table-tools"><input data-table-search="switch-vlan-table" placeholder="Search VLAN ID or name..."></div>
+            <div class="table-wrap"><table id="switch-vlan-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-neighbors">
+            <div id="switch-neighbors-empty" class="empty-state compact hidden">No CDP/LLDP neighbor data found — include <code>show cdp neighbors</code> or <code>show lldp neighbors</code> in the capture.</div>
+            <div class="table-tools"><input data-table-search="switch-neighbor-table" placeholder="Search neighbor, interface, platform..."></div>
+            <div class="table-wrap"><table id="switch-neighbor-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-portchannels">
+            <div id="switch-portchannel-empty" class="empty-state compact hidden">No port-channel / Eth-Trunk data found — include <code>show etherchannel summary</code> or <code>display eth-trunk</code> in the capture.</div>
+            <div class="table-wrap"><table id="switch-portchannel-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-dns">
+            <div id="switch-dns-detail" class="kv-list"></div>
+        </div>
+        <div class="tab-content" id="switch-tab-snmp">
+            <div id="switch-snmp-summary" class="kv-list"></div>
+            <h3 class="subsection-title">Raw SNMP Commands</h3>
+            <div class="table-wrap"><table id="switch-snmp-table"></table></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/switch_analyzer.js') }}"></script>{% endblock %}

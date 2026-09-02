@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Keystone{% endblock %}</title>
+    <script>(function(){try{var t=localStorage.getItem("nes-theme")||"dark";document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+<!--
+THESIS: A focused network operations console that lets engineers choose work by outcome without a long briefing.
+OWN-WORLD: FTD-inspired navy surfaces, cyan actions, Archivo structure, Atkinson copy, quiet dividers, compact SVG controls, and monospace only for network data.
+STORY: A teammate recognizes the task, chooses the right local tool without briefing, completes the workflow, and can verify recent activity.
+FIRST VIEWPORT: A slim appliance-like navigation rail frames the active workflow, service status, and the primary action sequence.
+FORM: Dense but calm network appliance console with restrained interaction color.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+-->
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<div class="app-shell">
+    <aside class="suite-sidebar" id="suite-sidebar" aria-label="Primary navigation">
+        <button class="sidebar-close" id="sidebar-close" type="button" aria-label="Close navigation">
+            <svg><use href="/static/icons/nes-icons.svg#close"></use></svg>
+        </button>
+        <a href="/" class="suite-brand">
+            <span class="suite-logo"><svg class="brand-svg"><use href="/static/icons/nes-icons.svg#logo"></use></svg></span>
+            <span class="suite-brand-copy"><strong>Keystone</strong><em>Network Engineer Suite</em></span>
+        </a>
+        <nav class="suite-nav" aria-label="Suite modules">
+            <a class="suite-nav-item {% if active_page == 'dashboard' %}active{% endif %}" {% if active_page == 'dashboard' %}aria-current="page"{% endif %} href="/"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#dashboard"></use></svg></span>Dashboard</a>
+            <div class="suite-nav-label">Tools</div>
+            <a class="suite-nav-item {% if active_page == 'configuration' %}active{% endif %}" {% if active_page == 'configuration' %}aria-current="page"{% endif %} href="/configuration"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#configuration"></use></svg></span>Configuration Studio</a>
+            <a class="suite-nav-item {% if active_page == 'wireless' %}active{% endif %}" {% if active_page == 'wireless' %}aria-current="page"{% endif %} href="/wireless"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#wireless"></use></svg></span>Wireless Analyzer</a>
+            <a class="suite-nav-item {% if active_page == 'switch_analyzer' %}active{% endif %}" {% if active_page == 'switch_analyzer' %}aria-current="page"{% endif %} href="/switch-analyzer"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></span>Switch Analyzer</a>
+            <a class="suite-nav-item {% if active_page == 'lifecycle' %}active{% endif %}" {% if active_page == 'lifecycle' %}aria-current="page"{% endif %} href="/lifecycle/"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#lifecycle"></use></svg></span>Lifecycle Manager</a>
+            <a class="suite-nav-item {% if active_page == 'ztp' %}active{% endif %}" {% if active_page == 'ztp' %}aria-current="page"{% endif %} href="/ztp/"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#console"></use></svg></span>ZTP Provisioning</a>
+            <a class="suite-nav-item {% if active_page == 'config_push' %}active{% endif %}" {% if active_page == 'config_push' %}aria-current="page"{% endif %} href="/lifecycle/config-push"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span>Config Push</a>
+            <div class="suite-nav-label">System</div>
+            <a class="suite-nav-item {% if active_page == 'about' %}active{% endif %}" {% if active_page == 'about' %}aria-current="page"{% endif %} href="/about"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#about"></use></svg></span>About</a>
+        </nav>
+        <div class="suite-sidebar-footer">
+            <div class="local-badge"><span></span>Local workspace</div>
+            <small>Data stays on this machine</small>
+            <small class="footer-version">Keystone <span>v{{ app_version }}</span></small>
+        </div>
+    </aside>
+
+    <button class="sidebar-scrim" id="sidebar-scrim" type="button" aria-label="Close navigation"></button>
+    <main class="suite-main" id="main-content" tabindex="-1">
+        <header class="suite-topbar">
+            <button class="mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation" aria-controls="suite-sidebar" aria-expanded="false"><svg><use href="/static/icons/nes-icons.svg#menu"></use></svg></button>
+            <div class="topbar-heading">
+                <h1 id="page-heading">{% block page_title %}Keystone{% endblock %}</h1>
+                <p id="page-subtitle">{% block page_subtitle %}One dashboard for your network engineering workflow.{% endblock %}</p>
+            </div>
+            <div class="topbar-right">
+                <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch color theme"><span class="nav-svg theme-icon-dark"><svg><use href="/static/icons/nes-icons.svg#moon"></use></svg></span><span class="nav-svg theme-icon-light"><svg><use href="/static/icons/nes-icons.svg#sun"></use></svg></span></button>
+                <span class="server-pill" role="status"><i></i>Service online</span>
+                <div class="topbar-actions-slot" id="topbar-actions-slot">{% block topbar_actions %}{% endblock %}</div>
+            </div>
+        </header>
+        <section class="page-content" id="spa-outlet">
+            {% block content %}{% endblock %}
+        </section>
+    </main>
+</div>
+<div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/spa-router.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Workspace · Keystone{% endblock %}
+{% block page_title %}Keystone{% endblock %}
+{% block page_subtitle %}Local tools for configuration, assessment, and lifecycle work.{% endblock %}
+{% block content %}
+<section class="desk-intro" aria-labelledby="desk-title">
+    <div>
+        <h2 id="desk-title">What are you working on?</h2>
+        <p>Choose the task that matches your source file or intended output. Each workflow keeps processing on this machine.</p>
+    </div>
+    <div class="desk-status" aria-label="Workspace status">
+        <span><i></i><b id="health-service">All tools ready</b></span>
+        <button class="quiet-button" id="health-check" type="button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#pulse"></use></svg>Check service</button>
+    </div>
+</section>
+
+<section class="tool-workbench" aria-labelledby="tools-title">
+    <div class="workbench-heading">
+        <div>
+            <h2 id="tools-title">Choose a tool</h2>
+            <p>Four focused workflows, one shared local workspace.</p>
+        </div>
+        <label class="module-search">
+            <span class="sr-only">Search tools</span>
+            <svg><use href="/static/icons/nes-icons.svg#search"></use></svg>
+            <input id="module-search" type="search" placeholder="Search tools or tasks" autocomplete="off">
+            <kbd>/</kbd>
+        </label>
+    </div>
+
+    <div class="tool-index" id="module-grid">
+    {% for module in modules %}
+        <a href="{{ module.href }}" class="tool-row {% if loop.first %}tool-row-primary{% endif %}" data-module-name="{{ module.name|lower }} {{ module.description|lower }}">
+            <span class="tool-icon"><svg><use href="/static/icons/nes-icons.svg#{{ module.icon }}"></use></svg></span>
+            <span class="tool-copy">
+                <strong>{{ module.name }}</strong>
+                <small>{{ module.description }}</small>
+            </span>
+            <span class="tool-version">{{ module.version }}</span>
+            <span class="tool-action">Open <svg><use href="/static/icons/nes-icons.svg#arrow-right"></use></svg></span>
+        </a>
+    {% endfor %}
+    </div>
+    <div class="module-empty hidden" id="module-empty" role="status">No tool matches that search. Try “config”, “wireless”, “switch”, or “firmware”.</div>
+</section>
+
+<div class="desk-grid">
+    <section class="manual-panel" aria-labelledby="guide-title">
+        <div class="manual-heading">
+            <div><h2 id="guide-title">Not sure which tool?</h2><p>Start from the outcome you need.</p></div>
+            <span>Quick guide</span>
+        </div>
+        <dl class="task-guide">
+            <div><dt>Convert a running configuration</dt><dd><a href="/configuration">Configuration Studio</a></dd></div>
+            <div><dt>Check AP or WLC inventory</dt><dd><a href="/wireless">Wireless Analyzer</a></dd></div>
+            <div><dt>Review interfaces, routes, VLANs, or SNMP</dt><dd><a href="/switch-analyzer">Switch Analyzer</a></dd></div>
+            <div><dt>Stage firmware and upgrade devices</dt><dd><a href="/lifecycle/">Lifecycle Manager</a></dd></div>
+        </dl>
+    </section>
+
+    <section class="manual-panel" aria-labelledby="activity-title">
+        <div class="manual-heading">
+            <div><h2 id="activity-title">Recent activity</h2><p>Latest local operations across the suite.</p></div>
+            <span>Last 10</span>
+        </div>
+        <div class="activity-list">
+        {% if activities %}
+            {% for item in activities %}
+            <div class="activity-item"><i class="{{ item.status }}"></i><div><strong>{{ item.action }}</strong><span>{{ item.module }}{% if item.detail %} · {{ item.detail }}{% endif %}</span></div><time>{{ item.created_at[11:16] }}</time></div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state compact">No activity yet. Open a tool and run your first workflow.</div>
+        {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

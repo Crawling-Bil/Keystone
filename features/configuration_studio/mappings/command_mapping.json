@@ -1,0 +1,13 @@
+{
+    "hostname": "sysname",
+    "description": "description",
+    "shutdown": "shutdown",
+    "no shutdown": "undo shutdown",
+    "switchport mode access": "port link-type access",
+    "switchport mode trunk": "port link-type trunk",
+    "switchport access vlan": "port default vlan",
+    "switchport trunk native vlan": "port trunk pvid vlan",
+    "switchport trunk allowed vlan": "port trunk allow-pass vlan",
+    "ip default-gateway": "ip route-static",
+    "ip route": "ip route-static"
+}

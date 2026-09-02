@@ -1,0 +1,31 @@
+NETWORK ENGINEER SUITE WEB v1.8.0 — BUILD AUDIT
+
+Delivered scope
+- Config Delta now compares the complete Source and Target configuration instead of limiting coverage to predefined wireless objects.
+- Known Huawei and Cisco WLC objects retain structured parsing, readable categories, dependency priority, and correct CLI context.
+- A section-aware fallback parser captures ACL, traffic policy, routing, management, monitoring, and previously unknown configuration sections.
+- Huawei and Cisco named ACLs are compared as objects with rule-level Source Delta and Target-only detail.
+- A changed Huawei ACL rule ID is safely replaced with undo rule <id> followed by the Source rule; rollback restores the original Target rule.
+- Safe Source-only commands are included in Generated Delta. Target-only configuration remains report-only.
+- Device-specific routing/source interfaces, controller identity, credentials, key material, destructive commands, licensing, and certificates remain in Manual Review.
+- Excel output identifies Structured versus Fallback parser results and includes both counts in Comparison Summary.
+
+Supplied TTC-to-HO validation
+- TTC was validated as golden Source and HO as Target using the supplied Huawei WLC 9700 full configurations.
+- 783 configuration objects were compared: 581 structured objects and 202 fallback objects.
+- Directional result: 360 Identical, 97 Missing on Target, 245 Value Mismatch, and 81 Extra on Target.
+- ACL result: 18 Identical, 2 Missing on Target, 1 Value Mismatch, and 2 Extra on Target.
+- 102 safe objects produced implementation candidates; 269 differences were retained for Manual Review.
+- Generated CLI contains valid system-view/return wrappers, ACL context, and rule replacement handling.
+
+Security and privacy
+- Passwords, PSKs, passphrases, shared keys, SNMP communities, SNMPv3 authentication/privacy material, and cipher blobs are masked in reports and excluded from generated CLI.
+- Sensitive-value scan of the real TTC/HO comparison found zero leaked values.
+- Supplied controller backups are validation input only and are excluded from the release archive.
+- Runtime uploads, databases, exports, caches, and generated comparison payloads are excluded from the release archive.
+
+Functional QA
+- 35/35 Python regression tests passed.
+- Python compilation and JavaScript syntax checks passed.
+- Real-data Excel export produced all ten expected worksheets with parser-mode detail.
+- Archive integrity, privacy exclusions, executable launcher permissions, and version naming were verified.

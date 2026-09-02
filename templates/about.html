@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}About · Keystone{% endblock %}
+{% block page_title %}About Keystone{% endblock %}
+{% block page_subtitle %}Built by engineers, for engineers.{% endblock %}
+{% block content %}
+<div class="about-grid">
+    <article class="panel about-hero"><span class="suite-logo large"><svg class="brand-svg"><use href="/static/icons/nes-icons.svg#logo"></use></svg></span><div><h2>Keystone <span class="version-chip">v{{ app_version }}</span></h2><p>Network Engineer Suite — a local-first platform that unifies configuration conversion, wireless assessment, switch analysis, device lifecycle operations, and future network engineering workflows.</p></div></article>
+    <article class="panel"><h3>Runtime</h3><div class="integration-list"><div><span>Frontend</span><strong>HTML · CSS · JavaScript</strong></div><div><span>Backend</span><strong>Flask · Waitress</strong></div><div><span>Database</span><strong>SQLite</strong></div><div><span>Binding</span><strong>127.0.0.1:8002</strong></div></div></article>
+    <article class="panel"><h3>Security Defaults</h3><p class="muted-copy">Keystone binds to localhost by default. Files are processed locally and temporary uploads are removed after processing. Remote network access and HTTPS can be added later with authentication and credential protection.</p></article>
+</div>
+{% endblock %}

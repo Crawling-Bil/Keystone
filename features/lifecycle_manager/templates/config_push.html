@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Config Push · Keystone{% endblock %}
+{% block page_title %}Config Push{% endblock %}
+{% block page_subtitle %}Push a prepared draft config to an already-discovered device over SSH — no firmware, no reload.{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('lifecycle.static', filename='css/style.css') }}">{% endblock %}
+{% block topbar_actions %}
+<div id="config-push-demo-badge" class="demo-badge">DEMO MODE</div>
+<button id="config-push-refresh-devices" class="button button-secondary">Refresh Devices</button>
+{% endblock %}
+{% block content %}
+<div id="lifecycle-scope">
+
+    <div class="content-card">
+
+        <div class="card-header">
+
+            <div>
+                <h3>Select Devices</h3>
+                <p id="config-push-devices-status">Loading devices…</p>
+            </div>
+
+            <div class="card-actions">
+                <span id="config-push-selected-count">0 devices selected</span>
+            </div>
+
+        </div>
+
+        <div id="config-push-device-checklist" class="config-push-device-list">
+            <div class="empty-state">Loading devices…</div>
+        </div>
+
+    </div>
+
+    <div class="content-card">
+
+        <div class="card-header">
+            <div>
+                <h3>Assign Draft Configs</h3>
+                <p>Pick a saved draft (from Configuration Studio, or an earlier Config Push) or paste one in — one per selected device.</p>
+            </div>
+        </div>
+
+        <div id="config-push-device-list" class="config-push-device-list">
+            <div class="empty-state">Select at least one device above.</div>
+        </div>
+
+        <div class="form-actions">
+            <button id="config-push-create-job-button" type="button" class="button button-primary" disabled>Create Config Push Job</button>
+        </div>
+
+        <p class="field-hint">
+            Independent of ZTP and firmware upgrades — the device stays online throughout, applied line by line via
+            <code>system-view</code>, with a before/after config snapshot saved for audit. Once created, watch its
+            progress and per-line push results on the <a href="/lifecycle/">Upgrade Jobs</a> page.
+        </p>
+
+    </div>
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('lifecycle.static', filename='js/config_push.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,1167 @@
+{% extends "base.html" %}
+{% block title %}Lifecycle Manager · Keystone{% endblock %}
+{% block page_title %}Lifecycle Manager{% endblock %}
+{% block page_subtitle %}Device discovery, firmware repository, detailed pre-check, and upgrade jobs.{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('lifecycle.static', filename='css/style.css') }}">{% endblock %}
+{% block topbar_actions %}
+<div id="demo-badge" class="demo-badge">DEMO MODE</div>
+<button id="refresh-button" class="button button-secondary">Refresh</button>
+{% endblock %}
+{% block content %}
+<div class="lifecycle-tabs">
+    <button class="nav-item active" data-page="dashboard"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#dashboard"></use></svg></span><span>Dashboard</span></button>
+    <button class="nav-item" data-page="discovery"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#discovery"></use></svg></span><span>Device Discovery</span></button>
+    <button class="nav-item" data-page="firmware"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#firmware"></use></svg></span><span>Firmware Repository</span></button>
+    <button class="nav-item" data-page="jobs"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#jobs"></use></svg></span><span>Upgrade Jobs</span></button>
+    <button class="nav-item" data-page="settings"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#settings"></use></svg></span><span>Settings</span></button>
+</div>
+
+<div class="lifecycle-subheader">
+    <h2 id="page-title">Dashboard</h2>
+    <p id="page-description">Overview of your switch staging environment.</p>
+</div>
+<div id="lifecycle-scope">
+        <section
+            id="page-dashboard"
+            class="page active"
+        >
+
+            <div class="stats-grid">
+
+
+                <div class="stat-card">
+
+                    <div class="stat-label">
+                        Total Devices
+                    </div>
+
+                    <div
+                        id="stat-total-devices"
+                        class="stat-value"
+                    >
+                        0
+                    </div>
+
+                    <div class="stat-description">
+                        Discovered switches
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-label">
+                        Online Devices
+                    </div>
+
+                    <div
+                        id="stat-online-devices"
+                        class="stat-value"
+                    >
+                        0
+                    </div>
+
+                    <div class="stat-description">
+                        Ready for staging
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-label">
+                        Firmware Images
+                    </div>
+
+                    <div
+                        id="stat-firmware-images"
+                        class="stat-value"
+                    >
+                        0
+                    </div>
+
+                    <div class="stat-description">
+                        Available in repository
+                    </div>
+
+                </div>
+
+
+                <div class="stat-card">
+
+                    <div class="stat-label">
+                        Active Jobs
+                    </div>
+
+                    <div
+                        id="stat-active-jobs"
+                        class="stat-value"
+                    >
+                        0
+                    </div>
+
+                    <div class="stat-description">
+                        Upgrade operations
+                    </div>
+
+                </div>
+
+
+            </div>
+
+
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h3>
+                            Staging Devices
+                        </h3>
+
+                        <p>
+                            Recently discovered switches.
+                        </p>
+
+                    </div>
+
+
+                    <button
+                        class="button button-primary"
+                        data-go-page="discovery"
+                    >
+                        Discover Devices
+                    </button>
+
+                </div>
+
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>IP Address</th>
+                                <th>Hostname</th>
+                                <th>Vendor</th>
+                                <th>Platform</th>
+                                <th>Model</th>
+                                <th>Version</th>
+                                <th>Status</th>
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="dashboard-device-table">
+
+                            <tr>
+
+                                <td
+                                    colspan="7"
+                                    class="empty-state"
+                                >
+                                    No devices discovered.
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =================================================
+             DEVICE DISCOVERY PAGE
+        ================================================== -->
+
+        <section
+            id="page-discovery"
+            class="page"
+        >
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h3>
+                            Device Discovery
+                        </h3>
+
+                        <p>
+                            Scan the staging network for switches.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <form
+                    id="discovery-form"
+                    class="form-grid"
+                >
+
+
+                    <div class="form-group">
+
+                        <label for="start-ip">
+                            Start IP
+                        </label>
+
+                        <input
+                            id="start-ip"
+                            type="text"
+                            value="192.168.100.11"
+                            placeholder="192.168.100.11"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="end-ip">
+                            End IP
+                        </label>
+
+                        <input
+                            id="end-ip"
+                            type="text"
+                            value="192.168.100.50"
+                            placeholder="192.168.100.50"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="ssh-username">
+                            SSH Username
+                        </label>
+
+                        <input
+                            id="ssh-username"
+                            type="text"
+                            value="staging"
+                            placeholder="staging"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="ssh-password">
+                            SSH Password
+                        </label>
+
+                        <input
+                            id="ssh-password"
+                            type="password"
+                            placeholder="Enter password"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label>
+                            Discovery Mode
+                        </label>
+
+                        <div class="toggle-container">
+
+                            <input
+                                id="demo-mode"
+                                type="checkbox"
+                                checked
+                            >
+
+                            <label for="demo-mode">
+                                Use Demo Devices
+                            </label>
+
+                        </div>
+
+                        <p class="field-hint">
+                            Heads up: with Demo Mode off, discovery and pre-check work for
+                            Cisco IOS/IOS-XE/NX-OS, Aruba AOS-CX/AOS-Switch, and Huawei VRP —
+                            but the automated firmware-upgrade job (backup, transfer, install,
+                            reload) is currently only implemented for <strong>Huawei VRP</strong>.
+                            Real upgrade jobs against Cisco or Aruba devices will fail once the
+                            job reaches the install stage.
+                        </p>
+
+                    </div>
+
+
+                    <div class="form-actions">
+
+                        <button
+                            id="scan-button"
+                            type="submit"
+                            class="button button-primary"
+                        >
+                            Start Discovery
+                        </button>
+
+
+                        <button
+                            id="clear-devices-button"
+                            type="button"
+                            class="button button-danger"
+                        >
+                            Clear Devices
+                        </button>
+
+                    </div>
+
+
+                </form>
+
+            </div>
+
+
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h3>
+                            Discovery Results
+                        </h3>
+
+                        <p id="discovery-status">
+                            Ready to scan.
+                        </p>
+
+                    </div>
+
+                    <div class="card-actions">
+
+                        <span id="selected-device-count">
+                            0 devices selected
+                        </span>
+
+                        <button
+                            id="stage-upgrade-button"
+                            type="button"
+                            class="button button-primary"
+                            disabled
+                        >
+                            Stage Upgrade
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>Select</th>
+                                <th>IP Address</th>
+                                <th>Hostname</th>
+                                <th>Vendor</th>
+                                <th>Platform</th>
+                                <th>Model</th>
+                                <th>Current Version</th>
+                                <th>Status</th>
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="discovery-device-table">
+
+                            <tr>
+
+                                <td
+                                    colspan="8"
+                                    class="empty-state"
+                                >
+                                    No discovery results.
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =================================================
+             FIRMWARE REPOSITORY PAGE
+        ================================================== -->
+
+        <section
+            id="page-firmware"
+            class="page"
+        >
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h3>
+                            Upload Firmware
+                        </h3>
+
+                        <p>
+                            Add firmware images to the local repository.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <form
+                    id="firmware-upload-form"
+                    class="form-grid"
+                >
+
+
+                    <div class="form-group">
+
+                        <label for="firmware-vendor">
+                            Vendor
+                        </label>
+
+                        <select id="firmware-vendor">
+
+                            <option value="cisco">
+                                Cisco
+                            </option>
+
+                            <option value="huawei">
+                                Huawei
+                            </option>
+
+                            <option value="aruba">
+                                Aruba
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="firmware-platform">
+                            Platform
+                        </label>
+
+                        <input
+                            id="firmware-platform"
+                            type="text"
+                            placeholder="IOS-XE"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="firmware-model">
+                            Compatible Model
+                        </label>
+
+                        <input
+                            id="firmware-model"
+                            type="text"
+                            placeholder="C9200L"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="firmware-version">
+                            Firmware Version
+                        </label>
+
+                        <input
+                            id="firmware-version"
+                            type="text"
+                            placeholder="17.12.04"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group form-group-full">
+
+                        <label for="firmware-file">
+                            System Software File (.cc — mandatory)
+                        </label>
+
+                        <input
+                            id="firmware-file"
+                            type="file"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group form-group-full">
+
+                        <label for="firmware-patch-file">
+                            Patch File (.pat — optional)
+                        </label>
+
+                        <input
+                            id="firmware-patch-file"
+                            type="file"
+                        >
+
+                    </div>
+
+
+                    <div class="form-actions">
+
+                        <button
+                            id="upload-firmware-button"
+                            type="submit"
+                            class="button button-primary"
+                        >
+                            Upload Firmware
+                        </button>
+
+                    </div>
+
+
+                </form>
+
+
+                <div
+                    id="upload-progress-container"
+                    class="progress-container hidden"
+                >
+
+                    <div class="progress-header">
+
+                        <span>
+                            Uploading firmware...
+                        </span>
+
+                        <span id="upload-progress-text">
+                            0%
+                        </span>
+
+                    </div>
+
+
+                    <div class="progress-track">
+
+                        <div
+                            id="upload-progress-bar"
+                            class="progress-bar"
+                        ></div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h3>
+                            Firmware Repository
+                        </h3>
+
+                        <p>
+                            Firmware images stored on this staging server.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>Vendor</th>
+                                <th>Platform</th>
+                                <th>Model</th>
+                                <th>Version</th>
+                                <th>Filename</th>
+                                <th>Size</th>
+                                <th>Uploaded</th>
+                                <th>Action</th>
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="firmware-table">
+
+                            <tr>
+
+                                <td
+                                    colspan="8"
+                                    class="empty-state"
+                                >
+                                    No firmware images uploaded.
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+        <!-- =================================================
+             UPGRADE JOBS PAGE
+        ================================================== -->
+
+        <section
+            id="page-jobs"
+            class="page"
+        >
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h3>
+                            Upgrade Jobs
+                        </h3>
+
+                        <p>
+                            Monitor firmware upgrade operations.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="upgrade-job-list"
+                    class="job-list"
+                >
+
+                    <div class="empty-state">
+                        No upgrade jobs created.
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+
+
+        <!-- =================================================
+             SETTINGS PAGE
+        ================================================== -->
+
+        <section
+            id="page-settings"
+            class="page"
+        >
+
+            <div class="content-card">
+
+                <div class="card-header">
+
+                    <div>
+
+                        <h3>
+                            Application Settings
+                        </h3>
+
+                        <p>
+                            Configure the staging environment.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+                <form
+                    id="settings-form"
+                    class="form-grid"
+                >
+
+
+                    <div class="form-group">
+
+                        <label for="settings-source-ip">
+                            Laptop / Firmware Server IP
+                        </label>
+
+                        <input
+                            id="settings-source-ip"
+                            type="text"
+                            placeholder="192.168.100.1"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settings-max-parallel">
+                            Maximum Parallel Devices
+                        </label>
+
+                        <input
+                            id="settings-max-parallel"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value="10"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settings-reconnect-timeout">
+                            Reconnect Timeout
+                        </label>
+
+                        <input
+                            id="settings-reconnect-timeout"
+                            type="number"
+                            value="600"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settings-transfer-method">
+                            Firmware Transfer Method
+                        </label>
+
+                        <select id="settings-transfer-method">
+                            <option value="sftp">SCP / SFTP (needs SFTP server enabled on switch)</option>
+                            <option value="tftp">TFTP (no switch-side config, needs port 69 here)</option>
+                            <option value="ftp">FTP (matches Huawei's documented upgrade flow, needs port 21 here)</option>
+                        </select>
+
+                        <p class="field-hint">TFTP needs nothing configured on the switch — its TFTP client is enabled by default. But this app must bind UDP port 69, which needs root/administrator privileges on this machine, and the switch must be able to reach this machine on that port.</p>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settings-ftp-server-ip">
+                            FTP Server IP (optional — auto-detected if blank)
+                        </label>
+
+                        <input
+                            id="settings-ftp-server-ip"
+                            type="text"
+                            placeholder="Auto-detect"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settings-ftp-port">
+                            FTP Port
+                        </label>
+
+                        <input
+                            id="settings-ftp-port"
+                            type="number"
+                            value="21"
+                        >
+
+                        <p class="field-hint">FTP credentials are generated automatically for each transfer — nothing to configure here. Like TFTP, binding the standard FTP port (21) needs root/administrator privileges on this machine.</p>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settings-tftp-server-ip">
+                            TFTP Server IP (optional — auto-detected if blank)
+                        </label>
+
+                        <input
+                            id="settings-tftp-server-ip"
+                            type="text"
+                            placeholder="Auto-detect"
+                        >
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="settings-tftp-port">
+                            TFTP Port
+                        </label>
+
+                        <input
+                            id="settings-tftp-port"
+                            type="number"
+                            value="69"
+                        >
+
+                    </div>
+
+
+                    <div class="form-actions">
+
+                        <button
+                            type="submit"
+                            class="button button-primary"
+                        >
+                            Save Settings
+                        </button>
+
+                    </div>
+
+
+                </form>
+
+            </div>
+
+        </section>
+
+
+
+<!-- =========================================================
+     INFORMATION MODAL
+========================================================== -->
+
+<div
+    id="information-modal"
+    class="modal-overlay hidden"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="information-modal-title"
+>
+
+    <div class="information-modal">
+
+        <div class="information-modal-icon">i</div>
+
+        <div class="information-modal-content">
+
+            <h3 id="information-modal-title">
+                Information
+            </h3>
+
+            <p id="information-modal-message"></p>
+
+            <div class="information-modal-actions">
+                <button
+                    id="information-modal-close"
+                    type="button"
+                    class="button button-primary"
+                >
+                    OK
+                </button>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     TOAST NOTIFICATION
+========================================================== -->
+
+<div
+    id="toast"
+    class="toast"
+>
+
+    <span id="toast-message">
+        Notification
+    </span>
+
+</div>
+
+
+
+
+
+
+<div
+    id="upgrade-wizard-modal"
+    class="modal-overlay hidden"
+>
+
+    <div class="upgrade-modal">
+
+        <div class="modal-header">
+
+            <div>
+
+                <h3>
+                    Stage Upgrade
+                </h3>
+
+                <p>
+                    Review device compatibility and assign firmware images.
+                </p>
+
+            </div>
+
+            <button
+                id="close-upgrade-wizard"
+                type="button"
+                class="modal-close"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <div class="wizard-steps">
+
+            <div
+                class="wizard-step active"
+                data-step-indicator="1"
+            >
+                <span>1</span>
+                Devices
+            </div>
+
+            <div
+                class="wizard-step"
+                data-step-indicator="2"
+            >
+                <span>2</span>
+                Firmware
+            </div>
+
+            <div
+                class="wizard-step"
+                data-step-indicator="3"
+            >
+                <span>3</span>
+                Review
+            </div>
+
+        </div>
+
+
+        <div class="modal-body">
+
+            <div
+                id="wizard-step-1"
+                class="wizard-panel active"
+            >
+
+                <div class="wizard-section-title">
+                    Selected Devices
+                </div>
+
+                <div class="table-wrapper">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>IP Address</th>
+                                <th>Hostname</th>
+                                <th>Vendor</th>
+                                <th>Platform</th>
+                                <th>Model</th>
+                                <th>Current Version</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody
+                            id="wizard-device-table"
+                        ></tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+
+            <div
+                id="wizard-step-2"
+                class="wizard-panel"
+            >
+
+                <div class="wizard-section-title">
+                    Firmware Assignment
+                </div>
+
+                <div
+                    id="wizard-firmware-assignments"
+                    class="firmware-assignment-list"
+                ></div>
+
+            </div>
+
+
+            <div
+                id="wizard-step-3"
+                class="wizard-panel"
+            >
+
+                <div class="wizard-section-title">
+                    Review Upgrade Job
+                </div>
+
+                <div class="review-job-name">
+
+                    <label for="upgrade-job-name">
+                        Job Name
+                    </label>
+
+                    <input
+                        id="upgrade-job-name"
+                        type="text"
+                        placeholder="Switch Staging Upgrade"
+                    >
+
+                </div>
+
+                <div
+                    id="wizard-review-content"
+                ></div>
+
+                <div class="upgrade-warning">
+
+                    <strong>
+                        Staging Notice
+                    </strong>
+
+                    <span>
+                        Creating this job does not execute the real upgrade yet.
+                        Devices will be added to the Upgrade Jobs queue.
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="modal-footer">
+
+            <button
+                id="wizard-cancel-button"
+                type="button"
+                class="button button-secondary"
+            >
+                Cancel
+            </button>
+
+            <div class="modal-footer-right">
+
+                <button
+                    id="wizard-back-button"
+                    type="button"
+                    class="button button-secondary hidden"
+                >
+                    Back
+                </button>
+
+                <button
+                    id="wizard-next-button"
+                    type="button"
+                    class="button button-primary"
+                >
+                    Continue
+                </button>
+
+                <button
+                    id="wizard-create-job-button"
+                    type="button"
+                    class="button button-primary hidden"
+                >
+                    Create Upgrade Job
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('lifecycle.static', filename='js/app.js') }}"></script>
+{% endblock %}
