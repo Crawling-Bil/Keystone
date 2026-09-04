@@ -143,6 +143,22 @@ def create_app() -> Flask:
                 "icon": "upload",
                 "status": "Ready",
             },
+            {
+                "name": "Config Backup",
+                "version": "Switch Upgrade Tool v1.4",
+                "description": "Capture a full read-only snapshot of an already-configured device -- hardware, config, VLANs, LLDP/STP, licensing -- and download it as a backup bundle.",
+                "href": "/lifecycle/config-backup",
+                "icon": "folder",
+                "status": "Ready",
+            },
+            {
+                "name": "Live Logs",
+                "version": "Switch Upgrade Tool v1.4",
+                "description": "Watch upgrade jobs, config push jobs, and ZTP activity run in real time, across the whole suite.",
+                "href": "/lifecycle/live-logs",
+                "icon": "pulse",
+                "status": "Ready",
+            },
         ]
         return render_template(
             "dashboard.html",

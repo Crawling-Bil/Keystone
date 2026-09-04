@@ -2774,6 +2774,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 
+    function renderExecutionLogPanel(job) {
+        // Extracted out of loadJobs() unchanged so the new Live Logs
+        // console (below) can render the exact same panel for its
+        // selected job without duplicating this template. Same
+        // contract as before: "" when the job has no log lines yet.
+        const logs = job.logs || [];
+        if (!logs.length) {
+            return "";
+        }
+        return `
+            <div class="execution-log-panel">
+                <div class="execution-log-title">
+                    Execution Log
+                </div>
+                <div class="execution-log-list" data-job-id="${escapeHtml(job.id)}">
+                    ${logs.map(log => `
+                        <div class="execution-log-line ${escapeHtml(log.level || "info")}">
+                            <span>${escapeHtml(formatLogTime(log.timestamp))}</span>
+                            <strong>${escapeHtml(log.message || "")}</strong>
+                        </div>
+                    `).join("")}
+                </div>
+            </div>
+        `;
+    }
+
+
     function formatLogTime(timestamp) {
         if (!timestamp) {
             return "--:--:--";
@@ -3119,27 +3146,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                     ).join("")
                                 }
 
-                                ${
-                                    (job.logs || []).length
-                                        ?
-                                        `
-                                            <div class="execution-log-panel">
-                                                <div class="execution-log-title">
-                                                    Execution Log
-                                                </div>
-                                                <div class="execution-log-list" data-job-id="${escapeHtml(job.id)}">
-                                                    ${(job.logs || []).map(log => `
-                                                        <div class="execution-log-line ${escapeHtml(log.level || "info")}">
-                                                            <span>${escapeHtml(formatLogTime(log.timestamp))}</span>
-                                                            <strong>${escapeHtml(log.message || "")}</strong>
-                                                        </div>
-                                                    `).join("")}
-                                                </div>
-                                            </div>
-                                        `
-                                        :
-                                        ""
-                                }
+                                ${renderExecutionLogPanel(job)}
 
                             </div>
 

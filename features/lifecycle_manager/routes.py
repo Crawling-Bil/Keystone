@@ -6,6 +6,7 @@ import tempfile
 import uuid
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 
@@ -28,11 +29,12 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 
-from .core.discovery import scan_range
+from .core.discovery import scan_range, check_ssh_port
 
 from .core.precheck_engine import PrecheckEngine
 from .core.upgrade_engine import UpgradeEngine
 from .core.config_push_engine import ConfigPushEngine
+from .core.config_capture_engine import ConfigCaptureEngine, CONFIG_CAPTURE_COMMANDS
 from .core.ssh_manager import SSHManager
 from .core.device_detector import detect_driver
 
@@ -388,6 +390,40 @@ def config_push_page():
     )
 
 
+@app.route("/config-backup")
+def config_backup_page():
+    settings = read_json(
+        SETTINGS_FILE,
+        DEFAULT_SETTINGS
+    )
+
+    return render_template(
+        "config_backup.html",
+        settings=settings,
+        active_page="config_backup"
+    )
+
+
+@app.route("/live-logs")
+def live_logs_page():
+    # Suite-wide page, not scoped to one module -- shows Lifecycle
+    # Manager's upgrade + config push jobs (this module's own
+    # /api/jobs + /api/jobs/<id>/stream, unchanged) side by side with
+    # ZTP's activity feed (fetched client-side straight from ZTP's own
+    # /ztp/api/activity -- see live_logs.js). No new backend endpoints
+    # needed for either source; this route only serves the page shell.
+    settings = read_json(
+        SETTINGS_FILE,
+        DEFAULT_SETTINGS
+    )
+
+    return render_template(
+        "live_logs.html",
+        settings=settings,
+        active_page="live_logs"
+    )
+
+
 # ============================================================
 # API - HEALTH
 # ============================================================
@@ -496,6 +532,79 @@ def get_devices():
 
     return jsonify({
         "devices": devices
+    })
+
+
+# ============================================================
+# API - CHECK DEVICE REACHABILITY
+#
+# A fast, credential-free TCP/SSH-port liveness probe -- deliberately
+# NOT a full re-discovery (no login, no inventory pull). Discovery's
+# own "online" status is a snapshot from whenever that IP range was
+# last scanned, with no timestamp recorded alongside it, so there is
+# no way to tell how stale it is just from the device list. This is
+# the answer to that: an on-demand "is it actually up right now"
+# check an operator can run right before starting something like a
+# Config Capture job, instead of trusting a Discovery status that
+# might be hours old. Stamps reachable + reachability_checked_at onto
+# each device in DEVICES_FILE without touching anything else about it
+# (hostname/vendor/model/etc. are left exactly as Discovery last saw
+# them).
+# ============================================================
+
+@app.route(
+    "/api/devices/check-reachability",
+    methods=["POST"]
+)
+def check_devices_reachability():
+
+    payload = request.get_json(silent=True) or {}
+    requested_ips = payload.get("ips")
+
+    database = read_json(DEVICES_FILE, {"devices": []})
+    devices = database.get("devices", [])
+
+    if requested_ips:
+        wanted = set(requested_ips)
+        targets = [device for device in devices if device.get("ip") in wanted]
+    else:
+        targets = devices
+
+    if not targets:
+        return jsonify({
+            "success": False,
+            "error": "No matching devices to check."
+        }), 400
+
+    settings = read_json(SETTINGS_FILE, DEFAULT_SETTINGS)
+    ssh_port = settings.get("ssh", {}).get("port", 22)
+
+    checked_at = datetime.now().isoformat()
+
+    def _probe(device):
+        return device.get("ip"), check_ssh_port(device.get("ip"), port=ssh_port, timeout=1.5)
+
+    reachable_by_ip = {}
+    max_workers = max(1, min(len(targets), 20))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(_probe, device) for device in targets]
+        for future in as_completed(futures):
+            ip, is_reachable = future.result()
+            reachable_by_ip[ip] = is_reachable
+
+    for device in devices:
+        ip = device.get("ip")
+        if ip in reachable_by_ip:
+            device["reachable"] = reachable_by_ip[ip]
+            device["reachability_checked_at"] = checked_at
+
+    write_json(DEVICES_FILE, {"devices": devices})
+
+    return jsonify({
+        "success": True,
+        "checked_at": checked_at,
+        "results": reachable_by_ip,
+        "devices": devices,
     })
 
 
@@ -1183,6 +1292,52 @@ def create_job():
             "devices": job_devices
         }
 
+    elif job_type == "config_capture":
+        # Config Capture pulls a fixed set of read-only `display`
+        # commands (CONFIG_CAPTURE_COMMANDS) and never mutates the
+        # device, so there is nothing a Pre-Check stage would be
+        # protecting against -- the job (and every device in it) is
+        # created straight into "ready" rather than "pending", which
+        # is what skips the Run Pre-Check step in the UI entirely
+        # (canPrecheck only matches "pending"/"precheck_failed").
+        job_devices = []
+
+        for ip_address in selected_devices:
+            device = devices_by_ip.get(ip_address)
+            if not device:
+                continue
+
+            job_devices.append({
+                "ip": device.get("ip"),
+                "hostname": device.get("hostname"),
+                "vendor": device.get("vendor"),
+                "platform": device.get("platform"),
+                "model": device.get("model"),
+                "current_version": device.get("version"),
+                "status": "ready",
+                "progress": 0,
+                "stage": "Ready"
+            })
+
+        if not job_devices:
+            return jsonify({
+                "success": False,
+                "error": "Selected devices were not found."
+            }), 400
+
+        job = {
+            "id": str(uuid.uuid4()),
+            "type": "config_capture",
+            "name": (
+                payload.get("name")
+                or f"Config Capture {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            ),
+            "status": "ready",
+            "created_at": datetime.now().isoformat(),
+            "device_count": len(job_devices),
+            "devices": job_devices
+        }
+
     else:
         assignments = payload.get("assignments", {})
 
@@ -1739,6 +1894,47 @@ def delete_job(job_id):
     })
 
 
+@app.route(
+    "/api/jobs/<job_id>/devices/<path:ip_address>/backup",
+    methods=["GET"]
+)
+def download_capture_backup(job_id, ip_address):
+    # Path comes from the job record itself (capture_bundle.path,
+    # stamped by ConfigCaptureEngine under BASE_DIR / "backups"), never
+    # from the request -- job_id/ip_address only select WHICH stored
+    # path to serve, so there's no path-traversal surface here despite
+    # the file living on disk outside static/.
+    database = read_json(JOBS_FILE, {"jobs": []})
+    target_job = next((job for job in database.get("jobs", []) if job.get("id") == job_id), None)
+    if not target_job:
+        return jsonify({"success": False, "error": "Job not found."}), 404
+
+    target_device = next(
+        (device for device in target_job.get("devices", []) if device.get("ip") == ip_address),
+        None
+    )
+    if not target_device:
+        return jsonify({"success": False, "error": "Device not found in this job."}), 404
+
+    bundle = target_device.get("capture_bundle")
+    if not bundle or not bundle.get("path"):
+        return jsonify({"success": False, "error": "No backup captured for this device yet."}), 404
+
+    bundle_path = Path(bundle["path"])
+    if not bundle_path.is_file():
+        return jsonify({"success": False, "error": "Backup file is missing on disk."}), 404
+
+    hostname = target_device.get("hostname") or target_device.get("ip") or "device"
+    captured_at = (bundle.get("captured_at") or "")[:19].replace(":", "").replace("-", "").replace("T", "_")
+    download_name = f"{hostname}_{captured_at or 'backup'}.txt"
+
+    return send_file(
+        bundle_path,
+        as_attachment=True,
+        download_name=download_name,
+        mimetype="text/plain",
+    )
+
 
 def execute_upgrade_job(job_id, password=""):
     settings = read_json(SETTINGS_FILE, DEFAULT_SETTINGS)
@@ -2003,6 +2199,147 @@ def execute_config_push_job(job_id, password=""):
         update_json(JOBS_FILE, {"jobs": []}, _apply_failure)
 
 
+def execute_config_capture_job(job_id, password=""):
+    settings = read_json(SETTINGS_FILE, DEFAULT_SETTINGS)
+    ssh_settings = settings.get("ssh", {})
+    upgrade_settings = settings.get("upgrade", {})
+    demo_mode = settings.get("demo_mode", True)
+    logger.info(
+        "Job %s: execute_config_capture_job starting — mode=%s",
+        job_id,
+        "DEMO" if demo_mode else "REAL",
+    )
+    engine = ConfigCaptureEngine(
+        demo_mode=demo_mode,
+        stage_delay=2,
+        username=ssh_settings.get("username", ""),
+        password=password,
+        port=ssh_settings.get("port", 22),
+        timeout=ssh_settings.get("timeout", 10),
+        backup_dir=BASE_DIR / "backups",
+        max_parallel=upgrade_settings.get("max_parallel", 10),
+    )
+
+    try:
+        database = read_json(JOBS_FILE, {"jobs": []})
+        target_job = next((job for job in database.get("jobs", []) if job.get("id") == job_id), None)
+        if not target_job:
+            logger.warning("Job %s: not found when execution started.", job_id)
+            return
+
+        def update_device(device_reference, stage, progress, status):
+            if status == "command":
+                logger.info(
+                    "Job %s: %s $ %s",
+                    job_id, device_reference.get("ip"), stage,
+                )
+
+                def _apply_command(current_database):
+                    current_job = next((job for job in current_database.get("jobs", []) if job.get("id") == job_id), None)
+                    if not current_job:
+                        return
+                    current_job.setdefault("logs", []).append(
+                        UpgradeEngine.log_entry(f"{device_reference.get('ip')} $ {stage}", "command")
+                    )
+
+                update_json(JOBS_FILE, {"jobs": []}, _apply_command)
+                return
+
+            if status == "command_result":
+                # Same reasoning as ConfigPushEngine's identically-named
+                # branch: persisted the moment EACH command's result is
+                # known (capture_config()'s on_result), both as
+                # structured per-device data (reusing
+                # live_command_results / the {"line","status","output"}
+                # shape, so the existing Live Commands panel needs no
+                # changes to render a capture job) and as a color-coded
+                # Execution Log line.
+                result = stage
+                logger.info(
+                    "Job %s: %s %s $ %s",
+                    job_id, device_reference.get("ip"),
+                    "OK" if result.get("status") == "success" else "FAILED",
+                    result.get("line"),
+                )
+
+                def _apply_command_result(current_database):
+                    current_job = next((job for job in current_database.get("jobs", []) if job.get("id") == job_id), None)
+                    if not current_job:
+                        return
+                    current_device = next((item for item in current_job.get("devices", []) if item.get("ip") == device_reference.get("ip")), None)
+                    if current_device is not None:
+                        current_device.setdefault("live_command_results", []).append(result)
+                    ok = result.get("status") == "success"
+                    current_job.setdefault("logs", []).append(
+                        UpgradeEngine.log_entry(
+                            f"{device_reference.get('ip')} {'OK' if ok else 'FAILED'} $ {result.get('line')}",
+                            "command-success" if ok else "command-failed",
+                        )
+                    )
+
+                update_json(JOBS_FILE, {"jobs": []}, _apply_command_result)
+                return
+
+            logger.info(
+                "Job %s: %s -> %s (%s%%, %s)",
+                job_id, device_reference.get("ip"), stage, progress, status,
+            )
+
+            def _apply_progress(current_database):
+                current_job = next((job for job in current_database.get("jobs", []) if job.get("id") == job_id), None)
+                if not current_job:
+                    return
+                current_device = next((item for item in current_job.get("devices", []) if item.get("ip") == device_reference.get("ip")), None)
+                if not current_device:
+                    return
+                current_device.update({"stage": stage, "progress": progress, "status": status})
+
+                # ConfigCaptureEngine stamps capture_bundle (where the
+                # combined backup file landed) directly onto the device
+                # dict it was handed -- device_reference here -- but
+                # update_json() always operates on a freshly re-read
+                # copy of the job. Copy it across the first time it's
+                # there so it ends up persisted in jobs.json instead of
+                # only living in the worker thread's memory.
+                if device_reference.get("capture_bundle") and not current_device.get("capture_bundle"):
+                    current_device["capture_bundle"] = device_reference["capture_bundle"]
+
+                devices_in_job = current_job.get("devices", [])
+                terminal_statuses = {"completed", "failed"}
+                all_terminal = bool(devices_in_job) and all(
+                    item.get("status") in terminal_statuses for item in devices_in_job
+                )
+                if all_terminal:
+                    current_job["status"] = "completed" if all(
+                        item.get("status") == "completed" for item in devices_in_job
+                    ) else "failed"
+                else:
+                    current_job["status"] = "running"
+
+                current_job.setdefault("logs", []).append(UpgradeEngine.log_entry(f"{current_device.get('ip')}: {stage}"))
+                if current_job["status"] in ("completed", "failed"):
+                    current_job["completed_at"] = datetime.now().isoformat()
+
+            update_json(JOBS_FILE, {"jobs": []}, _apply_progress)
+
+        engine.run_job(target_job.get("devices", []), update_device)
+        logger.info("Job %s: execute_config_capture_job finished without raising.", job_id)
+
+    except Exception as exc:
+        logger.error("Job %s: FAILED — %s", job_id, exc)
+
+        def _apply_failure(database):
+            target_job = next((job for job in database.get("jobs", []) if job.get("id") == job_id), None)
+            if target_job:
+                target_job["status"] = "failed"
+                target_job.setdefault("logs", []).append(UpgradeEngine.log_entry(str(exc), "error"))
+                for device in target_job.get("devices", []):
+                    if device.get("status") != "completed":
+                        device.update({"status": "failed", "stage": "Config Capture Failed"})
+
+        update_json(JOBS_FILE, {"jobs": []}, _apply_failure)
+
+
 @app.route(
     "/api/jobs/<job_id>/start",
     methods=["POST"]
@@ -2080,7 +2417,11 @@ def start_upgrade_job(job_id):
             and "vrp" not in str(device.get("platform") or device.get("live_platform") or "").lower()
         ]
         if unsupported:
-            action = "config pushes" if job_type == "config_push" else "upgrades"
+            action = (
+                "config pushes" if job_type == "config_push"
+                else "config captures" if job_type == "config_capture"
+                else "upgrades"
+            )
             return jsonify({
                 "success": False,
                 "error": (
@@ -2108,7 +2449,9 @@ def start_upgrade_job(job_id):
         )
 
         device["stage"] = (
-            "Starting Config Push" if job_type == "config_push" else "Starting Upgrade"
+            "Starting Config Push" if job_type == "config_push"
+            else "Starting Config Capture" if job_type == "config_capture"
+            else "Starting Upgrade"
         )
 
         device["progress"] = 25
@@ -2121,7 +2464,11 @@ def start_upgrade_job(job_id):
 
 
     worker = threading.Thread(
-        target=execute_config_push_job if job_type == "config_push" else execute_upgrade_job,
+        target=(
+            execute_config_push_job if job_type == "config_push"
+            else execute_config_capture_job if job_type == "config_capture"
+            else execute_upgrade_job
+        ),
         args=(job_id, password),
         daemon=True
     )

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Live Logs · Keystone{% endblock %}
+{% block page_title %}Live Logs{% endblock %}
+{% block page_subtitle %}Watch upgrade jobs, config push jobs, and ZTP activity run in real time, across the whole suite.{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('lifecycle.static', filename='css/style.css') }}">{% endblock %}
+{% block content %}
+<div id="lifecycle-scope">
+
+    <div class="content-card live-logs-card">
+
+        <div class="card-header">
+
+            <div>
+                <h3>Live Logs</h3>
+                <p>Pick a source on the left -- a Lifecycle Manager job (upgrade or config push) or the ZTP activity feed -- to watch it live, command by command.</p>
+            </div>
+
+        </div>
+
+        <div class="live-logs-layout">
+
+            <div id="live-logs-job-rail" class="live-logs-rail">
+                <div class="empty-state">Loading...</div>
+            </div>
+
+            <div id="live-logs-console" class="live-logs-console">
+                <div class="live-logs-console-empty">
+                    Loading...
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('lifecycle.static', filename='js/live_logs.js') }}"></script>
+{% endblock %}

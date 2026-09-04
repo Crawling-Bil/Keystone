@@ -50,9 +50,24 @@
 
         <p class="field-hint">
             Independent of ZTP and firmware upgrades — the device stays online throughout, applied line by line via
-            <code>system-view</code>, with a before/after config snapshot saved for audit. Once created, watch its
-            progress and per-line push results on the <a href="/lifecycle/">Upgrade Jobs</a> page.
+            <code>system-view</code>, with a before/after config snapshot saved for audit. Once created, run its
+            Pre-Check and start it right below — this page is all you need.
         </p>
+
+    </div>
+
+    <div class="content-card">
+
+        <div class="card-header">
+            <div>
+                <h3>Config Push Jobs</h3>
+                <p id="config-push-jobs-status">Jobs you create above show up here — Pre-Check, then start, without leaving this page.</p>
+            </div>
+        </div>
+
+        <div id="config-push-job-list" class="job-list">
+            <div class="empty-state">No config push jobs yet.</div>
+        </div>
 
     </div>
 

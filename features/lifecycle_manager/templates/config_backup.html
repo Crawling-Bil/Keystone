@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Config Backup · Keystone{% endblock %}
+{% block page_title %}Config Backup{% endblock %}
+{% block page_subtitle %}Snapshot everything a device is currently running -- full config, hardware, L2/L3 state -- as a downloadable audit backup, over SSH.{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('lifecycle.static', filename='css/style.css') }}">{% endblock %}
+{% block topbar_actions %}
+<div id="config-backup-demo-badge" class="demo-badge">DEMO MODE</div>
+<button id="config-backup-check-reachability" class="button button-secondary">Check Reachability</button>
+<button id="config-backup-refresh-devices" class="button button-secondary">Refresh Devices</button>
+{% endblock %}
+{% block content %}
+<div id="lifecycle-scope">
+
+    <div class="content-card">
+
+        <div class="card-header">
+
+            <div>
+                <h3>Select Devices</h3>
+                <p id="config-backup-devices-status">Loading devices…</p>
+            </div>
+
+            <div class="card-actions">
+                <span id="config-backup-reachability-status"></span>
+                <span id="config-backup-selected-count">0 devices selected</span>
+            </div>
+
+        </div>
+
+        <div id="config-backup-device-checklist" class="config-push-device-list">
+            <div class="empty-state">Loading devices…</div>
+        </div>
+
+        <div class="form-actions">
+            <button id="config-backup-create-job-button" type="button" class="button button-primary" disabled>Capture Config</button>
+        </div>
+
+        <p class="field-hint">
+            Independent of ZTP, firmware upgrades, and Config Push -- read-only, so it's safe to run any time against
+            a device that's already discovered. Runs the same ~40 <code>display</code> commands every time (hardware,
+            full config, VLAN/interfaces, LLDP/LACP/STP, PoE, stack, licensing, ACLs, MAC table), then saves the
+            result as one downloadable backup bundle. No Pre-Check step -- there's nothing here that touches the
+            device's own configuration, so a job goes straight to Capture.
+        </p>
+
+    </div>
+
+    <div class="content-card">
+
+        <div class="card-header">
+            <div>
+                <h3>Config Backup Jobs</h3>
+                <p id="config-backup-jobs-status">Jobs you create above show up here — capture, then download the bundle.</p>
+            </div>
+        </div>
+
+        <div id="config-backup-job-list" class="job-list">
+            <div class="empty-state">No config backup jobs yet.</div>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('lifecycle.static', filename='js/config_backup.js') }}"></script>
+{% endblock %}

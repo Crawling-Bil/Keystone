@@ -97,6 +97,33 @@ class BaseDriver:
         """
         raise NotImplementedError("Config push is not implemented for this driver")
 
+    def capture_config(self, commands, on_result=None):
+        """Run a fixed list of read-only `display`-style commands
+        against the device and return each one's raw output --
+        Config Capture / Backup's "snapshot everything the device is
+        currently running" primitive.
+
+        Unlike push_config_lines(), this never mutates device state,
+        so there is no reason to abort the whole batch just because
+        one command errors (an unsupported command on a given
+        platform/version, for instance) -- each command is
+        independent, so a failure is recorded and the rest still run.
+
+        `on_result`, if given, is called with a single {"line",
+        "status", "output"} dict the moment EACH command's result is
+        known, exactly like push_config_lines()'s on_result -- reusing
+        the same shape (and the "line" key, here holding the command
+        text rather than a config line) is deliberate: it lets the
+        existing live-command UI render a capture job's progress with
+        no changes at all.
+
+        Returns a list of {"line", "status", "output"} dicts in the
+        order the commands were run. Never raises for an individual
+        command's failure; only a transport-level problem (e.g. the
+        SSH session itself dying) should propagate up.
+        """
+        raise NotImplementedError("Config capture is not implemented for this driver")
+
     def copy_firmware(self, protocol, server, filename):
         raise NotImplementedError("Firmware transfer is not implemented for this driver")
 

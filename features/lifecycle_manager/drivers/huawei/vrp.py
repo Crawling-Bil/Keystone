@@ -297,6 +297,80 @@ class HuaweiVRPDriver(BaseDriver):
         return results
 
     # =========================================================
+    # CONFIG CAPTURE / BACKUP — run a fixed list of read-only
+    # `display` commands and return each one's raw output, for a
+    # point-in-time snapshot of whatever is actually running on the
+    # device (typically pulled once a device is done being
+    # configured -- via ZTP, Config Push, or by hand -- as an audit
+    # record, not while it is still being provisioned).
+    # =========================================================
+
+    # Commands whose output can be large or slow to fully print (a full
+    # running-config, elabel, license verbose, a big MAC table) get a
+    # longer read timeout than routine one-liners like `display
+    # version` -- matched by substring against the lowercased command
+    # so it also covers piped variants (e.g. `display
+    # current-configuration | include route`).
+    _CAPTURE_LONG_TIMEOUT_MARKERS = (
+        "current-configuration",
+        "elabel",
+        "mac-address",
+        "license",
+        "acl all",
+    )
+
+    def capture_config(self, commands, on_result=None):
+        """Run every command in `commands`, in order, in user-view (no
+        system-view needed -- these are all `display`/read-only), and
+        return each one's result.
+
+        Deliberately does NOT abort on a failing command: every
+        command here is independent and read-only, so one being
+        rejected (unsupported on this platform/firmware version,
+        wrong syntax for this VRP release, device momentarily busy)
+        should not cost the operator every other command's output
+        too. Compare to push_config_lines(), which aborts on the
+        first rejected line because pushing configuration on top of
+        one line's failure is actually risky -- there's no equivalent
+        risk here.
+        """
+        def _report(result):
+            if on_result is None:
+                return
+            try:
+                on_result(result)
+            except Exception:
+                pass
+
+        results = []
+        for raw_command in commands:
+            command = (raw_command or "").strip()
+            if not command:
+                continue
+
+            # No separate self._log(command) call here (unlike
+            # push_config_lines' loop) -- _send_patient() already logs
+            # the command itself via self._log() internally, and
+            # calling it again here would double every one of
+            # CONFIG_CAPTURE_COMMANDS' ~40 entries in the Execution Log.
+            timeout = (
+                120
+                if any(marker in command.lower() for marker in self._CAPTURE_LONG_TIMEOUT_MARKERS)
+                else 60
+            )
+
+            try:
+                output = self._send_patient(command, read_timeout=timeout)
+                result = {"line": command, "status": "success", "output": output.strip()}
+            except Exception as exc:
+                result = {"line": command, "status": "failed", "output": str(exc)}
+
+            results.append(result)
+            _report(result)
+
+        return results
+
+    # =========================================================
     # FIRMWARE TRANSFER — three interchangeable methods.
     # Each accepts `files`: a list of (local_path, remote_filename)
     # pairs, so the mandatory .cc and optional .pat can travel
