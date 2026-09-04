@@ -474,5 +474,50 @@ ssid-profile name SSID-A
         )
 
 
+    # ------------------------------------------------------------------
+    # Regression coverage for a real bug report: a brand-new Security
+    # Profile whose ONLY body line is the WPA-PSK passphrase (correctly
+    # masked as sensitive) was silently dropped from the generated script
+    # entirely -- not even its "security-profile name X" shell was
+    # created -- because the header-delta check required source.commands
+    # to be empty, not "every command got filtered out as sensitive".
+    # A VAP Profile referencing that profile was still generated in full,
+    # so the resulting script bound "security-profile SUV-SEC" to a
+    # profile the same script never created.
+    # ------------------------------------------------------------------
+
+    def test_new_security_profile_with_only_a_secret_line_still_gets_its_shell_created(self):
+        source = """
+security-profile name SUV-SEC
+ security wpa-wpa2 psk pass-phrase cipher TopSecretPassphrase aes
+#
+vap-profile name SUV-VAP
+ service-vlan vlan-id 112
+ security-profile SUV-SEC
+#
+"""
+        result = compare_configs(source, "", vendor="Huawei")
+        cli = result["implementation_config"]
+        self.assertNotIn("TopSecretPassphrase", cli)
+        self.assertIn("security-profile name SUV-SEC", cli)
+        self.assertIn("vap-profile name SUV-VAP", cli)
+        self.assertIn("security-profile SUV-SEC", cli)
+
+        security_idx = cli.find("security-profile name SUV-SEC")
+        vap_idx = cli.find("vap-profile name SUV-VAP")
+        self.assertLess(
+            security_idx, vap_idx,
+            "the security profile shell must be created before the VAP "
+            "profile that binds to it, otherwise the generated script "
+            "references a profile that does not exist yet",
+        )
+
+        security_row = next(
+            row for row in result["rows"] if row["object_type"] == "Security Profile"
+        )
+        self.assertEqual(security_row["status"], "Missing on Target")
+        self.assertTrue(security_row["manual_review"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -934,7 +934,19 @@ def _render_cli(rows: list[dict[str, Any]], vendor: str, rollback: bool = False)
             command for command in item["_raw_extra"]
             if not _is_sensitive(command) and not MANUAL_COMMAND.search(command)
         ]
-        header_delta = bool(source.header and not target and not source.commands)
+        # An object can be entirely new on target (target is None) even when
+        # every one of its own commands got filtered out above as sensitive or
+        # manual-only (e.g. a brand-new WPA-PSK Security Profile whose only
+        # line is the passphrase). Previously this required source.commands to
+        # be empty, so such objects were silently dropped from the generated
+        # script -- not even their shell was created -- while anything that
+        # referenced them (e.g. a VAP Profile binding "security-profile
+        # <name>") was still generated, producing a script that binds to a
+        # profile it never created. Basing this only on "not target" ensures
+        # the shell (header + exit) is still emitted via
+        # _empty_object_commands below, so dependents bind to a real object
+        # and only the sensitive line itself is left for manual entry.
+        header_delta = bool(source.header and not target)
         if not raw_missing and not header_delta:
             continue
         is_huawei_acl = vendor == "Huawei" and source.object_type == "ACL"
