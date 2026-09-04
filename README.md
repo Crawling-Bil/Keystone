@@ -114,6 +114,32 @@ Features:
 
 For first real-device testing, confirm IP reachability and SSH credentials first. Generated warnings are guardrails, not a replacement for device authorization and change controls.
 
+## Lifecycle Manager — Discovery, Firmware Upgrade & Jobs
+
+- Subnet SSH discovery (`Start IP`–`End IP` range) logs into every reachable address once, identifies vendor/platform/model/version/serial from read-only inventory commands, and lists only devices that authenticated successfully — failed/unreachable IPs are reported separately rather than filling the device table.
+- One TCP+SSH connection per scanned IP (no separate port pre-probe) — two rapid connections from the same source is exactly the pattern that trips Huawei VRP's SSH attack-defense IP blacklist, so discovery deliberately avoids it.
+- A single job system (`pending → [prechecking →] ready → running → completed/failed`) is shared across every job type below — Upgrade, Config Push, and Config Backup all read/write the same job store and reuse the same live Execution Log / SSE stream.
+- Firmware Upgrade: SFTP/TFTP/FTP firmware transfer, pre/post config backup, install, save, reload, and reconnect-wait, with Pre-Check validating SSH reachability, live device info, and firmware/storage compatibility before a job is allowed to start. Live-tested end-to-end against real Huawei VRP hardware (S5735-class), including parallel upgrade of multiple devices in one job.
+- Demo Mode simulates every stage of any job type without touching real hardware, for safe rehearsal; a real (non-demo) run currently supports Huawei VRP end-to-end — other vendors' drivers implement discovery/device-info only.
+
+## Lifecycle Manager — Config Push
+
+- Pushes an operator-prepared draft config to an already-discovered device line-by-line over SSH — no firmware involved, device stays online throughout.
+- Fully self-contained page (`/lifecycle/config-push`): select devices, assign a draft config each (pasted, or picked from a saved draft / Configuration Studio's converter output), create the job, then Run Pre-Check and Start Config Push — no detour through any other page required.
+- Live per-line push results stream in as they happen; a full before/after config backup is captured automatically around the push for audit.
+
+## Lifecycle Manager — Config Backup
+
+- Captures a fixed, read-only ~40-command snapshot from an already-configured device over SSH: full running-config, hardware/elabel, VLAN/interface/port, LLDP/LACP/eth-trunk, STP, PoE, stack, dual-active, routing, licensing, ACLs, and the MAC address table.
+- Read-only end to end, so there is no Pre-Check stage — a job goes straight from creation to Start.
+- One command failing (unsupported on a given platform/firmware) never aborts the batch — every command is independent, unlike Config Push's line-by-line push which stops on the first rejection.
+- Result is saved as one downloadable, timestamped backup bundle per device; each capture is kept as its own snapshot rather than overwriting the previous one, so a device accumulates a history over time.
+
+## Live Logs & Device Reachability
+
+- Live Logs (`/lifecycle/live-logs`) is a suite-wide, top-level page — merges Lifecycle Manager's Upgrade, Config Push, and Config Backup jobs with ZTP's activity feed into one real-time console, regardless of which module created the job.
+- Device Reachability check (topbar action on Config Backup) is a fast, credential-free TCP/SSH-port probe an operator can run on demand against already-discovered devices. Discovery's own "online" status is a snapshot from whenever that IP range was last scanned with no timestamp recorded, so this adds an explicit, timestamped "reachable right now" signal instead.
+
 ## Lifecycle Manager — ZTP Provisioning
 
 Lifecycle Manager's "ZTP Provisioning" tab replaces the manual console-and-preconfig step for onboarding a factory-default Huawei VRP switch (CloudEngine S5735/S5755-class, see the vendor's ZTP hardware support table) with DHCP-based Zero Touch Provisioning, following the vendor's "without a controller" flow: DHCP Option 67 points the switch at an SFTP-hosted intermediate file, matched to the device by ESN.
