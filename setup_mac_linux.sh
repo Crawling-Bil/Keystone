@@ -14,7 +14,7 @@ fi
 
 . .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-lock.txt
 python verify_install.py
 
 echo
