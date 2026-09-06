@@ -1,6 +1,0 @@
-NETWORK ENGINEER SUITE WEB v1.7.1 - WINDOWS
-1. Install Python 3.10-3.12 and enable Add Python to PATH.
-2. Double-click setup_windows.bat once.
-3. Start with start_windows.bat for troubleshooting, or start_windows_hidden.vbs for daily use.
-4. Open http://127.0.0.1:8002
-5. Stop with stop_windows.bat.
