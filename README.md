@@ -97,7 +97,14 @@ Run `setup_windows.bat` once, then run `start_windows.bat`.
 
 ## Local security
 
-The default server binds only to `127.0.0.1`. It is not exposed to other network devices unless the binding is intentionally changed.
+The default server binds only to `127.0.0.1`. It is not exposed to other network devices unless the binding is intentionally changed (`NES_ALLOW_REMOTE`).
+
+A session-based login gate now sits in front of every route (added because Keystone pushes firmware/config to production devices and exposes a live SSH console -- so "anyone who can reach the port" stops being a purely theoretical attacker the moment remote binding is ever turned on):
+- First run generates a random password, prints it to the terminal, and saves it to `data/.auth_password` (gitignored). Reused on every restart.
+- Set `NES_AUTH_PASSWORD` to use your own password instead.
+- Set `NES_DISABLE_AUTH=1` to turn the gate off entirely (e.g. local development).
+- `/api/health` stays reachable without logging in, so an external monitor doesn't need credentials just to see the process is up.
+- A few wrong password attempts from the same address trigger a short lockout (`core/auth.py`, `MAX_ATTEMPTS`/`LOCKOUT_SECONDS`).
 
 ## Operations Console v1.0
 

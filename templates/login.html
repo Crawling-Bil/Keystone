@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign in · Keystone</title>
+    <script>(function(){try{var t=localStorage.getItem("nes-theme")||"dark";document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <style>
+        .login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg); }
+        .login-card { width: 100%; max-width: 360px; padding: 32px 28px; }
+        .login-brand { display: flex; align-items: center; gap: 13px; margin-bottom: 24px; }
+        .login-brand .suite-logo { width: 48px; height: 48px; border-radius: 12px; }
+        .login-brand strong { display: block; font-size: 17px; }
+        .login-brand em { display: block; font-style: normal; color: var(--muted); font-size: 12px; }
+        .login-card label { display: block; font-size: 11px; font-weight: 800; color: var(--text-soft); margin-bottom: 8px; }
+        .login-card input[type="password"] { width: 100%; padding: 12px 14px; border-radius: 9px; border: 1px solid var(--border); background: var(--panel-2, var(--bg)); color: var(--text); font-size: 14px; margin-bottom: 16px; }
+        .login-card button { width: 100%; min-height: 44px; border-radius: 9px; border: none; background: var(--blue); color: #06231e; font-weight: 750; font-size: 14px; cursor: pointer; }
+        .login-card button:disabled { opacity: .55; cursor: not-allowed; }
+        .login-error { background: rgba(221,130,138,.12); border: 1px solid var(--red, #dd828a); color: var(--red, #dd828a); border-radius: 9px; padding: 10px 12px; font-size: 13px; margin-bottom: 16px; }
+        .login-hint { margin-top: 18px; font-size: 12px; color: var(--faint); line-height: 1.5; }
+        .login-hint code { background: rgba(127,127,127,.15); border-radius: 4px; padding: 1px 5px; }
+    </style>
+</head>
+<body>
+<div class="login-shell">
+    <div class="panel login-card">
+        <div class="login-brand">
+            <span class="suite-logo"><svg class="brand-svg" width="24" height="24"><use href="/static/icons/nes-icons.svg#logo"></use></svg></span>
+            <span><strong>Keystone</strong><em>Network Engineer Suite</em></span>
+        </div>
+        {% if error %}<div class="login-error">{{ error }}</div>{% endif %}
+        <form method="post" action="{{ url_for('auth.login_submit', next=request.args.get('next')) }}">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" autofocus autocomplete="current-password" {% if locked_out %}disabled{% endif %}>
+            <button type="submit" {% if locked_out %}disabled{% endif %}>Sign in</button>
+        </form>
+        <p class="login-hint">First run? The password was printed in the terminal that started Keystone, and saved to <code>data/.auth_password</code>. Set <code>NES_AUTH_PASSWORD</code> to use your own.</p>
+    </div>
+</div>
+</body>
+</html>

@@ -27,6 +27,14 @@ class DeviceReachabilityRoutesTests(unittest.TestCase):
         routes.SETTINGS_FILE = self._scratch / "settings.json"
         routes.DEVICES_FILE = self._scratch / "devices.json"
 
+        # These tests exercise route logic directly via the real Flask
+        # test client, not the login gate (core/auth.py has its own
+        # dedicated tests) -- disable it here so requests aren't
+        # redirected to /login before reaching the view under test.
+        import os
+        os.environ["NES_DISABLE_AUTH"] = "1"
+        self.addCleanup(os.environ.pop, "NES_DISABLE_AUTH", None)
+
         import app as nes_app
         self.client = nes_app.create_app().test_client()
 
