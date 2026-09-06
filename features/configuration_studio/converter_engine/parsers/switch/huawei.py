@@ -154,6 +154,26 @@ class HuaweiSwitchParser:
                 continue
 
             # =================================================
+            # SNMP
+            #
+            # snmp-agent community read cipher %^%#...
+            # snmp-agent sys-info location DC1-Rack4
+            # snmp-agent sys-info contact netops@example.local
+            # snmp-agent target-host trap address udp-domain 10.10.10.50
+            #
+            # Without this, Switch Analyzer's SNMP card silently reads as
+            # empty for every Huawei device -- config.snmp_commands (what
+            # features/switch_analyzer/service.py._extract_snmp() reads)
+            # was never populated here, unlike the Cisco parser above, so
+            # these lines fell through to the generic global_commands
+            # catch-all instead where nothing downstream looks for them.
+            # =================================================
+
+            if line.startswith("snmp-agent"):
+                config.snmp_commands.append(line)
+                continue
+
+            # =================================================
             # INTERFACE BLOCK
             #
             # interface 10GE1/0/1

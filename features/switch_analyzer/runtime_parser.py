@@ -354,20 +354,30 @@ def parse_port_channels(lines: list[str]) -> list[dict]:
 def parse_version(lines: list[str]) -> dict:
     text = "\n".join(lines)
 
+    # Huawei's VRP banner ("VRP (R) software, Version 5.170 (...)") also
+    # contains the literal word "Version", which the Cisco regex below
+    # would happily match too -- capturing just "5.170" and truncating
+    # at the space before the parenthetical, then finding no "Cisco ..."
+    # model string and reporting an empty model. Checking this branch
+    # used to run second, so a Huawei switch's real version/model were
+    # silently replaced by a truncated version and a blank model on
+    # every single analysis. Gate this on VRP/HUAWEI markers that only
+    # ever appear in Huawei banners and check it first.
+    if re.search(r"\bVRP\b", text, re.IGNORECASE) or "huawei" in text.lower():
+        huawei_version = re.search(r"VRP.*?Version\s+([\d.]+\s*\([^)]*\))", text)
+        huawei_model = re.search(r"HUAWEI\s+(\S+)\s+uptime", text, re.IGNORECASE)
+        if huawei_version:
+            return {
+                "os_version": huawei_version.group(1),
+                "model": huawei_model.group(1) if huawei_model else "",
+            }
+
     cisco_version = re.search(r"Version\s+([\w.()\-]+)", text)
     cisco_model = re.search(r"[Cc]isco\s+(WS-\S+|C\d\S*|ISR\S*|ASR\S*|N\d\S*)", text)
     if cisco_version:
         return {
             "os_version": cisco_version.group(1).rstrip(","),
             "model": cisco_model.group(1) if cisco_model else "",
-        }
-
-    huawei_version = re.search(r"VRP.*?Version\s+([\d.]+\s*\([^)]*\))", text)
-    huawei_model = re.search(r"HUAWEI\s+(\S+)\s+uptime", text, re.IGNORECASE)
-    if huawei_version:
-        return {
-            "os_version": huawei_version.group(1),
-            "model": huawei_model.group(1) if huawei_model else "",
         }
 
     return {"os_version": "", "model": ""}

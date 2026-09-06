@@ -78,6 +78,16 @@ def create_app() -> Flask:
     app.config.update(
         SECRET_KEY=_get_or_create_secret_key(),
         MAX_CONTENT_LENGTH=4 * 1024 * 1024 * 1024,
+        # Werkzeug 2.3+/Flask 3.1 caps non-file form FIELDS (as opposed
+        # to file uploads, which stream to disk) at 500 KB by default,
+        # returning a bare 413 before a route ever runs. Configuration
+        # Studio and Switch Analyzer both accept a pasted configuration
+        # up to 20 MB via a plain textarea field and have their own
+        # friendlier "exceeds the 20 MB limit" error for that -- which
+        # was unreachable for anything over ~500 KB because Werkzeug's
+        # own limit fired first. 24 MB gives their 20 MB checks room to
+        # actually run.
+        MAX_FORM_MEMORY_SIZE=24 * 1024 * 1024,
         JSON_SORT_KEYS=False,
     )
 
