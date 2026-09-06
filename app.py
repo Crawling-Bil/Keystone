@@ -15,7 +15,7 @@ from features.switch_analyzer.routes import bp as switch_analyzer_bp
 from features.ztp.routes import bp as ztp_bp
 
 APP_NAME = "Keystone"
-APP_VERSION = "1.9.2"
+APP_VERSION = "1.10.0"
 BASE_DIR = Path(__file__).resolve().parent
 
 # Age (in days) after which generated files in the folders below are

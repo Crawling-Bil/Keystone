@@ -1,4 +1,4 @@
-# Keystone — Network Engineer Suite Web v1.9.2
+# Keystone — Network Engineer Suite Web v1.10.0
 
 Local-first web application for network engineering workflows. Keystone runs on `http://127.0.0.1:8002` and includes Configuration Studio, Wireless Analyzer, Switch Analyzer, and Lifecycle Manager in one browser workspace.
 
