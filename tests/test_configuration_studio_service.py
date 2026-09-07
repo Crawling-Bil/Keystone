@@ -73,10 +73,12 @@ class TestSupportedPlatforms(unittest.TestCase):
         target_vendors = {item["vendor"] for item in platforms["targets"]}
         # Parsers exist for all three switch vendors...
         self.assertEqual(source_vendors, {"cisco", "huawei", "aruba"})
-        # ...but there is no Cisco *translator* -- Cisco is a source-only
-        # vendor in this engine, and this must keep reflecting that
-        # rather than silently claiming Cisco as a valid target.
-        self.assertEqual(target_vendors, {"huawei", "aruba"})
+        # ...and a CiscoSwitchTranslator now exists too (renders an
+        # Aruba/Huawei-sourced config back into Cisco IOS-style CLI --
+        # e.g. for rollback documentation / config-parity review), so
+        # Cisco is no longer source-only: all three vendors are valid
+        # translation targets.
+        self.assertEqual(target_vendors, {"cisco", "huawei", "aruba"})
 
 
 class TestConvertFile(unittest.TestCase):

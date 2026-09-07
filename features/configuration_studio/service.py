@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from .converter_engine.engine import MigrationEngine
+from .converter_engine.profiles import PROFILE_REGISTRY
+from .converter_engine.translators.switch.huawei import HUAWEI_TARGET_MODELS
 
 BASE_DIR = Path(__file__).resolve().parent
 MAPPINGS_DIR = BASE_DIR / "mappings"
@@ -13,6 +15,36 @@ INVENTORY_FILE = MAPPINGS_DIR / "migration_inventory.csv"
 
 def create_engine() -> MigrationEngine:
     return MigrationEngine(inventory_file=INVENTORY_FILE)
+
+
+def available_profiles() -> list[dict[str, str]]:
+    """
+    Organizational config profiles available to apply on top of the
+    generic conversion (see converter_engine/profiles/). Empty/omitted
+    profile = fully generic output, unaffected by any project's
+    standard — this list is additive, not a replacement for that
+    default.
+    """
+    return [
+        {"key": key, "name": profile.name, "description": profile.description}
+        for key, profile in PROFILE_REGISTRY.items()
+    ]
+
+
+def available_target_models(target_vendor: str = "Huawei") -> list[dict[str, str]]:
+    """
+    Optional "Target Model" choices for the given target vendor —
+    purely additive, used only to flag a real port-count mismatch on a
+    physical interface (see HuaweiSwitchTranslator's own
+    resolve_target_ge_port_count docstring). An empty selection is
+    always valid; this never blocks a conversion, it only adds an
+    extra safety check when the model is known. Only Huawei has any
+    entries today — this project has no equivalent confirmed model
+    data for other target vendors yet.
+    """
+    if str(target_vendor or "").strip().lower() != "huawei":
+        return []
+    return list(HUAWEI_TARGET_MODELS)
 
 
 def supported_platforms() -> dict[str, list[dict[str, str]]]:
@@ -55,6 +87,8 @@ def convert_file(
     source_device_type: str = "Auto Detect",
     target_vendor: str = "Huawei",
     target_device_type: str | None = None,
+    profile_key: str | None = None,
+    target_model: str | None = None,
 ) -> dict[str, Any]:
     engine = create_engine()
     detection = engine.detect(source_path)
@@ -65,6 +99,8 @@ def convert_file(
     if str(resolved_vendor).lower() == "unknown" or str(resolved_device_type).lower() == "unknown":
         raise ValueError("Vendor atau device type tidak dapat dideteksi. Pilih vendor dan device type secara manual.")
 
+    profile = PROFILE_REGISTRY.get(profile_key) if profile_key else None
+
     resolved_target_type = target_device_type or resolved_device_type
     config, output_lines = engine.convert(
         filename=source_path,
@@ -72,6 +108,8 @@ def convert_file(
         source_device_type=resolved_device_type,
         target_vendor=target_vendor,
         target_device_type=resolved_target_type,
+        profile=profile,
+        target_model=target_model or None,
     )
 
     source_text = source_path.read_text(encoding="utf-8", errors="ignore")
@@ -88,7 +126,9 @@ def convert_file(
         "source_device_type": resolved_device_type,
         "target_vendor": target_vendor,
         "target_device_type": resolved_target_type,
+        "target_model": target_model or None,
         "confidence": getattr(detection, "confidence", ""),
+        "profile": profile.name if profile else None,
         "inventory": inventory,
         "review_count": review_count,
         "source_lines": len(source_text.splitlines()),
