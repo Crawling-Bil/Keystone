@@ -1,0 +1,91 @@
+!!! collect backup config catalyst 
+
+write memory
+
+term len 0
+
+show clock
+
+show run
+
+show inventory
+
+show version
+
+show vlan brief
+
+show vlan summary
+
+show vlan 
+
+show interface transceiver
+
+show interface desc
+
+show interface status
+
+show interface brief
+
+show interface trunk
+
+show ip interface brief
+
+show ip arp summary
+
+show ip arp
+
+show etherchannel summary
+
+show port-channel summary
+
+show cdp neighbors 
+
+show cdp neighbors detail
+
+show lldp neighbors
+
+show lldp neighbors detail
+
+show lacp neighbor
+
+show power inline
+
+show power inline detail
+
+show spanning-tree 
+
+show spanning-tree summary
+
+show env all
+
+show switch
+
+show run | in route route
+
+show ip route
+
+show track
+
+show ip sla configuration
+
+show ip sla statistics
+
+show event manager policy registered
+
+show license usage
+
+show license summary
+
+show license all
+
+show ip access-list
+
+show access-list
+
+show mac address-table count
+
+show mac address-table
+
+
+
+

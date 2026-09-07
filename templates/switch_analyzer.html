@@ -1,8 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Switch Analyzer · Keystone{% endblock %}
+{% block title %}Switch Analyzer · NES{% endblock %}
 {% block page_title %}Switch Analyzer{% endblock %}
 {% block page_subtitle %}Analyze Cisco, Huawei, and Aruba switch configurations — hostname, routing, interfaces, DNS, and SNMP at a glance.{% endblock %}
 {% block content %}
+
+<div class="tab-nav" id="switch-mode-tabs">
+    <button type="button" class="active" data-mode="single">Single Device</button>
+    <button type="button" data-mode="compare">Compare Devices</button>
+    <button type="button" data-mode="sizing">Sizing Assessment</button>
+    <button type="button" data-mode="collect">Collect Backup</button>
+</div>
+
+<div class="tab-content active" id="switch-mode-single">
 
 <form id="switch-form" class="panel wireless-upload" enctype="multipart/form-data">
     <div class="upload-section"><label class="field-label">Switch Config</label><label class="drop-zone horizontal"><input type="file" name="config_file" id="switch-config-file" accept=".txt,.cfg,.conf,.config,.log"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select switch config</strong><small id="switch-file-label">Cisco, Huawei, or Aruba running-config</small></span></label><button class="clear-upload hidden" id="clear-switch-file" type="button">Cancel selected file</button>
@@ -16,7 +25,7 @@
 <div id="switch-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Switch Analyzer workspace is ready</h3><p>Upload or paste a switch configuration to see hostname, routing, interface status, DNS, and SNMP in one dashboard.</p></div>
 
 <div id="switch-result" class="hidden">
-    <div class="analysis-toolbar panel"><div><strong id="switch-source-name">Switch Analysis</strong><span id="switch-platform"></span></div></div>
+    <div class="analysis-toolbar panel"><div><strong id="switch-source-name">Switch Analysis</strong><span id="switch-platform"></span></div><a id="switch-export-button" class="secondary-button" href="#">Export to Excel (.xlsx)</a></div>
     <div class="tab-shell panel">
         <div class="tab-nav" id="switch-tabs">
             <button type="button" class="active" data-tab="overview">Overview</button>
@@ -25,8 +34,12 @@
             <button type="button" data-tab="vlans">VLANs</button>
             <button type="button" data-tab="neighbors">CDP/LLDP</button>
             <button type="button" data-tab="portchannels">Port-Channel</button>
+            <button type="button" data-tab="transceivers">Transceivers</button>
+            <button type="button" data-tab="vpcmlag">vPC/M-LAG</button>
+            <button type="button" data-tab="poe">PoE</button>
             <button type="button" data-tab="dns">DNS</button>
             <button type="button" data-tab="snmp">SNMP</button>
+            <button type="button" data-tab="dhcp">DHCP</button>
         </div>
         <div class="tab-content active" id="switch-tab-overview">
             <div class="overview-grid">
@@ -35,6 +48,7 @@
                     <div class="chart-canvas-wrap" id="switch-dashboard-chart"></div>
                 </article>
                 <article><h3>Device Information</h3><div id="switch-information" class="kv-list"></div></article>
+                <article><h3>Serial Numbers</h3><div class="table-wrap"><table id="switch-serial-table"></table></div></article>
                 <article><h3>DNS</h3><div id="switch-dns-summary" class="kv-list"></div></article>
             </div>
         </div>
@@ -52,6 +66,19 @@
             <div class="table-wrap"><table id="switch-arp-table"></table></div>
             <h3 class="subsection-title">Routing Protocols</h3>
             <div id="switch-routing-protocols" class="kv-list"></div>
+            <h3 class="subsection-title">Policy-Based Routing / SLA-Track / NQA</h3>
+            <div id="switch-pbr-empty" class="empty-state compact hidden">No PBR / IP SLA-Track / NQA configuration found on this device — it's routing purely from its static/dynamic routing table.</div>
+            <div id="switch-pbr-eem-note" class="assessment-banner warning hidden"><div><strong>PBR applied dynamically via EEM applet — not visible in any interface's own config</strong><span>This device toggles <code>ip policy route-map</code> on/off at runtime from an Event Manager Applet reacting to an SNMP-OID link-state watch, instead of binding it statically under an interface. See the table below for which applet does what and when.</span></div></div>
+            <h4 class="subsection-title">IP SLA / NQA Tests</h4>
+            <div class="table-wrap"><table id="switch-pbr-sla-table"></table></div>
+            <h4 class="subsection-title">Track Objects</h4>
+            <div class="table-wrap"><table id="switch-pbr-track-table"></table></div>
+            <h4 class="subsection-title">PBR Policies (route-map / traffic-policy)</h4>
+            <div class="table-wrap"><table id="switch-pbr-policy-table"></table></div>
+            <h4 class="subsection-title">Applied To (interface bindings)</h4>
+            <div class="table-wrap"><table id="switch-pbr-binding-table"></table></div>
+            <h4 class="subsection-title">EEM-Triggered Dynamic PBR (Cisco)</h4>
+            <div class="table-wrap"><table id="switch-pbr-eem-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-vlans">
             <div class="table-tools"><input data-table-search="switch-vlan-table" placeholder="Search VLAN ID or name..."></div>
@@ -63,8 +90,28 @@
             <div class="table-wrap"><table id="switch-neighbor-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-portchannels">
-            <div id="switch-portchannel-empty" class="empty-state compact hidden">No port-channel / Eth-Trunk data found — include <code>show etherchannel summary</code> or <code>display eth-trunk</code> in the capture.</div>
+            <div id="switch-portchannel-empty" class="empty-state compact hidden">No port-channel / Eth-Trunk data found — include <code>show etherchannel summary</code> / <code>show port-channel summary</code> or <code>display eth-trunk</code> in the capture.</div>
             <div class="table-wrap"><table id="switch-portchannel-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-transceivers">
+            <div id="switch-transceiver-empty" class="empty-state compact hidden">No transceiver data found — include <code>show interface transceiver</code> / <code>display interface transceiver</code> / <code>show transceiver</code> in the capture.</div>
+            <div class="table-tools"><input data-table-search="switch-transceiver-table" placeholder="Search interface, type, serial..."></div>
+            <div class="table-wrap"><table id="switch-transceiver-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-vpcmlag">
+            <div id="switch-vpcmlag-empty" class="empty-state compact hidden">No vPC / M-LAG data found on this device — expected for switches that aren't part of a vPC pair (Nexus) or M-LAG pair (Huawei H-series). Include <code>show vpc brief</code> or <code>display m-lag summary</code> / <code>display m-lag brief</code> in the capture if this device should have it.</div>
+            <div id="switch-vpcmlag-note" class="assessment-banner warning hidden"><div><strong>Configuration only — no live vPC/M-LAG session</strong><span>This device has vPC configured (domain/peer-link/member VPCs) but never ran a live <code>show vpc brief</code>, so there's no active peer to confirm status or consistency against — expected for a draft/not-yet-deployed config. Members below show as "configured (not active)".</span></div></div>
+            <h3 class="subsection-title">Summary</h3>
+            <div id="switch-vpcmlag-summary" class="kv-list"></div>
+            <h3 class="subsection-title">Member Port-Channels / Eth-Trunks</h3>
+            <div class="table-wrap"><table id="switch-vpcmlag-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-poe">
+            <div id="switch-poe-empty" class="empty-state compact hidden">No PoE data found — include <code>show power inline</code> / <code>display poe information</code> / <code>show power-over-ethernet</code> in the capture (not applicable on non-PoE switches such as Nexus, and only present when that exact command was run in the capture).</div>
+            <div id="switch-poe-note" class="assessment-banner warning hidden"><div><strong>No live PoE table — power draw from CDP neighbor detail</strong><span>This capture never ran <code>show power inline</code> / <code>display poe information</code> / <code>show power-over-ethernet</code>, so these rows come from each connected device's own reported draw in <code>show cdp neighbors detail</code>'s "Power drawn" field instead. Only currently-powered neighbors get a row — a PoE-capable port with nothing plugged in won't appear, unlike a live table which lists every port either way.</span></div></div>
+            <div id="switch-poe-config-note" class="assessment-banner warning hidden"><div><strong>No live PoE table — showing configured PoE-enabled ports only</strong><span>This capture never ran a live PoE show command (no PoE device has been plugged in yet), so these rows just list which ports carry <code>poe enable</code> in the configuration. Admin Status reflects the config; Oper Status, Power, Device and Class are unknown until the switch is live.</span></div></div>
+            <div class="table-tools"><input data-table-search="switch-poe-table" placeholder="Search interface, status..."></div>
+            <div class="table-wrap"><table id="switch-poe-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-dns">
             <div id="switch-dns-detail" class="kv-list"></div>
@@ -74,7 +121,136 @@
             <h3 class="subsection-title">Raw SNMP Commands</h3>
             <div class="table-wrap"><table id="switch-snmp-table"></table></div>
         </div>
+        <div class="tab-content" id="switch-tab-dhcp">
+            <div id="switch-dhcp-summary" class="kv-list"></div>
+            <h3 class="subsection-title">DHCP Server Pools</h3>
+            <div class="table-wrap"><table id="switch-dhcp-pool-table"></table></div>
+            <h3 class="subsection-title">DHCP Relay / Helper Addresses</h3>
+            <div class="table-wrap"><table id="switch-dhcp-helper-table"></table></div>
+            <h3 class="subsection-title">DHCP Snooping — Interface Trust &amp; Rate Limit</h3>
+            <div class="table-wrap"><table id="switch-dhcp-snooping-table"></table></div>
+        </div>
     </div>
 </div>
+
+</div>
+
+<div class="tab-content" id="switch-mode-compare">
+
+<form id="switch-compare-form" class="panel">
+    <h3 class="subsection-title">Device A (e.g. existing Cisco / Aruba)</h3>
+    <div class="compare-device-row">
+        <div class="upload-section"><label class="field-label">Config</label><label class="drop-zone horizontal"><input type="file" name="config_file_a" id="switch-compare-file-a" accept=".txt,.cfg,.conf,.config,.log"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Device A config</strong><small id="switch-compare-file-a-label">Old switch running-config</small></span></label></div>
+        <label class="compact-select"><span>Vendor A</span><select name="vendor_a" id="switch-compare-vendor-a"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
+    </div>
+
+    <h3 class="subsection-title">Device B (e.g. new Huawei draft)</h3>
+    <div class="compare-device-row">
+        <div class="upload-section"><label class="field-label">Config</label><label class="drop-zone horizontal"><input type="file" name="config_file_b" id="switch-compare-file-b" accept=".txt,.cfg,.conf,.config,.log"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Device B config</strong><small id="switch-compare-file-b-label">New / draft switch running-config</small></span></label></div>
+        <label class="compact-select"><span>Vendor B</span><select name="vendor_b" id="switch-compare-vendor-b"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
+    </div>
+
+    <button class="primary-button" id="switch-compare-button" type="submit">Compare Devices</button>
+</form>
+<textarea id="switch-compare-text-a" name="config_text_a" form="switch-compare-form" class="hidden" aria-hidden="true"></textarea>
+<textarea id="switch-compare-text-b" name="config_text_b" form="switch-compare-form" class="hidden" aria-hidden="true"></textarea>
+
+<div id="switch-compare-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Ready to compare two devices</h3><p>Upload or paste Device A and Device B configs — useful for checking an old Cisco/Aruba switch against a new Huawei draft before migration sign-off.</p></div>
+
+<div id="switch-compare-result" class="hidden">
+    <div class="analysis-toolbar panel"><div><strong id="switch-compare-title">Comparison Result</strong></div><a id="switch-compare-export-button" class="secondary-button" href="#">Export Comparison (.xlsx)</a></div>
+
+    <div class="panel"><h3 class="subsection-title">Device Info Side-by-Side</h3><div class="table-wrap"><table id="switch-compare-devices-table"></table></div></div>
+    <div class="panel"><h3 class="subsection-title">VLANs</h3><div class="table-wrap"><table id="switch-compare-vlans-table"></table></div></div>
+    <div class="panel"><h3 class="subsection-title">Routes (destination)</h3><div class="table-wrap"><table id="switch-compare-routes-table"></table></div></div>
+    <div class="panel">
+        <h3 class="subsection-title">Policy-Based Routing / SLA-Track / NQA</h3>
+        <p class="field-hint">Shown side by side rather than diffed — Cisco's route-map/IP SLA and Huawei's traffic-policy/NQA are different vendor mechanisms with no shared naming to compare 1:1, so review each side and confirm the same custom routing intent carried across.</p>
+        <div id="switch-compare-pbr-eem-note" class="assessment-banner warning hidden"><div><strong>PBR applied dynamically via EEM applet on at least one device</strong><span>See the EEM-Triggered Dynamic PBR table below — a route-map toggled at runtime by an applet never shows up under any interface's own config.</span></div></div>
+        <h4>IP SLA / NQA Tests</h4>
+        <div class="editor-grid"><div class="table-wrap"><table id="switch-compare-pbr-sla-a"></table></div><div class="table-wrap"><table id="switch-compare-pbr-sla-b"></table></div></div>
+        <h4>Track Objects</h4>
+        <div class="editor-grid"><div class="table-wrap"><table id="switch-compare-pbr-track-a"></table></div><div class="table-wrap"><table id="switch-compare-pbr-track-b"></table></div></div>
+        <h4>PBR Policies (route-map / traffic-policy)</h4>
+        <div class="editor-grid"><div class="table-wrap"><table id="switch-compare-pbr-policy-a"></table></div><div class="table-wrap"><table id="switch-compare-pbr-policy-b"></table></div></div>
+        <h4>Applied To (interface bindings)</h4>
+        <div class="editor-grid"><div class="table-wrap"><table id="switch-compare-pbr-binding-a"></table></div><div class="table-wrap"><table id="switch-compare-pbr-binding-b"></table></div></div>
+        <h4>EEM-Triggered Dynamic PBR (Cisco)</h4>
+        <div class="editor-grid"><div class="table-wrap"><table id="switch-compare-pbr-eem-a"></table></div><div class="table-wrap"><table id="switch-compare-pbr-eem-b"></table></div></div>
+    </div>
+    <div class="panel"><h3 class="subsection-title">DNS Servers</h3><div class="table-wrap"><table id="switch-compare-dns-table"></table></div></div>
+
+    <h3 class="subsection-title">Full Device Data — Device A vs. Device B</h3>
+    <p class="field-hint">Every parsed table for both devices, side by side, so you can review the full detail here without downloading the Excel export.</p>
+
+    <div class="panel"><h4>Interfaces</h4><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-interfaces-a"></table></div><div class="table-wrap"><table id="switch-compare-interfaces-b"></table></div></div></div>
+    <div class="panel"><h4>Port-Channel / Eth-Trunk</h4><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-portchannels-a"></table></div><div class="table-wrap"><table id="switch-compare-portchannels-b"></table></div></div></div>
+    <div class="panel"><h4>Transceivers</h4><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-transceivers-a"></table></div><div class="table-wrap"><table id="switch-compare-transceivers-b"></table></div></div></div>
+    <div class="panel"><h4>vPC / M-LAG</h4><p id="switch-compare-vpcmlag-note" class="field-hint hidden"></p><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-vpcmlag-a"></table></div><div class="table-wrap"><table id="switch-compare-vpcmlag-b"></table></div></div></div>
+    <div class="panel"><h4>PoE</h4><p id="switch-compare-poe-note" class="field-hint hidden"></p><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-poe-a"></table></div><div class="table-wrap"><table id="switch-compare-poe-b"></table></div></div></div>
+    <div class="panel"><h4>CDP/LLDP Neighbors</h4><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-neighbors-a"></table></div><div class="table-wrap"><table id="switch-compare-neighbors-b"></table></div></div></div>
+</div>
+
+</div>
+
+<div class="tab-content" id="switch-mode-sizing">
+
+<form id="switch-sizing-form" class="panel">
+    <div class="upload-section">
+        <label class="field-label">Switch Configs (select all devices for this batch)</label>
+        <label class="drop-zone horizontal"><input type="file" name="config_files" id="switch-sizing-files" accept=".txt,.cfg,.conf,.config,.log" multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select 1 or more switch configs</strong><small id="switch-sizing-files-label">Cisco, Huawei, or Aruba running-configs — one file per device</small></span></label>
+        <button class="clear-upload hidden" id="clear-switch-sizing-files" type="button">Cancel selected files</button>
+        <p class="field-hint">Each file is analyzed the same way as Single Device, then rolled up into one port/PoE/VLAN/redundancy sizing table across the whole batch — useful for scoping a replacement order across a site or a building. Physical port speed is derived from each interface's own name where the vendor's naming encodes it (Cisco full names, Huawei GE/10GE/25GE/100GE); Cisco NX-OS (Nexus) and ArubaOS-Switch don't encode speed in the interface name at all, so those ports are reported separately as "speed not in name" rather than guessed.</p>
+    </div>
+    <label class="compact-select"><span>Vendor (applies to every file — leave Auto Detect for a mixed-vendor batch)</span><select name="vendor" id="switch-sizing-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
+    <button class="primary-button" id="switch-sizing-button" type="submit">Build Sizing Assessment</button>
+</form>
+
+<div id="switch-sizing-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Ready to build a sizing assessment</h3><p>Select every device's config for this batch — the tool analyzes each one and rolls them up into one port-count / PoE-budget / redundancy summary you can use for a replacement quote.</p></div>
+
+<div id="switch-sizing-result" class="hidden">
+    <div class="analysis-toolbar panel"><div><strong id="switch-sizing-title">Sizing Assessment</strong><span id="switch-sizing-subtitle"></span></div><a id="switch-sizing-export-button" class="secondary-button" href="#">Export to Excel (.xlsx)</a></div>
+
+    <div class="panel">
+        <h3 class="subsection-title">Batch Totals</h3>
+        <div id="switch-sizing-totals" class="kv-list"></div>
+    </div>
+
+    <div class="panel">
+        <h3 class="subsection-title">Physical Port Count by Speed</h3>
+        <p class="field-hint">"Speed not in name" rows are real physical ports whose interface naming doesn't encode speed (Nexus bare Ethernet names, ArubaOS-Switch bare port numbers) — check the device model/datasheet for their actual speed rather than assuming.</p>
+        <div class="table-wrap"><table id="switch-sizing-porttypes-table"></table></div>
+    </div>
+
+    <div class="panel">
+        <h3 class="subsection-title">Transceiver Count by Type</h3>
+        <p class="field-hint">What to buy for the replacement switches. Vendor-specific abbreviations for the same physical SFP/QSFP class are merged into one row (e.g. ArubaOS-Switch's "1000SX" and Cisco's "1000BaseSX SFP" are the same part) — a type not recognized as a known alias is kept exactly as the device reported it rather than guessed at.</p>
+        <div class="table-wrap"><table id="switch-sizing-transceivertypes-table"></table></div>
+    </div>
+
+    <div class="panel">
+        <h3 class="subsection-title">Per-Device</h3>
+        <div class="table-wrap"><table id="switch-sizing-devices-table"></table></div>
+    </div>
+</div>
+
+</div>
+
+<div class="tab-content" id="switch-mode-collect">
+
+<div class="panel collect-scripts-panel">
+    <h3 class="subsection-title">Need to collect a backup config?</h3>
+    <p class="field-hint">Download the standard show/display-command checklist for your platform, run it on the device, save the full terminal output as one .txt file, then upload that on Single Device / Compare Devices / Sizing Assessment.</p>
+    <div class="collect-scripts-grid">
+        <article><h4>Cisco Catalyst</h4><p>show run, interfaces, CDP/LLDP, EtherChannel, PoE, and more.</p><a class="secondary-button" href="/static/collect-scripts/collect-cisco-catalyst.txt" download>Download .txt</a></article>
+        <article><h4>Cisco Nexus</h4><p>Adds vPC, standby (HSRP), and port-channel compatibility checks.</p><a class="secondary-button" href="/static/collect-scripts/collect-cisco-nexus.txt" download>Download .txt</a></article>
+        <article><h4>Aruba Switch (ArubaOS-Switch)</h4><p>show running-config, system inventory, LLDP/CDP detail, PoE.</p><a class="secondary-button" href="/static/collect-scripts/collect-aruba-switch.txt" download>Download .txt</a></article>
+        <article><h4>Huawei S/L/E-series</h4><p>display current-configuration, Eth-Trunk, LLDP, PoE, stack.</p><a class="secondary-button" href="/static/collect-scripts/collect-huawei-s-l-e-series.txt" download>Download .txt</a></article>
+        <article><h4>Huawei H-series</h4><p>Same as S/L/E plus VRRP and M-LAG/DFS-group commands.</p><a class="secondary-button" href="/static/collect-scripts/collect-huawei-h-series.txt" download>Download .txt</a></article>
+    </div>
+</div>
+
+</div>
+
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/switch_analyzer.js') }}"></script>{% endblock %}

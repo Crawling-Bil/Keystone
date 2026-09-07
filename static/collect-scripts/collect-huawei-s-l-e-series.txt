@@ -1,0 +1,89 @@
+!!! collect backup config huawei S/L/E series
+
+save safely
+
+screen-length 0 temporary
+
+display clock
+
+display version
+
+display current-configuration
+
+display device elabel brief
+
+display device elabel
+
+display  vlan summary
+
+display  vlan 
+
+display interface transceiver
+
+display interface description
+
+display interface brief
+
+display port vlan
+
+display ip interface brief
+
+display arp statistics
+
+display arp
+
+display eth-trunk
+
+display lldp neighbor brief
+
+display lldp neighbor
+
+display lacp peer
+
+display poe power-management
+
+display poe information
+
+display stp
+
+display stp brief
+
+display stp region-configuration
+
+display environment
+
+display device
+
+display power
+
+display fan
+
+display stack
+
+display stack peers
+
+display dual-active
+
+display current-configuration | include route
+
+display current-configuration | include route ignore-case
+
+display current-configuration configuration static-routing
+
+display ip routing-table
+
+display license
+
+display license resource-usage
+
+display license verbose
+
+display acl all
+
+display mac-address statistics
+
+display mac-address
+
+
+
+

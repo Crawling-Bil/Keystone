@@ -1,0 +1,95 @@
+!!! collect backup config nexus 
+
+write memory
+
+term len 0
+
+show clock
+
+show run
+
+show inventory
+
+show version
+
+show vlan brief
+
+show vlan summary
+
+show vlan 
+
+show interface transceiver
+
+show interface desc
+
+show interface status
+
+show interface brief
+
+show ip interface brief
+
+show ip arp summary
+
+show ip arp
+
+show standby
+
+show standby brief
+
+show port-channel summary
+
+show vpc
+
+show vpc brief
+
+show vpc role
+
+show vpc peer-keepalive
+
+show vpc statistics
+
+show vpc consistency-parameters global
+
+show port-channel compatibility-parameters
+
+show cdp neighbors 
+
+show cdp neighbors detail
+
+show lldp neighbors
+
+show lldp neighbors detail
+
+show lacp neighbors
+
+show spanning-tree 
+
+show spanning-tree summary
+
+show environment all
+
+show environment 
+
+show switch
+
+show run | in route
+
+show ip route
+
+show license usage
+
+show license summary
+
+show license all
+
+show ip access-list
+
+show access-list
+
+show mac address-table count
+
+show mac address-table
+
+
+
+
