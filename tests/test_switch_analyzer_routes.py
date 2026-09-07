@@ -1,7 +1,8 @@
 """Route-level tests for features/switch_analyzer -- upload/paste
 handling, the 20 MB size guard, and error surfacing, via the real
 Flask app factory and test client (mirrors the pattern already used by
-tests/test_ztp_routes.py and friends).
+tests/test_ztp_routes.py and friends); plus a direct unit test of
+_device_filename_stem, the pure-function download-filename convention.
 """
 
 from __future__ import annotations
@@ -9,6 +10,8 @@ from __future__ import annotations
 import io
 import os
 import unittest
+
+from features.switch_analyzer.routes import _device_filename_stem
 
 
 class SwitchAnalyzerRoutesTests(unittest.TestCase):
@@ -71,6 +74,43 @@ class SwitchAnalyzerRoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.get_json()["ok"])
         self.assertIn("error", response.get_json())
+
+
+# ---------------------------------------------------------------
+# Carried over from the pre-port Keystone baseline test suite (same
+# filename existed in the repo before this port) so this coverage
+# isn't silently dropped.
+# ---------------------------------------------------------------
+
+
+class DeviceFilenameStemTest(unittest.TestCase):
+    def test_hostname_and_model_joined_with_underscore(self):
+        # Exact example the user asked for: GTOPAS-SMG-SWCO-C3650_WS-C3650-24TS
+        result = _device_filename_stem({
+            "hostname": "GTOPAS-SMG-SWCO-C3650",
+            "os_version": {"model": "WS-C3650-24TS"},
+        })
+        self.assertEqual(result, "GTOPAS-SMG-SWCO-C3650_WS-C3650-24TS")
+
+    def test_falls_back_to_hostname_only_when_model_missing(self):
+        result = _device_filename_stem({"hostname": "SW1", "os_version": {}})
+        self.assertEqual(result, "SW1")
+
+    def test_falls_back_to_hostname_only_when_os_version_missing(self):
+        result = _device_filename_stem({"hostname": "SW1"})
+        self.assertEqual(result, "SW1")
+
+    def test_missing_hostname_falls_back_to_switch(self):
+        result = _device_filename_stem({"os_version": {"model": "S5720"}})
+        self.assertEqual(result, "switch_S5720")
+
+    def test_unsafe_characters_are_sanitized(self):
+        result = _device_filename_stem({
+            "hostname": "TTC SWCO PABXGA 3650",
+            "os_version": {"model": "WS-C3650/24"},
+        })
+        self.assertNotIn(" ", result)
+        self.assertNotIn("/", result)
 
 
 if __name__ == "__main__":

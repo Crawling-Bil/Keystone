@@ -1,0 +1,52 @@
+!!! collect backup config aruba
+
+write memory
+
+no page
+
+show time
+
+show running-config
+
+show system-information
+
+show system inventory
+
+show version
+
+show vlan
+
+show transceiver
+
+show name
+
+show interfaces brief
+
+show trunk
+
+show ip
+
+show arp
+
+show lacp
+
+show lldp info remote-device
+
+show lldp info remote-device detail
+
+show power-over-ethernet brief
+
+show power-over-ethernet
+
+show spanning-tree
+
+show module
+
+show ip route
+
+show access-list
+
+show mac-address-table count
+
+show mac-address-table
+
