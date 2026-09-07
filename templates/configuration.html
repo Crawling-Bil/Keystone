@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Configuration Studio · Keystone{% endblock %}
+{% block title %}Configuration Studio · NES{% endblock %}
 {% block page_title %}Configuration Studio{% endblock %}
 {% block page_subtitle %}Convert multi-vendor configurations without leaving the dashboard.{% endblock %}
 {% block content %}
@@ -19,6 +19,8 @@
             <label><span>Target Vendor</span><select name="target_vendor" id="target-vendor">{% for item in platforms.targets|map(attribute='vendor')|unique %}<option {% if item|lower == 'huawei' %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></label>
             <label><span>Target Type</span><select name="target_device_type" id="target-device-type"><option value="">Same as source</option>{% for item in platforms.targets|map(attribute='device_type')|unique %}<option value="{{ item }}">{{ item|title }}</option>{% endfor %}</select></label>
         </div>
+        <label id="target-model-field"><span>Target Model <small>(optional — checks real port count)</small></span><select name="target_model" id="target-model"><option value="">Auto / not sure (skip port-count check)</option>{% for m in target_models %}<option value="{{ m.model }}">{{ m.label }}</option>{% endfor %}</select></label>
+        <label><span>Standard Config Profile</span><select name="profile_key" id="profile-select"><option value="">None (generic conversion only)</option>{% for p in profiles %}<option value="{{ p.key }}" title="{{ p.description }}">{{ p.name }}</option>{% endfor %}</select></label>
         <button class="primary-button full" type="submit" id="convert-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Convert Configuration</button>
         <div class="batch-box">
             <div class="field-divider"><span>batch conversion</span></div>
@@ -58,7 +60,7 @@
                 <article><span>Review Markers</span><strong id="review-count">0</strong></article>
                 <article><span>Output Lines</span><strong id="output-lines">0</strong></article>
             </div>
-            <div class="editor-toolbar panel"><div><span class="status-dot-label"><i></i>Conversion complete</span><small id="conversion-path"></small></div><div class="editor-toolbar-actions"><button type="button" id="save-config-draft" class="secondary-button">Save as Config Push Draft</button><a id="download-config" class="secondary-button" href="#">Download CFG</a></div></div>
+            <div class="editor-toolbar panel"><div><span class="status-dot-label"><i></i>Conversion complete</span><small id="conversion-path"></small></div><a id="download-config" class="secondary-button" href="#">Download CFG</a></div>
             <div class="editor-grid">
                 <article class="code-panel"><header><div><strong>Source Configuration</strong><span id="source-line-count"></span></div><button type="button" data-copy="source-editor">Copy</button></header><pre id="source-editor"></pre></article>
                 <article class="code-panel"><header><div><strong>Converted Configuration</strong><span>Converted output</span></div><button type="button" data-copy="output-editor">Copy</button></header><pre id="output-editor"></pre></article>

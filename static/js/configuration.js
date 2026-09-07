@@ -2,6 +2,16 @@
   const form = document.getElementById("converter-form");
   if (!form) return;
 
+  const targetVendorSelect = document.getElementById("target-vendor");
+  const targetModelField = document.getElementById("target-model-field");
+  function updateTargetModelVisibility() {
+    if (!targetVendorSelect || !targetModelField) return;
+    const isHuawei = (targetVendorSelect.value || "").toLowerCase() === "huawei";
+    targetModelField.classList.toggle("hidden", !isHuawei);
+  }
+  targetVendorSelect?.addEventListener("change", updateTargetModelVisibility);
+  updateTargetModelVisibility();
+
   const fileInput = document.getElementById("config-file");
   const fileLabel = document.getElementById("config-file-label");
   const fileSelection = document.getElementById("config-file-selection");
@@ -11,8 +21,6 @@
   const empty = document.getElementById("converter-empty");
   const resultPanel = document.getElementById("converter-result");
   const batchResultPanel = document.getElementById("batch-result");
-  const saveDraftButton = document.getElementById("save-config-draft");
-  let lastConversionResult = null;
 
   function updateSingleFileSelection() {
     const file = fileInput.files[0];
@@ -111,7 +119,7 @@
       const uploadName = file.webkitRelativePath || file.name;
       formData.append("config_files", file, uploadName);
     });
-    ["source_vendor", "source_device_type", "target_vendor", "target_device_type"].forEach(name => {
+    ["source_vendor", "source_device_type", "target_vendor", "target_device_type", "target_model", "profile_key"].forEach(name => {
       const field = form.querySelector(`[name="${name}"]`);
       formData.append(name, field?.value || "");
     });
@@ -130,7 +138,9 @@
         ...item,
         rowType: "converted",
         rowIndex: index,
-        detail: `${item.output_lines} lines · ${item.review_count} review markers`,
+        detail: item.profile
+          ? `${item.output_lines} lines · ${item.review_count} review markers · ${item.profile} profile`
+          : `${item.output_lines} lines · ${item.review_count} review markers`,
       }));
       const failedRows = (data.failed || []).map(item => ({
         ...item,
@@ -177,10 +187,12 @@
       document.getElementById("review-count").textContent = data.review_count;
       document.getElementById("output-lines").textContent = data.output_lines;
       document.getElementById("source-line-count").textContent = `${data.source_lines} lines`;
-      document.getElementById("conversion-path").textContent = `${data.source_vendor} → ${data.target_vendor}`;
+      const pathParts = [`${data.source_vendor} → ${data.target_vendor}`];
+      if (data.target_model) pathParts.push(data.target_model);
+      if (data.profile) pathParts.push(`${data.profile} profile`);
+      document.getElementById("conversion-path").textContent = pathParts.join(" · ");
       document.getElementById("source-editor").textContent = data.source_text;
       document.getElementById("output-editor").textContent = data.output_text;
-      lastConversionResult = data;
       const download = document.getElementById("download-config");
       download.href = data.download_url;
       download.setAttribute("download", data.download_name);
@@ -192,32 +204,6 @@
       window.NES.toast(error.message, "error");
     } finally {
       window.NES.setLoading(button, false);
-    }
-  });
-  saveDraftButton?.addEventListener("click", async () => {
-    if (!lastConversionResult) {
-      window.NES.toast("Convert a configuration first.", "error");
-      return;
-    }
-    window.NES.setLoading(saveDraftButton, true, "Saving...");
-    try {
-      const response = await fetch("/lifecycle/api/config-drafts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          hostname: lastConversionResult.hostname,
-          vendor: lastConversionResult.target_vendor,
-          source: "configuration_studio",
-          content: lastConversionResult.output_text
-        })
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.success) throw new Error(payload.error || "Could not save draft.");
-      window.NES.toast(`Saved as a Config Push draft for ${payload.draft.hostname} (${payload.draft.line_count} line(s)) — pick it up in Lifecycle Manager → Config Push.`);
-    } catch (error) {
-      window.NES.toast(error.message, "error");
-    } finally {
-      window.NES.setLoading(saveDraftButton, false);
     }
   });
 })();

@@ -59,11 +59,14 @@ class MigrationEngine:
         self.translator_registry = {
 
             # SWITCH
-            # NOTE: There is intentionally no ("switch", "cisco") entry here.
-            # CiscoSwitchTranslator was never implemented (the source file
-            # was empty), so converting TO Cisco is not yet possible.
-            # Cisco is still fully supported as a conversion SOURCE via
-            # the parser_registry above.
+
+            (
+                "switch",
+                "cisco"
+            ): (
+                "features.configuration_studio.converter_engine.translators.switch.cisco",
+                "CiscoSwitchTranslator"
+            ),
 
             (
                 "switch",
@@ -413,7 +416,9 @@ class MigrationEngine:
         self,
         config,
         target_vendor,
-        target_device_type=None
+        target_device_type=None,
+        profile=None,
+        target_model=None
     ):
 
         if not target_device_type:
@@ -471,6 +476,32 @@ class MigrationEngine:
             target_device_type
         )
 
+        # Not every translator's translate() accepts a "profile" or
+        # "target_model" kwarg yet (only HuaweiSwitchTranslator does,
+        # as of the TAM standard-config profile layer / target-model
+        # port-count check) — fall back to the plain call for any
+        # translator that doesn't, rather than requiring every
+        # translator to widen its signature just to stay callable.
+        extra_kwargs = {}
+
+        if profile is not None:
+            extra_kwargs["profile"] = profile
+
+        if target_model:
+            extra_kwargs["target_model"] = target_model
+
+        if extra_kwargs:
+
+            try:
+
+                return translator.translate(
+                    config,
+                    **extra_kwargs
+                )
+
+            except TypeError:
+                pass
+
         return translator.translate(
             config
         )
@@ -485,7 +516,9 @@ class MigrationEngine:
         target_vendor,
         source_vendor="Auto Detect",
         source_device_type="Auto Detect",
-        target_device_type=None
+        target_device_type=None,
+        profile=None,
+        target_model=None
     ):
 
         config = self.parse(
@@ -511,7 +544,9 @@ class MigrationEngine:
             ),
             target_device_type=(
                 target_device_type
-            )
+            ),
+            profile=profile,
+            target_model=target_model
         )
 
         return (

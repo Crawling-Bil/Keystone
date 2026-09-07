@@ -1,20 +1,20 @@
 Site,Description,Region,Role,DefaultHuaweiSeries
 ADM,Administration Office,Head Office,Access,S5735
 CCY,Camp Ccy,Site,Access,S5735
-GTOPAS-MKS,GTOPAS MKS,Mining Site,Core,S5755
-GTOPAS-MND,GTOPAS MND,Mining Site,Core,S5755
-GTOPAS-PKU,GTOPAS PKU,Mining Site,Core,S5755
-GTOPAS-SMG,GTOPAS SMG,Mining Site,Core,S5755
+GTOPAS-MKS,GTOPAS MKS,Mining,Core,S5755
+GTOPAS-MND,GTOPAS MND,Mining,Core,S5755
+GTOPAS-PKU,GTOPAS PKU,Mining,Core,S5755
+GTOPAS-SMG,GTOPAS SMG,Mining,Core,S5755
 DRC,Disaster Recovery Center,Data Center,Access,S5735
 HO,Head Office,Head Office,Core,S5755
-KRWT,Kerawat Site,Mining Site,Access,S5735
-LXS,Lexus Site,Mining Site,Access,S5735
+KRWT,Kerawat Site,Mining,Access,S5735
+LXS,Lexus Site,Mining,Access,S5735
 NGORO,Ngoro Site,Plant,Access,S5735
 NVDC,NVDC Data Center,Data Center,Core,S5755
 PDC-GILI,PDC Gili,Plant,Access,S5735
 PDC-DAYA,PDC Daya,Plant,Access,S5735
 SPLD,SPLD Plant,Plant,Access,S5735
 STRADM,Site Administration,Head Office,Core,S5755
-STR2,Site STR2,Mining Site,Access,S5735
-STR3,Site STR3,Mining Site,Access,S5735
+STR2,Site STR2,Mining,Access,S5735
+STR3,Site STR3,Mining,Access,S5735
 TTC,TTC Data Center,Data Center,Core,S5755

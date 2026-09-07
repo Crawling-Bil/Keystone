@@ -13,7 +13,7 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from core.database import log_activity
-from .service import convert_file, supported_platforms
+from .service import available_profiles, available_target_models, convert_file, supported_platforms
 
 bp = Blueprint("configuration", __name__, url_prefix="/configuration")
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -164,7 +164,18 @@ def _collect_batch_sources(uploads: list[FileStorage], temp_dir: Path) -> tuple[
 @bp.get("")
 @bp.get("/")
 def index():
-    return render_template("configuration.html", active_page="configuration", platforms=supported_platforms())
+    return render_template(
+        "configuration.html",
+        active_page="configuration",
+        platforms=supported_platforms(),
+        profiles=available_profiles(),
+        # Target Vendor defaults to Huawei (see the template's own
+        # "selected" logic) and it's currently the only target vendor
+        # with any confirmed model data — rendered once here rather
+        # than re-fetched per vendor change, since there's nothing to
+        # switch between yet.
+        target_models=available_target_models("Huawei"),
+    )
 
 
 @bp.post("/api/convert")
@@ -179,17 +190,12 @@ def convert():
         token = uuid.uuid4().hex
         source_path = UPLOAD_DIR / f"{token}_{original_name}"
         uploaded.save(source_path)
-        if source_path.stat().st_size > MAX_CONFIG_BYTES:
-            source_path.unlink(missing_ok=True)
-            return jsonify({"ok": False, "error": "Configuration file exceeds the 20 MB limit."}), 400
     elif config_text.strip():
-        if len(config_text.encode("utf-8")) > MAX_CONFIG_BYTES:
-            return jsonify({"ok": False, "error": "Pasted configuration exceeds the 20 MB limit."}), 400
         token = uuid.uuid4().hex
         source_path = UPLOAD_DIR / f"{token}_pasted-config.cfg"
         source_path.write_text(config_text, encoding="utf-8")
     else:
-        return jsonify({"ok": False, "error": "Upload a configuration file or paste a configuration first."}), 400
+        return jsonify({"ok": False, "error": "Upload file konfigurasi atau paste konfigurasi terlebih dahulu."}), 400
 
     try:
         result = convert_file(
@@ -198,6 +204,8 @@ def convert():
             source_device_type=request.form.get("source_device_type", "Auto Detect"),
             target_vendor=request.form.get("target_vendor", "Huawei"),
             target_device_type=request.form.get("target_device_type") or None,
+            profile_key=request.form.get("profile_key") or None,
+            target_model=request.form.get("target_model") or None,
         )
         export_id = uuid.uuid4().hex
         export_path = EXPORT_DIR / f"{export_id}.cfg"
@@ -253,6 +261,8 @@ def batch_convert():
                             source_device_type=request.form.get("source_device_type", "Auto Detect"),
                             target_vendor=request.form.get("target_vendor", "Huawei"),
                             target_device_type=request.form.get("target_device_type") or None,
+                            profile_key=request.form.get("profile_key") or None,
+                            target_model=request.form.get("target_model") or None,
                         )
                         output_name = _unique_output_name(result["download_name"], used_names)
                         preview_id = uuid.uuid4().hex
@@ -265,6 +275,7 @@ def batch_convert():
                             "source_vendor": result["source_vendor"],
                             "source_device_type": result["source_device_type"],
                             "target_vendor": result["target_vendor"],
+                            "profile": result["profile"],
                             "review_count": result["review_count"],
                             "source_lines": result["source_lines"],
                             "output_lines": result["output_lines"],
