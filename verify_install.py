@@ -4,6 +4,7 @@ import compileall
 import importlib.util
 import io
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -71,10 +72,27 @@ def rerun_in_venv() -> int | None:
 def run_smoke_tests() -> list[str]:
     errors: list[str] = []
 
+    # core/auth.py fronts every route with a shared-password login gate.
+    # This script is verifying that a fresh install's features work, not
+    # exercising that gate, so pin a private password for this run (via
+    # NES_AUTH_PASSWORD) unless the environment already disables auth or
+    # sets its own -- then log the test client in before touching any
+    # protected route, instead of every route failing on a login redirect.
+    auth_disabled = os.environ.get("NES_DISABLE_AUTH", "").strip() == "1"
+    login_password = os.environ.setdefault("NES_AUTH_PASSWORD", "keystone-verify-install")
+
     try:
         from app import app
 
         client = app.test_client()
+
+        if not auth_disabled:
+            login_response = client.post("/login", data={"password": login_password})
+            if login_response.status_code != 302:
+                errors.append(
+                    f"Login smoke test failed: /login returned {login_response.status_code}"
+                )
+
         for path in ("/", "/configuration", "/wireless", "/switch-analyzer", "/lifecycle/", "/api/health"):
             response = client.get(path)
             if response.status_code != 200:
