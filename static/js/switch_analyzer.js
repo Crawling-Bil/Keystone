@@ -678,6 +678,26 @@
       stacked_devices: totals.stacked_device_count,
     });
 
+    // Group devices by Vendor + Model (product/PID) so a replacement quote
+    // can be broken down by exactly what to reorder, not just how many
+    // devices are in the batch overall.
+    const deviceTypeCounts = new Map();
+    for (const device of devices) {
+      const vendor = device.vendor || "Unknown";
+      const model = device.model || "Unknown";
+      const key = vendor + "|" + model;
+      const existing = deviceTypeCounts.get(key);
+      if (existing) existing.total += 1;
+      else deviceTypeCounts.set(key, { vendor, model, total: 1 });
+    }
+    const deviceTypeRows = Array.from(deviceTypeCounts.values())
+      .sort((a, b) => b.total - a.total || a.vendor.localeCompare(b.vendor) || a.model.localeCompare(b.model));
+    renderTable("switch-sizing-devicetypes-table", [
+      { label: "Vendor", key: "vendor" },
+      { label: "Model", key: "model" },
+      { label: "Total", key: "total" },
+    ], deviceTypeRows);
+
     const portTypeRows = Object.entries(totals.port_type_totals || {}).map(([type, count]) => ({ type, count }));
     renderTable("switch-sizing-porttypes-table", [
       { label: "Port Type", key: "type" },
@@ -700,6 +720,7 @@
       { label: "Hostname", key: "hostname" },
       { label: "Vendor", key: "vendor" },
       { label: "Model", key: "model" },
+      { label: "Serial Number", key: "serial_number" },
       { label: "OS Version", key: "os_version" },
       { label: "Physical Ports", key: "physical_port_count" },
       { label: "Ports Up", key: "physical_ports_up" },

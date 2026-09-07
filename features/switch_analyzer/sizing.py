@@ -142,12 +142,22 @@ def _device_sizing_row(result: dict[str, Any]) -> dict[str, Any]:
     hsrp_vrrp_svi_count = sum(1 for i in interfaces if i.get("hsrp_vrrp_ip"))
 
     routing = result.get("routing_protocols") or {}
-    stack = (result.get("inventory") or {}).get("stack") or {}
+    inventory = result.get("inventory") or {}
+    stack = inventory.get("stack") or {}
+    # "show inventory"'s first entry is always the chassis/stack-level
+    # summary row (see _parse_cisco_chassis_pid above, which uses the same
+    # entry for the chassis PID) -- its serial is the device's own serial
+    # number, the one that matches what's printed on the unit and tracked
+    # in an asset spreadsheet, as opposed to a power supply, stack member,
+    # or line card serial further down the same inventory list.
+    inventory_modules = inventory.get("modules") or []
+    serial_number = inventory_modules[0].get("serial", "") if inventory_modules else ""
 
     return {
         "hostname": result.get("hostname", ""),
         "vendor": result.get("vendor", ""),
         "model": (result.get("os_version") or {}).get("model", ""),
+        "serial_number": serial_number,
         "os_version": (result.get("os_version") or {}).get("os_version", ""),
         "physical_port_count": physical_up + physical_down,
         "physical_ports_up": physical_up,

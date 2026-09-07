@@ -295,7 +295,7 @@ class SwitchExcelExporter:
 
         sheet = workbook.create_sheet("Sizing Summary", 0)
         headers = [
-            "Hostname", "Vendor", "Model", "OS Version", "Physical Ports",
+            "Hostname", "Vendor", "Model", "Serial Number", "OS Version", "Physical Ports",
             "Ports Up", "Ports Down", "Trunk Ports", "Port-Channels",
             "PoE Ports", "PoE Total (W)", "PoE Source", "Transceivers",
             "VLANs", "Static Routes",
@@ -311,7 +311,7 @@ class SwitchExcelExporter:
 
         for d in devices:
             sheet.append([
-                d["hostname"], d["vendor"], d["model"], d["os_version"],
+                d["hostname"], d["vendor"], d["model"], d["serial_number"], d["os_version"],
                 d["physical_port_count"], d["physical_ports_up"], d["physical_ports_down"],
                 d["trunk_port_count"], d["port_channel_count"],
                 d["poe_port_count"], d["poe_total_watts"], d["poe_source"],

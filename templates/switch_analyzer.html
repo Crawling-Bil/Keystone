@@ -13,12 +13,15 @@
 
 <div class="tab-content active" id="switch-mode-single">
 
-<form id="switch-form" class="panel wireless-upload" enctype="multipart/form-data">
+<form id="switch-form" class="panel switch-action-form" enctype="multipart/form-data">
     <div class="upload-section"><label class="field-label">Switch Config</label><label class="drop-zone horizontal"><input type="file" name="config_file" id="switch-config-file" accept=".txt,.cfg,.conf,.config,.log"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select switch config</strong><small id="switch-file-label">Cisco, Huawei, or Aruba running-config</small></span></label><button class="clear-upload hidden" id="clear-switch-file" type="button">Cancel selected file</button>
       <p class="field-hint">Works best with a full running-config export (e.g. <code>show running-config</code> / <code>display current-configuration</code>) plus, if you have them, <code>show ip interface brief</code>, <code>show cdp/lldp neighbors</code>, <code>show etherchannel summary</code> / <code>display eth-trunk</code>, <code>show version</code>, <code>show ip route</code>, and <code>show ip arp</code> — a raw terminal capture with all of these in one file works great.</p>
     </div>
-    <label class="compact-select"><span>Vendor</span><select name="vendor" id="switch-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
-    <button class="primary-button" id="switch-analyze-button" type="submit">Analyze Switch</button>
+    <div class="action-stack">
+        <label class="compact-select"><span>Vendor</span><select name="vendor" id="switch-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
+        <hr>
+        <button class="primary-button" id="switch-analyze-button" type="submit">Analyze Switch</button>
+    </div>
 </form>
 <textarea id="switch-config-text" name="config_text" form="switch-form" class="hidden" aria-hidden="true"></textarea>
 
@@ -195,15 +198,18 @@
 
 <div class="tab-content" id="switch-mode-sizing">
 
-<form id="switch-sizing-form" class="panel">
+<form id="switch-sizing-form" class="panel switch-action-form">
     <div class="upload-section">
         <label class="field-label">Switch Configs (select all devices for this batch)</label>
         <label class="drop-zone horizontal"><input type="file" name="config_files" id="switch-sizing-files" accept=".txt,.cfg,.conf,.config,.log" multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select 1 or more switch configs</strong><small id="switch-sizing-files-label">Cisco, Huawei, or Aruba running-configs — one file per device</small></span></label>
         <button class="clear-upload hidden" id="clear-switch-sizing-files" type="button">Cancel selected files</button>
         <p class="field-hint">Each file is analyzed the same way as Single Device, then rolled up into one port/PoE/VLAN/redundancy sizing table across the whole batch — useful for scoping a replacement order across a site or a building. Physical port speed is derived from each interface's own name where the vendor's naming encodes it (Cisco full names, Huawei GE/10GE/25GE/100GE); Cisco NX-OS (Nexus) and ArubaOS-Switch don't encode speed in the interface name at all, so those ports are reported separately as "speed not in name" rather than guessed.</p>
     </div>
-    <label class="compact-select"><span>Vendor (applies to every file — leave Auto Detect for a mixed-vendor batch)</span><select name="vendor" id="switch-sizing-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
-    <button class="primary-button" id="switch-sizing-button" type="submit">Build Sizing Assessment</button>
+    <div class="action-stack">
+        <label class="compact-select"><span>Vendor (applies to every file — leave Auto Detect for a mixed-vendor batch)</span><select name="vendor" id="switch-sizing-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
+        <hr>
+        <button class="primary-button" id="switch-sizing-button" type="submit">Build Sizing Assessment</button>
+    </div>
 </form>
 
 <div id="switch-sizing-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Ready to build a sizing assessment</h3><p>Select every device's config for this batch — the tool analyzes each one and rolls them up into one port-count / PoE-budget / redundancy summary you can use for a replacement quote.</p></div>
@@ -214,6 +220,12 @@
     <div class="panel">
         <h3 class="subsection-title">Batch Totals</h3>
         <div id="switch-sizing-totals" class="kv-list"></div>
+    </div>
+
+    <div class="panel">
+        <h3 class="subsection-title">Device Type Summary</h3>
+        <p class="field-hint">Devices in this batch grouped by vendor and model — useful for a replacement quote broken down by product/PID.</p>
+        <div class="table-wrap"><table id="switch-sizing-devicetypes-table"></table></div>
     </div>
 
     <div class="panel">

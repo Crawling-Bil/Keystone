@@ -95,7 +95,7 @@ html[data-theme="light"] .theme-toggle .theme-icon-light { display: grid; }
 .workflow-layout { display: grid; grid-template-columns: 320px minmax(0,1fr); gap: 20px; align-items: start; }
 .workflow-sidebar { padding: 20px; position: sticky; top: 150px; }
 .workflow-main { min-width: 0; }
-.field-label, label > span { display: block; color: var(--text-soft); font-size: 11px; font-weight: 800; margin-bottom: 8px; }
+.field-label, label > span { display: block; color: var(--text-soft); font-size: 11px; font-weight: 800; margin-bottom: 10px; }
 .drop-zone { min-height: 130px; border: 1px dashed var(--border-strong); border-radius: 13px; background: var(--panel-3); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 17px; text-align: center; transition: .18s ease; }
 .drop-zone:hover, .drop-zone.dragover { border-color: var(--blue); background: var(--accent-wash); }
 .drop-zone input { display: none; }
@@ -108,8 +108,14 @@ html[data-theme="light"] .theme-toggle .theme-icon-light { display: grid; }
 .field-divider::before, .field-divider::after { content: ""; height: 1px; flex: 1; background: var(--border); }
 .small-textarea { width: 100%; height: 110px; resize: vertical; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-3); color: var(--text-soft); padding: 12px; outline: none; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .small-textarea:focus, select:focus, input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--accent-wash); }
-.form-grid { display: grid; gap: 12px; margin-top: 14px; }
+.form-grid { display: grid; gap: 12px; margin-top: 16px; }
 .form-grid.two { grid-template-columns: 1fr 1fr; }
+/* Configuration Studio's Target Model and Standard Config Profile fields are
+   standalone <label> rows, not .form-grid rows, so they had no top margin at
+   all and sat flush against the field above them. Give them the same 16px
+   rhythm as the .form-grid rows around them so the whole sidebar reads as one
+   evenly-spaced stack instead of tightening up around those two fields. */
+.workflow-sidebar > label:not(.field-label):not(.drop-zone) { margin-top: 16px; }
 select, .table-tools input { width: 100%; height: 42px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-3); color: var(--text-soft); padding: 0 10px; outline: none; }
 .primary-button, .secondary-button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 10px; font-weight: 800; text-decoration: none; transition: .18s ease; }
 .primary-button { color: #fff; background: var(--blue); box-shadow: none; padding: 0 18px; }
@@ -141,9 +147,26 @@ select, .table-tools input { width: 100%; height: 42px; border: 1px solid var(--
 .code-panel header button { border: 1px solid var(--border-strong); border-radius: 8px; background: var(--panel-2); color: var(--text-soft); padding: 6px 10px; font-size: 10px; }
 .code-panel pre { margin: 0; height: 540px; overflow: auto; padding: 16px; color: var(--text-soft); font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; tab-size: 4; }
 .wireless-upload { display: grid; grid-template-columns: minmax(260px, 1.4fr) 220px 200px; gap: 14px; align-items: end; padding: 18px; }
+.switch-action-form { display: grid; grid-template-columns: minmax(260px, 1.4fr) 220px; gap: 14px; align-items: start; padding: 18px; }
+.switch-action-form .upload-section { min-width: 0; }
+.action-stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.action-stack hr { border: 0; border-top: 1px solid var(--border); margin: 0; width: 100%; }
+.action-stack .primary-button { width: 100%; }
 .upload-section { min-width: 0; }
-.field-hint { margin: 6px 2px 0; font-size: 12px; line-height: 1.5; color: var(--muted, #8a93a6); }
+.compare-device-row { display: grid; grid-template-columns: 1fr 190px; gap: 14px; align-items: end; }
+#switch-compare-form { padding: 20px 22px; border-radius: 12px; }
+#switch-compare-form .subsection-title:first-child { margin-top: 0; }
+#switch-compare-form .compare-device-row + .subsection-title { margin-top: 26px; }
+#switch-compare-form #switch-compare-button { margin-top: 22px; }
+.field-hint { margin: 8px 2px 0; font-size: 12px; line-height: 1.5; color: var(--muted, #8a93a6); }
 .field-hint code { background: rgba(127,127,127,0.15); border-radius: 4px; padding: 1px 5px; font-size: 11.5px; }
+.collect-scripts-grid { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 12px; margin-top: 14px; }
+.collect-scripts-grid article { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-2); }
+.collect-scripts-grid h4 { margin: 0; font-size: 12.5px; }
+.collect-scripts-grid p { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--muted); flex: 1; }
+.collect-scripts-grid .secondary-button { min-height: 34px; font-size: 11px; padding: 0 10px; }
+@media (max-width: 1200px) { .collect-scripts-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 620px) { .collect-scripts-grid { grid-template-columns: 1fr; } }
 .compact-select span { margin-bottom: 8px; }
 .wireless-summary { display: grid; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 12px; margin-top: 20px; }
 .wireless-summary article { padding: 16px; border: 1px solid var(--border); border-radius: 13px; background: var(--panel-2); }
@@ -185,7 +208,32 @@ select, .table-tools input { width: 100%; height: 42px; border: 1px solid var(--
 .table-tools input { max-width: 390px; }
 .table-tools span { color: var(--muted); font-size: 11px; }
 .table-wrap { overflow: auto; border: 1px solid var(--border); border-radius: 8px; max-height: 580px; }
+/* Device Info Side-by-Side is a short, fixed set of rows (Hostname, Model,
+   PBR?, SLA-Track?, NQA?, ...) -- well under any reasonable scroll cap,
+   unlike the long Interfaces/VLANs tables the shared 580px cap exists for.
+   Let it grow to its natural height instead of scrolling internally. */
+.table-wrap:has(#switch-compare-devices-table) { max-height: none; }
 table { width: 100%; border-collapse: collapse; min-width: 900px; font-size: 11px; }
+/* Compare Devices renders every result table twice, side by side in a
+   two-column .editor-grid — the default 900px table floor is more than
+   the ~half-width pane, forcing most of each table under a tiny
+   horizontal scrollbar. Let these tables size to their actual pane and
+   wrap long cell values instead. */
+#switch-compare-result .editor-grid table { min-width: 0; }
+#switch-compare-result .editor-grid th, #switch-compare-result .editor-grid td { padding: 7px 9px; }
+#switch-compare-result .editor-grid td { overflow-wrap: anywhere; word-break: break-word; }
+/* Interfaces (under Full Device Data — Device A vs. Device B) has 10 columns
+   including free-text Description and dotted-decimal IP Address. A flat
+   min-width per column either wasted space on short values or still wasn't
+   wide enough for long ones. Turning off wrapping and letting the table keep
+   its natural content width (instead of stretching to fill the pane like
+   .editor-grid tables normally do) makes every column size itself to its own
+   content -- narrow for short values, wide for long ones -- with the table
+   scrolling horizontally inside its own box instead of ever wrapping a cell
+   onto a second line. */
+#switch-compare-interfaces-a, #switch-compare-interfaces-b { width: auto; min-width: 0; }
+#switch-compare-interfaces-a th, #switch-compare-interfaces-a td,
+#switch-compare-interfaces-b th, #switch-compare-interfaces-b td { white-space: nowrap; }
 th { position: sticky; top: 0; z-index: 2; background: var(--panel-3); color: var(--text-soft); text-align: center; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; border-bottom: 2px solid var(--border); }
 th, td { padding: 9px 11px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); vertical-align: top; }
 td { color: var(--text-soft); text-align: center; }
@@ -215,6 +263,7 @@ tbody tr:hover { background: var(--accent-wash); }
   .stat-grid { grid-template-columns: repeat(2,1fr); }
   .module-grid { grid-template-columns: repeat(2,1fr); }
   .wireless-upload { grid-template-columns: 1fr 1fr; }
+  .switch-action-form { grid-template-columns: 1fr 1fr; }
   .wireless-summary { grid-template-columns: repeat(3,1fr); }
 }
 @media (max-width: 900px) {
@@ -234,7 +283,7 @@ tbody tr:hover { background: var(--accent-wash); }
 @media (max-width: 620px) {
   .suite-topbar { align-items: flex-start; }
   .topbar-right { display: none; }
-  .stat-grid, .wireless-upload, .wireless-summary, .form-grid.two, .result-stat-grid { grid-template-columns: 1fr; }
+  .stat-grid, .wireless-upload, .wireless-summary, .form-grid.two, .result-stat-grid, .compare-device-row, .switch-action-form { grid-template-columns: 1fr; }
   .section-heading { align-items: flex-start; gap: 10px; }
   .page-content { padding: 16px; }
   .status-breakdown { grid-template-columns: repeat(2,1fr); }
@@ -284,7 +333,16 @@ tbody tr:hover { background: var(--accent-wash); }
 .validation-issues div { padding:7px 0; border-bottom:1px solid var(--border); }
 .clear-upload { margin-top:7px; padding:0; border:0; background:transparent; color:var(--accent-soft); font-size:10px; cursor:pointer; }
 .deployment-summary { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
-.subsection-title { margin:22px 0 11px; font-size:13px; }
+.subsection-title { margin:22px 0 13px; font-size:13px; }
+/* Compare Devices and Sizing Assessment render each result section (Device
+   Info Side-by-Side, VLANs, Policy-Based Routing / SLA-Track / NQA, ...) as
+   its own bare .panel with no padding, so the subsection-title sat flush
+   against the panel's left/top border instead of sitting inset like the
+   "Comparison Result" / "Sizing Assessment" toolbar above it or the Device A
+   / Device B upload form below it, both of which have their own padding.
+   Give these result panels the same breathing room. */
+#switch-compare-result > .panel:not(.analysis-toolbar),
+#switch-sizing-result > .panel:not(.analysis-toolbar) { padding: 18px; }
 .validation-state { display:inline-block; padding:5px 8px; border-radius:999px; background:#253647; font-size:9px; font-weight:800; }
 .validation-state.validated { color:#75d99c; background:rgba(66,198,122,.12); }
 .validation-state.mismatch { color:#f2bd6b; background:rgba(240,173,78,.12); }
@@ -831,7 +889,7 @@ input, select, textarea, button { caret-color: var(--blue); }
 .workflow-sidebar { padding: 22px; }
 .workflow-main { min-width: 0; }
 .wireless-upload, .analysis-toolbar, .editor-toolbar { border-radius: 12px; }
-.wireless-upload { padding: 20px 22px; }
+.wireless-upload, .switch-action-form, .collect-scripts-panel { padding: 20px 22px; }
 .drop-zone { border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--panel-2); }
 .drop-zone:hover, .drop-zone.dragover { border-color: var(--blue); background: var(--accent-wash); }
 .drop-icon, .empty-icon { border-radius: 10px; color: var(--blue); background: var(--accent-wash); }
@@ -908,7 +966,7 @@ code, pre, .code-panel, .tool-version, .footer-version { font-family: ui-monospa
   .manual-panel { padding: 18px; }
   .task-guide > div { grid-template-columns: 1fr; gap: 4px; }
   .task-guide dd { text-align: left; }
-  .wireless-upload { padding: 18px; }
+  .wireless-upload, .switch-action-form, .collect-scripts-panel { padding: 18px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
