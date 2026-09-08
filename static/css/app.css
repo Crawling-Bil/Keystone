@@ -824,7 +824,7 @@ input, select, textarea, button { caret-color: var(--blue); }
 .theme-toggle:hover, .mobile-menu:hover, .sidebar-close:hover { border-color: var(--border-strong); color: var(--blue); background: var(--panel-2); }
 .server-pill { min-height: 38px; padding: 0 12px; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); background: var(--panel); font: 600 12px/1 "Atkinson NES", sans-serif; }
 .server-pill i { box-shadow: none; }
-.page-content { max-width: 1480px; padding: 36px clamp(24px, 3.4vw, 52px) 64px; }
+.page-content { max-width: 1760px; padding: 36px clamp(24px, 3.4vw, 52px) 64px; }
 
 .panel, .manual-panel, .tool-workbench { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: none; }
 .panel { overflow: clip; }
