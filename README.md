@@ -2,18 +2,6 @@
 
 Local-first web application for network engineering workflows. Keystone runs on `http://127.0.0.1:8002` and includes Configuration Studio, Wireless Analyzer, Switch Analyzer, and Lifecycle Manager in one browser workspace.
 
-## Operations UI design
-
-- FTD-inspired dark-first operations workspace with a cool light theme available.
-- Task-first dashboard: mixed-seniority teams can pick the right workflow without a separate briefing.
-- Self-hosted Archivo and Atkinson Hyperlegible fonts. No font CDN, no internet connection required.
-- Responsive layouts verified across all routes at 390 and 1440 pixel widths.
-- Keyboard-friendly navigation, visible focus states, skip link, semantic active-page state.
-- Searchable tool index (`/` shortcut), plain-language selection guide, live local-service health check.
-- Consistent SVG icon system, 44px minimum controls, reduced-motion support, accessible status feedback.
-- Navy/charcoal surfaces, cyan primary actions, restrained semantic status colors, consistent FTD-style hierarchy.
-- Wireless Analyzer intake follows three explicit steps: required WLC config, recommended AP runtime inventory, then vendor + analysis.
-- Equal upload cards on desktop, stacked workflow on mobile, compact two-column summary metrics on small screens.
 
 ## Wireless Analyzer v1.11.0
 
