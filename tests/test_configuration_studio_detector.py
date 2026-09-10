@@ -122,6 +122,23 @@ class TestDeviceDetector(unittest.TestCase):
         result = self.detector.detect_text(text)
         self.assertEqual(result.vendor, "Huawei")
 
+    def test_mikrotik_routeros_markers(self):
+        text = """
+        /interface bridge
+        add name=bridge-lan
+        /interface bridge port
+        add bridge=bridge-lan interface=ether2
+        /ip firewall filter
+        add action=accept chain=forward
+        /ip firewall nat
+        add action=masquerade chain=srcnat out-interface=ether1
+        /system identity
+        set name=ROUTER01
+        """
+        result = self.detector.detect_text(text)
+        self.assertEqual(result.vendor, "Mikrotik")
+        self.assertEqual(result.device_type, "Firewall")
+
     def test_cisco_switch_wins_tie_against_aruba_switch(self):
         # "trunk " (Aruba marker) and "switchport mode trunk" (Cisco
         # marker, itself containing "trunk ") can each score 10 from

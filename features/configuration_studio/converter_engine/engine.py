@@ -50,6 +50,16 @@ class MigrationEngine:
                 "features.configuration_studio.converter_engine.parsers.switch.huawei",
                 "HuaweiSwitchParser"
             ),
+
+            # FIREWALL
+
+            (
+                "firewall",
+                "mikrotik"
+            ): (
+                "features.configuration_studio.converter_engine.parsers.firewall.mikrotik",
+                "MikrotikFirewallParser"
+            ),
         }
 
         # ====================================================
@@ -82,6 +92,16 @@ class MigrationEngine:
             ): (
                 "features.configuration_studio.converter_engine.translators.switch.huawei",
                 "HuaweiSwitchTranslator"
+            ),
+
+            # FIREWALL
+
+            (
+                "firewall",
+                "palo alto"
+            ): (
+                "features.configuration_studio.converter_engine.translators.firewall.paloalto",
+                "PaloAltoFirewallTranslator"
             ),
         }
 

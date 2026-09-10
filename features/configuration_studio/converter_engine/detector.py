@@ -126,6 +126,41 @@ class DeviceDetector:
         )
 
         # ==========================================
+        # MIKROTIK ROUTEROS
+        # /export style configuration
+        # ==========================================
+
+        score = 0
+
+        markers = [
+            "/interface bridge",
+            "/interface bridge port",
+            "/interface vlan",
+            "/ip firewall filter",
+            "/ip firewall nat",
+            "/ip firewall address-list",
+            "/ip ipsec",
+            "/system identity",
+            "add chain=",
+            "add action=",
+        ]
+
+        for marker in markers:
+            if marker in text:
+                score += 10
+
+        if "routeros" in text:
+            score += 2
+
+        candidates.append(
+            DetectionResult(
+                vendor="Mikrotik",
+                device_type="Firewall",
+                confidence=score
+            )
+        )
+
+        # ==========================================
         # FORTIGATE FIREWALL
         # ==========================================
 

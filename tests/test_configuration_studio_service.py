@@ -71,14 +71,17 @@ class TestSupportedPlatforms(unittest.TestCase):
         platforms = supported_platforms()
         source_vendors = {item["vendor"] for item in platforms["sources"]}
         target_vendors = {item["vendor"] for item in platforms["targets"]}
-        # Parsers exist for all three switch vendors...
-        self.assertEqual(source_vendors, {"cisco", "huawei", "aruba"})
+        # Parsers exist for all three switch vendors, plus Mikrotik on
+        # the firewall side (the new Mikrotik -> Palo Alto migration
+        # path -- see MikrotikFirewallParser)...
+        self.assertEqual(source_vendors, {"cisco", "huawei", "aruba", "mikrotik"})
         # ...and a CiscoSwitchTranslator now exists too (renders an
         # Aruba/Huawei-sourced config back into Cisco IOS-style CLI --
         # e.g. for rollback documentation / config-parity review), so
-        # Cisco is no longer source-only: all three vendors are valid
-        # translation targets.
-        self.assertEqual(target_vendors, {"cisco", "huawei", "aruba"})
+        # Cisco is no longer source-only: all three switch vendors are
+        # valid translation targets, plus Palo Alto as the firewall
+        # target (PaloAltoFirewallTranslator).
+        self.assertEqual(target_vendors, {"cisco", "huawei", "aruba", "palo alto"})
 
 
 class TestConvertFile(unittest.TestCase):
