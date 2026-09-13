@@ -60,6 +60,14 @@ class MigrationEngine:
                 "features.configuration_studio.converter_engine.parsers.firewall.mikrotik",
                 "MikrotikFirewallParser"
             ),
+
+            (
+                "firewall",
+                "palo alto"
+            ): (
+                "features.configuration_studio.converter_engine.parsers.firewall.paloalto",
+                "PaloAltoFirewallParser"
+            ),
         }
 
         # ====================================================
@@ -438,7 +446,8 @@ class MigrationEngine:
         target_vendor,
         target_device_type=None,
         profile=None,
-        target_model=None
+        target_model=None,
+        mapping=None
     ):
 
         if not target_device_type:
@@ -510,6 +519,9 @@ class MigrationEngine:
         if target_model:
             extra_kwargs["target_model"] = target_model
 
+        if mapping:
+            extra_kwargs["mapping"] = mapping
+
         if extra_kwargs:
 
             try:
@@ -538,7 +550,8 @@ class MigrationEngine:
         source_device_type="Auto Detect",
         target_device_type=None,
         profile=None,
-        target_model=None
+        target_model=None,
+        mapping=None
     ):
 
         config = self.parse(
@@ -566,7 +579,8 @@ class MigrationEngine:
                 target_device_type
             ),
             profile=profile,
-            target_model=target_model
+            target_model=target_model,
+            mapping=mapping
         )
 
         return (

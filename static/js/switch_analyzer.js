@@ -6,7 +6,9 @@
   const button = document.getElementById("switch-analyze-button");
   const empty = document.getElementById("switch-empty");
   const resultPanel = document.getElementById("switch-result");
+  const firewallResultPanel = document.getElementById("switch-firewall-result");
   const exportButton = document.getElementById("switch-export-button");
+  const firewallExportButton = document.getElementById("firewall-export-button");
   let lastResult = null;
   const esc = value => window.NES.escape(value ?? "");
   const display = value => Array.isArray(value) ? value.join("\n") : (value ?? "");
@@ -45,6 +47,19 @@
   document.getElementById("switch-mode-tabs").addEventListener("click", event => {
     const modeButton = event.target.closest("button[data-mode]");
     if (modeButton) switchMode(modeButton.dataset.mode);
+  });
+
+  // Firewall-shaped results (Mikrotik/Palo Alto, see renderFirewallResult
+  // below) render into their own tab-shell/panel entirely separate from
+  // the switch dashboard's #switch-tabs -- same tab-switching pattern,
+  // just scoped to #switch-firewall-result instead of #switch-result.
+  function firewallTab(tabName) {
+    document.querySelectorAll("#firewall-tabs button").forEach(item => item.classList.toggle("active", item.dataset.tab === tabName));
+    document.querySelectorAll("#switch-firewall-result .tab-content").forEach(item => item.classList.toggle("active", item.id === `firewall-tab-${tabName}`));
+  }
+  document.getElementById("firewall-tabs")?.addEventListener("click", event => {
+    const tabButton = event.target.closest("button[data-tab]");
+    if (tabButton) firewallTab(tabButton.dataset.tab);
   });
 
   document.addEventListener("input", event => {
@@ -427,6 +442,356 @@
     ], [...trustedRows, ...untrustedRateLimited]);
   }
 
+  // ---- Firewall dashboard (Mikrotik / Palo Alto) -- entirely separate
+  // render path from renderResult() above, since a firewall result's
+  // shape (zones/security_rules/nat_rules/ipsec_tunnels/findings, see
+  // features/switch_analyzer/firewall_service.py) has no overlap with a
+  // switch result's (interfaces/VLANs/port-channels/PoE/...). Reuses
+  // the same renderTable/renderKVList/esc/display helpers above so both
+  // dashboards look and behave identically even though their data is
+  // unrelated. ----
+
+  const SEVERITY_LABEL = { high: "High", medium: "Medium", low: "Low" };
+
+  const FIREWALL_TAB_ORDER = {
+    "palo alto": [
+      "interfaces", "port_mapping", "cdp_lldp", "routing", "pbf", "ipsec",
+      "security", "nat", "address", "vlans", "dhcp", "zones", "zone_protection",
+      "security_profiles", "management_profiles", "qos", "administrators",
+    ],
+    mikrotik: [
+      "interfaces", "vlans", "port_mapping", "security", "nat", "qos",
+      "zones", "routing", "address", "ipsec", "dhcp",
+    ],
+  };
+
+  function layoutFirewallTabs(vendor) {
+    const order = FIREWALL_TAB_ORDER[String(vendor || "").toLowerCase()] || FIREWALL_TAB_ORDER.mikrotik;
+    const nav = document.getElementById("firewall-tabs");
+    const allButtons = [...nav.querySelectorAll("button[data-tab]")];
+    allButtons.forEach(btn => btn.classList.add("hidden"));
+    order.forEach(tabName => {
+      const btn = allButtons.find(item => item.dataset.tab === tabName);
+      const pane = document.getElementById(`firewall-tab-${tabName}`);
+      if (!btn || !pane) return;
+      btn.classList.remove("hidden");
+      nav.appendChild(btn);
+    });
+    // Land on the first tab in this vendor's order every time a new
+    // result is rendered, rather than leaving whatever tab a previous
+    // (possibly other-vendor) result had focused active but now hidden.
+    const firstVisible = order.find(tabName => document.getElementById(`firewall-tab-${tabName}`));
+    if (firstVisible) firewallTab(firstVisible);
+  }
+
+  function renderFirewallResult(result) {
+    document.getElementById("firewall-source-name").textContent = result.hostname || "Firewall Analysis";
+    document.getElementById("firewall-platform").textContent = `${result.vendor || "Unknown"} · ${result.device_type || "Firewall"}`;
+
+    // Mikrotik (RouterOS) and Palo Alto (PAN-OS) dashboards share this
+    // one set of table ids, but the underlying data is genuinely
+    // different in kind, not just in value -- RouterOS has no zone/
+    // link-state/management-profile/security-profile concept at all,
+    // and its VLAN/chain vocabulary has no Palo Alto equivalent either.
+    // Rather than showing the other vendor's columns permanently blank,
+    // several tables below pick a distinct column set per vendor.
+    const isMikrotik = String(result.vendor || "").toLowerCase() === "mikrotik";
+
+    const cards = result.cards || {};
+    const deviceInfo = result.device_info || {};
+    const managementServices = result.management_services || [];
+    const disabledServices = managementServices.filter(item => item.disabled).map(item => item.field);
+    renderKVList("firewall-information", {
+      hostname: result.hostname,
+      vendor: result.vendor,
+      ...(deviceInfo.mgmt_ip ? { management_ip: `${deviceInfo.mgmt_ip}${deviceInfo.mgmt_netmask ? " / " + deviceInfo.mgmt_netmask : ""}` } : {}),
+      ...(deviceInfo.mgmt_gateway ? { management_gateway: deviceInfo.mgmt_gateway } : {}),
+      ...(deviceInfo.domain ? { domain: deviceInfo.domain } : {}),
+      ...(deviceInfo.timezone ? { timezone: deviceInfo.timezone } : {}),
+      ...((result.dns_servers || []).length ? { dns_servers: result.dns_servers.join(", ") } : {}),
+      ...((result.ntp_servers || []).length ? { ntp_servers: result.ntp_servers.join(", ") } : {}),
+      total_interfaces: cards.total_interfaces ?? 0,
+      total_zones: cards.total_zones ?? 0,
+      total_security_rules: cards.total_security_rules ?? 0,
+      total_nat_rules: cards.total_nat_rules ?? 0,
+      total_ipsec_tunnels: cards.total_ipsec_tunnels ?? 0,
+      total_findings: cards.total_findings ?? 0,
+      high_severity_findings: cards.high_severity_findings ?? 0,
+      panorama_enabled: result.panorama_enabled ? "Yes" : "No",
+      ...(managementServices.length ? { admin_services_disabled: disabledServices.length ? disabledServices.join(", ") : "None" } : {}),
+    });
+
+    const findings = result.findings || [];
+    document.getElementById("firewall-findings-empty").classList.toggle("hidden", findings.length > 0);
+    renderTable("firewall-findings-table", [
+      { label: "Severity", key: "severity", status: true, value: row => SEVERITY_LABEL[row.severity] || row.severity },
+      { label: "Category", key: "category" },
+      { label: "Finding", key: "title" },
+      { label: "Detail", key: "detail" },
+    ], findings);
+
+    renderTable("firewall-interface-table", isMikrotik ? [
+      { label: "Name", key: "name" },
+      { label: "Type", key: "type" },
+      { label: "Zone / Bridge", key: "zone" },
+      { label: "IP Address", key: "ip_address" },
+      { label: "Comment", key: "comment" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ] : [
+      { label: "Name", key: "name" },
+      { label: "Type", key: "type" },
+      { label: "Zone", key: "zone" },
+      { label: "IP Address", key: "ip_address" },
+      { label: "VLAN Tag", key: "tag" },
+      { label: "Comment", key: "comment" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ], result.interfaces || []);
+
+    renderTable("firewall-port-mapping-table", isMikrotik ? [
+      { label: "Current Name", key: "name" },
+      { label: "Default/Factory Name", key: "default_name" },
+      { label: "Comment", key: "comment" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ] : [
+      { label: "Name", key: "name" },
+      { label: "Default/Factory Name", key: "default_name" },
+      { label: "Zone", key: "zone" },
+      { label: "Mode", key: "mode" },
+      { label: "Link State", key: "link_state" },
+      { label: "Management Profile", key: "management_profile" },
+      { label: "Comment", key: "comment" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ], result.port_mapping || []);
+
+    renderTable("firewall-cdp-lldp-table", [
+      { label: "Interface", key: "interface" },
+      { label: "LLDP Enabled", key: "lldp_enabled", value: row => row.lldp_enabled ? "Yes" : "No" },
+    ], result.cdp_lldp || []);
+
+    renderTable("firewall-vlan-table", isMikrotik ? [
+      { label: "Name", key: "name" },
+      { label: "VLAN ID", key: "vlan_id" },
+      { label: "Parent Interface", key: "parent_interface" },
+      { label: "Comment", key: "comment" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ] : [
+      { label: "Name", key: "name" },
+      { label: "VLAN Interface", key: "vlan_interface" },
+      { label: "Tag", key: "tag" },
+      { label: "Member Interfaces", key: "interfaces", value: row => (row.interfaces || []).join(", ") },
+    ], result.vlans || []);
+
+    renderTable("firewall-security-profile-table", [
+      { label: "Name", key: "name" },
+      { label: "Type", key: "type" },
+      { label: "Rule Count", key: "rule_count" },
+    ], result.security_profiles || []);
+
+    const qos = result.qos;
+    if (Array.isArray(qos)) {
+      // Mikrotik: raw "/queue simple"/"/queue tree" lines (see
+      // firewall_service.py's _mikrotik_qos_from_unhandled -- RouterOS
+      // QoS has no dedicated model, this is its best-effort surfacing).
+      document.getElementById("firewall-qos-summary").innerHTML = "";
+      renderTable("firewall-qos-table", [
+        { label: "Section", key: "section" },
+        { label: "Command", key: "line" },
+      ], qos || []);
+    } else {
+      renderKVList("firewall-qos-summary", {
+        qos_profiles: (qos?.profiles || []).join(", ") || "None configured",
+      });
+      renderTable("firewall-qos-table", [
+        { label: "Interface", key: "interface" },
+        { label: "QoS Profile", key: "profile" },
+      ], qos?.interface_bindings || []);
+    }
+
+    renderTable("firewall-zone-table", isMikrotik ? [
+      { label: "Zone", key: "name" },
+      { label: "Interfaces", key: "interfaces", value: row => (row.interfaces || []).join(", ") },
+    ] : [
+      { label: "Zone", key: "name" },
+      { label: "Interfaces", key: "interfaces", value: row => (row.interfaces || []).join(", ") },
+      { label: "Zone Protection Profile", key: "zone_protection_profile" },
+    ], result.zones || []);
+
+    renderTable("firewall-management-profile-table", [
+      { label: "Name", key: "name" },
+      { label: "Permitted Services", key: "permitted_services", value: row => (row.permitted_services || []).join(", ") || "None" },
+    ], result.management_profiles || []);
+
+    renderTable("firewall-zone-protection-table", [
+      { label: "Name", key: "name" },
+      { label: "Protection Types", key: "protection_types", value: row => (row.protection_types || []).join(", ") || "None" },
+    ], result.zone_protection_profiles || []);
+
+    renderTable("firewall-pbf-table", [
+      { label: "Name", key: "name" },
+      { label: "From Zone", key: "from_zone", value: row => (row.from_zone || []).join(", ") || "any" },
+      { label: "Source", key: "source", value: row => (row.source || []).join(", ") || "any" },
+      { label: "Destination", key: "destination", value: row => (row.destination || []).join(", ") || "any" },
+      { label: "Application", key: "application", value: row => (row.application || []).join(", ") || "any" },
+      { label: "Service", key: "service", value: row => (row.service || []).join(", ") || "any" },
+      { label: "Egress Interface", key: "egress_interface" },
+      { label: "Next Hop", key: "nexthop" },
+      { label: "Monitor Profile", key: "monitor_profile" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ], result.pbf_rules || []);
+
+    renderTable("firewall-administrator-table", [
+      { label: "Username", key: "username" },
+      { label: "Role", key: "role" },
+    ], result.administrators || []);
+
+    renderTable("firewall-security-table", isMikrotik ? [
+      { label: "Chain", key: "chain" },
+      { label: "Name", key: "name" },
+      { label: "In Interface / List", key: "from_zone", value: row => (row.from_zone || []).join(", ") || "any" },
+      { label: "Out Interface / List", key: "to_zone", value: row => (row.to_zone || []).join(", ") || "any" },
+      { label: "Source", key: "source", value: row => (row.source || []).join(", ") || "any" },
+      { label: "Destination", key: "destination", value: row => (row.destination || []).join(", ") || "any" },
+      { label: "Protocol / Port", key: "service", value: row => (row.service || []).join(", ") || "any" },
+      { label: "Action", key: "action" },
+      { label: "Log", key: "log", value: row => row.log ? "Yes" : "No" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ] : [
+      { label: "Name", key: "name" },
+      { label: "From Zone", key: "from_zone", value: row => (row.from_zone || []).join(", ") || "any" },
+      { label: "To Zone", key: "to_zone", value: row => (row.to_zone || []).join(", ") || "any" },
+      { label: "Source", key: "source", value: row => (row.source || []).join(", ") || "any" },
+      { label: "Destination", key: "destination", value: row => (row.destination || []).join(", ") || "any" },
+      { label: "Service", key: "service", value: row => (row.service || []).join(", ") || "any" },
+      { label: "Security Profile", key: "profile_setting", value: row => Object.entries(row.profile_setting || {}).map(([type, names]) => `${type}:${names.join("/")}`).join(", ") },
+      { label: "Action", key: "action" },
+      { label: "Log", key: "log", value: row => row.log ? "Yes" : "No" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ], result.security_rules || []);
+
+    renderTable("firewall-nat-table", isMikrotik ? [
+      { label: "Chain", key: "chain" },
+      { label: "Name", key: "name" },
+      { label: "Source", key: "source", value: row => (row.source || []).join(", ") || "any" },
+      { label: "Destination", key: "destination", value: row => (row.destination || []).join(", ") || "any" },
+      { label: "Service / Port", key: "service", value: row => (row.service || []).join(", ") || "any" },
+      { label: "Translated Address", key: "translated_address" },
+      { label: "Translated Port", key: "translated_port" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ] : [
+      { label: "Name", key: "name" },
+      { label: "Type", key: "type" },
+      { label: "Source", key: "source", value: row => (row.source || []).join(", ") || "any" },
+      { label: "Destination", key: "destination", value: row => (row.destination || []).join(", ") || "any" },
+      { label: "Service", key: "service", value: row => (row.service || []).join(", ") || "any" },
+      { label: "Translated Address", key: "translated_address" },
+      { label: "Translated Port", key: "translated_port" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ], result.nat_rules || []);
+
+    // Per-virtual-router routing detail -- static vs dynamic, and which
+    // dynamic protocol (BGP/OSPF/RIP -- PAN-OS has no EIGRP support at
+    // all, that's Cisco-proprietary) with its router-id/AS/area, so
+    // "is this VR static, dynamic, or a mix" is answered directly
+    // instead of just listing which protocols are technically enabled.
+    const routingEntries = result.routing_protocols || [];
+    if (routingEntries.length) {
+      const summary = {};
+      routingEntries.forEach(vr => {
+        const parts = [vr.routing_type || "None configured"];
+        if (vr.bgp) {
+          const bgpDetail = [
+            vr.bgp_as_number ? `AS ${vr.bgp_as_number}` : "",
+            vr.bgp_router_id ? `Router ID ${vr.bgp_router_id}` : "",
+          ].filter(Boolean).join(", ");
+          parts.push(`BGP${bgpDetail ? ` (${bgpDetail})` : ""}`);
+        }
+        if (vr.ospf) {
+          const ospfDetail = [
+            vr.ospf_router_id ? `Router ID ${vr.ospf_router_id}` : "",
+            (vr.ospf_area_ids || []).length ? `Area ${vr.ospf_area_ids.join("/")}` : "",
+          ].filter(Boolean).join(", ");
+          parts.push(`OSPF${ospfDetail ? ` (${ospfDetail})` : ""}`);
+        }
+        if (vr.rip) parts.push("RIP");
+        const routeCount = vr.static_route_count || 0;
+        if (routeCount) parts.push(`${routeCount} static route${routeCount === 1 ? "" : "s"}`);
+        summary[vr.virtual_router] = parts.join(" — ");
+      });
+      renderKVList("firewall-routing-summary", summary);
+    } else {
+      document.getElementById("firewall-routing-summary").innerHTML = "";
+    }
+
+    const routingTypeByVr = {};
+    (result.routing_protocols || []).forEach(vr => { routingTypeByVr[vr.virtual_router] = vr.routing_type; });
+
+    renderTable("firewall-route-table", isMikrotik ? [
+      { label: "Destination", key: "destination" },
+      { label: "Next Hop", key: "nexthop" },
+      { label: "Metric", key: "metric" },
+    ] : [
+      { label: "Destination", key: "destination" },
+      { label: "Next Hop", key: "nexthop" },
+      { label: "Metric", key: "metric" },
+      { label: "Virtual Router", key: "virtual_router" },
+      { label: "VR Routing Type", key: "routing_type", value: row => routingTypeByVr[row.virtual_router] || "" },
+    ], result.static_routes || []);
+
+    renderTable("firewall-address-table", [
+      { label: "Name", key: "name" },
+      { label: "Members", key: "members", value: row => (row.members || []).join(", ") },
+    ], result.address_objects || []);
+
+    // Palo Alto-only concept (named service/App-ID objects) -- RouterOS
+    // rules match raw ports/addresses directly, so this section is
+    // hidden entirely for Mikrotik rather than showing two tables that
+    // can never have data.
+    document.getElementById("firewall-service-object-section").hidden = isMikrotik;
+    if (!isMikrotik) {
+      renderTable("firewall-service-object-table", [
+        { label: "Service / Service Group", key: "name" },
+        { label: "Members", key: "members", value: row => (row.members || []).join(", ") },
+      ], result.service_objects || []);
+
+      renderTable("firewall-application-group-table", [
+        { label: "Application Group", key: "name" },
+        { label: "Members", key: "members", value: row => (row.members || []).join(", ") },
+      ], result.application_groups || []);
+    }
+
+    renderTable("firewall-ipsec-table", [
+      { label: "Name", key: "name" },
+      { label: "Peer Address", key: "peer_address" },
+      { label: "DH Group", key: "dh_group" },
+      { label: "IKE Encryption", key: "ike_encryption" },
+      { label: "IKE Hash", key: "ike_hash" },
+      { label: "ESP Encryption", key: "esp_encryption" },
+      { label: "ESP Authentication", key: "esp_authentication" },
+      { label: "Proxy ID Local", key: "proxy_id_local" },
+      { label: "Proxy ID Remote", key: "proxy_id_remote" },
+    ], result.ipsec_tunnels || []);
+
+    const dhcp = result.dhcp || {};
+    renderKVList("firewall-dhcp-summary", {
+      dns_servers: (result.dns_servers || []).join(", ") || "—",
+      ntp_servers: (result.ntp_servers || []).join(", ") || "—",
+    });
+    renderTable("firewall-dhcp-table", isMikrotik ? [
+      { label: "Name", key: "name" },
+      { label: "Interface", key: "interface" },
+      { label: "Address Pool", key: "address_pool" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ] : [
+      { label: "Name", key: "name" },
+      { label: "Interface", key: "interface" },
+      { label: "Address Pool", key: "address_pool" },
+      { label: "Gateway", key: "gateway" },
+      { label: "Disabled", key: "disabled", value: row => row.disabled ? "Yes" : "No" },
+    ], dhcp.servers || []);
+
+    layoutFirewallTabs(result.vendor);
+  }
+
   form.addEventListener("submit", async event => {
     event.preventDefault();
     const formData = new FormData(form);
@@ -436,10 +801,18 @@
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Analysis failed.");
       empty.classList.add("hidden");
-      resultPanel.classList.remove("hidden");
       lastResult = payload.result;
-      renderResult(payload.result);
-      window.NES.toast("Switch analysis completed.");
+      if (payload.result.device_type === "Firewall") {
+        resultPanel.classList.add("hidden");
+        firewallResultPanel.classList.remove("hidden");
+        renderFirewallResult(payload.result);
+        window.NES.toast("Firewall analysis completed.");
+      } else {
+        firewallResultPanel.classList.add("hidden");
+        resultPanel.classList.remove("hidden");
+        renderResult(payload.result);
+        window.NES.toast("Switch analysis completed.");
+      }
     } catch (error) {
       window.NES.toast(error.message, "error");
     } finally {
@@ -465,6 +838,27 @@
       window.NES.toast(error.message, "error");
     } finally {
       window.NES.setLoading(exportButton, false);
+    }
+  });
+
+  firewallExportButton?.addEventListener("click", async event => {
+    event.preventDefault();
+    if (!lastResult) return;
+    window.NES.setLoading(firewallExportButton, true, "Exporting...");
+    try {
+      const response = await fetch("/switch-analyzer/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ results: [lastResult] }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "Export failed.");
+      window.location.href = payload.download_url;
+      window.NES.toast("Excel export ready — download starting.");
+    } catch (error) {
+      window.NES.toast(error.message, "error");
+    } finally {
+      window.NES.setLoading(firewallExportButton, false);
     }
   });
 

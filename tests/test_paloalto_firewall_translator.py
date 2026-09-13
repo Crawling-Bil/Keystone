@@ -42,6 +42,7 @@ from features.configuration_studio.converter_engine.parsers.firewall.mikrotik im
 )
 from features.configuration_studio.converter_engine.translators.firewall.paloalto import (
     PaloAltoFirewallTranslator,
+    resolve_target_ethernet_port_count,
 )
 
 SAMPLE_CONFIG = """
@@ -140,6 +141,21 @@ class PaloAltoFirewallTranslatorTests(unittest.TestCase):
         self.assertIn("set rulebase security rules allow-trusted-out action allow", text)
         self.assertIn("set rulebase security rules drop-blocked action deny", text)
         self.assertIn("set service allow-ssh-from-lan-svc protocol tcp port 22", text)
+
+    def test_plain_routed_interface_ip_nests_under_layer3(self):
+        # Regression guard for a real bug found by round-tripping this
+        # translator's own output through the new Config Analyzer's
+        # PaloAltoFirewallParser: a plain routed interface (not part of
+        # a bridge, not a VLAN sub-interface, not an SD-WAN member) was
+        # emitting "set network interface ethernet ethernet1/1 ip ..."
+        # with no "layer3" -- not valid PAN-OS "set" syntax, since "ip"
+        # nests under the interface's layer3 tree. translate_sdwan's
+        # SD-WAN-member interfaces already emitted the correct nested
+        # form; _translate_routed_interface now matches it.
+        config = _parse(SAMPLE_CONFIG)
+        text = "\n".join(self.translator.translate(config))
+        self.assertIn("set network interface ethernet ethernet1/1 layer3 ip 203.0.113.10/29", text)
+        self.assertNotIn("set network interface ethernet ethernet1/1 ip 203.0.113.10/29", text)
 
     def test_vlan_on_routed_parent_does_not_also_zone_the_bare_parent(self):
         config = _parse(SAMPLE_CONFIG)
@@ -248,6 +264,117 @@ class PaloAltoFirewallTranslatorTests(unittest.TestCase):
         text = "\n".join(output)
         self.assertIn("REVIEW", text)
         self.assertIn("no automatic PAN-OS", text)
+
+    def test_nat_accept_action_becomes_no_nat_exemption_rule(self):
+        # RouterOS "accept" in a NAT chain means "match but don't NAT" --
+        # a real production config (a site's AWS traffic exemption) had
+        # this silently disappear before this fix, since it fell through
+        # to the generic "no automatic equivalent" REVIEW branch and
+        # never got a from/to/source/destination match line at all.
+        config = FirewallConfig(source_vendor="Mikrotik", source_device_type="Firewall")
+        config.nat_rules.append(
+            NatRule(chain="srcnat", action="accept", comment="AWS-exempt", dst_address="169.254.59.49")
+        )
+        output = self.translator.translate(config)
+        text = "\n".join(output)
+        self.assertIn("set rulebase nat rules AWS-exempt destination [ 169.254.59.49 ]", text)
+        self.assertNotIn("set rulebase nat rules AWS-exempt source-translation", text)
+        self.assertNotIn("set rulebase nat rules AWS-exempt destination-translation", text)
+        self.assertIn("do not NAT this traffic", text)
+
+    def test_nat_netmap_single_address_becomes_bidirectional_static_ip(self):
+        config = FirewallConfig(source_vendor="Mikrotik", source_device_type="Firewall")
+        config.nat_rules.append(
+            NatRule(
+                chain="srcnat", action="netmap", comment="Server1", src_address="192.168.1.50",
+                to_addresses="203.0.113.10",
+            )
+        )
+        output = self.translator.translate(config)
+        text = "\n".join(output)
+        self.assertIn("set rulebase nat rules Server1 source-translation static-ip translated-address 203.0.113.10", text)
+        self.assertIn("set rulebase nat rules Server1 source-translation static-ip bi-directional yes", text)
+        # netmap must NOT fall into the PAT (dynamic-ip-and-port) path --
+        # that was the original bug (netmap and src-nat were conflated).
+        self.assertNotIn("dynamic-ip-and-port", text)
+
+    def test_nat_netmap_subnet_target_is_review_flagged_not_guessed(self):
+        config = FirewallConfig(source_vendor="Mikrotik", source_device_type="Firewall")
+        config.nat_rules.append(
+            NatRule(
+                chain="srcnat", action="netmap", comment="BadNetmap", src_address="192.168.1.0/24",
+                to_addresses="203.0.113.0/24",
+            )
+        )
+        output = self.translator.translate(config)
+        text = "\n".join(output)
+        self.assertNotIn("set rulebase nat rules BadNetmap", text)
+        self.assertIn("network-wide 1:1 static NAT needs to be built manually", text)
+
+    def test_nat_src_nat_pat_still_uses_dynamic_ip_and_port(self):
+        # src-nat (plain PAT to a pool) must keep its old behavior --
+        # only netmap changed.
+        config = FirewallConfig(source_vendor="Mikrotik", source_device_type="Firewall")
+        config.nat_rules.append(
+            NatRule(
+                chain="srcnat", action="src-nat", comment="PAT-pool", src_address="192.168.1.0/24",
+                to_addresses="203.0.113.20,203.0.113.21",
+            )
+        )
+        output = self.translator.translate(config)
+        text = "\n".join(output)
+        self.assertIn(
+            "set rulebase nat rules PAT-pool source-translation dynamic-ip-and-port "
+            "translated-address [ 203.0.113.20 203.0.113.21 ]",
+            text,
+        )
+
+    def test_nat_rule_falls_back_to_address_list_when_no_direct_address(self):
+        config = FirewallConfig(source_vendor="Mikrotik", source_device_type="Firewall")
+        config.address_lists.append(AddressListEntry(list_name="LAN-net", address="192.168.1.0/24"))
+        config.nat_rules.append(
+            NatRule(
+                chain="dstnat", action="dst-nat", comment="ListMatch", dst_address="203.0.113.7",
+                dst_port="22", protocol="tcp", src_address_list="LAN-net", to_addresses="192.168.1.102",
+            )
+        )
+        output = self.translator.translate(config)
+        text = "\n".join(output)
+        self.assertIn("set rulebase nat rules ListMatch source [ LAN-net ]", text)
+
+    def test_nat_rule_with_negated_address_list_is_review_flagged_not_silently_widened(self):
+        config = FirewallConfig(source_vendor="Mikrotik", source_device_type="Firewall")
+        config.nat_rules.append(
+            NatRule(
+                chain="dstnat", action="dst-nat", comment="NegatedSrc", dst_address="203.0.113.6",
+                dst_port="443", protocol="tcp", src_address_list="!Trusted", to_addresses="192.168.1.101",
+            )
+        )
+        output = self.translator.translate(config)
+        text = "\n".join(output)
+        self.assertIn("set rulebase nat rules NegatedSrc source [ any ]", text)
+        self.assertIn("negated address-list", text)
+        self.assertIn("don't support negation", text)
+
+    def test_nat_and_filter_service_objects_do_not_collide_on_same_comment(self):
+        # NAT-derived service objects use a "-nat-svc" suffix distinct
+        # from filter rules' "-svc" suffix, so a NAT rule and a filter
+        # rule sharing the same comment/name don't silently overwrite
+        # each other's service object (different port/protocol).
+        config = FirewallConfig(source_vendor="Mikrotik", source_device_type="Firewall")
+        config.nat_rules.append(
+            NatRule(
+                chain="dstnat", action="dst-nat", comment="Shared", dst_address="203.0.113.9",
+                dst_port="80", protocol="tcp", to_addresses="192.168.1.9",
+            )
+        )
+        config.filter_rules.append(
+            FirewallFilterRule(chain="forward", action="accept", comment="Shared", protocol="tcp", dst_port="443")
+        )
+        output = self.translator.translate(config)
+        text = "\n".join(output)
+        self.assertIn("set service Shared-nat-svc protocol tcp port 80", text)
+        self.assertIn("set service Shared-svc protocol tcp port 443", text)
 
     def test_unsupported_filter_action_is_review_flagged_and_skipped(self):
         config = FirewallConfig(source_vendor="Mikrotik", source_device_type="Firewall")
@@ -404,6 +531,228 @@ add chain=forward action=change-mss new-mss=1360 protocol=tcp tcp-flags=syn in-i
             "management service 'ssh' (enabled): no direct PAN-OS deviceconfig system service equivalent",
             text,
         )
+
+
+class PaloAltoInterfaceMappingTests(unittest.TestCase):
+    """
+    Covers the interface/zone mapping override, SD-WAN generation,
+    IPsec tunnel-interface/zone binding, virtual-router membership and
+    Panorama Template/Device-Group wrapping added for the Mikrotik ->
+    Palo Alto SD-WAN migration project. Every one of these features is
+    driven entirely by an explicit `mapping` argument to translate() --
+    the point of PaloAltoInterfaceMappingTests existing separately from
+    PaloAltoFirewallTranslatorTests is to pin that a bare
+    translate(config) call (no mapping) is completely unaffected by any
+    of this, which the existing 31 tests already exercise implicitly by
+    continuing to pass unchanged.
+    """
+
+    def setUp(self):
+        self.translator = PaloAltoFirewallTranslator()
+
+    def test_plain_translate_still_ignores_mapping_free_defaults(self):
+        # Sanity guard: translate(config) and translate(config, mapping=None)
+        # must be byte-identical -- mapping=None is the implicit default
+        # every pre-existing caller (and all 31 tests above) relies on.
+        # Two fresh translator instances: _synthetic_vlan_unit is stateful
+        # per-instance and increments on every translate() call, so reusing
+        # one instance for both calls would (correctly) produce different
+        # vlan.9xx numbers -- a pre-existing quirk unrelated to mapping.
+        config_a = _parse(SAMPLE_CONFIG)
+        config_b = _parse(SAMPLE_CONFIG)
+        self.assertEqual(
+            PaloAltoFirewallTranslator().translate(config_a),
+            PaloAltoFirewallTranslator().translate(config_b, mapping=None),
+        )
+
+    def test_interface_mapping_override_wins_over_auto_guess(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {"interfaces": {"ether1-wan": {"pan_interface": "ethernet1/5", "zone": "Outside-Custom"}}}
+        text = "\n".join(self.translator.translate(config, mapping=mapping))
+        # The override slot is used instead of the ether1 -> ethernet1/1 guess...
+        self.assertIn("ethernet1/5", text)
+        self.assertNotIn("interface-address interface ethernet1/1", text)
+        # ...and the custom zone name shows up on the routed interface's zone binding.
+        self.assertIn("set zone Outside-Custom network layer3 [ ethernet1/5 ]", text)
+
+    def test_interface_zone_override_propagates_to_nat_and_filter_zone_lookups(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {"interfaces": {"ether1-wan": {"zone": "Outside-Custom"}}}
+        text = "\n".join(self.translator.translate(config, mapping=mapping))
+        # The dst-nat rule's in-interface is ether1-wan -- zone_map must
+        # reflect the override everywhere it's consulted, not just on the
+        # interface's own zone binding line.
+        self.assertIn("set rulebase nat rules port-forward-web from [ Outside-Custom ]", text)
+
+    def test_sdwan_disabled_by_default_produces_no_section(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {"interfaces": {"ether1-wan": {"sdwan_link_type": "mpls"}}}
+        text = "\n".join(self.translator.translate(config, mapping=mapping))
+        self.assertNotIn("SD-WAN-VERIFY", text)
+        self.assertNotIn("sdwan-interface-profile", text)
+
+    def test_sdwan_enabled_generates_profile_virtual_interface_and_zone(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {
+            "interfaces": {
+                "ether1-wan": {"sdwan_link_type": "mpls"},
+                "ether4-dmz": {"sdwan_link_type": "internet"},
+            },
+            "sdwan": {"enabled": True, "zone": "SDWAN"},
+        }
+        text = "\n".join(self.translator.translate(config, mapping=mapping))
+        self.assertIn("SD-WAN-VERIFY", text)
+        self.assertIn("set network sdwan-interface-profile mpls-profile link-type mpls", text)
+        self.assertIn("set network sdwan-interface-profile internet-profile link-type internet", text)
+        self.assertIn("set network interface ethernet ethernet1/1 layer3 sdwan-link-settings enable yes", text)
+        self.assertIn(
+            "set network interface sdwan units sdwan.1 interface [ ethernet1/1 ethernet1/4 ]", text
+        )
+        self.assertIn("set zone SDWAN network layer3 [ ethernet1/1 ethernet1/4 sdwan.1 ]", text)
+        # An SD-WAN member must NOT also be emitted as a plain standalone
+        # routed interface bound to its old auto-guessed zone -- that
+        # would be a conflicting, duplicate zone binding for the same port.
+        self.assertNotIn("set zone ether1-wan network layer3 [ ethernet1/1 ]", text)
+
+    def test_sdwan_enabled_but_no_member_tagged_is_review_flagged_not_silent(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {"sdwan": {"enabled": True, "zone": "SDWAN"}}
+        text = "\n".join(self.translator.translate(config, mapping=mapping))
+        self.assertIn("SD-WAN was enabled in the interface mapping but no interface had a link type", text)
+        self.assertNotIn("set network interface sdwan units", text)
+
+    def test_ipsec_tunnel_gets_interface_and_zone_when_mapped(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {"ipsec_tunnels": {"to-hq": {"tunnel_unit": 3, "zone": "IPSEC-Tunnel"}}}
+        text = "\n".join(self.translator.translate(config, mapping=mapping))
+        self.assertIn("set network tunnel ipsec to-hq tunnel-interface tunnel.3", text)
+        self.assertIn("set zone IPSEC-Tunnel network layer3 [ tunnel.3 ]", text)
+
+    def test_ipsec_tunnel_without_zone_in_mapping_is_review_flagged(self):
+        config = _parse(SAMPLE_CONFIG)
+        # A mapping IS supplied (for an unrelated interface) but doesn't
+        # cover this tunnel -- must not silently skip the zone gap.
+        mapping = {"interfaces": {"ether1-wan": {"zone": "Outside"}}}
+        text = "\n".join(self.translator.translate(config, mapping=mapping))
+        self.assertIn("ipsec tunnel to-hq: no target zone assigned in the interface mapping", text)
+        self.assertNotIn("tunnel-interface tunnel.", text)
+
+    def test_virtual_router_collects_zoned_interfaces_when_mapping_present(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {"interfaces": {"ether1-wan": {"zone": "Outside"}}}
+        text = "\n".join(self.translator.translate(config, mapping=mapping))
+        self.assertIn("set network virtual-router default interface [", text)
+        # Bridge's synthetic vlan unit and the routed VLAN sub-interface
+        # both need VR membership to actually route.
+        self.assertIn("vlan.20", text.split("set network virtual-router default interface [")[1].split("]")[0])
+
+    def test_virtual_router_line_absent_without_mapping(self):
+        config = _parse(SAMPLE_CONFIG)
+        text = "\n".join(self.translator.translate(config))
+        self.assertNotIn("set network virtual-router default interface [", text)
+
+    def test_panorama_wrapping_splits_template_and_device_group(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {
+            "panorama": {"enabled": True, "template_name": "GLT-Template", "device_group_name": "GLT-DG"},
+        }
+        text = "\n".join(self.translator.translate(config, mapping=mapping))
+        self.assertIn(
+            "set template GLT-Template config devices localhost.localdomain network interface "
+            "ethernet ethernet1/2 layer2",
+            text,
+        )
+        self.assertIn("set device-group GLT-DG pre-rulebase nat rules", text)
+        self.assertIn("set device-group GLT-DG pre-rulebase security rules", text)
+        self.assertIn("set device-group GLT-DG address-group trusted-nets static", text)
+        # Plain, un-prefixed lines from the old flat format must be gone.
+        self.assertNotIn("\nset network interface ethernet ethernet1/2 layer2", text)
+
+    def test_panorama_defaults_template_and_dg_name_from_hostname(self):
+        config = _parse(SAMPLE_CONFIG)
+        text = "\n".join(self.translator.translate(config, mapping={"panorama": {"enabled": True}}))
+        self.assertIn("set template BRANCH-ROUTER-01-Template config devices localhost.localdomain", text)
+        self.assertIn("set device-group BRANCH-ROUTER-01-DG pre-rulebase", text)
+
+    def test_build_interface_mapping_preview_shape(self):
+        config = _parse(SAMPLE_CONFIG)
+        preview = self.translator.build_interface_mapping_preview(config)
+        self.assertTrue(preview["interfaces"])
+        by_name = {row["name"]: row for row in preview["interfaces"]}
+        self.assertEqual(by_name["ether1-wan"]["suggested_pan_interface"], "ethernet1/1")
+        self.assertFalse(by_name["ether1-wan"]["is_bridge"])
+        self.assertTrue(by_name["bridge-lan"]["is_bridge"])
+        self.assertIsNone(by_name["bridge-lan"]["suggested_pan_interface"])
+        tunnel_names = {t["tunnel_name"] for t in preview["ipsec_tunnels"]}
+        self.assertIn("to-hq", tunnel_names)
+        self.assertEqual(preview["suggested_template_name"], "BRANCH-ROUTER-01-Template")
+        self.assertEqual(preview["suggested_device_group_name"], "BRANCH-ROUTER-01-DG")
+
+
+class PaloAltoTargetModelPortCountTests(unittest.TestCase):
+    """
+    Covers the "Target Model" dropdown's port-count-mismatch safety
+    net (PALOALTO_TARGET_MODELS / resolve_target_ethernet_port_count),
+    added alongside the Huawei switch translator's equivalent
+    (HUAWEI_TARGET_MODELS / resolve_target_ge_port_count). Entirely
+    additive and independent of `mapping` -- target_model works with
+    or without one, exactly like Huawei's target_model does with or
+    without `profile`.
+    """
+
+    def setUp(self):
+        self.translator = PaloAltoFirewallTranslator()
+
+    def test_resolve_target_ethernet_port_count_known_models(self):
+        self.assertEqual(resolve_target_ethernet_port_count("PA-505"), 7)
+        self.assertEqual(resolve_target_ethernet_port_count("pa-520"), 10)
+        self.assertEqual(resolve_target_ethernet_port_count("PA-1410"), 22)
+
+    def test_resolve_target_ethernet_port_count_unknown_or_empty_is_none(self):
+        self.assertIsNone(resolve_target_ethernet_port_count("PA-9999"))
+        self.assertIsNone(resolve_target_ethernet_port_count(None))
+        self.assertIsNone(resolve_target_ethernet_port_count(""))
+
+    def test_no_target_model_skips_the_check_and_matches_plain_translate(self):
+        config_a = _parse(SAMPLE_CONFIG)
+        config_b = _parse(SAMPLE_CONFIG)
+        plain = PaloAltoFirewallTranslator().translate(config_a)
+        with_none_model = PaloAltoFirewallTranslator().translate(config_b, target_model=None)
+        self.assertEqual(plain, with_none_model)
+
+    def test_interface_mapped_beyond_model_port_count_is_review_flagged(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {"interfaces": {"ether1-wan": {"pan_interface": "ethernet1/9"}}}
+        text = "\n".join(self.translator.translate(config, mapping=mapping, target_model="PA-505"))
+        self.assertIn("ethernet1/9", text)
+        self.assertIn(
+            "REVIEW: ethernet1/9: this interface number exceeds the selected target "
+            "model's 7 data ports",
+            text,
+        )
+
+    def test_interfaces_within_model_port_count_produce_no_mismatch_review(self):
+        config = _parse(SAMPLE_CONFIG)
+        text = "\n".join(self.translator.translate(config, target_model="PA-1410"))
+        self.assertNotIn("exceeds the selected target model", text)
+
+    def test_unknown_target_model_string_skips_the_check_entirely(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {"interfaces": {"ether1-wan": {"pan_interface": "ethernet1/99"}}}
+        text = "\n".join(
+            self.translator.translate(config, mapping=mapping, target_model="Some-Unrecognized-Model")
+        )
+        self.assertNotIn("exceeds the selected target model", text)
+
+    def test_mismatched_port_flagged_only_once_even_if_referenced_in_multiple_lines(self):
+        config = _parse(SAMPLE_CONFIG)
+        mapping = {"interfaces": {"ether1-wan": {"pan_interface": "ethernet1/9", "zone": "Outside"}}}
+        review_lines = [
+            line
+            for line in self.translator.translate(config, mapping=mapping, target_model="PA-505")
+            if "ethernet1/9: this interface number exceeds" in line
+        ]
+        self.assertEqual(len(review_lines), 1)
 
 
 if __name__ == "__main__":

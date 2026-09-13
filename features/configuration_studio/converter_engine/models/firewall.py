@@ -107,6 +107,8 @@ class NatRule:
     action: str = "masquerade"
     src_address: str = ""
     dst_address: str = ""
+    src_address_list: str = ""
+    dst_address_list: str = ""
     to_addresses: str = ""
     to_ports: str = ""
     protocol: str = ""

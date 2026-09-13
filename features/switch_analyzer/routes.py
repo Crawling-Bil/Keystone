@@ -8,8 +8,10 @@ from flask import Blueprint, jsonify, render_template, request, send_from_direct
 from werkzeug.utils import secure_filename
 
 from core.database import log_activity
+from features.configuration_studio.service import create_engine
 from .compare import compare as compare_results
-from .exporters import SwitchExcelExporter, export_comparison
+from .exporters import FirewallExcelExporter, SwitchExcelExporter, export_comparison
+from .firewall_service import analyze_firewall
 from .service import analyze
 from .sizing import build_sizing_summary
 
@@ -33,6 +35,37 @@ class ConfigTooLargeError(ValueError):
     """Raised by _read_config_from_request when the uploaded/pasted
     config exceeds MAX_CONFIG_BYTES, so callers can surface a clear
     400 instead of quietly reading an oversized file into memory."""
+
+
+# Mikrotik and Palo Alto only ever parse into the firewall-shaped
+# dashboard (PaloAltoFirewallParser / MikrotikFirewallParser both
+# target models/firewall.py or models/paloalto_native.py, never
+# models/switch.py) -- no Configuration Studio switch parser exists
+# for either, so an explicit pick of one of these two vendors always
+# means "run the firewall analyzer", never the switch one.
+_FIREWALL_VENDORS = {"mikrotik", "palo alto"}
+
+
+def _looks_like_firewall_config(content: str, filename: str) -> bool:
+    """Only used for the "Auto Detect" vendor pick: asks the shared
+    DeviceDetector (the same one Configuration Studio's own Auto
+    Detect uses) what device_type this text looks like, so an
+    auto-detected Mikrotik/Palo Alto config gets routed to
+    analyze_firewall() exactly like explicitly picking that vendor
+    would, rather than falling through to the switch analyzer and
+    failing deep inside a switch-shaped parse. Writes to the same kind
+    of throwaway temp file analyze()/analyze_firewall() already use
+    internally -- this one extra small write is the cost of deciding
+    which of those two to call before either has actually run.
+    """
+    tmp_dir = Path("/tmp") if Path("/tmp").exists() else Path.cwd()
+    tmp_path = tmp_dir / f"switch-analyzer-detect-{abs(hash(content)) % (10 ** 8)}-{Path(filename).name}"
+    tmp_path.write_text(content, encoding="utf-8")
+    try:
+        detection = create_engine().detect(tmp_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    return str(getattr(detection, "device_type", "")).strip().lower() == "firewall"
 
 
 @bp.get("")
@@ -95,14 +128,32 @@ def analyze_route():
         return jsonify({"ok": False, "error": "Upload switch config atau paste konfigurasi terlebih dahulu."}), 400
     content, source_name = read
     vendor = request.form.get("vendor", "Auto Detect")
+    vendor_key = vendor.strip().lower()
+
+    # Mikrotik/Palo Alto (explicit pick) or an Auto Detect that
+    # resolves to a firewall-shaped config both go to the firewall
+    # dashboard+findings analyzer instead of the switch one -- see
+    # _FIREWALL_VENDORS/_looks_like_firewall_config above.
+    is_firewall = vendor_key in _FIREWALL_VENDORS or (
+        vendor_key == "auto detect" and _looks_like_firewall_config(content, source_name)
+    )
 
     try:
-        result = analyze(content, filename=source_name, vendor=vendor)
-        log_activity(
-            "Switch Analyzer",
-            "Switch config analyzed",
-            f"{result['vendor']} · {result['hostname']} · {result['cards']['total_interfaces']} interfaces",
-        )
+        if is_firewall:
+            result = analyze_firewall(content, filename=source_name, vendor=vendor)
+            log_activity(
+                "Switch Analyzer",
+                "Firewall config analyzed",
+                f"{result['vendor']} · {result['hostname']} · {result['cards']['total_security_rules']} security rules "
+                f"· {result['cards']['total_findings']} findings",
+            )
+        else:
+            result = analyze(content, filename=source_name, vendor=vendor)
+            log_activity(
+                "Switch Analyzer",
+                "Switch config analyzed",
+                f"{result['vendor']} · {result['hostname']} · {result['cards']['total_interfaces']} interfaces",
+            )
         return jsonify({"ok": True, "result": result})
     except Exception as exc:
         return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
@@ -131,18 +182,39 @@ def export_route():
         results = [single] if isinstance(single, dict) else None
     if not results or not all(isinstance(item, dict) for item in results):
         return jsonify({"ok": False, "error": "No analysis result provided."}), 400
+    is_firewall_flags = [str(item.get("device_type", "")).strip().lower() == "firewall" for item in results]
+    if any(is_firewall_flags) and not all(is_firewall_flags):
+        # SwitchExcelExporter's sheets are shaped around switch_analyzer/
+        # service.py's analyze() dict (interfaces/VLANs/port-channels/
+        # PoE/...) and FirewallExcelExporter's around analyze_firewall()'s
+        # (zones/security_rules/nat_rules/qos/...) -- the two share no
+        # common sheet shape, so a batch mixing switch and firewall
+        # results can't collapse into one workbook without either
+        # KeyError-ing or silently dropping half the devices' data.
+        # Export switch and firewall results separately instead.
+        return jsonify({
+            "ok": False,
+            "error": "Export gabungan switch + firewall (Mikrotik/Palo Alto) dalam satu file belum didukung -- export terpisah per tipe device ya.",
+        }), 400
 
     if len(results) == 1:
         download_name = f"{_device_filename_stem(results[0])}.xlsx"
+    elif all(is_firewall_flags):
+        download_name = f"combined-firewall-analysis-{len(results)}-devices.xlsx"
     else:
         download_name = f"combined-switch-analysis-{len(results)}-devices.xlsx"
     export_id = uuid.uuid4().hex
 
-    SwitchExcelExporter(results).export(EXPORT_DIR / f"{export_id}.xlsx")
+    if all(is_firewall_flags):
+        FirewallExcelExporter(results).export(EXPORT_DIR / f"{export_id}.xlsx")
+        activity_label = "Firewall analysis exported"
+    else:
+        SwitchExcelExporter(results).export(EXPORT_DIR / f"{export_id}.xlsx")
+        activity_label = "Switch analysis exported"
 
     log_activity(
         "Switch Analyzer",
-        "Switch analysis exported",
+        activity_label,
         f"{len(results)} device(s) → {download_name}",
     )
     return jsonify({
@@ -170,6 +242,15 @@ def sizing_route():
         results = [single] if isinstance(single, dict) else None
     if not results or not all(isinstance(item, dict) for item in results):
         return jsonify({"ok": False, "error": "No analysis result provided."}), 400
+    if any(str(item.get("device_type", "")).strip().lower() == "firewall" for item in results):
+        # build_sizing_summary() rolls up switch-specific concepts (port
+        # speed/PoE budget/VLAN count) that have no equivalent in a
+        # firewall's zone/policy-shaped result -- same reasoning as the
+        # export guard above.
+        return jsonify({
+            "ok": False,
+            "error": "Sizing assessment belum tersedia untuk hasil analisa firewall (Mikrotik/Palo Alto) di iterasi ini.",
+        }), 400
 
     try:
         summary = build_sizing_summary(results)
@@ -199,6 +280,15 @@ def compare_route():
     one side but not the other, plus device info and interface/VLAN/
     route/neighbor counts side-by-side. See compare.py for why this is
     a set comparison rather than a per-interface diff.
+
+    Deliberately always calls analyze() below, never analyze_firewall()
+    -- unlike /api/analyze, this route has no vendor-based dispatch, so
+    a Mikrotik/Palo Alto config compared here still goes through the
+    switch analyzer's parse (source_device_type="Switch", hardcoded
+    inside analyze() itself) and will fail or mis-parse. Firewall-to-
+    firewall compare is real future work, not something to bolt on
+    here without compare.py's own set-comparison logic first being
+    taught the firewall dashboard's different shape.
     """
     try:
         read_a = _read_config_from_request("config_file_a", "config_text_a")

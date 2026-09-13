@@ -31,6 +31,26 @@ from features.configuration_studio.converter_engine.models.firewall import (
 # concrete explanation of why there's no direct translation and what
 # the real PAN-OS alternative concept is, so the reviewer isn't left
 # to guess from a bare unparsed line alone.
+# Real credential material (a PSK, a RADIUS/VPN secret, ...) shows up
+# verbatim in some RouterOS export lines this parser doesn't have a
+# dedicated field for -- "/ip ipsec identity add ... secret=<real-psk>"
+# is the one seen so far on a real customer export, but the risk is
+# generic to any "key=value" statement this parser preserves verbatim
+# in config.review_commands for a human to look at. Every such line is
+# run through _redact_secret_values() before being kept, so a real
+# secret from the source config never gets echoed back out in the
+# generated output's REVIEW comments (translate() elsewhere already
+# takes care never to invent/leak a real PSK on its own -- this closes
+# the same gap for text carried through verbatim from the source).
+_SECRET_VALUE_RE = re.compile(
+    r'(?i)\b(secret|password|psk|pre-shared-key|pre_shared_key)=(\S+)'
+)
+
+
+def _redact_secret_values(text):
+    return _SECRET_VALUE_RE.sub(lambda m: f"{m.group(1)}=<redacted>", text)
+
+
 _NO_EQUIVALENT_SECTIONS = {
     "/interface wireless security-profiles": (
         "Palo Alto firewalls are not WiFi access points -- there is no PAN-OS "
@@ -253,6 +273,8 @@ class MikrotikFirewallParser:
             handler(config, stripped, interfaces_by_name, bridge_port_membership)
 
         self._attach_bridge_ports(config, bridge_port_membership)
+
+        config.review_commands = [_redact_secret_values(item) for item in config.review_commands]
 
         return config
 
@@ -749,6 +771,8 @@ class MikrotikFirewallParser:
                 action=fields.get("action", "masquerade"),
                 src_address=fields.get("src-address", ""),
                 dst_address=fields.get("dst-address", ""),
+                src_address_list=fields.get("src-address-list", ""),
+                dst_address_list=fields.get("dst-address-list", ""),
                 to_addresses=fields.get("to-addresses", ""),
                 to_ports=fields.get("to-ports", ""),
                 protocol=fields.get("protocol", ""),

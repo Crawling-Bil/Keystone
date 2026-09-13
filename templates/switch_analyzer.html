@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Switch Analyzer · NES{% endblock %}
-{% block page_title %}Switch Analyzer{% endblock %}
-{% block page_subtitle %}Analyze Cisco, Huawei, and Aruba switch configurations — hostname, routing, interfaces, DNS, and SNMP at a glance.{% endblock %}
+{% block title %}Config Analyzer · NES{% endblock %}
+{% block page_title %}Config Analyzer{% endblock %}
+{% block page_subtitle %}Analyze Cisco, Huawei, and Aruba switch configs, or Mikrotik and Palo Alto firewall configs — dashboards, inventory, and (for firewalls) best-practice/security findings at a glance.{% endblock %}
 {% block content %}
 
 <div class="tab-nav" id="switch-mode-tabs">
@@ -14,18 +14,18 @@
 <div class="tab-content active" id="switch-mode-single">
 
 <form id="switch-form" class="panel switch-action-form" enctype="multipart/form-data">
-    <div class="upload-section"><label class="field-label">Switch Config</label><label class="drop-zone horizontal"><input type="file" name="config_file" id="switch-config-file" accept=".txt,.cfg,.conf,.config,.log"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select switch config</strong><small id="switch-file-label">Cisco, Huawei, or Aruba running-config</small></span></label><button class="clear-upload hidden" id="clear-switch-file" type="button">Cancel selected file</button>
+    <div class="upload-section"><label class="field-label">Switch Config</label><label class="drop-zone horizontal"><input type="file" name="config_file" id="switch-config-file" accept=".txt,.cfg,.conf,.config,.log,.rsc,.xml"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select switch config</strong><small id="switch-file-label">Cisco, Huawei, or Aruba running-config</small></span></label><button class="clear-upload hidden" id="clear-switch-file" type="button">Cancel selected file</button>
       <p class="field-hint">Works best with a full running-config export (e.g. <code>show running-config</code> / <code>display current-configuration</code>) plus, if you have them, <code>show ip interface brief</code>, <code>show cdp/lldp neighbors</code>, <code>show etherchannel summary</code> / <code>display eth-trunk</code>, <code>show version</code>, <code>show ip route</code>, and <code>show ip arp</code> — a raw terminal capture with all of these in one file works great.</p>
     </div>
     <div class="action-stack">
-        <label class="compact-select"><span>Vendor</span><select name="vendor" id="switch-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
+        <label class="compact-select"><span>Vendor</span><select name="vendor" id="switch-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option><option>Mikrotik</option><option>Palo Alto</option></select></label>
         <hr>
         <button class="primary-button" id="switch-analyze-button" type="submit">Analyze Switch</button>
     </div>
 </form>
 <textarea id="switch-config-text" name="config_text" form="switch-form" class="hidden" aria-hidden="true"></textarea>
 
-<div id="switch-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Switch Analyzer workspace is ready</h3><p>Upload or paste a switch configuration to see hostname, routing, interface status, DNS, and SNMP in one dashboard.</p></div>
+<div id="switch-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Config Analyzer workspace is ready</h3><p>Upload or paste a switch (Cisco/Huawei/Aruba) or firewall (Mikrotik/Palo Alto) configuration. Switches get a full inventory dashboard; firewalls also get best-practice/security findings — any-any rules, zones without policy, overlapping NAT, weak IPsec crypto.</p></div>
 
 <div id="switch-result" class="hidden">
     <div class="analysis-toolbar panel"><div><strong id="switch-source-name">Switch Analysis</strong><span id="switch-platform"></span></div><a id="switch-export-button" class="secondary-button" href="#">Export to Excel (.xlsx)</a></div>
@@ -136,6 +136,113 @@
     </div>
 </div>
 
+<div id="switch-firewall-result" class="hidden">
+    <div class="analysis-toolbar panel"><div><strong id="firewall-source-name">Firewall Analysis</strong><span id="firewall-platform"></span></div><a id="firewall-export-button" class="secondary-button" href="#">Export to Excel (.xlsx)</a></div>
+
+    <div class="overview-grid">
+        <article class="wide">
+            <div class="chart-card-heading"><h3>Findings</h3><p>Best-practice / security findings for this configuration, most severe first.</p></div>
+            <div id="firewall-findings-empty" class="empty-state compact hidden">No best-practice findings — no any-any rules, unreferenced zones, overlapping NAT translations, or weak IPsec crypto were detected.</div>
+            <div class="table-wrap"><table id="firewall-findings-table"></table></div>
+        </article>
+        <article><h3>Device Information</h3><div id="firewall-information" class="kv-list"></div></article>
+    </div>
+
+    <div class="tab-shell panel">
+        <div class="tab-nav" id="firewall-tabs">
+            <!-- Every tab button for both vendors lives in the DOM at all
+                 times; static_js/switch_analyzer.js's layoutFirewallTabs()
+                 shows/hides and reorders them per-vendor at render time
+                 (see that function for the two vendors' orderings, each
+                 grouped the way the Config Analyzer's users asked for --
+                 related categories kept next to each other rather than
+                 scattered across the tab bar). data-tab order here is
+                 irrelevant; only data-tab values matter. -->
+            <button type="button" class="active" data-tab="interfaces">Interface</button>
+            <button type="button" data-tab="port_mapping">Port Mapping</button>
+            <button type="button" data-tab="cdp_lldp">CDP/LLDP</button>
+            <button type="button" data-tab="vlans">VLAN</button>
+            <button type="button" data-tab="zones">Zone</button>
+            <button type="button" data-tab="routing">Routing</button>
+            <button type="button" data-tab="ipsec">IPsec</button>
+            <button type="button" data-tab="security">Security Policy</button>
+            <button type="button" data-tab="address">Address Objects</button>
+            <button type="button" data-tab="nat">NAT</button>
+            <button type="button" data-tab="security_profiles">Security Profile</button>
+            <button type="button" data-tab="management_profiles">Management Profile</button>
+            <button type="button" data-tab="zone_protection">Zone Protection</button>
+            <button type="button" data-tab="pbf">PBF</button>
+            <button type="button" data-tab="administrators">Administrators</button>
+            <button type="button" data-tab="qos">QoS</button>
+            <button type="button" data-tab="dhcp">DHCP</button>
+        </div>
+        <div class="tab-content active" id="firewall-tab-interfaces">
+            <div class="table-wrap"><table id="firewall-interface-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-port_mapping">
+            <div class="table-wrap"><table id="firewall-port-mapping-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-cdp_lldp">
+            <p class="field-hint">LLDP is only ever reported here as configured on/off per interface -- discovered-neighbor data (name/MAC/remote port) is live operational information ("show lldp neighbors all") that isn't present in a config export, so it can't be shown from an uploaded config file alone.</p>
+            <div class="table-wrap"><table id="firewall-cdp-lldp-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-vlans">
+            <div class="table-wrap"><table id="firewall-vlan-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-zones">
+            <div class="table-wrap"><table id="firewall-zone-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-routing">
+            <div id="firewall-routing-summary" class="kv-list"></div>
+            <div class="table-wrap"><table id="firewall-route-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-ipsec">
+            <div class="table-wrap"><table id="firewall-ipsec-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-security">
+            <div class="table-wrap"><table id="firewall-security-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-address">
+            <div class="table-wrap"><table id="firewall-address-table"></table></div>
+            <div id="firewall-service-object-section">
+                <p class="field-hint">Service &amp; application objects/groups referenced by Policy and NAT rules:</p>
+                <div class="table-wrap"><table id="firewall-service-object-table"></table></div>
+                <div class="table-wrap"><table id="firewall-application-group-table"></table></div>
+            </div>
+        </div>
+        <div class="tab-content" id="firewall-tab-nat">
+            <div class="table-wrap"><table id="firewall-nat-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-security_profiles">
+            <div class="table-wrap"><table id="firewall-security-profile-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-management_profiles">
+            <p class="field-hint">What management access (ping/https/ssh/telnet/snmp/...) each interface-management-profile permits -- see the Interface tab's "Management Profile" column for which interfaces use which profile.</p>
+            <div class="table-wrap"><table id="firewall-management-profile-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-zone_protection">
+            <p class="field-hint">Zone protection profiles defined on this device and which category of attack (flood / reconnaissance-scan / packet-based-attack) each one covers -- see the Zone tab for which zone each profile is assigned to.</p>
+            <div class="table-wrap"><table id="firewall-zone-protection-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-pbf">
+            <p class="field-hint">Policy-Based Forwarding rules -- routes matching traffic out a specific egress interface/next-hop instead of the virtual router's normal route table (common on multi-ISP/SD-WAN-style setups).</p>
+            <div class="table-wrap"><table id="firewall-pbf-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-administrators">
+            <p class="field-hint">Device administrator accounts and their role. Password hashes are never captured or shown.</p>
+            <div class="table-wrap"><table id="firewall-administrator-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-qos">
+            <div id="firewall-qos-summary" class="kv-list"></div>
+            <div class="table-wrap"><table id="firewall-qos-table"></table></div>
+        </div>
+        <div class="tab-content" id="firewall-tab-dhcp">
+            <div id="firewall-dhcp-summary" class="kv-list"></div>
+            <div class="table-wrap"><table id="firewall-dhcp-table"></table></div>
+        </div>
+    </div>
+</div>
+
 </div>
 
 <div class="tab-content" id="switch-mode-compare">
@@ -143,13 +250,13 @@
 <form id="switch-compare-form" class="panel">
     <h3 class="subsection-title">Device A (e.g. existing Cisco / Aruba)</h3>
     <div class="compare-device-row">
-        <div class="upload-section"><label class="field-label">Config</label><label class="drop-zone horizontal"><input type="file" name="config_file_a" id="switch-compare-file-a" accept=".txt,.cfg,.conf,.config,.log"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Device A config</strong><small id="switch-compare-file-a-label">Old switch running-config</small></span></label></div>
+        <div class="upload-section"><label class="field-label">Config</label><label class="drop-zone horizontal"><input type="file" name="config_file_a" id="switch-compare-file-a" accept=".txt,.cfg,.conf,.config,.log,.rsc,.xml"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Device A config</strong><small id="switch-compare-file-a-label">Old switch running-config</small></span></label></div>
         <label class="compact-select"><span>Vendor A</span><select name="vendor_a" id="switch-compare-vendor-a"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
     </div>
 
     <h3 class="subsection-title">Device B (e.g. new Huawei draft)</h3>
     <div class="compare-device-row">
-        <div class="upload-section"><label class="field-label">Config</label><label class="drop-zone horizontal"><input type="file" name="config_file_b" id="switch-compare-file-b" accept=".txt,.cfg,.conf,.config,.log"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Device B config</strong><small id="switch-compare-file-b-label">New / draft switch running-config</small></span></label></div>
+        <div class="upload-section"><label class="field-label">Config</label><label class="drop-zone horizontal"><input type="file" name="config_file_b" id="switch-compare-file-b" accept=".txt,.cfg,.conf,.config,.log,.rsc,.xml"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Device B config</strong><small id="switch-compare-file-b-label">New / draft switch running-config</small></span></label></div>
         <label class="compact-select"><span>Vendor B</span><select name="vendor_b" id="switch-compare-vendor-b"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option></select></label>
     </div>
 
@@ -198,7 +305,7 @@
 <form id="switch-sizing-form" class="panel switch-action-form">
     <div class="upload-section">
         <label class="field-label">Switch Configs (select all devices for this batch)</label>
-        <label class="drop-zone horizontal"><input type="file" name="config_files" id="switch-sizing-files" accept=".txt,.cfg,.conf,.config,.log" multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select 1 or more switch configs</strong><small id="switch-sizing-files-label">Cisco, Huawei, or Aruba running-configs — one file per device</small></span></label>
+        <label class="drop-zone horizontal"><input type="file" name="config_files" id="switch-sizing-files" accept=".txt,.cfg,.conf,.config,.log,.rsc,.xml" multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select 1 or more switch configs</strong><small id="switch-sizing-files-label">Cisco, Huawei, or Aruba running-configs — one file per device</small></span></label>
         <button class="clear-upload hidden" id="clear-switch-sizing-files" type="button">Cancel selected files</button>
         <p class="field-hint">Each file is analyzed the same way as Single Device, then rolled up into one port/PoE/VLAN/redundancy sizing table across the whole batch — useful for scoping a replacement order across a site or a building. Physical port speed is derived from each interface's own name where the vendor's naming encodes it (Cisco full names, Huawei GE/10GE/25GE/100GE); Cisco NX-OS (Nexus) and ArubaOS-Switch don't encode speed in the interface name at all, so those ports are reported separately as "speed not in name" rather than guessed.</p>
     </div>

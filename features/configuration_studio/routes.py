@@ -13,7 +13,7 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from core.database import log_activity
-from .service import available_profiles, available_target_models, convert_file, supported_platforms
+from .service import available_profiles, available_target_models, convert_file, preview_mapping, supported_platforms
 
 bp = Blueprint("configuration", __name__, url_prefix="/configuration")
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -24,7 +24,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 BATCH_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_CONFIG_EXTENSIONS = {".txt", ".cfg", ".conf", ".config", ".log"}
+ALLOWED_CONFIG_EXTENSIONS = {".txt", ".cfg", ".conf", ".config", ".log", ".rsc"}
 MAX_BATCH_FILES = 500
 MAX_CONFIG_BYTES = 20 * 1024 * 1024
 MAX_ARCHIVE_TOTAL_BYTES = 250 * 1024 * 1024
@@ -170,11 +170,17 @@ def index():
         platforms=supported_platforms(),
         profiles=available_profiles(),
         # Target Vendor defaults to Huawei (see the template's own
-        # "selected" logic) and it's currently the only target vendor
-        # with any confirmed model data — rendered once here rather
-        # than re-fetched per vendor change, since there's nothing to
-        # switch between yet.
-        target_models=available_target_models("Huawei"),
+        # "selected" logic). Huawei and Palo Alto both have confirmed
+        # target-model data now, so the "Target Model" dropdown's
+        # options depend on whichever target vendor is currently
+        # selected in the browser -- rendered once here as a lookup by
+        # vendor (see configuration.js's updateTargetModelVisibility)
+        # rather than re-fetched from the server on every vendor
+        # change, since this list is small and static.
+        target_models_by_vendor={
+            "huawei": available_target_models("Huawei"),
+            "palo alto": available_target_models("Palo Alto"),
+        },
     )
 
 
@@ -197,6 +203,14 @@ def convert():
     else:
         return jsonify({"ok": False, "error": "Upload file konfigurasi atau paste konfigurasi terlebih dahulu."}), 400
 
+    mapping_raw = request.form.get("interface_mapping")
+    mapping = None
+    if mapping_raw:
+        try:
+            mapping = json.loads(mapping_raw)
+        except json.JSONDecodeError:
+            return jsonify({"ok": False, "error": "interface_mapping tidak valid (bukan JSON)."}), 400
+
     try:
         result = convert_file(
             source_path,
@@ -206,6 +220,7 @@ def convert():
             target_device_type=request.form.get("target_device_type") or None,
             profile_key=request.form.get("profile_key") or None,
             target_model=request.form.get("target_model") or None,
+            mapping=mapping,
         )
         export_id = uuid.uuid4().hex
         export_path = EXPORT_DIR / f"{export_id}.cfg"
@@ -219,6 +234,49 @@ def convert():
         return jsonify({"ok": True, "result": result})
     except Exception as exc:
         log_activity("Configuration Studio", "Conversion failed", f"{type(exc).__name__}: {exc}", "error")
+        return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
+    finally:
+        try:
+            source_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+@bp.post("/api/preview-mapping")
+def preview_mapping_route():
+    """
+    Parse-only step for the interface/zone mapping preview: same
+    upload/paste input as /api/convert, but stops after parsing and
+    returns the target translator's best-guess interface/zone mapping
+    for the UI to show and let the user edit before calling /api/convert
+    again with that edited mapping as `interface_mapping` (JSON).
+    """
+    uploaded = request.files.get("config_file")
+    config_text = request.form.get("config_text", "")
+    original_name = secure_filename(uploaded.filename) if uploaded and uploaded.filename else "pasted-config.cfg"
+
+    if uploaded and uploaded.filename:
+        if not _is_config_name(original_name):
+            return jsonify({"ok": False, "error": "Unsupported configuration file type."}), 400
+        token = uuid.uuid4().hex
+        source_path = UPLOAD_DIR / f"{token}_{original_name}"
+        uploaded.save(source_path)
+    elif config_text.strip():
+        token = uuid.uuid4().hex
+        source_path = UPLOAD_DIR / f"{token}_pasted-config.cfg"
+        source_path.write_text(config_text, encoding="utf-8")
+    else:
+        return jsonify({"ok": False, "error": "Upload file konfigurasi atau paste konfigurasi terlebih dahulu."}), 400
+
+    try:
+        result = preview_mapping(
+            source_path,
+            source_vendor=request.form.get("source_vendor", "Auto Detect"),
+            source_device_type=request.form.get("source_device_type", "Auto Detect"),
+            target_vendor=request.form.get("target_vendor", "Huawei"),
+        )
+        return jsonify({"ok": True, "result": result})
+    except Exception as exc:
         return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
     finally:
         try:

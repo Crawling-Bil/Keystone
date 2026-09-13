@@ -210,6 +210,24 @@ class DeviceDetector:
             if marker in text:
                 score += 10
 
+        # A real PAN-OS "running-config" XML export (Device > Setup >
+        # Operations > Export named configuration snapshot) instead of
+        # the "set"-format CLI above -- structurally unrelated text, so
+        # it needs its own marker set entirely. <devices>/<vsys>/
+        # <rulebase> are PAN-OS-specific container tags no other
+        # vendor's XML export in this tool uses, so a couple of them
+        # together is already a confident match.
+        xml_markers = [
+            "<devices>",
+            "<vsys>",
+            "<rulebase>",
+            "<deviceconfig>",
+            "localhost.localdomain",
+        ]
+        xml_score = sum(10 for marker in xml_markers if marker in text)
+        if xml_score and (text.lstrip().startswith("<?xml") or text.lstrip().startswith("<config")):
+            score += xml_score + 10
+
         candidates.append(
             DetectionResult(
                 vendor="Palo Alto",

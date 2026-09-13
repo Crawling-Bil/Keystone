@@ -124,9 +124,9 @@ def create_app() -> Flask:
                 "status": "Ready",
             },
             {
-                "name": "Switch Analyzer",
-                "version": "Switch Analyzer v1.0",
-                "description": "Cisco, Huawei, and Aruba switch config analysis — hostname, routing, interfaces, DNS, SNMP.",
+                "name": "Config Analyzer",
+                "version": "Config Analyzer v1.1",
+                "description": "Cisco/Huawei/Aruba switch dashboards, plus Mikrotik/Palo Alto firewall dashboards with best-practice/security findings.",
                 "href": "/switch-analyzer",
                 "icon": "switch",
                 "status": "Ready",

@@ -22,7 +22,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from features.configuration_studio.service import convert_file, safe_name, supported_platforms
+from features.configuration_studio.service import available_target_models, convert_file, safe_name, supported_platforms
 
 CISCO_SWITCH_CONFIG = """hostname EDGE-SW01
 !
@@ -82,6 +82,41 @@ class TestSupportedPlatforms(unittest.TestCase):
         # valid translation targets, plus Palo Alto as the firewall
         # target (PaloAltoFirewallTranslator).
         self.assertEqual(target_vendors, {"cisco", "huawei", "aruba", "palo alto"})
+
+
+class TestAvailableTargetModels(unittest.TestCase):
+    """
+    available_target_models() backs the Configuration Studio "Target
+    Model" dropdown (port-count-mismatch safety net) -- Huawei
+    (HUAWEI_TARGET_MODELS) and Palo Alto (PALOALTO_TARGET_MODELS,
+    added for the PA-505/PA-520/PA-1410 port-count check) both have
+    confirmed model data; every other vendor returns an empty list
+    until this project has equivalent confirmed data for it.
+    """
+
+    def test_huawei_returns_its_model_list(self):
+        models = available_target_models("Huawei")
+        self.assertTrue(models)
+        self.assertIn("S5735-S24T4XE-V2", {m["model"] for m in models})
+
+    def test_palo_alto_returns_its_model_list(self):
+        models = available_target_models("Palo Alto")
+        model_names = {m["model"] for m in models}
+        self.assertEqual(model_names, {"PA-505", "PA-520", "PA-1410"})
+
+    def test_vendor_match_is_case_insensitive(self):
+        self.assertEqual(
+            {m["model"] for m in available_target_models("palo alto")},
+            {m["model"] for m in available_target_models("Palo Alto")},
+        )
+
+    def test_default_argument_matches_explicit_huawei(self):
+        self.assertEqual(available_target_models(), available_target_models("Huawei"))
+
+    def test_vendor_with_no_model_data_returns_empty_list(self):
+        self.assertEqual(available_target_models("Cisco"), [])
+        self.assertEqual(available_target_models("Aruba"), [])
+        self.assertEqual(available_target_models("Some Unknown Vendor"), [])
 
 
 class TestConvertFile(unittest.TestCase):

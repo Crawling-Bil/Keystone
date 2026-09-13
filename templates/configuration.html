@@ -7,7 +7,7 @@
     <aside class="workflow-sidebar panel">
         <div class="panel-heading"><div><h3>Conversion Settings</h3><p>Upload or paste the source config.</p></div></div>
         <label class="field-label">Configuration File</label>
-        <label class="drop-zone" id="config-drop-zone"><input type="file" name="config_file" id="config-file" accept=".txt,.cfg,.conf,.config,.log"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><strong>Choose config file</strong><small id="config-file-label">TXT, CFG, CONF or LOG</small></label>
+        <label class="drop-zone" id="config-drop-zone"><input type="file" name="config_file" id="config-file" accept=".txt,.cfg,.conf,.config,.log,.rsc"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><strong>Choose config file</strong><small id="config-file-label">TXT, CFG, CONF, LOG or RSC</small></label>
         <div id="config-file-selection" class="file-selection hidden"><span><strong id="selected-config-name">—</strong><small>Selected configuration file</small></span><button type="button" id="clear-config-file" aria-label="Cancel selected configuration file">Cancel</button></div>
         <div class="field-divider"><span>or paste config</span></div>
         <textarea name="config_text" id="config-text" class="small-textarea" aria-label="Pasted source configuration" placeholder="Paste running configuration here..."></textarea>
@@ -19,13 +19,14 @@
             <label><span>Target Vendor</span><select name="target_vendor" id="target-vendor">{% for item in platforms.targets|map(attribute='vendor')|unique %}<option {% if item|lower == 'huawei' %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></label>
             <label><span>Target Type</span><select name="target_device_type" id="target-device-type"><option value="">Same as source</option>{% for item in platforms.targets|map(attribute='device_type')|unique %}<option value="{{ item }}">{{ item|title }}</option>{% endfor %}</select></label>
         </div>
-        <label id="target-model-field"><span>Target Model <small>(optional — checks real port count)</small></span><select name="target_model" id="target-model"><option value="">Auto / not sure (skip port-count check)</option>{% for m in target_models %}<option value="{{ m.model }}">{{ m.label }}</option>{% endfor %}</select></label>
+        <label id="target-model-field"><span>Target Model <small>(optional — checks real port count)</small></span><select name="target_model" id="target-model"><option value="">Auto / not sure (skip port-count check)</option></select><script type="application/json" id="target-models-by-vendor">{{ target_models_by_vendor | tojson }}</script></label>
         <label><span>Standard Config Profile</span><select name="profile_key" id="profile-select"><option value="">None (generic conversion only)</option>{% for p in profiles %}<option value="{{ p.key }}" title="{{ p.description }}">{{ p.name }}</option>{% endfor %}</select></label>
+        <button class="secondary-button full-width hidden" type="button" id="preview-mapping-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Preview Interface Mapping</button>
         <button class="primary-button full" type="submit" id="convert-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Convert Configuration</button>
         <div class="batch-box">
             <div class="field-divider"><span>batch conversion</span></div>
             <div class="batch-source-grid">
-                <label class="drop-zone horizontal compact-drop"><input type="file" id="batch-files" accept=".txt,.cfg,.conf,.config,.log,.zip" multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#plus"></use></svg></span><span><strong>Select files or ZIP</strong><small id="batch-file-label">Configs or ZIP archive</small></span></label>
+                <label class="drop-zone horizontal compact-drop"><input type="file" id="batch-files" accept=".txt,.cfg,.conf,.config,.log,.rsc,.zip" multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#plus"></use></svg></span><span><strong>Select files or ZIP</strong><small id="batch-file-label">Configs or ZIP archive</small></span></label>
                 <label class="drop-zone horizontal compact-drop"><input type="file" id="batch-folder" webkitdirectory directory multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#folder"></use></svg></span><span><strong>Select config folder</strong><small id="batch-folder-label">Folder and subfolders</small></span></label>
             </div>
             <div id="batch-selection" class="file-selection batch-selection hidden"><span><strong id="batch-selection-count">0 files selected</strong><small>TXT, CFG, CONF, CONFIG, LOG, or ZIP</small></span><button type="button" id="clear-batch-files">Clear</button></div>
@@ -36,6 +37,33 @@
 
     <section class="workflow-main">
         <div id="converter-empty" class="panel empty-state tall"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#swap"></use></svg></div><h3>Ready to convert</h3><p>Upload a configuration or paste it on the left. Detection, conversion, review markers, and download will appear here.</p></div>
+        <div id="mapping-result" class="hidden">
+            <div class="panel">
+                <div class="panel-heading"><div><h3>Interface &amp; Zone Mapping</h3><p id="mapping-hostname-line">Review the auto-detected mapping below, adjust anything, then generate the config.</p></div></div>
+                <div class="table-wrap"><table id="mapping-interfaces-table"><thead><tr><th>Source Interface</th><th>Type</th><th>&rarr; PAN-OS Interface</th><th>&rarr; Zone</th><th>SD-WAN Link</th></tr></thead><tbody></tbody></table></div>
+            </div>
+            <div class="panel" id="mapping-ipsec-panel">
+                <div class="panel-heading"><div><h3>IPsec Tunnels</h3><p>Each active tunnel needs a target zone (and a tunnel.N unit number) to actually pass traffic on PAN-OS — leave the zone blank to skip generating a tunnel interface for it.</p></div></div>
+                <div class="table-wrap"><table id="mapping-ipsec-table"><thead><tr><th>Tunnel</th><th>Peer</th><th>&rarr; Zone</th><th>&rarr; Tunnel Unit</th></tr></thead><tbody></tbody></table></div>
+            </div>
+            <div class="panel">
+                <div class="panel-heading"><div><h3>SD-WAN</h3><p>Mark member interfaces with an SD-WAN link type above, then enable this to generate the SD-WAN interface profile(s) and virtual interface. Commands are marked SD-WAN-VERIFY — confirm the exact CLI keywords on your PAN-OS version before committing.</p></div></div>
+                <div class="form-grid two">
+                    <label><span><input type="checkbox" id="mapping-sdwan-enabled"> Enable SD-WAN</span></label>
+                    <label><span>SD-WAN Zone</span><input type="text" id="mapping-sdwan-zone" value="SDWAN"></label>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-heading"><div><h3>Panorama</h3><p>Wrap the output as a Template (network/device config) + Device Group (objects/policies) instead of a flat standalone-firewall config.</p></div></div>
+                <div class="form-grid two">
+                    <label><span><input type="checkbox" id="mapping-panorama-enabled" checked> Generate for Panorama</span></label>
+                    <div></div>
+                    <label><span>Template Name</span><input type="text" id="mapping-template-name"></label>
+                    <label><span>Device Group Name</span><input type="text" id="mapping-dg-name"></label>
+                </div>
+            </div>
+            <button class="primary-button full" type="button" id="generate-mapped-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Generate PAN-OS Config</button>
+        </div>
         <div id="batch-result" class="hidden">
             <div class="analysis-toolbar panel"><div><strong>Batch Conversion Complete</strong><span id="batch-summary"></span></div><a id="download-batch" class="secondary-button" href="#">Download ZIP</a></div>
             <div class="table-wrap panel"><table id="batch-table"></table></div>

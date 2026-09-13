@@ -5,11 +5,72 @@ _ETHER_RE = re.compile(r'^ether(\d+)$', re.IGNORECASE)
 _OTHER_PHYSICAL_RE = re.compile(r'^(sfp-sfpplus|sfp|combo|qsfp)(\d+)$', re.IGNORECASE)
 _LIFETIME_RE = re.compile(r'^(\d+)([smhd])$', re.IGNORECASE)
 _LIFETIME_MULTIPLIER = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+_ZONE_LAYER3_RE = re.compile(r'^set zone \S+ network layer3 \[ (.+) \]$')
 
 _MGMT_SERVICE_MAP = {
     "telnet": "disable-telnet",
     "www": "disable-http",
 }
+
+# Palo Alto target models this project actually uses, offered as the
+# same Configuration Studio "Target Model" dropdown the Huawei switch
+# translator already has (see HUAWEI_TARGET_MODELS in
+# translators/switch/huawei.py) -- selecting one lets this translator
+# flag an ethernet1/N slot that doesn't physically exist on that
+# hardware, instead of silently emitting a port number the user would
+# only discover was wrong once they tried to commit it on the real
+# firewall. Selecting nothing ("Auto / not sure") skips the check
+# entirely -- an extra safety net, never a requirement to convert.
+#
+# ethernet_port_count is the highest valid N in "ethernet1/N" for that
+# model -- i.e. all data ports (RJ45 + SFP/SFP+), NOT counting
+# dedicated HA ports (HA1-A/HA1-B, HSCI) which PAN-OS names
+# differently (ha1-a, ha1-b, ...) and this translator never emits.
+# Unlike Huawei's model names, Palo Alto model names don't encode
+# their port count in a parseable pattern, so these are a hand-typed
+# table (verified against Palo Alto's own PA-500 Series and PA-1400
+# Series hardware reference documentation) rather than derived by
+# regex -- extend this table, don't try to make the Huawei regex
+# trick work here.
+PALOALTO_TARGET_MODELS = [
+    {
+        "model": "PA-505",
+        "label": "PA-505 (7x 1G RJ45)",
+        "ethernet_port_count": 7,
+    },
+    {
+        "model": "PA-520",
+        "label": "PA-520 (8x 1G RJ45 + 2x 1G SFP)",
+        "ethernet_port_count": 10,
+    },
+    {
+        "model": "PA-1410",
+        "label": "PA-1410 (12x RJ45 1G/2.5G + 10x SFP/SFP+ 1G/10G)",
+        "ethernet_port_count": 22,
+    },
+]
+
+_PALOALTO_MODEL_PORT_COUNTS = {
+    entry["model"].upper(): entry["ethernet_port_count"] for entry in PALOALTO_TARGET_MODELS
+}
+
+_ETHERNET_PORT_NUMBER_RE = re.compile(r'\bethernet1/(\d+)\b')
+
+
+def resolve_target_ethernet_port_count(target_model):
+    """
+    target_model -> real ethernet1/N port count for that PAN-OS
+    hardware, or None when target_model is empty/unrecognized (in
+    which case the port-count-mismatch check in translate() is simply
+    skipped -- this is an additive safety net, not a requirement,
+    exactly mirroring resolve_target_ge_port_count() in the Huawei
+    switch translator).
+    """
+
+    if not target_model:
+        return None
+
+    return _PALOALTO_MODEL_PORT_COUNTS.get(str(target_model).strip().upper())
 
 
 class PaloAltoFirewallTranslator:
@@ -43,29 +104,82 @@ class PaloAltoFirewallTranslator:
         self.inventory = inventory
         self._synthetic_vlan_unit = 900
 
-    def translate(self, config):
-        output = []
+    def translate(self, config, mapping=None, target_model=None):
         review = []
+        mapping = mapping or {}
+        target_ethernet_port_count = resolve_target_ethernet_port_count(target_model)
 
-        zone_map = self.assign_zones(config)
+        zone_map = self.assign_zones(config, mapping)
 
-        output.append("# Palo Alto PAN-OS conversion from Mikrotik RouterOS")
-        output.append(f"set deviceconfig system hostname {self.pan_name(config.hostname or 'converted-router')}")
+        interfaces_out = self.translate_interfaces(config, zone_map, review, mapping)
+        static_routes_out = self.translate_static_routes(config, review)
+        address_lists_out = self.translate_address_lists(config)
+        sdwan_out = self.translate_sdwan(config, mapping, review)
+        ipsec_out = self.translate_ipsec(config, review, mapping)
+        nat_out = self.translate_nat_rules(config, zone_map, review, mapping)
+        filter_out = self.translate_filter_rules(config, zone_map, review)
+        system_out = self.translate_system_settings(config, review)
+        dhcp_clients_out = self.translate_dhcp_clients(config, review, mapping)
+        dhcp_servers_out = self.translate_dhcp_servers(config, review, mapping)
+        dns_out = self.translate_dns_static(config, review)
+        mss_out = self.translate_mss_clamps(config, review, mapping)
+        mgmt_out = self.translate_management_services(config, review)
 
-        output += self.translate_interfaces(config, zone_map, review)
-        output += self.translate_static_routes(config, review)
-        output += self.translate_address_lists(config)
-        output += self.translate_ipsec(config, review)
-        output += self.translate_nat_rules(config, zone_map, review)
-        output += self.translate_filter_rules(config, zone_map, review)
-        output += self.translate_system_settings(config, review)
-        output += self.translate_dhcp_clients(config, review)
-        output += self.translate_dhcp_servers(config, review)
-        output += self.translate_dns_static(config, review)
-        output += self.translate_mss_clamps(config, review)
-        output += self.translate_management_services(config, review)
+        # A virtual router needs its member interfaces listed explicitly
+        # for PAN-OS to actually route through them -- only emitted when
+        # a mapping is in play (i.e. the caller opted into this feature
+        # set) so a plain translate(config) call keeps producing exactly
+        # today's output, unaffected by this addition.
+        vr_line = []
+        if mapping:
+            vr_members = self._collect_vr_members(interfaces_out + sdwan_out + ipsec_out)
+            if vr_members:
+                vr_line.append("")
+                vr_line.append(f"set network virtual-router default interface [ {' '.join(vr_members)} ]")
 
         review.extend(config.review_commands)
+
+        panorama = mapping.get("panorama") or {}
+        if panorama.get("enabled"):
+            network_lines = (
+                [f"set deviceconfig system hostname {self.pan_name(config.hostname or 'converted-router')}"]
+                + interfaces_out + sdwan_out + ipsec_out + vr_line + static_routes_out
+                + system_out + dhcp_clients_out + dhcp_servers_out + dns_out + mss_out + mgmt_out
+            )
+            policy_lines = address_lists_out + nat_out + filter_out
+
+            template_name = panorama.get("template_name") or f"{self.pan_name(config.hostname or 'branch')}-Template"
+            dg_name = panorama.get("device_group_name") or f"{self.pan_name(config.hostname or 'branch')}-DG"
+
+            output = ["# Palo Alto PAN-OS (Panorama) conversion from Mikrotik RouterOS"]
+            output.append(f"# Template: {template_name}    Device Group: {dg_name}")
+            output.append("")
+            output.append("# ---- Template: Network & Device config ----")
+            output += self._wrap_template(network_lines, template_name)
+            output.append("")
+            output.append("# ---- Device Group: Objects & Policies ----")
+            output += self._wrap_device_group(policy_lines, dg_name)
+        else:
+            output = ["# Palo Alto PAN-OS conversion from Mikrotik RouterOS"]
+            output.append(f"set deviceconfig system hostname {self.pan_name(config.hostname or 'converted-router')}")
+            output += interfaces_out
+            output += static_routes_out
+            output += address_lists_out
+            output += sdwan_out
+            output += ipsec_out
+            output += vr_line
+            output += nat_out
+            output += filter_out
+            output += system_out
+            output += dhcp_clients_out
+            output += dhcp_servers_out
+            output += dns_out
+            output += mss_out
+            output += mgmt_out
+
+        if target_ethernet_port_count:
+            self._flag_port_count_mismatches(output, target_ethernet_port_count, review)
+
         if review:
             output.append("")
             output.append("# REVIEW-UNSUPPORTED: the lines below have no automatic PAN-OS")
@@ -80,6 +194,36 @@ class PaloAltoFirewallTranslator:
     # ====================================================
 
     @staticmethod
+    def _flag_port_count_mismatches(output_lines, target_ethernet_port_count, review):
+        """
+        Additive safety net for the "Target Model" dropdown (see
+        PALOALTO_TARGET_MODELS above): scans the ALREADY-ASSEMBLED
+        output (same regex-scan-over-emitted-lines approach as
+        _collect_vr_members below, rather than threading a target
+        model through every one of resolve_physical()'s ~10 call
+        sites) for any "ethernet1/N" reference where N exceeds the
+        selected model's real port count, and REVIEW-flags each
+        offending port number once. Mirrors
+        HuaweiSwitchTranslator.translate_interface()'s port-count-
+        mismatch check (see that method's own docstring) -- confirming
+        the port is real never blocks the conversion, it only surfaces
+        a fact the user needs before deploying to that hardware.
+        """
+
+        flagged_ports = set()
+        for line in output_lines:
+            for match in _ETHERNET_PORT_NUMBER_RE.finditer(line):
+                port_number = int(match.group(1))
+                if port_number > target_ethernet_port_count and port_number not in flagged_ports:
+                    flagged_ports.add(port_number)
+                    review.append(
+                        f"ethernet1/{port_number}: this interface number exceeds the selected "
+                        f"target model's {target_ethernet_port_count} data ports -- this port "
+                        "doesn't physically exist on that hardware. Confirm the real port layout "
+                        "(or pick a bigger model, or fix the interface mapping) before deploying."
+                    )
+
+    @staticmethod
     def pan_name(value):
         slug = re.sub(r'[^A-Za-z0-9._-]', '-', str(value).strip())
         return slug.strip("-") or "unnamed"
@@ -92,16 +236,28 @@ class PaloAltoFirewallTranslator:
         amount = int(match.group(1))
         return amount * _LIFETIME_MULTIPLIER[match.group(2).lower()]
 
-    def resolve_physical(self, interface, review):
+    def resolve_physical(self, interface, review, mapping=None):
         """
         Maps a Mikrotik physical interface onto a PAN-OS ethernetX/Y
         name, or returns None when it can't -- callers REVIEW-flag a
         None result and skip emitting a binding for it, since a wrong
         slot guess is worse than a gap the user fills in by hand.
+
+        An explicit `mapping["interfaces"][name]["pan_interface"]`
+        override always wins over the auto-guess below -- this is how
+        the interface-mapping preview/edit UI lets a user correct (or
+        completely reassign) a slot the regex below can't or shouldn't
+        guess, e.g. Mikrotik ether1 -> ethernet1/3 instead of 1/1.
         """
 
         if interface is None:
             return None
+
+        if mapping:
+            override = (mapping.get("interfaces") or {}).get(interface.name) or {}
+            explicit = override.get("pan_interface")
+            if explicit:
+                return explicit
 
         candidate = interface.default_name or interface.name
         match = _ETHER_RE.match(candidate)
@@ -122,7 +278,7 @@ class PaloAltoFirewallTranslator:
     # ZONES
     # ====================================================
 
-    def assign_zones(self, config):
+    def assign_zones(self, config, mapping=None):
         zone_of = {}
 
         for interface in config.interfaces:
@@ -145,13 +301,31 @@ class PaloAltoFirewallTranslator:
                 continue
             zone_of.setdefault(interface.name, self.pan_name(interface.name))
 
+        # Explicit overrides from the interface-mapping UI always win,
+        # including SD-WAN link assignment: an interface flagged with a
+        # non-"none" sdwan_link_type always lands in the SD-WAN zone
+        # regardless of whatever bridge/interface-list it also happens
+        # to belong to on the Mikrotik side, so every other translator
+        # method that looks up a zone through this same map (NAT rules,
+        # filter rules, DHCP, ...) automatically agrees with
+        # translate_sdwan about where that interface's traffic lives.
+        if mapping:
+            sdwan_cfg = mapping.get("sdwan") or {}
+            sdwan_zone = self.pan_name(sdwan_cfg.get("zone") or "SDWAN") if sdwan_cfg.get("enabled") else None
+            for name, override in (mapping.get("interfaces") or {}).items():
+                link_type = str(override.get("sdwan_link_type") or "none").lower()
+                if sdwan_zone and link_type != "none":
+                    zone_of[name] = sdwan_zone
+                elif override.get("zone"):
+                    zone_of[name] = override["zone"]
+
         return zone_of
 
     # ====================================================
     # INTERFACES
     # ====================================================
 
-    def translate_interfaces(self, config, zone_map, review):
+    def translate_interfaces(self, config, zone_map, review, mapping=None):
         output = []
         consumed = set()
 
@@ -160,27 +334,37 @@ class PaloAltoFirewallTranslator:
         others = [i for i in config.interfaces if i.interface_type not in ("bridge", "vlan")]
         bridges_by_name = {bridge.name: bridge for bridge in bridges}
 
+        # Interfaces flagged as SD-WAN members in the mapping are fully
+        # handled by translate_sdwan instead (different interface shape:
+        # sdwan-link-settings + a shared virtual sdwan.N interface/zone,
+        # not a plain standalone routed interface) -- skip them here so
+        # they don't also get a conflicting, duplicate zone binding.
+        sdwan_names = {
+            name for name, override in ((mapping or {}).get("interfaces") or {}).items()
+            if str(override.get("sdwan_link_type") or "none").lower() != "none"
+        }
+
         for bridge in bridges:
-            output += self._translate_bridge(config, bridge, zone_map, review, consumed)
+            output += self._translate_bridge(config, bridge, zone_map, review, consumed, mapping)
 
         for vlan in vlans:
-            output += self._translate_vlan_interface(config, vlan, bridges_by_name, zone_map, review, consumed)
+            output += self._translate_vlan_interface(config, vlan, bridges_by_name, zone_map, review, consumed, mapping)
 
         for interface in others:
-            if interface.name in consumed:
+            if interface.name in consumed or interface.name in sdwan_names:
                 continue
-            output += self._translate_routed_interface(interface, zone_map, review)
+            output += self._translate_routed_interface(interface, zone_map, review, mapping)
 
         return output
 
-    def _translate_bridge(self, config, bridge, zone_map, review, consumed):
+    def _translate_bridge(self, config, bridge, zone_map, review, consumed, mapping=None):
         output = []
         zone = zone_map.get(bridge.name, self.pan_name(bridge.name))
         phys_names = []
 
         for port_name in bridge.bridge_ports:
             port = config.find_interface(port_name)
-            phys = self.resolve_physical(port, review)
+            phys = self.resolve_physical(port, review, mapping)
             consumed.add(port_name)
             if not phys:
                 note = (
@@ -253,7 +437,7 @@ class PaloAltoFirewallTranslator:
 
         return output
 
-    def _translate_vlan_interface(self, config, vlan, bridges_by_name, zone_map, review, consumed):
+    def _translate_vlan_interface(self, config, vlan, bridges_by_name, zone_map, review, consumed, mapping=None):
         output = []
         consumed.add(vlan.name)
         zone = zone_map.get(vlan.name, self.pan_name(vlan.name))
@@ -262,7 +446,7 @@ class PaloAltoFirewallTranslator:
         if parent_bridge is not None:
             phys_names = []
             for port_name in parent_bridge.bridge_ports:
-                phys = self.resolve_physical(config.find_interface(port_name), review)
+                phys = self.resolve_physical(config.find_interface(port_name), review, mapping)
                 if phys:
                     phys_names.append(phys)
             unit = vlan.vlan_id
@@ -277,7 +461,7 @@ class PaloAltoFirewallTranslator:
             output.append(f"set zone {zone} network layer3 [ vlan.{unit} ]")
         else:
             parent_obj = config.find_interface(vlan.parent_interface)
-            phys = self.resolve_physical(parent_obj, review)
+            phys = self.resolve_physical(parent_obj, review, mapping)
             if not phys:
                 review.append(
                     f"vlan {vlan.name} (id {vlan.vlan_id}): could not resolve parent interface "
@@ -307,10 +491,10 @@ class PaloAltoFirewallTranslator:
 
         return output
 
-    def _translate_routed_interface(self, interface, zone_map, review):
+    def _translate_routed_interface(self, interface, zone_map, review, mapping=None):
         output = []
         zone = zone_map.get(interface.name, self.pan_name(interface.name))
-        phys = self.resolve_physical(interface, review)
+        phys = self.resolve_physical(interface, review, mapping)
         if not phys:
             review.append(
                 f"interface {interface.name}: could not resolve to a PAN-OS ethernet slot -- map "
@@ -320,7 +504,17 @@ class PaloAltoFirewallTranslator:
 
         output.append(f"set network interface ethernet {phys} layer3")
         if interface.ip_addresses:
-            output.append(f"set network interface ethernet {phys} ip {interface.ip_addresses[0]}")
+            # "ip" nests under the interface's layer3 tree in real PAN-OS
+            # (network/interface/ethernet/entry/layer3/ip) -- a bare
+            # "ethernet1/1 ip ..." with no "layer3" (this line's shape
+            # before this fix) is not valid PAN-OS "set" syntax; found by
+            # round-tripping this translator's own output through the new
+            # Config Analyzer's PaloAltoFirewallParser, which correctly
+            # refused to recognize the malformed line. translate_sdwan's
+            # SD-WAN-member interfaces already emit the correct nested
+            # form ("layer3 ip ...") -- this brings the plain routed-
+            # interface path in line with that.
+            output.append(f"set network interface ethernet {phys} layer3 ip {interface.ip_addresses[0]}")
         if interface.comment:
             output.append(f'set network interface ethernet {phys} comment "{interface.comment}"')
         output.append(f"set zone {zone} network layer3 [ {phys} ]")
@@ -391,7 +585,29 @@ class PaloAltoFirewallTranslator:
     # IPSEC
     # ====================================================
 
-    def translate_ipsec(self, config, review):
+    @staticmethod
+    def _tunnel_names(config):
+        """
+        One deterministic, de-duplicated PAN-OS tunnel name per active
+        ipsec policy, in the same order config.ipsec_policies lists them
+        -- shared by translate_ipsec and build_interface_mapping_preview
+        so both always agree on the same keys. Two Mikrotik ipsec
+        policies can share the same /ip ipsec policy comment (seen on a
+        real customer export) -- without de-duplication they'd collide
+        onto one "set network tunnel ipsec <name> ..." object, silently
+        merging two unrelated tunnels' settings into one on a real
+        PAN-OS box.
+        """
+        seen = {}
+        names = []
+        for index, policy in enumerate(config.ipsec_policies, start=1):
+            base = PaloAltoFirewallTranslator.pan_name(policy.comment) if policy.comment else f"ipsec-tunnel-{index}"
+            count = seen.get(base, 0) + 1
+            seen[base] = count
+            names.append(base if count == 1 else f"{base}-{count}")
+        return names
+
+    def translate_ipsec(self, config, review, mapping=None):
         output = []
         if not (config.ipsec_peers or config.ipsec_policies):
             return output
@@ -432,10 +648,11 @@ class PaloAltoFirewallTranslator:
                     "confirm ike-crypto-profile 'default' is the right one."
                 )
 
+        tunnel_names = self._tunnel_names(config)
         for index, policy in enumerate(config.ipsec_policies, start=1):
             if policy.disabled or not policy.tunnel:
                 continue
-            tunnel_name = self.pan_name(policy.comment) if policy.comment else f"ipsec-tunnel-{index}"
+            tunnel_name = tunnel_names[index - 1]
             gateway_name = self.pan_name(policy.peer_name) if policy.peer_name else ""
             if gateway_name:
                 output.append(f"set network tunnel ipsec {tunnel_name} auto-key ike-gateway [ {gateway_name} ]")
@@ -450,13 +667,258 @@ class PaloAltoFirewallTranslator:
                 output.append(f"set network tunnel ipsec {tunnel_name} proxy-id proxy1 local {policy.src_address}")
                 output.append(f"set network tunnel ipsec {tunnel_name} proxy-id proxy1 remote {policy.dst_address}")
 
+            if mapping:
+                # A tunnel with no interface/zone binding routes nowhere
+                # on PAN-OS -- this is genuinely new behavior (the
+                # pre-mapping version of this translator never created a
+                # tunnel interface or zone at all), so it only activates
+                # once a mapping is supplied, keeping plain
+                # translate(config) output unchanged.
+                tunnel_ov = (mapping.get("ipsec_tunnels") or {}).get(tunnel_name) or {}
+                zone = tunnel_ov.get("zone")
+                if zone:
+                    unit = tunnel_ov.get("tunnel_unit", index)
+                    output.append(f"set network tunnel ipsec {tunnel_name} tunnel-interface tunnel.{unit}")
+                    output.append(f"set zone {self.pan_name(zone)} network layer3 [ tunnel.{unit} ]")
+                else:
+                    review.append(
+                        f"ipsec tunnel {tunnel_name}: no target zone assigned in the interface "
+                        "mapping -- pick a zone (e.g. 'IPSEC-Tunnel') and a tunnel.N unit number; "
+                        "without it this tunnel has no logical interface/zone binding and won't "
+                        "pass traffic on PAN-OS."
+                    )
+
         return output
+
+    # ====================================================
+    # SD-WAN
+    # ====================================================
+
+    def translate_sdwan(self, config, mapping, review):
+        """
+        SD-WAN member interfaces + the virtual sdwan.N interface that
+        aggregates them. Entirely additive and driven by the
+        `mapping["sdwan"]` block from the interface-mapping UI --
+        produces nothing when SD-WAN isn't enabled in the mapping
+        (including when no mapping is supplied at all), so it never
+        changes plain translate(config) output.
+
+        IMPORTANT: the exact "set" CLI keywords below
+        (sdwan-interface-profile, sdwan-link-settings, the "network
+        interface sdwan units sdwan.N" tree) come from Palo Alto's own
+        SD-WAN reference material, not from a live PAN-OS CLI this
+        session could verify against -- unlike the rest of this
+        translator's output. Every line here is marked SD-WAN-VERIFY on
+        top of the usual REVIEW flagging: confirm the exact keyword
+        path with your PAN-OS version's CLI (tab-completion) before
+        committing any of it.
+        """
+        output = []
+        sdwan_cfg = (mapping or {}).get("sdwan") or {}
+        if not sdwan_cfg.get("enabled"):
+            return output
+
+        interface_overrides = (mapping or {}).get("interfaces") or {}
+        members = []
+        profile_lines = []
+        member_lines = []
+        for name, override in interface_overrides.items():
+            link_type = str(override.get("sdwan_link_type") or "none").lower()
+            if link_type == "none":
+                continue
+            interface_obj = config.find_interface(name)
+            phys = self.resolve_physical(interface_obj, review, mapping)
+            if not phys:
+                review.append(
+                    f"SD-WAN member '{name}': could not resolve to a PAN-OS ethernet slot -- map "
+                    "it manually in the interface mapping before enabling SD-WAN on it."
+                )
+                continue
+            profile_name = self.pan_name(f"{link_type}-profile")
+            profile_lines.append(f"set network sdwan-interface-profile {profile_name} link-type {link_type}")
+            member_lines.append(f"set network interface ethernet {phys} layer3")
+            if interface_obj is not None and interface_obj.ip_addresses:
+                member_lines.append(f"set network interface ethernet {phys} layer3 ip {interface_obj.ip_addresses[0]}")
+            member_lines.append(f"set network interface ethernet {phys} layer3 sdwan-link-settings enable yes")
+            member_lines.append(
+                f"set network interface ethernet {phys} layer3 sdwan-link-settings "
+                f"sdwan-interface-profile {profile_name}"
+            )
+            members.append(phys)
+
+        if not members:
+            review.append(
+                "SD-WAN was enabled in the interface mapping but no interface had a link type "
+                "assigned -- mark at least one interface's SD-WAN link type (MPLS/Internet/LTE) "
+                "to actually generate the SD-WAN section."
+            )
+            return output
+
+        output.append("")
+        output.append(
+            "# SD-WAN-VERIFY: the block below follows Palo Alto's documented SD-WAN interface "
+            "model (SD-WAN Interface Profile -> ethernet interface with SD-WAN enabled -> virtual "
+            "sdwan.N interface), but the exact CLI keywords were not verified against a live "
+            "PAN-OS CLI this session -- confirm each line with tab-completion before committing."
+        )
+        output += profile_lines
+        output += member_lines
+
+        zone = self.pan_name(sdwan_cfg.get("zone") or "SDWAN")
+        unit = sdwan_cfg.get("unit", 1)
+        member_list = " ".join(members)
+        output.append(f"set network interface sdwan units sdwan.{unit} interface [ {member_list} ]")
+        output.append(f"set zone {zone} network layer3 [ {member_list} sdwan.{unit} ]")
+        review.append(
+            f"SD-WAN virtual interface sdwan.{unit}: PAN-OS requires this virtual interface and "
+            f"all its member interfaces ({member_list}) to sit in the same security zone "
+            f"('{zone}') -- confirmed above. Still needed manually: assign sdwan.{unit} to the "
+            "correct virtual router, and configure the SD-WAN Path Quality Profile + SD-WAN "
+            "policy rules (not generated by this tool)."
+        )
+        return output
+
+    # ====================================================
+    # VIRTUAL ROUTER MEMBERSHIP
+    # ====================================================
+
+    def _collect_vr_members(self, output_lines):
+        """
+        Scans already-emitted "set zone X network layer3 [ ... ]" lines
+        for the interface names inside the brackets, in first-seen
+        order. Reading our own output back like this (rather than
+        threading a mutable accumulator through every interface/ipsec/
+        sdwan method) means this always matches whatever was ACTUALLY
+        emitted, with zero risk of drifting out of sync with those
+        methods' own branching logic.
+        """
+        members = []
+        seen = set()
+        for line in output_lines:
+            match = _ZONE_LAYER3_RE.match(line)
+            if not match:
+                continue
+            for name in match.group(1).split():
+                if name not in seen:
+                    seen.add(name)
+                    members.append(name)
+        return members
+
+    # ====================================================
+    # PANORAMA WRAPPING (Template / Device Group)
+    # ====================================================
+
+    def _wrap_template(self, lines, template_name):
+        """
+        Prefixes every real "set ..." line with the Panorama Template
+        CLI path. Comments and blank lines pass through untouched so
+        the output stays readable.
+        """
+        template_name = self.pan_name(template_name)
+        wrapped = []
+        for line in lines:
+            if not line or line.startswith("#"):
+                wrapped.append(line)
+                continue
+            if line.startswith("set "):
+                wrapped.append(
+                    line.replace("set ", f"set template {template_name} config devices localhost.localdomain ", 1)
+                )
+            else:
+                wrapped.append(line)
+        return wrapped
+
+    def _wrap_device_group(self, lines, dg_name):
+        """
+        Prefixes address/address-group/service objects and NAT/security
+        rulebase lines with the Panorama Device Group CLI path (objects
+        and policy rules live in a Device Group, not a Template --
+        rulebase lines go under pre-rulebase, evaluated ahead of a
+        device's own local rules, matching how these rules were
+        evaluated as the branch's own rules in the source config).
+        """
+        dg_name = self.pan_name(dg_name)
+        wrapped = []
+        for line in lines:
+            if not line or line.startswith("#"):
+                wrapped.append(line)
+                continue
+            if line.startswith("set rulebase "):
+                wrapped.append(line.replace("set rulebase ", f"set device-group {dg_name} pre-rulebase ", 1))
+            elif line.startswith(("set address ", "set address-group ", "set service ")):
+                wrapped.append(line.replace("set ", f"set device-group {dg_name} ", 1))
+            else:
+                wrapped.append(line)
+        return wrapped
+
+    # ====================================================
+    # INTERFACE MAPPING PREVIEW (source -> target, pre-generate)
+    # ====================================================
+
+    def build_interface_mapping_preview(self, config):
+        """
+        Read-only analysis for the "preview & edit interface/zone
+        mapping before generating" UI step: one row per physical
+        interface (auto-guessed PAN-OS slot + zone, both meant to be
+        overridden by the user) and one row per bridge (zone name only
+        -- a bridge isn't itself a physical port), plus one row per
+        active IPsec tunnel (zone only; tunnel interfaces are virtual).
+        None of this mutates config. The rows this returns are exactly
+        the shape `mapping["interfaces"]` / `mapping["ipsec_tunnels"]`
+        expect back from the edited UI.
+        """
+        zone_of = self.assign_zones(config)
+        bridge_names = {i.name for i in config.interfaces if i.interface_type == "bridge"}
+
+        interfaces = []
+        for interface in config.interfaces:
+            is_bridge = interface.name in bridge_names
+            row = {
+                "name": interface.name,
+                "default_name": interface.default_name or "",
+                "interface_type": interface.interface_type,
+                "is_bridge": is_bridge,
+                "suggested_zone": zone_of.get(interface.name, self.pan_name(interface.name)),
+                "suggested_pan_interface": None,
+                "needs_review": False,
+            }
+            if not is_bridge and interface.interface_type != "vlan":
+                throwaway_review = []
+                guess = self.resolve_physical(interface, throwaway_review)
+                row["suggested_pan_interface"] = guess
+                row["needs_review"] = guess is None
+            interfaces.append(row)
+
+        ipsec_tunnels = []
+        tunnel_names = self._tunnel_names(config)
+        for index, policy in enumerate(config.ipsec_policies, start=1):
+            if policy.disabled or not policy.tunnel:
+                continue
+            tunnel_name = tunnel_names[index - 1]
+            ipsec_tunnels.append(
+                {
+                    "tunnel_name": tunnel_name,
+                    "peer_name": policy.peer_name,
+                    "suggested_zone": "",
+                    "suggested_unit": index,
+                }
+            )
+
+        hostname = self.pan_name(config.hostname or "branch")
+        return {
+            "interfaces": interfaces,
+            "ipsec_tunnels": ipsec_tunnels,
+            "suggested_sdwan_zone": "SDWAN",
+            "suggested_globalprotect_zone": "",
+            "suggested_template_name": f"{hostname}-Template",
+            "suggested_device_group_name": f"{hostname}-DG",
+        }
 
     # ====================================================
     # NAT
     # ====================================================
 
-    def translate_nat_rules(self, config, zone_map, review):
+    def translate_nat_rules(self, config, zone_map, review, mapping=None):
         output = []
         active_rules = [rule for rule in config.nat_rules if not rule.disabled]
         if not active_rules:
@@ -468,11 +930,31 @@ class PaloAltoFirewallTranslator:
             from_zone = zone_map.get(rule.in_interface, "any") if rule.in_interface else "any"
             to_zone = zone_map.get(rule.out_interface, "any") if rule.out_interface else "any"
 
+            if rule.action == "accept":
+                # RouterOS "accept" in a NAT chain means "match this
+                # traffic and do NOT NAT it, stop processing further NAT
+                # rules for it" -- an exemption. PAN-OS expresses the
+                # exact same thing as a NAT rule with matching criteria
+                # but no source-translation/destination-translation at
+                # all. Rule ORDER still matters on both sides: this rule
+                # must stay ahead of any broader masquerade/src-nat/
+                # dst-nat rule that would otherwise also match the same
+                # traffic, same as it had to in the source config.
+                output += self._nat_common_fields(name, from_zone, to_zone, rule, review)
+                review.append(
+                    f"nat rule {name}: RouterOS action=accept means \"do not NAT this traffic\" -- "
+                    "translated as a NAT rule with no source/destination-translation (PAN-OS's way "
+                    "of expressing a no-NAT exemption). Keep it ABOVE any broader masquerade/"
+                    "src-nat/dst-nat rule that would otherwise also match this same traffic, or "
+                    "the exemption won't take effect."
+                )
+                continue
+
             if rule.chain == "srcnat" and rule.action == "masquerade":
                 out_phys = self.resolve_physical(
-                    config.find_interface(rule.out_interface) if rule.out_interface else None, review
+                    config.find_interface(rule.out_interface) if rule.out_interface else None, review, mapping
                 )
-                output += self._nat_common_fields(name, from_zone, to_zone, rule)
+                output += self._nat_common_fields(name, from_zone, to_zone, rule, review)
                 if out_phys:
                     output.append(
                         f"set rulebase nat rules {name} source-translation dynamic-ip-and-port "
@@ -485,26 +967,65 @@ class PaloAltoFirewallTranslator:
                     )
                 continue
 
-            if rule.chain == "srcnat" and rule.action in ("src-nat", "netmap") and rule.to_addresses:
+            if rule.chain == "srcnat" and rule.action == "netmap" and rule.to_addresses:
+                # "netmap" is a deterministic, bidirectional 1:1 mapping
+                # (most often one public IP assigned straight to one
+                # internal host) -- a fundamentally different animal
+                # from src-nat's many-to-few PAT. PAN-OS's matching
+                # concept is "static-ip" translation, and "bi-directional
+                # yes" makes PAN-OS auto-create the return path (the
+                # implicit destination-NAT half) instead of needing a
+                # second hand-written rule, mirroring what "netmap" does
+                # in one shot on the Mikrotik side.
+                addresses = [a.strip() for a in rule.to_addresses.split(",") if a.strip()]
+                if len(addresses) == 1 and "/" not in addresses[0]:
+                    output += self._nat_common_fields(name, from_zone, to_zone, rule, review)
+                    output.append(
+                        f"set rulebase nat rules {name} source-translation static-ip "
+                        f"translated-address {addresses[0]}"
+                    )
+                    output.append(
+                        f"set rulebase nat rules {name} source-translation static-ip bi-directional yes"
+                    )
+                    review.append(
+                        f"nat rule {name}: RouterOS 'netmap' is a static 1:1 mapping, translated as "
+                        "static-ip with bi-directional yes (PAN-OS auto-creates the matching reverse "
+                        "destination-NAT). Confirm this matches intent -- bi-directional static NAT "
+                        "also needs its own security policy rule permitting the now-reachable "
+                        "inbound path."
+                    )
+                else:
+                    review.append(
+                        f"nat rule {name}: RouterOS 'netmap' with a multi-address/subnet target "
+                        f"('{rule.to_addresses}') -- a network-wide 1:1 static NAT needs to be built "
+                        "manually; this doesn't reduce to a single static-ip translated-address line."
+                    )
+                continue
+
+            if rule.chain == "srcnat" and rule.action == "src-nat" and rule.to_addresses:
                 addresses = " ".join(a.strip() for a in rule.to_addresses.split(",") if a.strip())
-                output += self._nat_common_fields(name, from_zone, to_zone, rule)
+                output += self._nat_common_fields(name, from_zone, to_zone, rule, review)
                 output.append(
                     f"set rulebase nat rules {name} source-translation dynamic-ip-and-port "
                     f"translated-address [ {addresses} ]"
                 )
-                review.append(
-                    f"nat rule {name}: source '{rule.action}' translated as dynamic-ip-and-port -- "
-                    "switch to a static 1:1 mapping manually if that was the original intent."
-                )
                 continue
 
             if rule.chain == "dstnat" and rule.action in ("dst-nat", "netmap") and rule.to_addresses:
-                output += self._nat_common_fields(name, from_zone, to_zone, rule)
+                addresses = [a.strip() for a in rule.to_addresses.split(",") if a.strip()]
+                if rule.action == "netmap" and (len(addresses) != 1 or "/" in addresses[0]):
+                    review.append(
+                        f"nat rule {name}: RouterOS 'netmap' (dstnat) with a multi-address/subnet "
+                        f"target ('{rule.to_addresses}') -- a network-wide destination NAT needs to "
+                        "be built manually; this doesn't reduce to a single translated-address line."
+                    )
+                    continue
+                output += self._nat_common_fields(name, from_zone, to_zone, rule, review)
                 if rule.dst_port:
-                    service_name = self.pan_name(f"{name}-svc")
+                    service_name = self.pan_name(f"{name}-nat-svc")
                     output.append(f"set service {service_name} protocol {rule.protocol or 'tcp'} port {rule.dst_port}")
                     output.append(f"set rulebase nat rules {name} service {service_name}")
-                output.append(f"set rulebase nat rules {name} destination-translation translated-address {rule.to_addresses}")
+                output.append(f"set rulebase nat rules {name} destination-translation translated-address {addresses[0]}")
                 if rule.to_ports:
                     output.append(f"set rulebase nat rules {name} destination-translation translated-port {rule.to_ports}")
                 continue
@@ -518,12 +1039,36 @@ class PaloAltoFirewallTranslator:
         return output
 
     @staticmethod
-    def _nat_common_fields(name, from_zone, to_zone, rule):
+    def _nat_match_value(direct_value, address_list, review, rule_name, field_label):
+        if direct_value:
+            return direct_value
+        if address_list:
+            if address_list.startswith("!"):
+                # RouterOS's "!" negation ("match everything NOT in this
+                # address-list") has no PAN-OS NAT equivalent -- unlike
+                # security-policy rules, NAT rulebase match criteria in
+                # PAN-OS don't support a negate flag. Falling back to
+                # "any" would silently widen the rule's match instead of
+                # narrowing it the way the source config intended, so
+                # flag it instead of guessing.
+                review.append(
+                    f"nat rule {rule_name}: {field_label} used a negated address-list "
+                    f"('{address_list}') -- PAN-OS NAT match criteria don't support negation; "
+                    "redesign this rule's matching logic manually (e.g. split into an explicit "
+                    "match plus a separate catch-all rule)."
+                )
+                return "any"
+            return PaloAltoFirewallTranslator.pan_name(address_list)
+        return "any"
+
+    def _nat_common_fields(self, name, from_zone, to_zone, rule, review):
+        source = self._nat_match_value(rule.src_address, rule.src_address_list, review, name, "source")
+        destination = self._nat_match_value(rule.dst_address, rule.dst_address_list, review, name, "destination")
         return [
             f"set rulebase nat rules {name} from [ {from_zone} ]",
             f"set rulebase nat rules {name} to [ {to_zone} ]",
-            f"set rulebase nat rules {name} source [ {rule.src_address or 'any'} ]",
-            f"set rulebase nat rules {name} destination [ {rule.dst_address or 'any'} ]",
+            f"set rulebase nat rules {name} source [ {source} ]",
+            f"set rulebase nat rules {name} destination [ {destination} ]",
         ]
 
     # ====================================================
@@ -647,7 +1192,7 @@ class PaloAltoFirewallTranslator:
     # DHCP CLIENT (interface WAN-side role)
     # ====================================================
 
-    def translate_dhcp_clients(self, config, review):
+    def translate_dhcp_clients(self, config, review, mapping=None):
         output = []
         active_bindings = [b for b in config.dhcp_client_bindings if not b.disabled]
 
@@ -664,7 +1209,7 @@ class PaloAltoFirewallTranslator:
         output.append("")
         for binding in active_bindings:
             interface_obj = config.find_interface(binding.interface)
-            phys = self.resolve_physical(interface_obj, review)
+            phys = self.resolve_physical(interface_obj, review, mapping)
             if not phys:
                 review.append(
                     f"DHCP client on interface '{binding.interface}': could not resolve to a "
@@ -728,7 +1273,7 @@ class PaloAltoFirewallTranslator:
                 return network
         return None
 
-    def translate_dhcp_servers(self, config, review):
+    def translate_dhcp_servers(self, config, review, mapping=None):
         output = []
         if not config.dhcp_servers:
             return output
@@ -754,7 +1299,7 @@ class PaloAltoFirewallTranslator:
                 continue
 
             server_iface_obj = config.find_interface(server.interface) if server.interface else None
-            iface_name = self.resolve_physical(server_iface_obj, review)
+            iface_name = self.resolve_physical(server_iface_obj, review, mapping)
             if not iface_name:
                 review.append(
                     f"DHCP server '{server.name}': could not resolve interface '{server.interface}' "
@@ -823,7 +1368,7 @@ class PaloAltoFirewallTranslator:
     # MSS CLAMPING
     # ====================================================
 
-    def translate_mss_clamps(self, config, review):
+    def translate_mss_clamps(self, config, review, mapping=None):
         output = []
         if not config.mss_clamps:
             return output
@@ -840,7 +1385,7 @@ class PaloAltoFirewallTranslator:
                 continue
             for iface_name in interface_names:
                 iface_obj = config.find_interface(iface_name)
-                phys = self.resolve_physical(iface_obj, review)
+                phys = self.resolve_physical(iface_obj, review, mapping)
                 if not phys:
                     review.append(
                         f"MSS clamp (new-mss {clamp.new_mss}): could not resolve interface "

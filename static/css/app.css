@@ -1429,3 +1429,18 @@ html[data-theme="dark"] tbody tr:hover { background: rgba(36, 180, 205, .09); }
 #topbar-actions-slot { display: contents; }
 #topbar-actions-slot > [data-spa-page-actions] { display: contents; }
 #topbar-actions-slot > [data-spa-page-actions][hidden] { display: none !important; }
+
+/* Configuration Studio: interface/zone mapping preview & edit table
+   (Mikrotik -> Palo Alto SD-WAN migration flow) -- compact inline
+   inputs/selects inside table cells, since the default input/select
+   min-height (44px) is sized for the sidebar form, not a dense table. */
+#mapping-interfaces-table td input,
+#mapping-interfaces-table td select,
+#mapping-ipsec-table td input {
+  width: 100%;
+  min-height: 34px;
+  font-size: 11px;
+  padding: 0 8px;
+}
+#mapping-interfaces-table td, #mapping-ipsec-table td { text-align: left; }
+.mapping-needs-review { color: var(--orange, #c07a17); font-weight: 700; }

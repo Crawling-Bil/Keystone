@@ -441,5 +441,37 @@ class MikrotikFirewallParserTests(unittest.TestCase):
         self.assertIn("GRE", matches[0])
 
 
+    def test_secret_bearing_unhandled_statement_is_redacted_not_leaked(self):
+        # /ip ipsec identity has no dedicated handler, so it falls
+        # through to the generic "preserve verbatim" path -- but its
+        # secret=<real-psk> value is genuine credential material from
+        # the source config (seen on a real customer's AWS VPN export)
+        # and must never be echoed back out in review_commands.
+        path = _write_config(
+            self.tmp_dir,
+            "/ip ipsec identity\nadd peer=AWS-GLT secret=SuperSecretRealPsk123\n",
+        )
+        config = self.parser.parse_file(path)
+        combined = " ".join(config.review_commands)
+        self.assertNotIn("SuperSecretRealPsk123", combined)
+        self.assertIn("secret=<redacted>", combined)
+        self.assertIn("peer=AWS-GLT", combined)
+
+    def test_password_and_psk_fields_are_also_redacted(self):
+        path = _write_config(
+            self.tmp_dir,
+            "/some/unrecognized/section\n"
+            "add password=hunter2 psk=AnotherRealSecret pre-shared-key=YetAnotherOne name=x\n",
+        )
+        config = self.parser.parse_file(path)
+        combined = " ".join(config.review_commands)
+        for leaked in ("hunter2", "AnotherRealSecret", "YetAnotherOne"):
+            self.assertNotIn(leaked, combined)
+        self.assertIn("password=<redacted>", combined)
+        self.assertIn("psk=<redacted>", combined)
+        self.assertIn("pre-shared-key=<redacted>", combined)
+        self.assertIn("name=x", combined)
+
+
 if __name__ == "__main__":
     unittest.main()
