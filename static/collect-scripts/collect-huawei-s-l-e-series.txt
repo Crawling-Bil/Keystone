@@ -1,6 +1,7 @@
 !!! collect backup config huawei S/L/E series
 
-save safely
+save 
+y
 
 screen-length 0 temporary
 
@@ -14,15 +15,17 @@ display device elabel brief
 
 display device elabel
 
-display  vlan summary
+display vlan summary
 
-display  vlan 
+display vlan 
 
 display interface transceiver
 
 display interface description
 
 display interface brief
+
+display interface 
 
 display port vlan
 
@@ -38,7 +41,11 @@ display lldp neighbor brief
 
 display lldp neighbor
 
-display lacp peer
+display lacp brief
+
+display lacp statistics
+
+display lacp troubleshooting
 
 display poe power-management
 
@@ -49,8 +56,6 @@ display stp
 display stp brief
 
 display stp region-configuration
-
-display environment
 
 display device
 
@@ -63,6 +68,12 @@ display stack
 display stack peers
 
 display dual-active
+
+display stack topology
+
+display stack configuration
+
+display stack troubleshooting history
 
 display current-configuration | include route
 
@@ -80,10 +91,15 @@ display license verbose
 
 display acl all
 
-display mac-address statistics
+display mac-address summary
 
 display mac-address
 
+display current-configuration | in http
 
+display current-configuration | in telnet
 
+display current-configuration | in ftp
+
+display alarm active
 

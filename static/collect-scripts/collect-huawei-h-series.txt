@@ -1,6 +1,7 @@
 !!! collect backup config huawei H series
 
-save safely
+save 
+y
 
 screen-length 0 temporary
 
@@ -14,9 +15,9 @@ display device elabel brief
 
 display device elabel
 
-display  vlan summary
+display vlan summary
 
-display  vlan 
+display vlan
 
 display interface transceiver
 
@@ -30,7 +31,7 @@ display ip interface brief
 
 display vrrp
 
-display vrrp brief
+display vrrp binding
 
 display arp statistics
 
@@ -42,23 +43,53 @@ display m-lag summary
 
 display m-lag brief
 
+display m-lag consistency-check whitelist status
+
+display m-lag troubleshooting current
+
+display m-lag troubleshooting history
+
+display m-lag unpaired-port reserved
+
+display m-lag unpaired-port suspend
+
+display dfs authentication status
+
+display dfs partner
+
 display dfs-group
 
-display dfs-group 1 heart-beat
+display dfs-group 1 peer-link
+
+display dfs-group 1 heartbeat
 
 display dfs packet statistics
 
 display dfs-group consistency-check global
 
+display dfs-group consistency-check status
+
+display dfs-group consistency-check static-arp
+
+display dfs-group consistency-check static-mac
+
+display dfs-group m-lag brief
+
 display lldp neighbor brief
 
 display lldp neighbor
 
-display lacp peer
+display lacp brief
 
 display poe power-management
 
 display poe information
+
+display poe device
+
+display poe power
+
+display poe power-state
 
 display stp
 
@@ -66,17 +97,15 @@ display stp brief
 
 display stp region-configuration
 
-display environment
-
 display device
-
-display power
-
-display fan
 
 display stack
 
-display stack peers
+display stack topology
+
+display stack configuration
+
+display stack troubleshooting history
 
 display dual-active
 
@@ -84,26 +113,27 @@ display current-configuration | include route
 
 display current-configuration | include route ignore-case
 
-display current-configuration configuration static-routing
+display current-configuration configuration route-static
 
 display ip routing-table
-
-display track all
 
 display nqa results
 
 display license
 
-display license resource-usage
+display license resource usage
 
 display license verbose
 
 display acl all
 
-display mac-address statistics
+display mac-address summary
 
 display mac-address
 
+display current-configuration | in http
 
+display current-configuration | in telnet
 
+display current-configuration | in ftp
 
