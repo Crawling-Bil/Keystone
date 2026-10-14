@@ -15,8 +15,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from features.switch_analyzer.firewall_service import analyze_firewall
-from features.switch_analyzer.exporters.firewall_excel_exporter import FirewallExcelExporter
+from features.firewall_analyzer.firewall_service import analyze_firewall
+from features.firewall_analyzer.firewall_excel_exporter import FirewallExcelExporter
 
 PALOALTO_SET_CONFIG = """
 set deviceconfig system hostname EXPORT-FW01

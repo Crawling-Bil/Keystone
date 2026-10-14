@@ -172,6 +172,22 @@
 
     const cellText = (row, key) => plain(row[key]);
 
+    // A "shared" facet (the VDOM / vsys filter of the Firewall Analyzer) keeps one selection for the whole page:
+    // pick a VDOM in one table and every other table that has the column follows. Other facets stay per table.
+    const shared = state.tables.__shared || (state.tables.__shared = {});          // survives tab switches with the other table state
+    const painters = state.painters || (state.painters = {});                       // the tables of this render, repainted together
+    const present = new Map(facetDefs.map(def => [def.key, new Set(rows.map(row => cellText(row, def.key)).filter(Boolean))]));
+    // The value that is actually applied here: a shared choice that this table has no row for is ignored, not applied.
+    const activeOf = def => {
+      const chosen = (def.shared ? shared[def.key] : local.facet[def.key]) || "";
+      return chosen && present.get(def.key).size > 1 && present.get(def.key).has(chosen) ? chosen : "";
+    };
+    const choose = (def, value) => {
+      if (!def.shared) { local.facet[def.key] = value; local.page = 0; paint(); return; }
+      shared[def.key] = value;
+      repaintScope(state);
+    };
+
     function facetValues(def) {
       const found = new Map();
       rows.forEach(row => {
@@ -193,10 +209,11 @@
       if (!facetBox) return;
       facetBox.replaceChildren(...facetDefs.map(def => {
         const values = facetValues(def);
-        if (values.length < 2) { delete local.facet[def.key]; return null; }
-        const active = local.facet[def.key] || "";
-        const pick = value => () => { local.facet[def.key] = value === active ? "" : value; local.page = 0; paint(); };
-        return h("div", { class: "an-sev-chips an-facet", role: "group", "aria-label": `Filter by ${def.label || def.key}` },
+        if (values.length < 2) { if (!def.shared) delete local.facet[def.key]; return null; }
+        const active = activeOf(def);
+        const pick = value => () => choose(def, value === active ? "" : value);
+        return h("div", { class: `an-sev-chips an-facet${def.shared ? " an-scope" : ""}`, role: "group", "aria-label": `Filter by ${def.label || def.key}` },
+          def.shared ? h("span", { class: "an-facet-label", text: def.label || def.key }) : null,
           h("button", { type: "button", class: `an-chip link${active ? "" : " active"}`, "aria-pressed": active ? "false" : "true", onclick: pick(active), text: `All ${rows.length.toLocaleString()}` }),
           values.map(([value, info]) => h("button", { type: "button", class: `an-chip link${info.tone ? ` tone-${info.tone}` : ""}${active === value ? " active" : ""}`, "aria-pressed": active === value ? "true" : "false", onclick: pick(value),
             text: `${def.prefix || ""}${value} ${info.count.toLocaleString()}` })));
@@ -205,7 +222,7 @@
 
     function filtered() {
       let list = rows;
-      facetDefs.forEach(def => { const chosen = local.facet[def.key]; if (chosen) list = list.filter(row => cellText(row, def.key) === chosen); });
+      facetDefs.forEach(def => { const chosen = activeOf(def); if (chosen) list = list.filter(row => cellText(row, def.key) === chosen); });
       const terms = local.q.toLowerCase().split(/\s+/).filter(Boolean);
       if (terms.length) list = list.filter(row => { const hay = haystack(row, columns); return terms.every(term => hay.includes(term)); });
       if (local.sortKey) {
@@ -251,6 +268,7 @@
       }
     }
 
+    painters[section.id] = { local, paint };
     search.value = local.q;
     let timer = 0;
     search.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { local.q = search.value; local.page = 0; paint(); }, 120); });
@@ -271,6 +289,39 @@
       list.append(h("dt", { text: pair.label }), dd);
     });
     return list;
+  }
+
+  // Shared (scope) filters: one selection for every table of the tab, e.g. the FortiGate VDOM or the Palo Alto vsys.
+  function repaintScope(state) {
+    Object.values(state.painters || {}).forEach(entry => { entry.local.page = 0; entry.paint(); });
+    if (state.onScope) state.onScope();
+  }
+
+  // The bar above the tables of a tab: one button per scope value found in any of its tables. Returns null when the
+  // tab has no scope column or only one value (a single-VDOM device).
+  function scopeBar(sections, state) {
+    const found = new Map();
+    sections.forEach(section => (section.facets || []).filter(def => def.shared && (section.columns || []).some(col => col.key === def.key)).forEach(def => {
+      const entry = found.get(def.key) || { def, counts: new Map() };
+      (section.rows || []).forEach(row => { const value = plain(row[def.key]); if (value) entry.counts.set(value, (entry.counts.get(value) || 0) + 1); });
+      found.set(def.key, entry);
+    }));
+    const entries = [...found.values()].filter(entry => entry.counts.size > 1);
+    if (!entries.length) return null;
+    const shared = state.tables.__shared || (state.tables.__shared = {});
+    const box = h("div", { class: "an-scope-bar", role: "group", "aria-label": "Scope filter" });
+    const paintBar = () => box.replaceChildren(...entries.map(({ def, counts }) => {
+      const active = counts.has(shared[def.key]) ? shared[def.key] : "";
+      const pick = value => () => { shared[def.key] = value === active ? "" : value; repaintScope(state); };
+      const names = [...counts.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      return h("div", { class: "an-sev-chips an-facet an-scope" },
+        h("span", { class: "an-facet-label", text: `${def.label || def.key} filter` }),
+        h("button", { type: "button", class: `an-chip link${active ? "" : " active"}`, "aria-pressed": active ? "false" : "true", onclick: pick(active), text: "All" }),
+        names.map(name => h("button", { type: "button", class: `an-chip link${active === name ? " active" : ""}`, "aria-pressed": active === name ? "true" : "false", onclick: pick(name), text: name })));
+    }));
+    state.onScope = paintBar;
+    paintBar();
+    return box;
   }
 
   function buildSection(section, state) {
@@ -437,7 +488,7 @@
       }
       const exportButton = h("button", { type: "button", class: "an-btn primary", onclick: event => this.exportExcel(event.currentTarget) }, icon("upload"), this.state.results.length > 1 ? `Export ${this.state.results.length} devices to Excel` : "Export to Excel");
       pieces.push(h("div", { class: "an-toolbar" },
-        h("div", { class: "an-toolbar-title" }, h("strong", { text: result.hostname || result.source_name }), h("span", { text: [result.platform, result.source_name].filter(Boolean).join(" · ") })), exportButton));
+        h("div", { class: "an-toolbar-title" }, h("strong", { text: result.hostname || result.source_name }), h("span", { text: [result.platform, result.source_name].filter(Boolean).join(" · ") })), this.compareBar(), exportButton));
       const banner = this.errorBanner();
       if (banner) pieces.push(banner);
       (result.warnings || []).forEach(warning => pieces.push(h("div", { class: "an-banner warn", role: "note" }, h("span", { text: warning }))));
@@ -451,6 +502,44 @@
       this.resultBox.replaceChildren(...pieces, h("div", { class: "an-shell" }, tablist, panel));
       this.panel = panel;
       this.renderTab();
+    }
+
+    // Compare two analysed devices (an older backup against a newer one, or the two units of an HA pair).
+    // The answer is a result of its own, added as one more device tab, so every table, filter and the Excel export work on it.
+    compareBar() {
+      const real = this.state.results.map((item, index) => ({ item, index })).filter(entry => !entry.item.comparison);
+      if (real.length < 2) return null;
+      const pick = this.state.compare = this.state.compare && real.some(e => e.index === this.state.compare.a) && real.some(e => e.index === this.state.compare.b) ? this.state.compare : { a: real[0].index, b: real[1].index };
+      const label = entry => entry.item.hostname || entry.item.source_name;
+      const select = (key, aria) => {
+        const node = h("select", { class: "an-select", "aria-label": aria }, real.map(entry => h("option", { value: String(entry.index), selected: entry.index === pick[key] ? true : null, text: label(entry) })));
+        node.addEventListener("change", () => { pick[key] = Number(node.value); });
+        return node;
+      };
+      const button = h("button", { type: "button", class: "an-btn", onclick: () => this.compare(button) }, "Compare");
+      return h("div", { class: "an-compare", role: "group", "aria-label": "Compare two devices" }, h("span", { class: "an-facet-label", text: "Compare" }), select("a", "First capture"), h("span", { text: "→" }), select("b", "Second capture"), button);
+    }
+
+    async compare(button) {
+      const { a, b } = this.state.compare;
+      if (a === b) { toast("Pick two different devices to compare.", "error"); return; }
+      button.disabled = true;
+      try {
+        const response = await fetch(`${this.api}/api/compare`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ before: this.state.results[a], after: this.state.results[b] }) });
+        let payload = null;
+        try { payload = await response.json(); } catch (error) { /* non-JSON error body */ }
+        if (!response.ok || !payload || !payload.ok) throw new Error((payload && payload.error) || `HTTP ${response.status}`);
+        const old = this.state.results.findIndex(item => item.comparison);
+        if (old !== -1) { this.state.results.splice(old, 1); this.state.tables.splice(old, 1); }
+        this.state.results.push(payload.result);
+        this.state.tables.push({});
+        this.state.index = this.state.results.length - 1;
+        this.state.tab = "overview";
+        this.render();
+      } catch (error) {
+        toast(`Comparison failed: ${error.message}`, "error");
+        button.disabled = false;
+      }
     }
 
     tabKey(event, tabs) {
@@ -481,8 +570,9 @@
       else {
         const group = key.slice(2);
         const sections = this.result.sections.filter(section => section.group === group);
-        const state = { tables: this.state.tables[this.state.index] };
-        this.panel.replaceChildren(h("div", { class: "an-sections" }, sections.length > 3 ? this.sectionNav(sections) : null, sections.map(section => buildSection(section, state))));
+        const state = { tables: this.state.tables[this.state.index], painters: {} };
+        const bar = scopeBar(sections, state);
+        this.panel.replaceChildren(h("div", { class: "an-sections" }, bar, sections.length > 3 ? this.sectionNav(sections) : null, sections.map(section => buildSection(section, state))));
       }
       if (sectionId) this.focusSection(sectionId);
     }

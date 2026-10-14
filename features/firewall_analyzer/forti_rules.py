@@ -14,8 +14,9 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable, Iterable
 
-from ..analyzer_core.findings import dedupe_findings, finding, sort_findings
+from ..analyzer_core.findings import SEVERITY_RANK, dedupe_findings, finding, sort_findings
 from .forti_resolve import BUILTIN_OBJECT, RISKY_PORTS, Resolver
+from .forti_profiles import utm_rules
 from .forti_tree import FortiTree
 from .refs import FORTI
 
@@ -39,7 +40,31 @@ def evaluate(tree: FortiTree, data: dict[str, Any], today: date | None = None) -
     out: list[dict[str, Any]] = []
     for rule in RULES:
         out.extend(rule(ctx))
-    return sort_findings(dedupe_findings(out))
+    return sort_findings(_overflow(dedupe_findings(out)))
+
+
+def _overflow(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Safety net: a rule that fires on hundreds of objects (e.g. a VIP per host) must not bury the rest.
+
+    Keeps the first MAX_PER_RULE findings of any rule id and replaces the remainder with one info summary,
+    so the dashboard counts stay honest ("N more") without thousands of near-identical rows.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        buckets.setdefault(item["id"], []).append(item)
+    out: list[dict[str, Any]] = []
+    for rule_id, group in buckets.items():
+        if len(group) <= MAX_PER_RULE or any("more" in g["title"] and g["severity"] == "info" and g["title"][0].isdigit() for g in group):
+            out.extend(group)
+            continue
+        group = sorted(group, key=lambda g: SEVERITY_RANK.get(g["severity"], 9))
+        out.extend(group[:MAX_PER_RULE])
+        rest = group[MAX_PER_RULE:]
+        sample = group[0]
+        out.append(finding(rule_id, "info", sample["category"], f"{len(rest)} more finding(s) of rule {rule_id} not listed",
+                           detail=f"{len(group)} objects match '{sample['title']}'; the first {MAX_PER_RULE} (highest severity first) are listed.",
+                           reference=sample.get("reference", "")))
+    return out
 
 
 def _cap(items: list[dict[str, Any]], rule_id: str, category: str, noun: str, reference: str = "") -> list[dict[str, Any]]:
@@ -172,7 +197,7 @@ def interface_rules(ctx: FCtx) -> Iterable[dict[str, Any]]:
                     out.append(finding("FGT-IFC-005", "low", "Interfaces", "FortiManager management tunnel (FGFM) is allowed on the internet-facing interface", obj=f"interface {item['name']}",
                                        detail=f"{label} allows fgfm. This is normal for a FortiGate managed over the internet but should be limited to the FortiManager address." + note,
                                        recommendation="Restrict TCP 541 with a local-in policy to the FortiManager IP.", reference=FORTI["local_in"]))
-    return _cap(out, "FGT-IFC-001", "Interfaces", "interface findings")
+    return out
 
 
 # ------------------------------------------------------------------- policies
@@ -236,7 +261,9 @@ def policy_rules(ctx: FCtx) -> Iterable[dict[str, Any]]:
         out.append(finding("FGT-POL-010", "low", "Policy", "No DoS policy is configured", obj="firewall DoS-policy",
                            detail="No firewall DoS-policy exists, so anomaly checks (SYN flood, port scan, UDP flood) are not applied to traffic entering the internet-facing interfaces.",
                            recommendation="Create a DoS policy on each WAN interface with the anomaly thresholds from the Fortinet best-practice guide.", reference=FORTI["dos_policy"]))
-    return _cap(out, "FGT-POL-004", "Policy", "policy findings")
+    # No blanket cap here: truncating the whole list at 25 used to drop every later finding type (shadowed, disabled,
+    # unreferenced objects, no-DoS-policy) as soon as two noisy rules filled the quota. evaluate() caps per rule id.
+    return out
 
 
 def _int(value: str | None) -> int | None:
@@ -311,8 +338,24 @@ def referenced_names(tree: FortiTree) -> set[str]:
     return names
 
 
+def referenced_by_vdom(tree: FortiTree) -> dict[str, set[str]]:
+    """Names referenced inside each VDOM.  Objects are VDOM-local, so a name used only in another VDOM is not a use."""
+    out: dict[str, set[str]] = {}
+    for scope, node in tree.scopes():
+        names: set[str] = set()
+        for sub in node.walk():
+            for key, values in sub.settings.items():
+                if key in ("name", "comment", "comments", "alias", "description", "uuid"):
+                    continue
+                names.update(values)
+        out[scope] = names
+    return out
+
+
 def _unreferenced(ctx: FCtx) -> list[dict[str, Any]]:
-    used = referenced_names(ctx.tree)
+    by_vdom = referenced_by_vdom(ctx.tree)
+    everything = referenced_names(ctx.tree)
+    multi = len(by_vdom) > 1
     d = ctx.data
     kinds = (
         ("address", d["addresses"], "addresses"), ("address group", d["addrgrps"], "address groups"), ("custom service", d["services"], "custom services"),
@@ -320,7 +363,8 @@ def _unreferenced(ctx: FCtx) -> list[dict[str, Any]]:
     )
     out: list[dict[str, Any]] = []
     for label, items, plural in kinds:
-        unused = [i["name"] for i in items if i["name"] not in used and not BUILTIN_OBJECT.match(i["name"])]
+        unused = [(f"{i['vdom']}/{i['name']}" if multi else i["name"]) for i in items
+                  if i["name"] not in by_vdom.get(i.get("vdom", "root"), everything) and not BUILTIN_OBJECT.match(i["name"])]
         if unused:
             out.append(finding("FGT-OBJ-001", "info", "Objects", f"{len(unused)} unreferenced {plural if len(unused) != 1 else label}", obj=", ".join(unused[:30]) + (" …" if len(unused) > 30 else ""),
                                detail=f"These {plural} are defined but nothing refers to them (no policy, group, VIP or setting). Orphans make audits harder and are often left over from retired services.",
@@ -425,7 +469,7 @@ def vpn_rules(ctx: FCtx) -> Iterable[dict[str, Any]]:
                                    recommendation="Use aes256-sha256 or aes256gcm.", reference=ref))
         if p2["pfs"] != "disable":
             out.extend(_dh_findings(p2["dhgrp"], obj, "Phase 2", ref))
-    return _cap(out, "FGT-VPN-002", "VPN", "VPN findings")
+    return out
 
 
 def _weak_algorithm(enc: str, auth: str) -> tuple[str, str] | None:
@@ -672,6 +716,25 @@ def secret_rules(ctx: FCtx) -> Iterable[dict[str, Any]]:
                     detail="The export holds these values without the ENC marker. Anyone who can read the backup can use them. (Their values are not shown in this report.)", recommendation="Rotate them and enable private-data-encryption; check how the configuration was exported.", reference=FORTI["harden_70"])]
 
 
+def misc_rules(ctx: FCtx) -> Iterable[dict[str, Any]]:
+    """Sniffer policies and expired one-time schedules."""
+    d = ctx.data
+    out: list[dict[str, Any]] = []
+    for sniff in d.get("sniffers", []):
+        if sniff["status"] != "disable":
+            out.append(finding("FGT-SNF-001", "low", "Policy", "Traffic sniffer (one-arm IDS) policy is active", obj=f"sniffer {sniff['id']} on {sniff['interface']}",
+                               detail="A sniffer policy mirrors traffic of the interface for inspection only: it logs and alerts but never blocks, so it is easy to mistake for protection.",
+                               recommendation="Confirm the capture is still required, or replace it with an enforcing firewall policy with IPS.", reference=FORTI["policies"]))
+    for sched in d.get("schedules", []):
+        if sched["kind"] != "one-time":
+            continue
+        match = re.search(r"(\d{4})/(\d{2})/(\d{2})", sched.get("end", ""))
+        if match and date(int(match[1]), int(match[2]), int(match[3])) < ctx.today:
+            out.append(finding("FGT-SCH-001", "info", "Policy", "One-time schedule has expired", obj=f"schedule {sched['name']}",
+                               detail=f"The schedule ended {match[0]}; a policy that still uses it never matches again.", recommendation="Delete the schedule and any policy that only depends on it.", reference=FORTI["policies"]))
+    return out
+
+
 RULES: list[Callable[[FCtx], Iterable[dict[str, Any]]]] = [
-    admin_rules, interface_rules, policy_rules, nat_rules, vpn_rules, sslvpn_rules, ha_rules, logging_rules, snmp_rules, auth_rules, routing_rules, sdwan_rules, system_rules, secret_rules,
+    admin_rules, interface_rules, policy_rules, utm_rules, nat_rules, vpn_rules, sslvpn_rules, ha_rules, logging_rules, snmp_rules, auth_rules, routing_rules, sdwan_rules, system_rules, secret_rules, misc_rules,
 ]

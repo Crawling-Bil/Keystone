@@ -13,6 +13,7 @@ _COMMANDS = (
     ("show", "FortiGate short export: only values that differ from the default (findings that depend on a default say so)."),
     ("show | grep -f ...  /  show system interface", "FortiGate: any sub-tree can be pasted; the parser reads whatever config / edit / set blocks it finds."),
     ("show configuration (PAN-OS: set format)  /  show config running", "Palo Alto: the 'set' format from 'set cli config-output-format set' + 'show', or the XML export."),
+    ("set cli pager off  >  show system info  >  show config running", "Palo Alto, recommended: the CLI session saved from PuTTY/SecureCRT. The configuration (curly-brace view) plus model, serial, PAN-OS and content versions and the advanced-routing flag from 'show system info'."),
     ("/export compact  or  /export verbose", "MikroTik RouterOS: the full export (hide-sensitive is the default from RouterOS 7)."),
 )
 

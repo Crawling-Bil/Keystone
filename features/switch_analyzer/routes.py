@@ -10,9 +10,10 @@ from werkzeug.utils import secure_filename
 from core.database import log_activity
 from features.analyzer_core.collect import COLLECT_DIR, describe_file
 from features.configuration_studio.service import create_engine
+from ..firewall_analyzer.firewall_excel_exporter import FirewallExcelExporter
+from ..firewall_analyzer.firewall_service import analyze_firewall
 from .compare import compare as compare_results
-from .exporters import FirewallExcelExporter, SwitchExcelExporter, export_comparison
-from .firewall_service import analyze_firewall
+from .exporters import SwitchExcelExporter, export_comparison
 from .service import analyze
 from .sizing import build_sizing_summary
 

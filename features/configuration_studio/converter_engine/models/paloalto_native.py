@@ -14,6 +14,7 @@ class PaZone:
     name: str
     interfaces: list[str] = field(default_factory=list)
     zone_protection_profile: str = ""
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -44,6 +45,7 @@ class PaInterface:
     management_profile: str = ""  # interface-management-profile name, if any
     hw_speed_duplex_state: str = ""  # live "speed/duplex/state" (e.g. "1000/full/up") -- only ever set by PaloAltoOperationalCaptureParser, from "show interface all"'s hardware table
     hw_mac_address: str = ""  # live physical port MAC -- same source as hw_speed_duplex_state
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -69,6 +71,10 @@ class PaStaticRoute:
     destination: str = "0.0.0.0/0"
     nexthop: str = ""
     metric: Optional[int] = None
+    interface: str = ""             # egress interface of the route (XML exports; "set" exports do not fill it)
+    path_monitor: bool = False      # path monitoring enabled on the route (the usual way a floating default route fails over)
+    bfd: bool = False               # a BFD profile is attached (anything but "None")
+    admin_distance: Optional[int] = None
 
 
 @dataclass
@@ -76,6 +82,9 @@ class PaVirtualRouter:
     name: str = "default"
     interfaces: list[str] = field(default_factory=list)
     static_routes: list[PaStaticRoute] = field(default_factory=list)
+    # "virtual-router" (the classic engine) or "logical-router" (Advanced Routing Engine, PAN-OS 10.2+). A firewall with
+    # advanced routing on keeps its old virtual-router configuration in the file, but only the logical router is used.
+    engine: str = "virtual-router"
     # Dynamic routing protocol enable flags -- PAN-OS always writes a
     # full <protocol><bgp/ospf/rip> skeleton into a virtual-router's
     # XML export whether or not the device actually uses it (seen on
@@ -94,6 +103,7 @@ class PaVirtualRouter:
     bgp_as_number: str = ""  # "local-as"
     ospf_router_id: str = ""
     ospf_area_ids: list[str] = field(default_factory=list)
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -157,6 +167,7 @@ class PaPbfRule:
     nexthop: str = ""
     monitor_profile: str = ""
     disabled: bool = False
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -168,12 +179,14 @@ class PaAddressObject:
     kind: str = "ip-netmask"
     value: str = ""
     description: str = ""
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
 class PaAddressGroup:
     name: str
     members: list[str] = field(default_factory=list)
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -183,6 +196,7 @@ class PaServiceObject:
     name: str
     protocol: str = ""
     port: str = ""
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -195,6 +209,7 @@ class PaServiceGroup:
 
     name: str
     members: list[str] = field(default_factory=list)
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -209,6 +224,7 @@ class PaApplicationGroup:
 
     name: str
     members: list[str] = field(default_factory=list)
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -223,6 +239,7 @@ class PaNatRule:
     destination_translated_address: str = ""
     destination_translated_port: str = ""
     disabled: bool = False
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -241,6 +258,7 @@ class PaSecurityRule:
     category: list[str] = field(default_factory=list)
     source_user: list[str] = field(default_factory=list)
     profile_setting: dict[str, list[str]] = field(default_factory=dict)  # e.g. {"virus": ["default"], "url-filtering": ["default"]}
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -285,6 +303,17 @@ class PaSdwanInterfaceProfile:
 
 
 @dataclass
+class PaProfileGroup:
+    """One ``profile-group`` object: the profiles a rule gets when it names the group in ``profile-setting/group``.
+    ``members`` maps a profile type (virus, spyware, vulnerability, url-filtering, file-blocking, wildfire-analysis,
+    data-filtering) to the profile names in the group."""
+
+    name: str
+    members: dict[str, list[str]] = field(default_factory=dict)
+    vsys: str = ""
+
+
+@dataclass
 class PaSecurityProfile:
     """One named security-profile object under vsys/profiles
     (virus/spyware/vulnerability/url-filtering/file-blocking/
@@ -298,6 +327,7 @@ class PaSecurityProfile:
     name: str
     profile_type: str  # "virus" / "spyware" / "vulnerability" / "url-filtering" / "file-blocking" / "wildfire-analysis" / "data-filtering"
     rule_count: int = 0
+    vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
 
 
 @dataclass
@@ -405,6 +435,7 @@ class PaloAltoNativeConfig(BaseConfig):
     management_services: list[PaManagementService] = field(default_factory=list)
 
     security_profiles: list[PaSecurityProfile] = field(default_factory=list)
+    profile_groups: list[PaProfileGroup] = field(default_factory=list)
     qos_profiles: list[PaQosProfile] = field(default_factory=list)
     qos_interface_bindings: list[PaQosInterfaceBinding] = field(default_factory=list)
     management_profiles: list[PaManagementProfile] = field(default_factory=list)

@@ -11,8 +11,9 @@ from __future__ import annotations
 from typing import Any
 
 from ..analyzer_core.result import kv_section, table_section
+from . import forti_profiles
 from .forti_resolve import Resolver
-from .forti_rules import WEAK_DH_HIGH, WEAK_DH_MEDIUM, _split_proposal, _weak_algorithm, referenced_names
+from .forti_rules import WEAK_DH_HIGH, WEAK_DH_MEDIUM, _split_proposal, _weak_algorithm, referenced_by_vdom, referenced_names
 
 ALWAYS = {"Interfaces", "Policies", "System", "Hardening"}
 MGMT_BAD = {"telnet", "http"}
@@ -90,17 +91,49 @@ def policies(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
             ("schedule", "Schedule"), ("action", "Action", "status"), ("nat", "NAT"), ("log", "Log"), ("profiles", "Security profiles", "list"), ("status", "Status", "status"), ("comments", "Comments", "wrap")]
     out = [table_section("policies", "Firewall policies", cols, rows, group="Policies", page_size=100,
                          hint="In evaluation order. Rows with a wildcard source, destination or service are shaded; disabled policies are dimmed. The first matching enabled policy wins.")]
+    by_vdom = getattr(res, "used_by_vdom", {})
     used = res.used
-    addr_rows = [dict(a, used=_yes(a["name"] in used), _tones={"used": "" if a["name"] in used or a["name"] == "all" else "mute"}) for a in data["addresses"]]
+    addr_rows = []
+    for a in data["addresses"]:
+        hit = a["name"] in by_vdom.get(a["vdom"], used)          # objects are VDOM-local: a use in another VDOM does not count
+        addr_rows.append(dict(a, used=_yes(hit), _tones={"used": "" if hit or a["name"] == "all" else "mute"}))
     out.append(table_section("addresses", "Address objects", [("name", "Name", "mono"), ("vdom", "VDOM"), ("type", "Type"), ("value", "Value", "wrap"), ("interface", "Interface"), ("used", "Referenced"), ("comment", "Comment", "wrap")],
                              addr_rows, group="Policies", page_size=100, empty="No address objects."))
     out.append(table_section("addrgrps", "Address groups", [("name", "Name", "mono"), ("vdom", "VDOM"), ("members", "Members", "list"), ("comment", "Comment", "wrap")], data["addrgrps"], group="Policies", empty="No address groups."))
     out.append(table_section("services", "Custom services", [("name", "Name", "mono"), ("vdom", "VDOM"), ("protocol", "Protocol"), ("ports", "Ports", "list"), ("category", "Category"), ("comment", "Comment", "wrap")],
                              data["services"], group="Policies", empty="No custom services (predefined services are not part of the export)."))
     out.append(table_section("svcgroups", "Service groups", [("name", "Name", "mono"), ("vdom", "VDOM"), ("members", "Members", "list"), ("comment", "Comment", "wrap")], data["svcgroups"], group="Policies", empty="No service groups."))
+    if data.get("other_addresses"):
+        out.append(table_section("other_addresses", "Other address objects (IPv6, wildcard FQDN, proxy, multicast)", [("name", "Name", "mono"), ("vdom", "VDOM"), ("kind", "Kind"), ("type", "Type"), ("value", "Value", "wrap"), ("comment", "Comment", "wrap")],
+                                 data["other_addresses"], group="Policies", page_size=100))
+    out.extend(traffic_control(data))
     profile_rows = [{"kind": kind.replace("_", " "), "names": names} for kind, names in data["profiles"].items() if names]
     out.append(table_section("profiles", "Security profiles defined", [("kind", "Type"), ("names", "Profiles", "list")], profile_rows, group="Policies", empty="No custom security profiles in the export (the built-in ones are not printed by 'show')."))
+    detail = data.get("profile_detail", {}).get("profiles")
+    if detail:
+        out.append(table_section("profile_detail", "Security profile content and use", [("kind", "Type"), ("name", "Profile", "mono"), ("vdom", "VDOM"), ("mode", "Effect", "status"), ("detail", "What it does", "wrap"), ("used_by", "Policies", "num"), ("policies", "Used by", "list"), ("notes", "Note", "wrap")],
+                                 forti_profiles.section_rows(data["profile_detail"]), group="Policies", page_size=100,
+                                 hint="Read from the profiles themselves: 'monitor only' logs but never blocks, and certificate inspection cannot show antivirus or IPS what is inside TLS. 'g-' profiles are global and shared by every VDOM."))
     out.extend(nat(data, res))
+    return out
+
+
+def traffic_control(data: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    sp = data.get("shaping_policies") or []
+    if sp:
+        out.append(table_section("shaping_policies", "Traffic shaping policies", [("id", "ID", "id"), ("name", "Name"), ("vdom", "VDOM"), ("srcintf", "From", "list"), ("dstintf", "To", "list"), ("src", "Source", "list"), ("dst", "Destination", "list"),
+                                                                                  ("service", "Service", "list"), ("schedule", "Schedule"), ("shaper", "Shaper"), ("reverse_shaper", "Reverse shaper"), ("per_ip", "Per-IP shaper"), ("status", "Status", "status")],
+                                 sp, group="Policies"))
+    if data.get("traffic_shapers"):
+        out.append(table_section("traffic_shapers", "Traffic shapers", [("name", "Name", "mono"), ("vdom", "VDOM"), ("max_bw", "Max bandwidth (kbps)", "num"), ("guaranteed_bw", "Guaranteed (kbps)", "num"), ("priority", "Priority"), ("per_policy", "Per policy")],
+                                 data["traffic_shapers"], group="Policies"))
+    if data.get("per_ip_shapers"):
+        out.append(table_section("per_ip_shapers", "Per-IP shapers", [("name", "Name", "mono"), ("vdom", "VDOM"), ("max_bw", "Max bandwidth (kbps)", "num"), ("max_conc", "Max sessions", "num"), ("max_conc_tcp", "Max TCP", "num"), ("max_conc_udp", "Max UDP", "num")],
+                                 data["per_ip_shapers"], group="Policies"))
+    if data.get("schedules"):
+        out.append(table_section("schedules", "Schedules", [("name", "Name", "mono"), ("vdom", "VDOM"), ("kind", "Kind"), ("detail", "When", "wrap")],
+                                 [s for s in data["schedules"] if s["name"] not in ("always", "none")], group="Policies", hint="The built-in 'always' and 'none' schedules are not listed."))
     return out
 
 
@@ -219,6 +252,13 @@ def vpn(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
                                                                                  "login-attempt-limit", "login-block-time", "source-address", "https-redirect") if s.get(k)] or [("Status", "configured")], group="VPN",
                               hint="Authentication rules are listed in the table below."))
         out.append(table_section("sslvpn_rules", "SSL VPN authentication rules", [("id", "ID"), ("interface", "Source interface", "list"), ("groups", "Groups", "list"), ("portal", "Portal")], ssl["rules"], group="VPN", empty="No authentication rules."))
+    active = [s for s in data.get("sslvpn_all", []) if s["enabled"]]
+    if len(active) > 1:
+        out.append(table_section("sslvpn_vdoms", "SSL VPN per VDOM", [("vdom", "VDOM"), ("interfaces", "Source interface", "list"), ("port", "Port", "num"), ("servercert", "Server certificate"), ("min_tls", "Min TLS"), ("algorithm", "Cipher strength"), ("rules", "Auth rules", "num")],
+                                 active, group="VPN", hint="Every VDOM has its own SSL VPN; the settings block above shows the first one."))
+    if data.get("sslvpn_portals"):
+        out.append(table_section("sslvpn_portals", "SSL VPN portals", [("name", "Portal", "mono"), ("vdom", "VDOM"), ("modes", "Modes", "list"), ("pools", "Address pools", "list"), ("split_tunnel", "Split tunnelling"), ("limit_user_logins", "Limit user logins")],
+                                 data["sslvpn_portals"], group="VPN"))
     return out
 
 
@@ -260,17 +300,34 @@ def system(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
     pairs = [("NTP sync", ntp.get("sync", "default (enable)")), ("NTP source", ntp.get("type", "fortiguard")), ("NTP servers", ", ".join(s["server"] for s in ntp.get("servers", [])) or "—"),
              ("DNS primary", dns.get("primary", "—")), ("DNS secondary", dns.get("secondary", "—")), ("Domain", dns.get("domain", "—"))]
     out.append(kv_section("time_dns", "Time and DNS", pairs, group="System"))
-    auth_rows = [{"kind": "RADIUS", "name": r["name"], "server": r["server"], "detail": f"auth {r['auth_type']}, secret {r['secret'] or 'not set'}"} for r in data["auth"]["radius"]]
-    auth_rows += [{"kind": "TACACS+", "name": t["name"], "server": t["server"], "detail": f"port {t['port']}, key {t['key'] or 'not set'}"} for t in data["auth"]["tacacs"]]
-    auth_rows += [{"kind": "LDAP", "name": l["name"], "server": l["server"], "detail": f"secure {l['secure']}, port {l['port']}, bind {l['bind'] or 'anonymous'}", "_tones": {"detail": "bad" if l["secure"] == "disable" else "ok"}} for l in data["auth"]["ldap"]]
-    auth_rows += [{"kind": "SAML", "name": s["name"], "server": s["entity"], "detail": ""} for s in data["auth"]["saml"]]
-    auth_rows += [{"kind": "FSSO", "name": f["name"], "server": f["server"], "detail": ""} for f in data["auth"]["fsso"]]
-    out.append(table_section("auth_servers", "Authentication servers", [("kind", "Type"), ("name", "Name", "mono"), ("server", "Server", "mono"), ("detail", "Detail", "wrap")], auth_rows, group="System", empty="No external authentication servers."))
+    auth_rows = [{"kind": "RADIUS", "name": r["name"], "vdom": r["vdom"], "server": r["server"], "detail": f"auth {r['auth_type']}, secret {r['secret'] or 'not set'}"} for r in data["auth"]["radius"]]
+    auth_rows += [{"kind": "TACACS+", "name": t["name"], "vdom": t["vdom"], "server": t["server"], "detail": f"port {t['port']}, key {t['key'] or 'not set'}"} for t in data["auth"]["tacacs"]]
+    auth_rows += [{"kind": "LDAP", "name": l["name"], "vdom": l["vdom"], "server": l["server"], "detail": f"secure {l['secure']}, port {l['port']}, bind {l['bind'] or 'anonymous'}", "_tones": {"detail": "bad" if l["secure"] == "disable" else "ok"}} for l in data["auth"]["ldap"]]
+    auth_rows += [{"kind": "SAML", "name": s["name"], "vdom": s["vdom"], "server": s["entity"], "detail": ""} for s in data["auth"]["saml"]]
+    auth_rows += [{"kind": "FSSO", "name": f["name"], "vdom": f["vdom"], "server": f["server"], "detail": ""} for f in data["auth"]["fsso"]]
+    out.append(table_section("auth_servers", "Authentication servers", [("kind", "Type"), ("name", "Name", "mono"), ("vdom", "VDOM"), ("server", "Server", "mono"), ("detail", "Detail", "wrap")], auth_rows, group="System", empty="No external authentication servers."))
     out.append(table_section("user_groups", "User groups", [("name", "Name", "mono"), ("vdom", "VDOM"), ("type", "Type"), ("members", "Members", "list")], data["auth"]["groups"], group="System", empty="No user groups."))
     out.append(table_section("certificates", "Certificates", [("name", "Name", "mono"), ("kind", "Kind"), ("vdom", "VDOM"), ("has_key", "Private key"), ("material", "Size"), ("comments", "Comment", "wrap")],
                              [dict(c, has_key=_yes(c["has_key"]), _tones={"name": "warn" if c["name"].lower().startswith("fortinet_factory") else ""}) for c in data["certificates"]], group="System", empty="No certificates in the export.",
                              hint="Key and certificate material is never displayed."))
-    out.append(table_section("vdoms", "Virtual domains", [("name", "VDOM", "mono"), ("mode", "Mode"), ("inspection", "Inspection"), ("ngfw", "NGFW mode"), ("policies", "Policies", "num")], data["vdoms"], group="System"))
+    vdom_rows = [dict(v, policies=f"{v['policies_enabled']} / {v['policies']}") for v in data["vdoms"]]
+    out.append(table_section("vdoms", "Virtual domains", [("name", "VDOM", "mono"), ("mode", "Mode"), ("inspection", "Inspection"), ("ngfw", "NGFW mode"), ("interfaces", "Interfaces", "num"), ("policies", "Policies (enabled / total)", "num"),
+                                                          ("addresses", "Addresses", "num"), ("vips", "VIPs", "num"), ("routes", "Static routes", "num"), ("tunnels", "IPsec tunnels", "num"), ("users", "Local users", "num")],
+                             vdom_rows, group="System", hint="Counts are per VDOM, taken from the configuration export."))
+    if data.get("vdom_limits"):
+        out.append(table_section("vdom_limits", "VDOM resource limits (customised)", [("vdom", "VDOM", "mono"), ("limits", "Limits", "wrap")], data["vdom_limits"], group="System"))
+    if data.get("auto_stitches"):
+        out.append(table_section("auto_stitches", "Automation stitches", [("name", "Stitch", "mono"), ("vdom", "VDOM"), ("trigger", "Trigger"), ("actions", "Actions", "list"), ("status", "Status", "status")], data["auto_stitches"], group="System"))
+        out.append(table_section("auto_triggers", "Automation triggers", [("name", "Trigger", "mono"), ("vdom", "VDOM"), ("event", "Event"), ("detail", "Detail", "wrap")], data["auto_triggers"], group="System"))
+        out.append(table_section("auto_actions", "Automation actions", [("name", "Action", "mono"), ("vdom", "VDOM"), ("kind", "Type"), ("detail", "Target", "wrap")], data["auto_actions"], group="System"))
+    if data.get("link_monitors"):
+        out.append(table_section("link_monitors", "Link monitors", [("name", "ID", "mono"), ("vdom", "VDOM"), ("interface", "Interface"), ("server", "Server", "mono"), ("gateway", "Gateway", "mono"), ("protocol", "Protocol"),
+                                                                    ("interval", "Interval (ms)", "num"), ("failtime", "Fail", "num"), ("recovery", "Recovery", "num"), ("status", "Status", "status")], data["link_monitors"], group="Routing"))
+    if data.get("sniffers"):
+        out.append(table_section("sniffers", "Traffic sniffer (one-arm IDS) policies", [("id", "ID", "id"), ("vdom", "VDOM"), ("interface", "Interface"), ("host", "Host filter", "mono"), ("port", "Port filter", "mono"), ("status", "Status", "status")], data["sniffers"], group="Interfaces",
+                                 hint="Sniffer policies mirror traffic for inspection only; they do not block anything."))
+    if data.get("fctems"):
+        out.append(table_section("fctems", "FortiClient EMS connectors", [("id", "ID", "id"), ("name", "Name"), ("vdom", "VDOM"), ("server", "Server", "mono"), ("status", "Status", "status")], data["fctems"], group="System"))
     g = data["global"]
     wanted = ("hostname", "alias", "admin-sport", "admin-ssh-port", "admintimeout", "admin-lockout-threshold", "admin-lockout-duration", "admin-https-ssl-versions", "admin-server-cert", "admin-telnet", "strong-crypto",
               "private-data-encryption", "timezone", "gui-theme", "admin-concurrent", "management-vdom")
@@ -320,6 +377,7 @@ def hardening(data: dict[str, Any], res: Resolver, findings: list[dict[str, Any]
 def build_all(tree: Any, data: dict[str, Any], findings: list[dict[str, Any]], warnings: list[str]) -> list[dict[str, Any]]:
     res = Resolver(data)
     res.used = referenced_names(tree)
+    res.used_by_vdom = referenced_by_vdom(tree)
     out: list[dict[str, Any]] = []
     for builder in (interfaces, policies, routing, sdwan, vpn, system):
         try:

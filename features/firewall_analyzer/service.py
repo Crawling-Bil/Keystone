@@ -15,7 +15,7 @@ from typing import Any
 
 from ..analyzer_core.findings import severity_counts
 from ..analyzer_core.result import card, info_rows, kv_section, new_result, table_section
-from . import forti_extract, forti_rules, forti_runtime, forti_sections, legacy
+from . import forti_extract, forti_rules, forti_runtime, forti_sections, legacy, scope
 from .forti_resolve import Resolver
 from .forti_tree import parse_forti
 
@@ -37,6 +37,8 @@ _HUAWEI_HINT = re.compile(r"^(sysname |interface (?:GigabitEthernet|XGigabitEthe
 def detect_vendor(text: str) -> str:
     sample = text[:3_000_000]
     scores = {"fortigate": len(_FORTI.findall(sample)), "paloalto": len(_PANOS.findall(sample)), "mikrotik": len(_MIKROTIK.findall(sample))}
+    if not scores["paloalto"] and legacy.available() and legacy.pan_cli_capture(sample) is not None:
+        scores["paloalto"] = 1                                              # 'show config running' (curly-brace view), with or without 'show system info'
     best = max(scores, key=lambda key: scores[key])
     return best if scores[best] else ""
 
@@ -73,6 +75,7 @@ def _analyze_fortigate(content: str, filename: str, today: date | None) -> dict[
     warnings: list[str] = []
     sections = forti_sections.build_all(tree, data, findings, warnings)
     sections += _runtime_sections(runtime)
+    scope.apply(sections, "vdom", "VDOM")
     res = Resolver(data)
 
     status = runtime.get("status", {})

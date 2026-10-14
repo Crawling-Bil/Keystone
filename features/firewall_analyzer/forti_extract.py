@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from . import forti_profiles
 from .forti_tree import FNode, FortiTree
 from .netutil import is_public_ip, to_cidr, to_iface
 
@@ -63,6 +64,8 @@ def extract(tree: FortiTree) -> dict[str, Any]:
     data["accprofiles"] = _accprofiles(tree)
     data["password_policy"] = _flat(tree.first("system password-policy"))
     data["interfaces"] = _interfaces(tree)
+    for vdom in data["vdoms"]:                      # interfaces live under `config global`, so count them by their vdom setting
+        vdom["interfaces"] = sum(1 for i in data["interfaces"] if i.get("vdom") == vdom["name"])
     data["zones"] = _zones(tree)
     data["addresses"] = _addresses(tree)
     data["addrgrps"] = _groups(tree, "firewall addrgrp", "member")
@@ -84,6 +87,15 @@ def extract(tree: FortiTree) -> dict[str, Any]:
     data["ipsec_p1"] = _ipsec_p1(tree)
     data["ipsec_p2"] = _ipsec_p2(tree)
     data["sslvpn"] = _sslvpn(tree)
+    data["sslvpn_all"] = _sslvpn_all(tree)
+    data["sslvpn_portals"] = _sslvpn_portals(tree)
+    data.update(_traffic_control(tree))
+    data.update(_automation(tree))
+    data["other_addresses"] = _other_addresses(tree)
+    data["link_monitors"] = _link_monitors(tree)
+    data["sniffers"] = _sniffers(tree)
+    data["fctems"] = _fctems(tree)
+    data["vdom_limits"] = _vdom_limits(tree)
     data["ha"] = _ha(tree)
     data["auth"] = _auth(tree)
     data["logging"] = _logging(tree)
@@ -92,6 +104,7 @@ def extract(tree: FortiTree) -> dict[str, Any]:
     data["snmp"] = _snmp(tree)
     data["dhcp"] = _dhcp(tree)
     data["profiles"] = _profiles(tree)
+    data["profile_detail"] = forti_profiles.extract(tree)
     data["certificates"] = _certificates(tree)
     data["autoinstall"] = _flat(tree.first("system auto-install"))
     return data
@@ -108,12 +121,25 @@ def _vdoms(tree: FortiTree) -> list[dict[str, Any]]:
     out = []
     for name, node in tree.scopes():
         settings = node.config("system settings")
+        def count(path: str) -> int:
+            block = node.config(path)
+            return len(block.entries()) if block else 0
+
+        pols = node.config("firewall policy")
+        enabled = sum(1 for entry in pols.entries() if entry.get("status", "enable") != "disable") if pols else 0
         out.append({
             "name": name,
             "mode": settings.get("opmode", "nat") if settings else "nat",
             "inspection": settings.get("inspection-mode", "flow") if settings else "flow",
             "ngfw": settings.get("ngfw-mode", "profile-based") if settings else "profile-based",
-            "policies": len(node.config("firewall policy").entries()) if node.config("firewall policy") else 0,
+            "policies": count("firewall policy"),
+            "policies_enabled": enabled,
+            "interfaces": count("system interface"),
+            "addresses": count("firewall address"),
+            "vips": count("firewall vip"),
+            "routes": count("router static"),
+            "tunnels": count("vpn ipsec phase1-interface"),
+            "users": count("user local"),
         })
     return out
 
@@ -413,6 +439,118 @@ def _sslvpn(tree: FortiTree) -> dict[str, Any]:
     rules = [{"id": r.name, "interface": r.values("source-interface"), "groups": r.values("groups"), "portal": _s(r, "portal")} for r in (node.config("authentication-rule").entries() if node.config("authentication-rule") else [])]
     flat = _flat(node)
     return {"vdom": scope, "settings": flat, "rules": rules, "enabled": bool(flat.get("source-interface") or flat.get("status") == "enable" or rules or flat.get("servercert"))}
+
+
+def _sslvpn_all(tree: FortiTree) -> list[dict[str, Any]]:
+    """SSL VPN settings of every VDOM (``data['sslvpn']`` keeps only the first one for the rules)."""
+    out = []
+    for scope, node in tree.find("vpn ssl settings"):
+        flat = _flat(node)
+        auth = node.config("authentication-rule")
+        out.append({
+            "vdom": scope, "interfaces": node.values("source-interface"), "port": flat.get("port", "443"), "servercert": flat.get("servercert", ""),
+            "min_tls": flat.get("ssl-min-proto-ver", ""), "algorithm": flat.get("algorithm", "high"), "rules": len(auth.entries()) if auth else 0,
+            "source_address": node.values("source-address"), "tunnel_pool": " ".join(node.values("tunnel-ip-pools")),
+            "enabled": bool(flat.get("source-interface") or flat.get("status") == "enable" or flat.get("servercert")),
+        })
+    return out
+
+
+def _sslvpn_portals(tree: FortiTree) -> list[dict[str, Any]]:
+    out = []
+    for scope, node in _entries(tree, "vpn ssl web portal"):
+        modes = [label for key, label in (("tunnel-mode", "tunnel"), ("web-mode", "web"), ("ipv6-tunnel-mode", "ipv6 tunnel")) if node.enabled(key, False)]
+        out.append({
+            "name": node.name, "modes": modes, "pools": node.values("ip-pools") + node.values("ipv6-pools"), "split_tunnel": _s(node, "split-tunneling", "enable" if "tunnel" in modes else ""),
+            "forticlient": _s(node, "forticlient-download", "enable"), "limit_user_logins": _s(node, "limit-user-logins", "disable"), "vdom": scope,
+        })
+    return out
+
+
+def _traffic_control(tree: FortiTree) -> dict[str, Any]:
+    """Shaping policies, traffic shapers, per-IP shapers and schedules (what bandwidth/time controls exist)."""
+    def policy(scope: str, node: FNode) -> dict[str, Any]:
+        return {
+            "id": node.name, "name": _s(node, "name"), "status": _s(node, "status", "enable"), "srcintf": node.values("srcintf"), "dstintf": node.values("dstintf"),
+            "src": node.values("srcaddr"), "dst": node.values("dstaddr"), "service": node.values("service"), "schedule": _s(node, "schedule"),
+            "shaper": _s(node, "traffic-shaper"), "reverse_shaper": _s(node, "traffic-shaper-reverse"), "per_ip": _s(node, "per-ip-shaper"),
+            "class_id": _s(node, "class-id"), "vdom": scope,
+        }
+
+    shapers = [{"name": n.name, "max_bw": _s(n, "maximum-bandwidth"), "guaranteed_bw": _s(n, "guaranteed-bandwidth"), "priority": _s(n, "priority", "high"),
+                "per_policy": _s(n, "per-policy", "disable"), "dscp": _s(n, "diffserv-forward", "disable"), "vdom": s}
+               for s, n in _entries(tree, "firewall shaper traffic-shaper")]
+    per_ip = [{"name": n.name, "max_bw": _s(n, "max-bandwidth"), "max_conc": _s(n, "max-concurrent-session"), "max_conc_tcp": _s(n, "max-concurrent-tcp-session"),
+               "max_conc_udp": _s(n, "max-concurrent-udp-session"), "vdom": s} for s, n in _entries(tree, "firewall shaper per-ip-shaper")]
+    schedules = []
+    for scope, node in _entries(tree, "firewall schedule recurring"):
+        days = node.values("day")
+        schedules.append({"name": node.name, "kind": "recurring", "detail": ("all week" if len(days) == 7 else " ".join(d[:3] for d in days) or "no days")
+                          + (f" {_s(node, 'start')}–{_s(node, 'end')}" if node.has("start") else ""), "expired": False, "vdom": scope})
+    for scope, node in _entries(tree, "firewall schedule onetime"):
+        end = _s(node, "end")
+        schedules.append({"name": node.name, "kind": "one-time", "detail": f"{_s(node, 'start')} → {end}", "end": end, "expired": False, "vdom": scope})
+    for scope, node in _entries(tree, "firewall schedule group"):
+        schedules.append({"name": node.name, "kind": "group", "detail": ", ".join(node.values("member")), "expired": False, "vdom": scope})
+    return {
+        "shaping_policies": [policy(s, n) for s, n in _entries(tree, "firewall shaping-policy")],
+        "traffic_shapers": shapers, "per_ip_shapers": per_ip, "schedules": schedules,
+    }
+
+
+def _automation(tree: FortiTree) -> dict[str, Any]:
+    triggers = [{"name": n.name, "event": _s(n, "event-type"), "detail": " ".join(filter(None, [f"logid {_s(n, 'logid')}" if n.has("logid") else "", _s(n, "trigger-frequency")])), "vdom": s}
+                for s, n in _entries(tree, "system automation-trigger")]
+    actions = [{"name": n.name, "kind": _s(n, "action-type"), "detail": " ".join(n.values("email-to") or n.values("script") or n.values("uri")) or _s(n, "message"), "vdom": s}
+               for s, n in _entries(tree, "system automation-action")]
+    stitches = []
+    for s, n in _entries(tree, "system automation-stitch"):
+        acts = n.config("actions")
+        stitches.append({"name": n.name, "trigger": _s(n, "trigger"), "actions": [e.get("action") for e in acts.entries()] if acts else n.values("actions"), "status": _s(n, "status", "enable"), "vdom": s})
+    return {"auto_triggers": triggers, "auto_actions": actions, "auto_stitches": stitches}
+
+
+def _other_addresses(tree: FortiTree) -> list[dict[str, Any]]:
+    """IPv6, wildcard-FQDN, proxy and multicast address objects (the main table lists only IPv4 ``firewall address``)."""
+    out = []
+    for path, kind, keys in (
+        ("firewall address6", "IPv6", ("ip6", "start-ip", "end-ip", "fqdn")), ("firewall wildcard-fqdn custom", "wildcard FQDN", ("wildcard-fqdn",)),
+        ("firewall proxy-address", "proxy", ("host", "path", "url-category")), ("firewall multicast-address", "multicast", ("start-ip", "end-ip")),
+    ):
+        for scope, node in _entries(tree, path):
+            value = " – ".join(v for v in (_s(node, k) for k in keys) if v)
+            out.append({"name": node.name, "kind": kind, "type": _s(node, "type"), "value": value, "comment": _s(node, "comment"), "vdom": scope})
+    return out
+
+
+def _link_monitors(tree: FortiTree) -> list[dict[str, Any]]:
+    return [{"name": n.name, "interface": _s(n, "srcintf"), "server": " ".join(n.values("server")), "gateway": _s(n, "gateway-ip"), "protocol": _s(n, "protocol", "ping"),
+             "interval": _s(n, "interval", "500"), "failtime": _s(n, "failtime", "5"), "recovery": _s(n, "recoverytime", "5"), "status": _s(n, "status", "enable"), "vdom": s}
+            for s, n in _entries(tree, "system link-monitor")]
+
+
+def _sniffers(tree: FortiTree) -> list[dict[str, Any]]:
+    out = []
+    for path in ("firewall sniffer", "system sniffer"):
+        for scope, node in _entries(tree, path):
+            out.append({"id": node.name, "interface": _s(node, "interface"), "host": " ".join(node.values("host")), "port": " ".join(node.values("port")), "status": _s(node, "status", "enable"), "vdom": scope})
+    return out
+
+
+def _fctems(tree: FortiTree) -> list[dict[str, Any]]:
+    """FortiClient EMS connectors; empty placeholder entries (``edit 1`` with no settings) are not connectors."""
+    return [{"id": n.name, "name": _s(n, "name"), "server": _s(n, "server") or _s(n, "fortinetone-cloud-authentication"), "status": _s(n, "status", "enable"), "vdom": s}
+            for s, n in _entries(tree, "endpoint-control fctems") if n.settings]
+
+
+def _vdom_limits(tree: FortiTree) -> list[dict[str, Any]]:
+    """Only VDOMs whose resource limits were customised (``system vdom-property`` entries holding more than a description)."""
+    out = []
+    for scope, node in _entries(tree, "system vdom-property"):
+        custom = {k: " ".join(v) for k, v in node.settings.items() if k not in ("description", "snmp-index")}
+        if custom:
+            out.append({"vdom": node.name, "limits": ", ".join(f"{k} {v}" for k, v in custom.items())})
+    return out
 
 
 # ------------------------------------------------------------- HA / system

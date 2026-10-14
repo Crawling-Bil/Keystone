@@ -15,9 +15,12 @@ from typing import Any
 from ..analyzer_core.result import kv_section, table_section
 from .bigip_extract import canon, short
 from .bigip_resolve import Resolver
-from .bigip_rules import ssl_state, weak_ciphers, _profile_certs
+from .bigip_sections_gtm import gtm_sections
+from .bigip_sections_security import security_sections
+from .bigip_sections_ucs import ucs_sections
+from .bigip_rules_ssl import ssl_state, weak_ciphers, profile_certs
 
-ALWAYS = {"Virtual servers", "Pools & nodes", "System", "Hardening"}
+ALWAYS = {"Virtual servers", "Pools & nodes", "System", "Hardening", "Inventory"}
 
 
 def _yes(flag: Any) -> str:
@@ -174,7 +177,7 @@ def ssl_and_profiles(data: dict[str, Any], res: Resolver, today: date) -> list[d
             tones["ciphers"] = "bad"
         elif medium:
             tones["ciphers"] = "warn"
-        certs = _profile_certs(p)
+        certs = profile_certs(p)
         cert_text = [short(canon(c["cert"])) for c in certs] if certs else ["(inherited)"]
         if any(c["cert"].endswith("default.crt") for c in certs):
             tones["certificate"] = "bad"
@@ -189,8 +192,10 @@ def ssl_and_profiles(data: dict[str, Any], res: Resolver, today: date) -> list[d
         days = (c["expires"] - today).days if c["expires"] else None
         tone = "" if days is None else ("bad" if days < 0 else "warn" if days <= 30 else "info" if days <= 90 else "ok")
         crows.append({"name": c["short"], "subject": c["subject"], "issuer": c["issuer"], "key": (f"{c['key_type']} {c['key_size']}" if c["key_size"] else c["key_type"]).strip(), "expires": str(c["expires"]) if c["expires"] else c["expires_text"],
-                      "days": days if days is not None else "", "self_signed": _yes(c["self_signed"]), "system": _yes(c["system"]), "_tones": {"days": tone, "key": "warn" if c["key_size"] and c["key_size"] < 2048 else ""}})
-    out.append(table_section("certificates", "Certificates", [("name", "Certificate", "mono"), ("subject", "Subject", "wrap"), ("issuer", "Issuer", "wrap"), ("key", "Key"), ("expires", "Expires"), ("days", "Days left", "num"), ("self_signed", "Self-signed"), ("system", "Built-in")],
+                      "days": days if days is not None else "", "self_signed": _yes(c["self_signed"]), "system": _yes(c["system"]),
+                      "valid_from": str(c["not_before"]) if c.get("not_before") else "", "san": c.get("san", [])[:8], "signature": c.get("signature", ""), "used_by": c.get("used_by") or ["(no SSL profile)"],
+                      "_tones": {"days": tone, "key": "warn" if c["key_size"] and c["key_size"] < 2048 else "", "signature": "warn" if any(w in c.get("signature", "").lower() for w in ("md5", "sha1")) else ""}})
+    out.append(table_section("certificates", "Certificates", [("name", "Certificate", "mono"), ("subject", "Subject", "wrap"), ("issuer", "Issuer", "wrap"), ("key", "Key"), ("signature", "Signature"), ("valid_from", "Valid from"), ("expires", "Expires"), ("days", "Days left", "num"), ("san", "Subject alt names", "list"), ("used_by", "Used by SSL profile", "list"), ("self_signed", "Self-signed"), ("system", "Built-in")],
                              crows, group="SSL & profiles", empty="No certificate objects (sys file ssl-cert) in the export. They are stored in bigip_base.conf; add it, or run 'tmsh list sys file ssl-cert' to check expiry dates."))
     hrows = []
     for p in data["profiles"]:
@@ -359,8 +364,8 @@ def build_all(data: dict[str, Any], findings: list[dict[str, Any]], warnings: li
     res = Resolver(data)
     out: list[dict[str, Any]] = []
     builders = (lambda: virtual_servers(data, res), lambda: service_map(data, res), lambda: pools_and_nodes(data, res), lambda: monitors(data, res), lambda: ssl_and_profiles(data, res, today), lambda: rules_and_policies(data, res),
-                lambda: network(data, res), lambda: high_availability(data, res), lambda: system_sections(data, res), lambda: hardening(data, res, findings))
-    names = ("virtual_servers", "service_map", "pools_and_nodes", "monitors", "ssl_and_profiles", "rules_and_policies", "network", "high_availability", "system", "hardening")
+                lambda: network(data, res), lambda: high_availability(data, res), lambda: system_sections(data, res), lambda: hardening(data, res, findings), lambda: security_sections(data, today), lambda: ucs_sections(data, today), lambda: gtm_sections(data))
+    names = ("virtual_servers", "service_map", "pools_and_nodes", "monitors", "ssl_and_profiles", "rules_and_policies", "network", "high_availability", "system", "hardening", "security", "ucs", "gtm")
     for name, build in zip(names, builders):
         try:
             out.extend(build())
