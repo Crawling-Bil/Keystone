@@ -21,6 +21,7 @@ from werkzeug.utils import secure_filename
 from core.database import log_activity
 
 from . import collect
+from .compare import compare_results
 from .export import export_results
 from .result import validate_result
 
@@ -53,6 +54,10 @@ class AnalyzerSpec:
     activity_module: str = ""     # label in the dashboard activity feed
     base_dir: Path = field(default_factory=lambda: Path(__file__).resolve().parents[2])
     page_context: dict[str, Any] = field(default_factory=dict)
+    # Optional hook for binary uploads (e.g. an F5 .ucs archive): (filename, stream) -> text, or None to use the
+    # normal text path. It may raise ValueError with a message written for the engineer.
+    read_upload: Callable[[str, Any], "str | None"] | None = None
+    max_upload_bytes: int = 1536 * 1024 * 1024      # request-size ceiling when read_upload is set
 
 
 def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
@@ -78,9 +83,22 @@ def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
     @bp.post("/api/analyze")
     def analyze_route():
         sources: list[tuple[str, str]] = []
+        read_errors: list[dict[str, str]] = []
+        if spec.read_upload and (request.content_length or 0) > spec.max_upload_bytes:
+            return jsonify({"ok": False, "error": f"The upload exceeds the {spec.max_upload_bytes // (1024 * 1024)} MB limit."}), 400
         for upload in request.files.getlist("config_files") + request.files.getlist("config_file"):
             if not upload or not upload.filename:
                 continue
+            if spec.read_upload:
+                try:
+                    special = spec.read_upload(upload.filename, upload.stream)
+                except ValueError as exc:
+                    read_errors.append({"source": secure_filename(upload.filename) or "upload", "error": str(exc)})
+                    continue
+                if special is not None:
+                    sources.append((secure_filename(upload.filename) or "upload.ucs", special))
+                    continue
+                upload.stream.seek(0)
             data = upload.read(MAX_CONFIG_BYTES + 1)
             if len(data) > MAX_CONFIG_BYTES:
                 return jsonify({"ok": False, "error": f"{secure_filename(upload.filename)} exceeds the {MAX_CONFIG_BYTES // (1024 * 1024)} MB limit."}), 400
@@ -90,6 +108,8 @@ def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
             if len(pasted.encode("utf-8")) > MAX_CONFIG_BYTES:
                 return jsonify({"ok": False, "error": "Pasted capture exceeds the size limit."}), 400
             sources.append((f"pasted-{spec.key}-capture.txt", pasted))
+        if not sources and read_errors:
+            return jsonify({"ok": False, "error": read_errors[0]["error"], "errors": read_errors}), 400
         if not sources:
             return jsonify({"ok": False, "error": "Upload a capture file or paste the command output first."}), 400
         if len(sources) > MAX_FILES:
@@ -97,7 +117,7 @@ def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
 
         platform = request.form.get("platform", "auto")
         results: list[dict[str, Any]] = []
-        errors: list[dict[str, str]] = []
+        errors: list[dict[str, str]] = list(read_errors)
         for filename, content in sources:
             try:
                 result = spec.analyze(content, filename=filename, platform=platform)
@@ -133,6 +153,24 @@ def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
         export_results(results, export_dir / f"{export_id}.xlsx", analyzer_label=spec.name)
         log_activity(module_label, f"{spec.name} exported", f"{len(results)} device(s) → {name}")
         return jsonify({"ok": True, "download_url": f"{spec.url_prefix}/download/{export_id}?name={name}", "download_name": name})
+
+    @bp.post("/api/compare")
+    def compare_route():
+        payload = request.get_json(silent=True) or {}
+        before, after = payload.get("before"), payload.get("after")
+        if not isinstance(before, dict) or not isinstance(after, dict):
+            return jsonify({"ok": False, "error": "Choose two analysed devices to compare."}), 400
+        problems = [p for item in (before, after) for p in validate_result(item)]
+        if problems:
+            return jsonify({"ok": False, "error": "Result is malformed: " + "; ".join(problems[:3])}), 400
+        if before.get("comparison") or after.get("comparison"):
+            return jsonify({"ok": False, "error": "A comparison cannot be compared again; pick two devices."}), 400
+        result = compare_results(before, after)
+        problems = validate_result(result)
+        if problems:
+            return jsonify({"ok": False, "error": "internal result error: " + "; ".join(problems[:3])}), 500
+        log_activity(module_label, f"{spec.name} comparison", f"{result['hostname']} · {result['subtitle']}")
+        return jsonify({"ok": True, "result": result})
 
     @bp.get("/download/<export_id>")
     def download(export_id: str):

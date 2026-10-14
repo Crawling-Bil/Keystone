@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..analyzer_core.blueprint import AnalyzerSpec, create_analyzer_blueprint
-from . import bigip_runtime
+from . import bigip_runtime, bigip_ucs
 from .service import PLATFORMS, analyze
 
 _COMMANDS = (
@@ -29,23 +29,27 @@ SPEC = AnalyzerSpec(
     analyze=analyze,
     collect_prefix="collect-lb",
     activity_module="Load Balancer Analyzer",
+    read_upload=bigip_ucs.read_upload,
+    max_upload_bytes=bigip_ucs.MAX_UCS_BYTES,
     page_context={
         "analyzer_key": "lb",
         "analyzer_title": "Load Balancer Analyzer",
         "analyzer_subtitle": "F5 BIG-IP configurations - virtual servers, pools, monitors, SSL profiles, iRules, high availability, hardening findings and an Excel export.",
         "api_prefix": "/load-balancer-analyzer",
-        "file_hint": "BIG-IP bigip.conf, bigip_base.conf, 'tmsh list' or a terminal capture (.conf, .txt, .log)",
-        "accept": ".txt,.log,.cfg,.conf,.config",
+        "file_hint": "BIG-IP UCS archive (.ucs), bigip.conf, bigip_base.conf, 'tmsh list' or a terminal capture (.conf, .txt, .log)",
+        "accept": ".ucs,.txt,.log,.cfg,.conf,.config",
         "platforms": list(PLATFORMS),
         "empty_title": "Load Balancer Analyzer is ready",
         "empty_text": (
-            "Upload a BIG-IP configuration: bigip.conf, bigip_base.conf, the output of 'tmsh list', or a terminal capture that also contains 'show' commands. "
+            "Upload a BIG-IP UCS archive (the weekly backup, unencrypted), or bigip.conf, bigip_base.conf, the output of 'tmsh list', or a terminal capture that also contains 'show' commands. "
             "The analyzer maps each virtual server to its pool and members, checks monitors, SSL profiles, persistence, iRules, HA and the management plane, and links every finding to F5 documentation."
         ),
         "capabilities": [
+            {"title": "UCS archive", "text": "Reads the .ucs backup directly: certificate validity from the file store, license and subscription dates, last change and failover times, customised sys db values. Private keys and password files are never read."},
             {"title": "Service map", "text": "Every virtual server with its default pool, members, health monitors and member state in one table."},
             {"title": "Health and delivery", "text": "Pools without monitors, web monitors without a receive string, priority-group traps, single-member and empty pools, unused and dangling objects."},
             {"title": "TLS and certificates", "text": "SSLv3 / TLS 1.0 / 1.1 and weak ciphers per SSL profile, default certificate, expiry and key size, unencrypted persistence cookie."},
+            {"title": "Security modules", "text": "Advanced WAF (ASM) policies and which virtual servers they protect, DoS and logging profiles, AFM and address lists, APM access policies, iApps and tunnels, plus a count of every other object type."},
             {"title": "Management plane and HA", "text": "GUI and SSH allow lists, self IP port lockdown, SNMP, NTP, syslog, password policy, LDAP, device groups, failover and config-sync."},
         ],
         "commands": _command_reference(),

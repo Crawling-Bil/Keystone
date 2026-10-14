@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import unittest
 
-from features.switch_analyzer.firewall_service import analyze_firewall
+from features.firewall_analyzer.firewall_service import analyze_firewall
 
 MIKROTIK_SAMPLE_CONFIG = """
 /interface ethernet

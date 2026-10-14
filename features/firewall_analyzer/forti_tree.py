@@ -217,7 +217,22 @@ def parse_forti(text: str) -> FortiTree:
         head = head.lower()
         top = stack[-1]
         if head == "config":
-            node = FNode("config", rest.strip().lower() if not rest.strip().startswith('"') else rest.strip(), number, parent=top)
+            name = rest.strip().lower() if not rest.strip().startswith('"') else rest.strip()
+            if name == "vdom" and len(stack) > 1:
+                # Real FortiOS multi-VDOM `show full-configuration` dumps do NOT
+                # close `config vdom` between VDOM sections: each VDOM's `edit
+                # <name> ... end` is immediately followed by another `config vdom`
+                # for the next VDOM, with only the very last section closed by a
+                # final matching `end`. Left alone, every VDOM after the first
+                # parses as nested inside the previous one's still-open block, so
+                # per-VDOM extraction (policies, routes, VPN, admins, ...) silently
+                # returns nothing for every non-root VDOM. Force back to the top
+                # level so each `config vdom` becomes a sibling under root, which
+                # matches the real structure (confirmed against a real multi-VDOM
+                # capture).
+                top = root
+                stack[:] = [root]
+            node = FNode("config", name, number, parent=top)
             top.children.append(node)
             stack.append(node)
         elif head == "edit":

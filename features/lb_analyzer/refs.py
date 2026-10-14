@@ -1,6 +1,6 @@
 """F5 documentation cited by the Load Balancer Analyzer findings.
 
-Every link below was opened on 2026-10-09 and the page title and the default
+Every link below was opened on 2026-10-09 (the Advanced WAF, DoS, logging, sys db, licensing and UCS pages on 2026-10-14) and the page title and the default
 values quoted in the rule text were read from the page.  The one exception is
 noted explicitly: my.f5.com knowledge-base articles render with JavaScript and
 could not be read from this session, so none of them is cited.
@@ -53,6 +53,23 @@ F5 = {
     "nodes_11_5": "https://techdocs.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/ltm-concepts-11-5-1/5.html",
     "selfip_lockdown": "https://techdocs.f5.com/en-us/bigip-14-0-0/big-ip-access-policy-manager-secure-web-gateway-14-0-0/common-elements-for-self-ip-tasks.html",
     "dsc_failover": "https://techdocs.f5.com/en-us/bigip-14-1-0/big-ip-device-service-clustering-administration-14-1-0/managing-failover.html",
+    # Advanced WAF / DoS / logging / UCS / licensing (pages opened 2026-10-14)
+    "asm_local_policy": "https://techdocs.f5.com/kb/en-us/products/big-ip_asm/manuals/product/asm-implementations-12-1-0/34.html",
+    "asm_policy_tmsh": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/asm/asm_policy.html",
+    "gtm_wideip": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_wideip_a.html",
+    "gtm_pool": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_pool_a.html",
+    "gtm_server": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_server.html",
+    "gtm_datacenter": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_datacenter.html",
+    "gtm_listener": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_listener.html",
+    "gtm_topology": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_topology.html",
+    "dos_apps": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/security/security_dos_profile.html",
+    "log_profile": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/security/security_log_profile.html",
+    "sys_db": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_db.html",
+    "software_update": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_software_update.html",
+    "daemon_log_mcpd": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_daemon-log-settings_mcpd.html",
+    "daemon_log_tmm": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_daemon-log-settings_tmm.html",
+    "licensing": "https://techdocs.f5.com/en-us/bigip-16-1-0/big-ip-system-essentials/licensing.html",
+    "ucs_archives": "https://techdocs.f5.com/en-us/bigip-14-1-0/big-ip-system-essentials-14-1-0/archives.html",
     "deploying_tls": "https://community.f5.com/kb/technicalarticles/deploying-tls-securely/278307",
     "nist_800_52": "https://csrc.nist.gov/pubs/sp/800/52/r2/final",
     "pci_8_2_8": "https://www.pcisecuritystandards.org/faq/articles/Frequently_Asked_Question/what-is-the-purpose-of-pci-dss-requirement-8-2-8-which-requires-users-to-reauthenticate-after-15-minutes-of-idle-time",

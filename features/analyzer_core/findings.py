@@ -68,3 +68,24 @@ def severity_counts(findings: Iterable[dict[str, Any]]) -> dict[str, int]:
     for item in findings:
         counts[item.get("severity", "info")] = counts.get(item.get("severity", "info"), 0) + 1
     return counts
+
+
+def cap_per_rule(items: Iterable[dict[str, Any]], limit: int = 25) -> list[dict[str, Any]]:
+    """Keep at most ``limit`` findings per rule id (highest severity first) and add one info line for the rest.
+
+    The limit is per rule id on purpose: capping a whole group let two noisy rules fill the quota and silently hide
+    every other finding type of that group."""
+    buckets: dict[str, list[dict[str, Any]]] = {}
+    for item in items:
+        buckets.setdefault(item["id"], []).append(item)
+    out: list[dict[str, Any]] = []
+    for rule_id, group in buckets.items():
+        if len(group) <= limit:
+            out.extend(group)
+            continue
+        group = sorted(group, key=lambda g: SEVERITY_RANK.get(g["severity"], 9))
+        out.extend(group[:limit])
+        sample = group[0]
+        out.append(finding(rule_id, "info", sample["category"], f"{len(group) - limit} more finding(s) of rule {rule_id} not listed",
+                           detail=f"{len(group)} objects match '{sample['title']}'; the first {limit} (highest severity first) are listed.", reference=sample.get("reference", "")))
+    return out

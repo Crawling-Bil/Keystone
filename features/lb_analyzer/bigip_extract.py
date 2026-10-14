@@ -501,7 +501,7 @@ def certificates(tree: TmshTree) -> list[dict[str, Any]]:
         size = _int(n.val("certificate-key-size") or n.val("key-size"), None)
         subject, issuer = n.val("subject"), n.val("issuer")
         out.append({"name": n.name, "short": short(n.name), "expires": when, "expires_text": n.val("expiration-string"), "key_size": size, "key_type": n.val("key-type") or n.val("certificate-key-type"), "subject": subject, "issuer": issuer,
-                    "self_signed": bool(subject) and subject == issuer, "system": short(n.name) in ("default.crt", "ca-bundle.crt", "f5-irule.crt", "f5-ca-bundle.crt", "f5_api_certificate.crt") or "bundle" in n.name})
+                    "self_signed": bool(subject) and subject == issuer, "cache_path": n.val("cache-path"), "system": short(n.name) in ("default.crt", "ca-bundle.crt", "f5-irule.crt", "f5-ca-bundle.crt", "f5_api_certificate.crt") or "bundle" in n.name})
     return out
 
 

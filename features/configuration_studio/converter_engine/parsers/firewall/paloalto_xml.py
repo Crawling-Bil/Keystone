@@ -11,11 +11,24 @@ firewall_service.py's _build_from_paloalto() can consume either
 source unmodified -- see that model's docstring for why a dedicated
 model (rather than models/firewall.py) exists at all.
 
-Only the first <vsys> entry is parsed. A firewall with more than one
-vsys puts the interesting security-policy content split across
-several tenants; supporting more than one is future work, the same
-scope limit the "set"-format parser already has by only ever seeing
-one flat vsys's worth of `set` lines.
+Every <vsys> entry is parsed and merged into one flat config (the
+same way a device's <shared> scope is already merged in below) --
+two real multi-vsys PAN-OS exports (a dedicated "NEW Server Farm"
+vsys plus the default vsys1, and a vsys1/vsys2 split) showed that
+restricting this to only the first vsys silently dropped roughly
+half of a device's zones, address/service objects and every
+security/NAT/PBF rule in the other vsys. Objects are merged by name
+the same way shared-vs-vsys objects already are (first definition
+wins for de-duplicated tables; rules are never de-duplicated since
+two vsys legitimately can each have a rule of the same name). There
+is a per-object ``vsys`` tag on the model ("shared" for the shared
+scope) so a consumer can filter the merged view by virtual system;
+address, service and profile objects are de-duplicated within one
+scope only (two vsys can each define "Web-Servers"), while the
+shared scope still defers to a vsys definition of the same name.
+`config.warnings` notes when more than one vsys was merged. The "set"-format parser (parsers/firewall/paloalto.py)
+keeps its own, separate single-vsys limit -- it only ever sees one
+flat vsys's worth of `set` lines and has no vsys boundary to find.
 """
 
 from __future__ import annotations
@@ -35,6 +48,7 @@ from features.configuration_studio.converter_engine.models.paloalto_native impor
     PaInterface,
     PaIpsecCryptoProfile,
     PaIpsecTunnel,
+    PaProfileGroup,
     PaloAltoNativeConfig,
     PaManagementProfile,
     PaManagementService,
@@ -100,7 +114,56 @@ def _members(elem: Optional[ET.Element], path: str = ".") -> list[str]:
     container = elem if path == "." else elem.find(path)
     if container is None:
         return []
-    return [m.text.strip() for m in container.findall("member") if m.text]
+    members = [m.text.strip() for m in container.findall("member") if m.text]
+    if not members and len(container) == 0 and container.text and container.text.strip():
+        return [container.text.strip()]          # the CLI view prints a one-member list as a plain value
+    return members
+
+
+# Lists on the config whose objects belong to one vsys (or to the shared scope).
+_SCOPED_LISTS = ("zones", "address_objects", "address_groups", "service_objects", "service_groups", "application_groups",
+                 "security_rules", "nat_rules", "pbf_rules", "security_profiles", "profile_groups")
+
+
+def _scope_marks(config: PaloAltoNativeConfig) -> dict[str, int]:
+    return {name: len(getattr(config, name)) for name in _SCOPED_LISTS}
+
+
+def _stamp_scope(config: PaloAltoNativeConfig, marks: dict[str, int], label: str) -> None:
+    """Tag everything appended since ``marks`` with the vsys (or ``shared``) it was read from."""
+    for name, start in marks.items():
+        for obj in getattr(config, name)[start:]:
+            obj.vsys = label
+
+
+def _scope_label(scope: ET.Element) -> str:
+    return "shared" if scope.tag == "shared" else scope.get("name", "")
+
+
+def _taken(items: list, label: str) -> set[str]:
+    """Names already defined in the scope being read: a vsys only clashes with itself, the shared scope with everything."""
+    return {item.name for item in items} if label == "shared" else {item.name for item in items if item.vsys == label}
+
+
+def _assign_vsys_to_network(config: PaloAltoNativeConfig, vsys_entries: list[ET.Element]) -> None:
+    """Interfaces and virtual routers are device-level objects; a vsys owns the ones in its ``import/network`` lists.
+    An interface that is only reachable through a zone still belongs to the zone's vsys."""
+    owner: dict[str, str] = {}
+    router_owner: dict[str, str] = {}
+    for entry in vsys_entries:
+        label = entry.get("name", "")
+        for name in _members(entry, "import/network/interface"):
+            owner.setdefault(name, label)
+        for tag in ("virtual-router", "logical-router"):
+            for name in _members(entry, f"import/network/{tag}"):
+                router_owner.setdefault(name, label)
+    for zone in config.zones:
+        for name in zone.interfaces:
+            owner.setdefault(name, zone.vsys)
+    for iface in config.interfaces:
+        iface.vsys = owner.get(iface.name) or owner.get(iface.parent_interface, "")
+    for router in config.virtual_routers:
+        router.vsys = router_owner.get(router.name, "")
 
 
 def _is_yes(elem: Optional[ET.Element], path: str) -> bool:
@@ -151,7 +214,7 @@ class PaloAltoXmlConfigParser:
         config.source_format = "xml"
 
         network = dev_entry.find("network")
-        vsys_entry = dev_entry.find("vsys/entry")
+        vsys_entries = dev_entry.findall("vsys/entry")
         deviceconfig = dev_entry.find("deviceconfig")
 
         self._parse_device_info(config, deviceconfig)
@@ -165,20 +228,64 @@ class PaloAltoXmlConfigParser:
             self._parse_management_profiles(config, network)
             self._parse_zone_protection_profiles(config, network)
         shared = root.find("shared")
-        if vsys_entry is not None:
+        for vsys_entry in vsys_entries:
+            marks = _scope_marks(config)
             self._parse_zones(config, vsys_entry)
-            self._resolve_interface_zones(config)
             self._parse_addresses(config, vsys_entry)
-            self._parse_addresses(config, shared)  # shared-scope address objects, common on single-vsys devices
             self._parse_services(config, vsys_entry)
-            self._parse_services(config, shared)
             self._parse_security_rules(config, vsys_entry)
             self._parse_nat_rules(config, vsys_entry)
             self._parse_pbf_rules(config, vsys_entry)
             self._parse_security_profiles(config, vsys_entry)
+            self._parse_profile_groups(config, vsys_entry)
+            _stamp_scope(config, marks, vsys_entry.get("name", ""))
+        if vsys_entries:
+            self._resolve_interface_zones(config)
+            marks = _scope_marks(config)
+            self._parse_addresses(config, shared)  # shared-scope address objects, common on single-vsys devices
+            self._parse_services(config, shared)
             self._parse_security_profiles(config, shared)
+            self._parse_profile_groups(config, shared)
+            _stamp_scope(config, marks, "shared")
+            _assign_vsys_to_network(config, vsys_entries)
+        if len(vsys_entries) > 1:
+            names = ", ".join(e.get("name", "") for e in vsys_entries if e.get("name"))
+            config.warnings.append(
+                f"This export has {len(vsys_entries)} virtual systems ({names}); their zones, "
+                "objects, rules and profiles are listed together below and every row carries its "
+                "vsys, so use the vsys filter at the top of each tab to look at one virtual system. "
+                "The same name in two vsys is kept twice (PAN-OS allows it)."
+            )
 
-        if not config.warnings and not config.hostname:
+        servers = config.metadata.get("panorama_servers")
+        if servers:
+            local = len(config.security_rules) + len(config.nat_rules) + len(config.pbf_rules)
+            if local:
+                config.warnings.append(
+                    f"A Panorama server is configured ({servers}), but this export also holds {len(config.security_rules)} security, {len(config.nat_rules)} NAT and {len(config.pbf_rules)} "
+                    "policy-based-forwarding rule(s) defined locally on the device, and they are analysed below. Rules and objects pushed from Panorama (shared or device-group "
+                    "pre/post rulebases) are not part of a device export - review them on Panorama as well."
+                )
+            else:
+                config.warnings.append(
+                    f"This firewall is managed by Panorama ({servers}). Its security/NAT/PBF rulebase "
+                    "and address/service objects are normally authored on Panorama's shared or "
+                    "device-group rulebase and are not included in this device's own running-config "
+                    "export -- check the Panorama-side rulebase for the actual policy."
+                )
+        no_panorama_warning_yet = not any("managed by Panorama" in w for w in config.warnings)
+        if no_panorama_warning_yet and not (
+            config.zones or config.address_objects or config.security_rules or config.nat_rules
+        ):
+            config.warnings.append(
+                "No zones, address objects or security/NAT rules were found anywhere in this export "
+                "(not under any vsys, not under <shared>, and no Panorama pre-/post-rulebase either). "
+                "This looks like a local/management-plane-only backup rather than a full running-config "
+                "-- interfaces, admins and device settings below are still accurate, but there is no "
+                "policy to review in this file."
+            )
+
+        if not config.hostname:
             config.warnings.append(
                 "No deviceconfig/system/hostname found in this export; hostname left blank."
             )
@@ -206,6 +313,24 @@ class PaloAltoXmlConfigParser:
         dns_primary = _text(system, "dns-setting/servers/primary")
         dns_secondary = _text(system, "dns-setting/servers/secondary")
         config.dns_servers = [ip for ip in (dns_primary, dns_secondary) if ip]
+
+        # Two real exports (both Panorama-managed, confirmed by this block) had
+        # zero <address>, <service> or <rulebase> elements anywhere in the file --
+        # not under vsys, not under <shared>, and no <pre-rulebase>/<post-rulebase>
+        # either. For a Panorama-managed firewall that is expected: address/
+        # service objects and the security/NAT rulebase are authored and audited
+        # on Panorama's shared or device-group rulebase, and this per-device
+        # export only ever carries local-only settings (interfaces, zones,
+        # certs, admins). Flagging it here (rather than leaving the policy
+        # sections silently empty, which reads as "this firewall has no rules")
+        # saves a reviewer from concluding the device is unprotected when the
+        # policy is simply managed elsewhere.
+        panorama_ip = _text(system, "panorama/local-panorama/panorama-server")
+        panorama_ip_2 = _text(system, "panorama/local-panorama/panorama-server-2")
+        if panorama_ip or panorama_ip_2:
+            config.panorama_enabled = True  # drives the existing "Panorama" Yes/No badge in the dashboard
+            # the warning itself is written at the end of parse_text, once it is known whether the file holds any local policy
+            config.metadata["panorama_servers"] = ", ".join(ip for ip in (panorama_ip, panorama_ip_2) if ip)
 
         ntp_primary = _text(system, "ntp-servers/primary-ntp-server/ntp-server-address")
         ntp_secondary = _text(system, "ntp-servers/secondary-ntp-server/ntp-server-address")
@@ -349,7 +474,52 @@ class PaloAltoXmlConfigParser:
 
     # -- network/virtual-router -------------------------------------------------
 
+    @staticmethod
+    def _static_routes(table: ET.Element) -> list[PaStaticRoute]:
+        routes = []
+        for route_entry in table.findall("routing-table/ip/static-route/entry"):
+            nexthop = _text(route_entry, "nexthop/ip-address")
+            if not nexthop and route_entry.find("nexthop/discard") is not None:
+                nexthop = "discard"
+            elif not nexthop and route_entry.find("nexthop/next-vr") is not None:
+                nexthop = "vr:" + (route_entry.findtext("nexthop/next-vr") or "").strip()
+            metric, distance = _text(route_entry, "metric"), _text(route_entry, "admin-dist")
+            routes.append(PaStaticRoute(
+                name=route_entry.get("name", ""),
+                destination=_text(route_entry, "destination", "0.0.0.0/0"),
+                nexthop=nexthop,
+                metric=int(metric) if metric.isdigit() else None,
+                interface=_text(route_entry, "interface"),
+                path_monitor=route_entry.find("path-monitor") is not None and _text(route_entry, "path-monitor/enable", "yes").lower() != "no",
+                bfd=_text(route_entry, "bfd/profile", "None").lower() not in ("", "none"),
+                admin_distance=int(distance) if distance.isdigit() else None,
+            ))
+        return routes
+
+    @staticmethod
+    def _routing_protocols(vr: PaVirtualRouter, protocol: ET.Element) -> None:
+        vr.bgp_enabled = _is_yes(protocol, "bgp/enable")
+        vr.ospf_enabled = _is_yes(protocol, "ospf/enable")
+        vr.rip_enabled = _is_yes(protocol, "rip/enable")
+        vr.bgp_router_id = _text(protocol, "bgp/router-id")
+        vr.bgp_as_number = _text(protocol, "bgp/local-as")
+        vr.ospf_router_id = _text(protocol, "ospf/router-id")
+        vr.ospf_area_ids = _entry_names(protocol, "ospf/area")
+
+    def _parse_logical_routers(self, config: PaloAltoNativeConfig, network: ET.Element) -> None:
+        """Advanced Routing Engine: ``network/logical-router/entry/vrf/entry`` holds what a virtual-router holds on the classic engine.
+        One row per logical router + VRF (the name is the logical router's alone when its only VRF is ``default``)."""
+        for lr_entry in network.findall("logical-router/entry"):
+            vrfs = lr_entry.findall("vrf/entry")
+            for vrf in vrfs:
+                name = lr_entry.get("name", "") if len(vrfs) == 1 and vrf.get("name") == "default" else f"{lr_entry.get('name', '')}/{vrf.get('name', '')}"
+                router = PaVirtualRouter(name=name, interfaces=_members(vrf, "interface"), engine="logical-router")
+                self._routing_protocols(router, vrf)
+                router.static_routes = self._static_routes(vrf)
+                config.virtual_routers.append(router)
+
     def _parse_virtual_routers(self, config: PaloAltoNativeConfig, network: ET.Element) -> None:
+        self._parse_logical_routers(config, network)
         for vr_entry in network.findall("virtual-router/entry"):
             vr = PaVirtualRouter(name=vr_entry.get("name", ""), interfaces=_members(vr_entry, "interface"))
             # PAN-OS always writes a full <protocol><bgp/ospf/rip> skeleton
@@ -358,23 +528,8 @@ class PaloAltoXmlConfigParser:
             # -- only surface the ones a device has actually turned on.
             protocol = vr_entry.find("protocol")
             if protocol is not None:
-                vr.bgp_enabled = _is_yes(protocol, "bgp/enable")
-                vr.ospf_enabled = _is_yes(protocol, "ospf/enable")
-                vr.rip_enabled = _is_yes(protocol, "rip/enable")
-                vr.bgp_router_id = _text(protocol, "bgp/router-id")
-                vr.bgp_as_number = _text(protocol, "bgp/local-as")
-                vr.ospf_router_id = _text(protocol, "ospf/router-id")
-                vr.ospf_area_ids = _entry_names(protocol, "ospf/area")
-            for route_entry in vr_entry.findall("routing-table/ip/static-route/entry"):
-                nexthop_ip = _text(route_entry, "nexthop/ip-address")
-                vr.static_routes.append(
-                    PaStaticRoute(
-                        name=route_entry.get("name", ""),
-                        destination=_text(route_entry, "destination", "0.0.0.0/0"),
-                        nexthop=nexthop_ip,
-                        metric=int(_text(route_entry, "metric")) if _text(route_entry, "metric").isdigit() else None,
-                    )
-                )
+                self._routing_protocols(vr, protocol)
+            vr.static_routes = self._static_routes(vr_entry)
             config.virtual_routers.append(vr)
 
     # -- network/qos --------------------------------------------------------
@@ -528,7 +683,8 @@ class PaloAltoXmlConfigParser:
         objects at either level (or, seen in the wild, a mix of both)."""
         if scope is None:
             return
-        existing_names = {obj.name for obj in config.address_objects}
+        label = _scope_label(scope)
+        existing_names = _taken(config.address_objects, label)
         for entry in scope.findall("address/entry"):
             name = entry.get("name", "")
             if name in existing_names:
@@ -540,7 +696,7 @@ class PaloAltoXmlConfigParser:
                         PaAddressObject(name=name, kind=kind, value=value, description=_text(entry, "description"))
                     )
                     break
-        existing_group_names = {group.name for group in config.address_groups}
+        existing_group_names = _taken(config.address_groups, label)
         for entry in scope.findall("address-group/entry"):
             name = entry.get("name", "")
             if name in existing_group_names:
@@ -550,7 +706,8 @@ class PaloAltoXmlConfigParser:
     def _parse_services(self, config: PaloAltoNativeConfig, scope: Optional[ET.Element]) -> None:
         if scope is None:
             return
-        existing_names = {obj.name for obj in config.service_objects}
+        label = _scope_label(scope)
+        existing_names = _taken(config.service_objects, label)
         for entry in scope.findall("service/entry"):
             if entry.get("name", "") in existing_names:
                 continue
@@ -572,14 +729,14 @@ class PaloAltoXmlConfigParser:
         # "NNA Grouop AMO Block" -> several App-ID signatures) with zero
         # coverage before this, so a rule referencing one showed only the
         # opaque group name with no way to see what it actually allows.
-        existing_service_groups = {group.name for group in config.service_groups}
+        existing_service_groups = _taken(config.service_groups, label)
         for entry in scope.findall("service-group/entry"):
             name = entry.get("name", "")
             if name in existing_service_groups:
                 continue
             config.service_groups.append(PaServiceGroup(name=name, members=_members(entry, "members")))
 
-        existing_app_groups = {group.name for group in config.application_groups}
+        existing_app_groups = _taken(config.application_groups, label)
         for entry in scope.findall("application-group/entry"):
             name = entry.get("name", "")
             if name in existing_app_groups:
@@ -591,6 +748,9 @@ class PaloAltoXmlConfigParser:
     def _parse_security_rules(self, config: PaloAltoNativeConfig, vsys_entry: ET.Element) -> None:
         for entry in vsys_entry.findall("rulebase/security/rules/entry"):
             profile_setting: dict[str, list[str]] = {}
+            group = _members(entry, "profile-setting/group")           # the usual form: the rule names a profile group
+            if group:
+                profile_setting["group"] = group
             profiles_elem = entry.find("profile-setting/profiles")
             if profiles_elem is not None:
                 for tag in _RULE_PROFILE_TAGS:
@@ -672,13 +832,25 @@ class PaloAltoXmlConfigParser:
 
     # -- vsys/profiles (custom security-profile objects) ------------------------
 
+    def _parse_profile_groups(self, config: PaloAltoNativeConfig, scope: Optional[ET.Element]) -> None:
+        if scope is None:
+            return
+        taken = {g.name for g in config.profile_groups if _scope_label(scope) == "shared" or g.vsys == _scope_label(scope)}
+        for entry in scope.findall("profile-group/entry"):
+            name = entry.get("name", "")
+            if name in taken:
+                continue
+            members = {tag: _members(entry, tag) for tag in _PROFILE_TYPES if _members(entry, tag)}
+            config.profile_groups.append(PaProfileGroup(name=name, members=members))
+
     def _parse_security_profiles(self, config: PaloAltoNativeConfig, scope: Optional[ET.Element]) -> None:
         if scope is None:
             return
         profiles_root = scope.find("profiles")
         if profiles_root is None:
             return
-        existing = {(p.name, p.profile_type) for p in config.security_profiles}
+        label = _scope_label(scope)
+        existing = {(p.name, p.profile_type) for p in config.security_profiles if label == "shared" or p.vsys == label}
         for profile_type in _PROFILE_TYPES:
             section = profiles_root.find(profile_type)
             if section is None:
