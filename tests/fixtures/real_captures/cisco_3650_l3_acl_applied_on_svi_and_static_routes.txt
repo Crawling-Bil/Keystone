@@ -1,0 +1,65 @@
+hostname CGQ-GHFU-ZTOZAG-5626
+!
+ip routing
+!
+interface Vlan1
+ no ip address
+ shutdown
+!
+interface Vlan100
+ description P2P-To-NSF
+ ip address 10.255.0.1 255.255.255.252
+!
+interface Vlan213
+ description Vlan management
+ ip address 10.255.0.2 255.255.255.0
+!
+interface Vlan214
+ description Vlan voip
+ ip address 10.255.0.3 255.255.255.0
+ ip access-group VOIP-GA-BCQ in
+!
+interface Vlan710
+ description OT-HRGA
+ ip address 10.255.0.4 255.255.255.0
+!
+ip route 0.0.0.0 0.0.0.0 10.255.0.5 5 name SANGFOR-NSF
+!
+ip route 0.0.0.0 0.0.0.0 10.255.0.6 10 name TO-BCQ-ROU-BACKUP
+!
+ip access-list extended VOIP-GA-BCQ
+ permit ip 10.255.0.7 0.0.0.255 10.255.0.8 0.0.0.255
+ permit ip 10.255.0.7 0.0.0.255 10.255.0.9 0.0.0.255
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.10
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.11
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.12
+ permit icmp 10.255.0.13 10.255.0.14 any
+ permit icmp 10.255.0.15 10.255.0.14 any
+ permit icmp 10.255.0.16 0.0.0.255 10.255.0.17 0.0.0.255
+ permit icmp 10.255.0.16 0.0.0.255 10.255.0.18 0.0.0.255
+ permit ip 10.255.0.16 0.0.0.255 10.255.0.17 0.0.0.255
+ permit ip 10.255.0.16 0.0.0.255 10.255.0.18 0.0.0.255
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.19
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.20
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.21
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.22
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.23
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.24
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.25
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.26
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.27
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.28
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.29
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.30
+ permit ip 10.255.0.7 0.0.0.255 host 10.255.0.31
+!
+line vty 0 4
+ exec-timeout 5 0
+ logging synchronous
+ login local
+ transport input ssh
+!
+line vty 5 15
+ login local
+ transport input telnet
+!

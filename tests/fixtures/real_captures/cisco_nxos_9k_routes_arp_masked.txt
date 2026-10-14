@@ -1,0 +1,55 @@
+LAB-NX9K-A# sh ip route 
+IP Route Table for VRF "default"
+'*' denotes best ucast next-hop
+'**' denotes best mcast next-hop
+'[x/y]' denotes [preference/metric]
+'%<string>' in via output denotes VRF <string>
+
+0.0.0.0/0, ubest/mbest: 1/0
+    *via 10.99.3.26, [1/0], 1y6w, static
+10.99.3.24/29, ubest/mbest: 1/0, attached
+    *via 10.99.3.29, Vlan205, [0/0], 1y6w, direct
+10.99.3.25/32, ubest/mbest: 1/0, attached
+    *via 10.99.3.25, Vlan205, [0/0], 1y6w, hsrp
+10.99.3.29/32, ubest/mbest: 1/0, attached
+    *via 10.99.3.29, Vlan205, [0/0], 1y6w, local
+10.99.28.0/23, ubest/mbest: 1/0, attached
+    *via 10.99.28.3, Vlan201, [0/0], 1y6w, direct
+10.99.28.1/32, ubest/mbest: 1/0, attached
+    *via 10.99.28.1, Vlan201, [0/0], 1y6w, hsrp
+10.99.28.3/32, ubest/mbest: 1/0, attached
+    *via 10.99.28.3, Vlan201, [0/0], 1y6w, local
+10.99.215.0/24, ubest/mbest: 1/0, attached
+    *via 10.99.215.3, Vlan215, [0/0], 1y6w, direct
+10.99.215.1/32, ubest/mbest: 1/0, attached
+    *via 10.99.215.1, Vlan215, [0/0], 1y6w, hsrp
+10.99.215.3/32, ubest/mbest: 1/0, attached
+    *via 10.99.215.3, Vlan215, [0/0], 1y6w, local
+10.99.216.0/24, ubest/mbest: 1/0, attached
+    *via 10.99.216.3, Vlan216, [0/0], 1y6w, direct
+10.99.216.1/32, ubest/mbest: 1/0, attached
+    *via 10.99.216.1, Vlan216, [0/0], 1y6w, hsrp
+10.99.216.3/32, ubest/mbest: 1/0, attached
+    *via 10.99.216.3, Vlan216, [0/0], 1y6w, local
+10.99.217.0/24, ubest/mbest: 1/0, attached
+    *via 10.99.217.3, Vlan217, [0/0], 1y6w, direct
+10.99.217.1/32, ubest/mbest: 1/0, attached
+    *via 10.99.217.1, Vlan217, [0/0], 1y6w, hsrp
+10.99.217.3/32, ubest/mbest: 1/0, attached
+    *via 10.99.217.3, Vlan217, [0/0], 1y6w, local
+10.99.218.0/24, ubest/mbest: 1/0, attached
+    *via 10.99.218.3, Vlan218, [0/0], 1y6w, direct
+10.99.218.1/32, ubest/mbest: 1/0, attached
+    *via 10.99.218.1, Vlan218, [0/0], 1y6w, hsrp
+10.99.218.3/32, ubest/mbest: 1/0, attached
+    *via 10.99.218.3, Vlan218, [0/0], 1y6w, local
+
+
+LAB-NX9K-A# 
+LAB-NX9K-A# sh ip arp summary 
+IP ARP Table - Adjacency Summary
+
+  Resolved   : 155
+  Incomplete : 25 (Throttled : 0)
+  Unknown    : 0
+  Total      : 180

@@ -1,0 +1,45 @@
+hostname FPPU-NBXJDH-AJ-4273
+!
+ip routing
+!
+interface Port-channel1
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan 700,701
+ switchport mode trunk
+!
+interface Port-channel40
+ no switchport
+ no ip address
+ shutdown
+!
+interface Vlan1
+ no ip address
+ shutdown
+!
+interface Vlan53
+ ip address 10.255.0.1 255.255.255.252
+!
+interface Vlan70
+ no ip address
+!
+interface Vlan700
+ ip address 10.255.0.2 255.255.255.224
+!
+interface Vlan701
+ ip address 10.255.0.3 255.255.255.0
+!
+router ospf 100
+ log-adjacency-changes
+!
+ip route 0.0.0.0 0.0.0.0 10.255.0.4
+!
+line vty 0 4
+ privilege level 15
+ login local
+ transport input all
+!
+line vty 5 15
+ privilege level 15
+ login local
+ transport input all
+!

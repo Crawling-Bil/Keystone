@@ -1,0 +1,376 @@
+
+JUMP1#ssh nxdemo-a
+
+###  LAB SYSTEM - AUTHORISED USE ONLY  ###
+
+Password:
+
+Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2020, Cisco and/or its affiliates.
+All rights reserved.
+The copyrights to certain works contained in this software are
+owned by other third parties and used and distributed under their own
+licenses, such as open source.  This software is provided "as is," and unless
+otherwise stated, there is no warranty, express or implied, including but not
+limited to warranties of merchantability and fitness for a particular purpose.
+NXDEMO-A# terminal leng 0
+NXDEMO-A#
+NXDEMO-A# show ip arp
+
+Flags: * - Adjacencies learnt on non-active FHRP router
+       + - Adjacencies synced via CFSoE
+       # - Adjacencies Throttled for Glean
+       CP - Added via L2RIB, Control plane Adjacencies
+       PS - Added via L2RIB, Peer Sync
+       RO - Re-Originated Peer Sync Entry
+       D - Static Adjacencies attached to down interface
+
+IP ARP Table for context default
+Total number of entries: 3
+Address         Age       MAC Address     Interface       Flags
+192.0.2.11      00:00:16  02aa.bb00.0011  Vlan10
+192.0.2.12      00:09:58  02aa.bb00.0012  Vlan10
+192.0.2.253     -         02aa.bb00.00fd  Vlan10
+NXDEMO-A#
+NXDEMO-A# show hsrp
+Vlan10 - Group 10 (HSRP-V1) (IPv4)
+  Local state is Active, priority 110 (Cfged 110), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 110
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 192.0.2.1 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac0a (Default MAC)
+  5 state changes, last state change 1w4d
+  IP redundancy name is lab-users (cfgd)
+
+Vlan20 - Group 20 (HSRP-V1) (IPv4)
+  Local state is Standby, priority 100 (Cfged 100), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 100
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 192.0.2.65 (Cfged)
+  Active router is 192.0.2.254, priority 110 expires in 8.575000 sec(s)
+  Standby router is local
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac14 (Default MAC)
+  8 state changes, last state change 1w2d
+  IP redundancy name is lab-voice (cfgd)
+
+Vlan40 - Group 40 (HSRP-V1) (IPv4)
+  Local state is Initial(Interface Down), priority 110 (Cfged 110), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 110
+  Hellotime 3 sec, holdtime 10 sec
+  Virtual IP address is 192.0.2.193 (Cfged)
+  Active router is unknown
+  Standby router is unknown
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac28 (Default MAC)
+  7 state changes, last state change 1w4d
+  IP redundancy name is hsrp-Vlan40-40 (default)
+
+Vlan50 - Group 50 (HSRP-V1) (IPv4)
+  Local state is Active, priority 100 (Cfged 100)
+    Forwarding threshold(for vPC), lower: 0 upper: 100
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 198.51.100.1 (Cfged)
+  Active router is local
+  Standby router is unknown
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac32 (Default MAC)
+  3 state changes, last state change 1w2d
+  IP redundancy name is hsrp-Vlan50-50 (default)
+
+Vlan60 - Group 61 (HSRP-V1) (IPv4)
+  Local state is Active, priority 90 (Cfged 110), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 90
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 198.51.100.65 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication MD5, key-chain lab-chain
+  Virtual mac address is 0000.0c07.ac3d (Default MAC)
+  7 state changes, last state change 2w1d
+  IP redundancy name is lab-dmz (cfgd)
+
+Vlan80 - Group 80 (HSRP-V1) (IPv4)
+  Local state is Active, priority 100 (Cfged 100), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 100
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 198.51.100.129 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication text "demo-not-a-secret"
+  Virtual mac address is 0000.0c07.ac50 (Default MAC)
+  5 state changes, last state change 1w2d
+  IP redundancy name is lab-mgmt (cfgd)
+
+Vlan90 - Group 90 (HSRP-V1) (IPv4)
+  Local state is Active, priority 120 (Cfged 120), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 120
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 198.51.100.193 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac5a (Default MAC)
+  8 state changes, last state change 1w0d
+  IP redundancy name is hsrp-Vlan90-90 (default)
+
+Vlan91 - Group 91 (HSRP-V1) (IPv4)
+  Local state is Active, priority 110 (Cfged 110), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 110
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 203.0.113.1 (Cfged)
+  Active router is local
+  Standby router is unknown
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac5b (Default MAC)
+  2 state changes, last state change 2w1d
+  IP redundancy name is hsrp-Vlan91-91 (default)
+
+Ethernet1/10 - Group 70 (HSRP-V1) (IPv4)
+  Local state is Active, priority 120 (Cfged 120), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 120
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 203.0.113.65 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac46 (Default MAC)
+  2 state changes, last state change 1w4d
+  IP redundancy name is lab-link (cfgd)
+
+Ethernet1/11 - Group 60 (HSRP-V1) (IPv4)
+  Local state is Active, priority 105 (Cfged 105), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 105
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 203.0.113.129 (Cfged)
+  Active router is local
+  Standby router is unknown
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac3c (Default MAC)
+  6 state changes, last state change 1w0d
+  IP redundancy name is hsrp-Ethernet1/11-60 (default)
+
+NXDEMO-A# show hsrp brief
+*:IPv6 group   #:group belongs to a bundle
+                     P indicates configured to preempt.
+                     |
+ Interface   Grp  Prio P State    Active addr      Standby addr     Group addr
+  Vlan10      10   110  P Active   local            192.0.2.254      192.0.2.1   (conf)
+  Vlan20      20   100  P Standby  192.0.2.254      local            192.0.2.65   (conf)
+  Vlan40      40   110  P Initial  unknown          unknown          192.0.2.193   (conf)
+  Vlan50      50   100    Active   local            unknown          198.51.100.1   (conf)
+  Vlan60      61   90   P Active   local            192.0.2.254      198.51.100.65   (conf)
+  Vlan80      80   100  P Active   local            192.0.2.254      198.51.100.129   (conf)
+  Vlan90      90   120  P Active   local            192.0.2.254      198.51.100.193   (conf)
+  Vlan91      91   110  P Active   local            unknown          203.0.113.1   (conf)
+  Ethernet1/10 70   120  P Active   local            192.0.2.254      203.0.113.65   (conf)
+  Ethernet1/11 60   105  P Active   local            unknown          203.0.113.129   (conf)
+NXDEMO-A#
+NXDEMO-A# show hsrp summary
+
+HSRP Summary:
+
+Extended-hold (NSF) disabled
+Global HSRP-BFD disabled
+
+Total Groups: 11
+     Version::    V1-IPV4: 11      V2-IPV4: 0      V2-IPV6: 0
+       State::     Active: 8      Standby: 1       Listen: 0
+       State::  V6-Active: 0    V6-Standby: 0    V6-Listen: 0
+
+Total HSRP Enabled interfaces: 11
+
+Total Packets:
+             Tx - Pass: 123456789 Fail: 0
+             Rx - Good: 120000000
+
+Packet for unknown groups: 1000
+
+Total MTS: Rx: 12345
+
+NXDEMO-A#
+NXDEMO-A# show hsrp all
+Vlan10 - Group 10 (HSRP-V1) (IPv4)
+  Local state is Active, priority 110 (Cfged 110), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 110
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 192.0.2.1 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac0a (Default MAC)
+  5 state changes, last state change 1w4d
+  IP redundancy name is lab-users (cfgd)
+
+Vlan20 - Group 20 (HSRP-V1) (IPv4)
+  Local state is Standby, priority 100 (Cfged 100), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 100
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 192.0.2.65 (Cfged)
+  Active router is 192.0.2.254, priority 110 expires in 8.575000 sec(s)
+  Standby router is local
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac14 (Default MAC)
+  8 state changes, last state change 1w2d
+  IP redundancy name is lab-voice (cfgd)
+
+Vlan30 - Group 30 (HSRP-V1) (IPv4)
+  Local state is Disabled(Virtual IP not cfged), priority 101 (Cfged 101), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 101
+  Hellotime 3 sec, holdtime 10 sec
+  Virtual IP address is unknown
+  Active router is unknown
+  Standby router is unknown
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac1e (Default MAC)
+  4 state changes, last state change 1w0d
+  IP redundancy name is hsrp-Vlan30-30 (default)
+
+Vlan40 - Group 40 (HSRP-V1) (IPv4)
+  Local state is Initial(Interface Down), priority 110 (Cfged 110), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 110
+  Hellotime 3 sec, holdtime 10 sec
+  Virtual IP address is 192.0.2.193 (Cfged)
+  Active router is unknown
+  Standby router is unknown
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac28 (Default MAC)
+  7 state changes, last state change 1w4d
+  IP redundancy name is hsrp-Vlan40-40 (default)
+
+Vlan50 - Group 50 (HSRP-V1) (IPv4)
+  Local state is Active, priority 100 (Cfged 100)
+    Forwarding threshold(for vPC), lower: 0 upper: 100
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 198.51.100.1 (Cfged)
+  Active router is local
+  Standby router is unknown
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac32 (Default MAC)
+  3 state changes, last state change 1w2d
+  IP redundancy name is hsrp-Vlan50-50 (default)
+
+Vlan60 - Group 61 (HSRP-V1) (IPv4)
+  Local state is Active, priority 90 (Cfged 110), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 90
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 198.51.100.65 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication MD5, key-chain lab-chain
+  Virtual mac address is 0000.0c07.ac3d (Default MAC)
+  7 state changes, last state change 2w1d
+  IP redundancy name is lab-dmz (cfgd)
+
+Vlan80 - Group 80 (HSRP-V1) (IPv4)
+  Local state is Active, priority 100 (Cfged 100), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 100
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 198.51.100.129 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication text "demo-not-a-secret"
+  Virtual mac address is 0000.0c07.ac50 (Default MAC)
+  5 state changes, last state change 1w2d
+  IP redundancy name is lab-mgmt (cfgd)
+
+Vlan90 - Group 90 (HSRP-V1) (IPv4)
+  Local state is Active, priority 120 (Cfged 120), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 120
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 198.51.100.193 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac5a (Default MAC)
+  8 state changes, last state change 1w0d
+  IP redundancy name is hsrp-Vlan90-90 (default)
+
+Vlan91 - Group 91 (HSRP-V1) (IPv4)
+  Local state is Active, priority 110 (Cfged 110), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 110
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 203.0.113.1 (Cfged)
+  Active router is local
+  Standby router is unknown
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac5b (Default MAC)
+  2 state changes, last state change 2w1d
+  IP redundancy name is hsrp-Vlan91-91 (default)
+
+Ethernet1/10 - Group 70 (HSRP-V1) (IPv4)
+  Local state is Active, priority 120 (Cfged 120), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 120
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 203.0.113.65 (Cfged)
+  Active router is local
+  Standby router is 192.0.2.254 , priority 100 expires in 8.575000 sec(s)
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac46 (Default MAC)
+  2 state changes, last state change 1w4d
+  IP redundancy name is lab-link (cfgd)
+
+Ethernet1/11 - Group 60 (HSRP-V1) (IPv4)
+  Local state is Active, priority 105 (Cfged 105), may preempt
+    Forwarding threshold(for vPC), lower: 0 upper: 105
+  Hellotime 3 sec, holdtime 10 sec
+  Next hello sent in 0.285000 sec(s)
+  Virtual IP address is 203.0.113.129 (Cfged)
+  Active router is local
+  Standby router is unknown
+  Authentication text "cisco"
+  Virtual mac address is 0000.0c07.ac3c (Default MAC)
+  6 state changes, last state change 1w0d
+  IP redundancy name is hsrp-Ethernet1/11-60 (default)
+
+NXDEMO-A# show ip ospf brief vrf all
+                        ^
+% Invalid command at '^' marker.
+
+NXDEMO-A#
+NXDEMO-A# show ip ospf neighbors summary vrf all
+ OSPF Process ID 100 VRF default, Neighbor Summary
+ Interface Down Attempt Init TwoWay ExStart Exchange Loading Full  Total
+     Total    0    0    0    1    0    0    0    3    4
+    Vlan10    0    0    0    0    0    0    0    1    1
+    Vlan20    0    0    0    1    0    0    0    2    3
+
+ OSPF Process ID 200 VRF default, Neighbor Summary
+ Interface Down Attempt Init TwoWay ExStart Exchange Loading Full  Total
+     Total    0    0    0    0    0    0    0    1    1
+     Po100    0    0    0    0    0    0    0    1    1
+
+NXDEMO-A# show ip ospf neighbors
+ OSPF Process ID 100 VRF default
+ Total number of neighbors: 4
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 192.0.2.254       1 FULL/DR          4y30w    192.0.2.254     Vlan10
+ 192.0.2.254       1 FULL/BDR         4y30w    192.0.2.62      Vlan20
+ 198.51.100.77     1 FULL/DROTHER     1w6d     192.0.2.77      Vlan20
+ 198.51.100.78     1 2WAY/DROTHER     1w6d     192.0.2.78      Vlan20
+ OSPF Process ID 200 VRF default
+ Total number of neighbors: 1
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 203.0.113.200     1 FULL/ -          10w4d    203.0.113.201   Po100
+NXDEMO-A#

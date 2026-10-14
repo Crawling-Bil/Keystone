@@ -1,0 +1,117 @@
+JUMP1#ssh nxdemo-b
+
+Password:
+Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2020, Cisco and/or its affiliates.
+All rights reserved.
+
+NXDEMO-B# terminal length 0
+NXDEMO-B#
+
+NXDEMO-B# show ip ospf neighbors
+ OSPF Process ID 172 VRF default
+ Total number of neighbors: 2
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 192.0.2.1         1 FULL/DROTHER     4y30w    192.0.2.33      Vlan100
+ 192.0.2.3         1 FULL/BDR         1w6d     192.0.2.66      Vlan200
+ OSPF Process ID 173 VRF default
+ Total number of neighbors: 1
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 198.51.100.1      1 FULL/ -          10w4d    198.51.100.17   Po200
+NXDEMO-B#
+NXDEMO-B# show ip ospf interface brief vrf all
+ OSPF Process ID 172 VRF default
+ Total number of interface: 2
+ Interface               ID     Area            Cost   State    Neighbors Status
+ Vlan100                 1      0.0.0.0         10     DR       1         up
+ Vlan200                 2      0.0.0.0         10     BDR      1         up
+
+ OSPF Process ID 173 VRF default
+ Total number of interface: 1
+ Interface               ID     Area            Cost   State    Neighbors Status
+ Po200                   3      0.0.0.1         1      P2P      1         up
+
+NXDEMO-B# show ip ospf database
+        OSPF Router with ID (192.0.2.2) (Process ID 172 VRF default)
+
+                Router Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+192.0.2.1       192.0.2.1       1203       0x80000031 0x1a2b   4
+192.0.2.2       192.0.2.2       1650       0x8000002c 0x1a2b   3
+192.0.2.3       192.0.2.3       910        0x80000019 0x1a2b   2
+192.0.2.4       192.0.2.4       411        0x80000007 0x1a2b   2
+
+--More--
+...skipping 9 lines
+Most commands optionally preceded by integer argument k.  Defaults in brackets.
+Star (*) indicates argument becomes new default.
+-------------------------------------------------------------------------------
+<space>                 Display next k lines of text [current screen size]
+z                       Display next k lines of text [current screen size]*
+<return>                Display next k lines of text [1]*
+d or ctrl-D             Scroll k lines [current scroll size, initially 11]*
+q or Q or <interrupt>   Exit from more
+s                       Skip next k lines of text [1]
+f                       Skip next k screens of text [1]
+=                       Display current line number
+/<regular expression>   Search for kth occurrence of regular expression [1]
+n                       Search for kth occurrence of last r.e [1]
+!<cmd> or :!<cmd>       Execute <cmd> in a subshell
+v                       Start up /usr/bin/vi at current line
+ctrl-L                  Redraw screen
+:n                      Go to kth next file [1]
+:p                      Go to kth previous file [1]
+:f                      Display current file name and line number
+.                       Repeat previous command
+-------------------------------------------------------------------------------
+198.51.100.0    192.0.2.1       1526       0x80000003 0x1a2b
+198.51.100.64   192.0.2.1       1530       0x80000003 0x1a2b
+198.51.100.128  192.0.2.4       77         0x80000001 0x1a2b
+
+                Summary ASBR Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+192.0.2.200     192.0.2.1       1100       0x80000002 0x1a2b
+
+                Router Link States (Area 0.0.0.5)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+192.0.2.1       192.0.2.1       1203       0x80000031 0x1a2b   1
+
+                Summary Network Link States (Area 0.0.0.5)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+198.51.100.0    192.0.2.1       1526       0x80000003 0x1a2b
+198.51.100.64   192.0.2.1       1530       0x80000003 0x1a2b
+
+                Type-5 AS External Link States
+
+Link ID         ADV Router      Age        Seq#       Checksum Tag
+203.0.113.0     192.0.2.9       120        0x80000010 0x1a2b   0
+203.0.113.64    192.0.2.9       1355       0x80000010 0x1a2b   0
+203.0.113.128   192.0.2.9       1799       0x80000010 0x1a2b   0
+203.0.113.192   192.0.2.8       1801       0x8000000a 0x1a2b   0
+198.51.100.200  192.0.2.8       1973       0x8000000a 0x1a2b   0
+
+        OSPF Router with ID (198.51.100.2) (Process ID 173 VRF default)
+
+                Router Link States (Area 0.0.0.1)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+198.51.100.1    198.51.100.1    1520       0x80000012 0x1a2b   2
+198.51.100.2    198.51.100.2    1011       0x8000000e 0x1a2b   2
+
+                Network Link States (Area 0.0.0.1)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+198.51.100.18   198.51.100.2    3601       0x80000005 0x1a2b
+
+                Type-5 AS External Link States
+
+Link ID         ADV Router      Age        Seq#       Checksum Tag
+203.0.113.16    198.51.100.2    500        0x80000002 0x1a2b   0
+203.0.113.32    198.51.100.2    650        0x80000002 0x1a2b   0
+
+NXDEMO-B#

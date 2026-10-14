@@ -1,0 +1,48 @@
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show logging
+2026-10-11T11:02:32.085423+00:00 6200 crash-tools[441]: Event|1206|LOG_INFO|||Module rebooted. Reason : Power on reset with 0x401, Version: ML.10.16.1020#012, Boot-ID : fc442na6842c84bp30de3hk1cmmef8rd
+2026-10-11T11:02:32.085447+00:00 6200 crash-tools[441]: Event|1235|LOG_INFO|||Switch boot count is : 1
+2026-10-11T11:02:42.829640+00:00 6200 hpe-cardd[989]: Event|3233|LOG_INFO|UKWN|1|Line module 1/1 configured with product number JL724B
+2026-10-11T11:02:42.906590+00:00 6200 hpe-cardd[989]: Event|3233|LOG_INFO|UKWN|1|Line module 4/1 configured with product number JL724B
+2026-10-11T11:02:42.982647+00:00 6200 hpe-cardd[989]: Event|3233|LOG_INFO|UKWN|1|Line module 2/1 configured with product number JL724B
+2026-10-11T11:03:11.719224+00:00 6200 intfd[897]: Event|403|LOG_INFO|UKWN|1|Link status for interface 1/1/25 is up at 10 Gbps with no FEC
+2026-10-11T11:03:11.719383+00:00 6200 intfd[897]: Event|403|LOG_INFO|UKWN|1|Link status for interface 1/1/26 is up at 10 Gbps with no FEC
+2026-10-11T11:03:12.625525+00:00 6200 vsfd[881]: Event|9923|LOG_INFO|UKWN|1|VSF link 2 is up
+2026-10-11T11:03:12.626373+00:00 6200 vsfd[881]: Event|9923|LOG_INFO|UKWN|1|VSF link 1 is up
+2026-10-11T11:04:17.127625+00:00 6200 hpe-isp[3211]: Event|7210|LOG_NOTICE|||Non-failsafe update needed for MODULE 'mc' DEVICE 'uboot_capsule'.  Please run the allow-non-failsafe-updates command
+2026-10-11T11:04:20.954825+00:00 6200 hpe-sysmond[3436]: Event|6303|LOG_INFO|CDTR|1|Current system memory usage for module 1/1 is 16%
+2026-10-11T11:04:21.220510+00:00 6200 vsfd[881]: Event|9968|LOG_INFO|CDTR|1|VSF split detection operational status is down with reason Split detection method is not configured
+2026-10-11T11:04:21.220814+00:00 6200 vsfd[881]: Event|9968|LOG_INFO|CDTR|1|VSF split detection operational status is down with reason Split detection method is not configured
+2026-10-11T11:04:21.221134+00:00 6200 vsfd[881]: Event|9968|LOG_INFO|CDTR|1|VSF split detection operational status is down with reason Split detection method is not configured
+2026-10-11T11:04:29.672496+00:00 6200 intfd[897]: Event|403|LOG_INFO|UKWN|1|Link status for interface 1/1/23 is up at 1 Gbps
+2026-10-11T11:04:29.717254+00:00 6200 lacpd[3439]: Event|1310|LOG_WARN|CDTR|1|Partner is out of sync for interface 1/1/23 LAG sport: 1. Actor state: ALFOX, partner state PSFO
+2026-10-11T11:04:29.735464+00:00 6200 lacpd[3439]: Event|1321|LOG_INFO|CDTR|1|LAG 1 State change for interface 1/1/23: Actor state: ALIO, Partner state PLIO
+2026-10-11T11:04:29.745469+00:00 6200 lacpd[3439]: Event|1321|LOG_INFO|CDTR|1|LAG 1 State change for interface 1/1/23: Actor state: ALFO, Partner state PLIO
+2026-10-11T11:04:29.752338+00:00 6200 lacpd[3439]: Event|1321|LOG_INFO|CDTR|1|LAG 1 State change for interface 1/1/23: Actor state: ALFO, Partner state PLFO
+2026-10-11T11:04:31.876395+00:00 6200 hpe-pvstd[4078]: Event|5007|LOG_INFO|CDTR|1|Topology change generated on port lag1 on VLAN 1.
+2026-10-11T11:04:31.901465+00:00 6200 hpe-pvstd[4078]: Event|5007|LOG_INFO|CDTR|1|Topology change generated on port lag1 on VLAN 100.
+2026-10-11T11:04:31.914109+00:00 6200 hpe-pvstd[4078]: Event|5007|LOG_INFO|CDTR|1|Topology change generated on port lag1 on VLAN 120.
+2026-10-11T11:04:33.675344+00:00 6200 hpe-pvstd[4078]: Event|5003|LOG_INFO|CDTR|1|RPVST - Root changed from 32768: b92287-60be57 to 32768: 759580-fc54de on VLAN 1.
+2026-10-11T11:04:33.678712+00:00 6200 hpe-pvstd[4078]: Event|5003|LOG_INFO|CDTR|1|RPVST - Root changed from 32768: b92287-60be57 to 32768: 865d89-882547 on VLAN 100.
+2026-10-11T11:04:33.678918+00:00 6200 hpe-pvstd[4078]: Event|5003|LOG_INFO|CDTR|1|RPVST - Root changed from 32768: b92287-60be57 to 32768: 759580-fc54de on VLAN 120.
+2026-10-11T11:04:33.816975+00:00 6200 hpe-pvstd[4078]: Event|5006|LOG_INFO|CDTR|1|Topology change received on port lag1 from source: f3:fa:87:15:5b:7f on VLAN 1.
+2026-10-11T11:04:33.817241+00:00 6200 hpe-pvstd[4078]: Event|5006|LOG_INFO|CDTR|1|Topology change received on port lag1 from source: f3:fa:87:15:5b:7f on VLAN 100.
+2026-10-11T11:04:33.817756+00:00 6200 hpe-pvstd[4078]: Event|5006|LOG_INFO|CDTR|1|Topology change received on port lag1 from source: f3:fa:87:15:5b:7f on VLAN 120.
+2026-10-11T11:04:37.791453+00:00 6200 crash-tools[4082]: Event|1206|LOG_INFO|||Module rebooted. Reason : Power on reset with 0x401, Version: ML.10.16.1020#012, Boot-ID : 56d52m47m3h74r77236fh4424626rh45
+2026-10-11T11:04:37.791633+00:00 6200 crash-tools[4082]: Event|1235|LOG_INFO|||Switch boot count is : 1
+2026-10-11T11:04:37.811568+00:00 6200 vsfd[4082]: Event|9923|LOG_INFO|UKWN|3|VSF link 2 is up
+2026-10-11T11:04:37.812302+00:00 6200 hpe-isp[4082]: Event|7210|LOG_NOTICE|||Non-failsafe update needed for MODULE 'mc' DEVICE 'uboot_capsule'.  Please run the allow-non-failsafe-updates command
+2026-10-11T11:04:37.812391+00:00 6200 hpe-sysmond[4082]: Event|6303|LOG_INFO|MMBR|3|Current system memory usage for module 3/1 is 8%
+2026-10-11T11:04:38.039191+00:00 6200 crash-tools[4082]: Event|1206|LOG_INFO|||Module rebooted. Reason : Power on reset with 0x401, Version: ML.10.16.1020#012, Boot-ID : 08k59944g5h52kq170g0008438k5h045
+2026-10-11T11:04:38.039336+00:00 6200 crash-tools[4082]: Event|1235|LOG_INFO|||Switch boot count is : 1
+2026-10-11T11:04:38.059173+00:00 6200 hpe-isp[4082]: Event|7210|LOG_NOTICE|||Non-failsafe update needed for MODULE 'mc' DEVICE 'uboot_capsule'.  Please run the allow-non-failsafe-updates command
+2026-10-11T11:04:38.059250+00:00 6200 hpe-sysmond[4082]: Event|6303|LOG_INFO|MMBR|4|Current system memory usage for module 4/1 is 8%
+2026-10-11T11:04:41.431682+00:00 6200 ntp-mgrd[3833]: Event|1105|LOG_INFO|||NTP server connection established to 10.255.0.1
+2026-10-11T11:04:41.431920+00:00 6200 ntp-mgrd[3833]: Event|1105|LOG_INFO|||NTP server connection established to 10.255.0.2
+2026-10-11T18:07:59.577546+07:00 UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7 ntp-mgrd[3833]: Event|1106|LOG_INFO|||NTP server connection lost to 10.255.0.1
+2026-10-11T18:09:06.326966+07:00 UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7 ntp-mgrd[3833]: Event|1105|LOG_INFO|||NTP server connection established to 10.255.0.1
+2026-10-12T06:00:03.512311+07:00 UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7 intfd[897]: Event|404|LOG_INFO|UKWN|1|Link status for interface 1/1/17 is down
+2026-10-12T06:00:15.130518+07:00 UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7 intfd[897]: Event|404|LOG_INFO|UKWN|1|Link status for interface 1/1/17 is down
+2026-10-12T06:00:20.718733+07:00 UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7 intfd[897]: Event|404|LOG_INFO|UKWN|1|Link status for interface 1/1/18 is down
+2026-10-12T20:18:41.798361+07:00 UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7 log-proxyd[909]: Event|5209|LOG_INFO|CDTR|1|User monitor.user logged in from 10.255.0.2 through SSH session.
+2026-10-12T20:19:03.065759+07:00 UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7 log-proxyd[909]: Event|5209|LOG_INFO|CDTR|1|User monitor.user logged in from 10.255.0.2 through SSH session.
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#

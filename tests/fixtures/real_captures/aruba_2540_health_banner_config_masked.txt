@@ -1,0 +1,105 @@
+QVO-PDDR-ROFUBO3-3263# show system
+ Status and Counters - General System Information
+
+  System Name        : QVO-PDDR-ROFUBO3-3263                           
+  System Contact     : MKS-DVZV.SVU-2116
+  System Location    : JJZ-YQNYADEI
+
+  MAC Age Time (sec) : 300    
+
+  Time Zone          : 0    
+  Daylight Time Rule : None                      
+
+  Software revision  : YC.16.06.0006        Base MAC Addr      : 65a837-f47291 
+   
+  ROM Version        : YC.16.01.0001        Serial Number      : VV24TXJ3CI  
+
+  Up Time            : 37 hours             Memory   - Total   : 361,771,520 
+  CPU Util (%)       : 20                              Free    : 261,044,972 
+
+  IP Mgmt  - Pkts Rx : 29,568               Packet   - Total   : 6600        
+             Pkts Tx : 30,125               Buffers    Free    : 4794        
+                                                       Lowest  : 4739        
+                                                       Missed  : 0           
+
+QVO-PDDR-ROFUBO3-3263# show flash
+Image             Size (bytes) Date     Version 
+----------------- ------------ -------- --------------
+Primary Image    :    20837454 06/22/18 YC.16.06.0006        
+Secondary Image  :    20837454 06/22/18 YC.16.06.0006       
+
+Boot ROM Version 
+----------------
+Primary Boot ROM Version   : YC.16.01.0001
+Secondary Boot ROM Version : YC.16.01.0001
+
+Default Boot Image   : Primary
+Default Boot ROM     : Primary
+
+QVO-PDDR-ROFUBO3-3263# show running-config
+Running configuration:
+
+; JL356A Configuration Editor; Created on release #YC.16.06.0006
+; Ver #13:44.38.04.99.03.b3.b8.ef.74.61.fc.68.f3.8c.fc.e3.ff.37.2f:13
+
+hostname "RBV-TYZE-UZWEPG7-7907"
+module 1 type jl356a
+banner motd
+ "#########################################################################\n# 
+                        EXAMPLE NETWORK                               # \n#    
+                      PROHIBITED ACCESS                            #  \n#      
+                Authorised Personnel Only                        # 
+ \n#########################################################################\n#
+                               WARNING !                               #  \n#
+ If you are not authorised to access this device please disconnect now.# \n#   
+                                                                    # \n#      
+ UNAUTHORIZED ACCESS TO THIS NETWORK DEVICE IS PROHIBITED        #\n# You must
+ have explicit permission to access or configure this device  # \n#        All
+ activities performed on this device may be logged,         # \n#   and
+ violations of this policy may result in disciplinary action,    # \n#         
+      and may be reported to law enforcement.                 # \n#            
+ There is no right to privacy on this device               #
+ \n#########################################################################\n"
+ntp server 10.255.0.1
+ip default-gateway 10.255.0.2
+interface 24
+   name "Uplink to EXA-SWCO-UPLINK-01"
+   exit
+interface 25
+   name "Uplink to EXA-SWCO-UPLINK-01"
+   exit
+snmp-server community <REDACTED> unrestricted
+snmp-server community <REDACTED>
+snmp-server community <REDACTED> unrestricted
+snmp-server community <REDACTED> unrestricted
+snmp-server host 10.255.0.3 community <REDACTED> trap-level all
+snmp-server host 10.255.0.4 community <REDACTED> trap-level all
+snmp-server contact "MKS-DVZV.SVU-2116" location "JJZ-YQNYADEI"
+aaa authentication local-user "kijang" group "Level-15"
+aaa authentication local-user "yaris" group "Level-10"
+aaa authentication local-user "recon" group "Level-15"
+vlan 1
+   name "DEFAULT_VLAN"
+   no untagged 1-12
+   untagged 13-28
+   ip address dhcp-bootp
+   ipv6 enable
+   ipv6 address dhcp full
+   exit
+vlan 213
+   name "Management"
+   untagged 1-3
+   tagged 24-25
+   ip address 10.255.0.5 255.255.255.0
+   exit
+vlan 214
+   name "Voip"
+   untagged 4-12
+   tagged 1-3,24-25
+   no ip address
+   exit
+no tftp server
+no autorun
+no dhcp config-file-update
+no dhcp image-file-update
+no dhcp tr69-acs-url

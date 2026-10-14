@@ -1,0 +1,141 @@
+JXK-FNBSGIN-RPY-8-MU-IYW2# show interface
+Interface 1/1/1 is up
+ Admin state is up
+ Link state: up for 3 hours (since Mon Oct 12 16:36:13 WIB 2026)
+ Link transitions: 49
+ Description: PORT_DESCRIPTION
+ Persona:
+ Hardware: Ethernet, MAC Address: eb:32:db:dc:4e:3c
+ MTU 1500
+ Type 1GbT
+ Full-duplex
+ qos trust none
+ Speed 10 Mb/s
+ Auto-negotiation is on
+ Energy-Efficient Ethernet is disabled
+ Flow-control: off
+ Error-control: off
+ MDI mode: MDI
+ VLAN Mode: access
+ Access VLAN: 217
+ Rate collection interval: 300 seconds
+
+ Rate                               RX                   TX        Total (RX+TX)
+ ---------------- -------------------- -------------------- --------------------
+ Mbits / sec                      0.00                 0.00                 0.00
+ KPkts / sec                      0.00                 0.00                 0.00
+   Unicast                        0.00                 0.00                 0.00
+   Multicast                      0.00                 0.00                 0.00
+   Broadcast                      0.00                 0.00                 0.00
+ Utilization %                    0.00                 0.00                 0.00
+
+ Statistic                          RX                   TX                Total
+ ---------------- -------------------- -------------------- --------------------
+ Packets                       1639350              8373801             10013151
+   Unicast                     1619406              2182810              3802216
+   Multicast                     19142              4633959              4653101
+   Broadcast                       802              1557032              1557834
+ Bytes                       294231822           3958304848           4252536670
+ Jumbos                              0                    0                    0
+ Dropped                             0            190426627            190426627
+ Pause Frames                        0                    0                    0
+ Errors                              0                    0                    0
+   CRC/FCS                           0                  n/a                    0
+   Collision                       n/a                    0                    0
+   Runts                             0                  n/a                    0
+   Giants                            0                  n/a                    0
+
+Interface 1/1/2 is up
+ Admin state is up
+ Link state: up for 3 hours (since Mon Oct 12 16:50:18 WIB 2026)
+ Link transitions: 247
+ Description: PORT_DESCRIPTION
+ Persona:
+ Hardware: Ethernet, MAC Address: 73:16:1a:bf:a9:17
+ MTU 1500
+ Type 1GbT
+ Full-duplex
+ qos trust none
+ Speed 10 Mb/s
+ Auto-negotiation is on
+ Energy-Efficient Ethernet is disabled
+ Flow-control: off
+ Error-control: off
+ MDI mode: MDI
+ VLAN Mode: access
+ Access VLAN: 900
+ Rate collection interval: 300 seconds
+
+ Rate                               RX                   TX        Total (RX+TX)
+ ---------------- -------------------- -------------------- --------------------
+ Mbits / sec                      0.00                 0.00                 0.00
+ KPkts / sec                      0.00                 0.00                 0.00
+   Unicast                        0.00                 0.00                 0.00
+   Multicast                      0.00                 0.00                 0.00
+   Broadcast                      0.00                 0.00                 0.00
+ Utilization %                    0.00                 0.00                 0.00
+
+ Statistic                          RX                   TX                Total
+ ---------------- -------------------- -------------------- --------------------
+ Packets                       2067914             16320994             18388908
+   Unicast                     2059293              6712565              8771858
+   Multicast                      5662              7054731              7060393
+   Broadcast                      2959              2553698              2556657
+ Bytes                       793062550          11021101084          11814163634
+ Jumbos                              0                    0                    0
+ Dropped                             0            459849173            459849173
+ Pause Frames                        0                    0                    0
+ Errors                              0                    0                    0
+   CRC/FCS                           0                  n/a                    0
+   Collision                       n/a                    0                    0
+   Runts                             0                  n/a                    0
+   Giants                            0                  n/a                    0
+
+Interface 2/1/11 is down
+ Admin state is up
+ State information: Waiting for link
+ Link state: down for 5 days (since Wed Oct 07 06:50:41 WIB 2026)
+ Link transitions: 8
+ Description: PORT_DESCRIPTION
+ Persona:
+ Hardware: Ethernet, MAC Address: bb:9f:00:9c:5e:f6
+ MTU 1500
+ Type 1GbT
+ Full-duplex
+ qos trust none
+ Speed 0 Mb/s
+ Auto-negotiation is on
+ Energy-Efficient Ethernet is disabled
+ Flow-control: off
+ Error-control: off
+ MDI mode: none
+ VLAN Mode: access
+ Access VLAN: 217
+ Rate collection interval: 300 seconds
+
+ Rate                               RX                   TX        Total (RX+TX)
+ ---------------- -------------------- -------------------- --------------------
+ Mbits / sec                      0.00                 0.00                 0.00
+ KPkts / sec                      0.00                 0.00                 0.00
+   Unicast                        0.00                 0.00                 0.00
+   Multicast                      0.00                 0.00                 0.00
+   Broadcast                      0.00                 0.00                 0.00
+ Utilization %                    0.00                 0.00                 0.00
+
+ Statistic                          RX                   TX                Total
+ ---------------- -------------------- -------------------- --------------------
+ Packets                             0                    0                    0
+   Unicast                           0                    0                    0
+   Multicast                         0                    0                    0
+   Broadcast                         0                    0                    0
+ Bytes                             737                    0                  737
+ Jumbos                              0                    0                    0
+ Dropped                             0                    0                    0
+ Pause Frames                        0                    8                    8
+ Errors                             70                    0                   70
+   CRC/FCS                           0                  n/a                    0
+   Collision                       n/a                    0                    0
+   Runts                            70                  n/a                   70
+   Giants                            0                  n/a                    0
+
+JXK-FNBSGIN-RPY-8-MU-IYW2#

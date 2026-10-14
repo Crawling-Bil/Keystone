@@ -1,0 +1,59 @@
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show clock
+
+Mon Oct 12 20:19:49 WIB 2026
+System is configured for timezone : Asia/Jakarta
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show version
+-----------------------------------------------------------------------------
+AOS-CX
+(c) Copyright 2017-2025 Hewlett Packard Enterprise Development LP
+-----------------------------------------------------------------------------
+Version      : ML.10.16.1020
+Build Date   : 2025-12-16 20:56:14 UTC
+Build ID     : AOS-CX:ML.10.16.1020:35060c169154:202512162045
+Build SHA    : 35060c1691541672955d13b3006613274c87d269
+Hot Patches  :
+Active Image : primary
+
+Service OS Version : ML.01.18.0001
+BIOS Version       : ML.01.0002
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show system inventory
+
+
+Type                 Location        Product          Description                                        Serial           Hardware
+                                     Number                                                              Number           Version
+-------------------- --------------- ---------------- -------------------------------------------------- ---------------- -----------
+Chassis              1               JL724B           6200F 24G 4SFP+ Switch                             CA89EH53F0       2   
+Chassis              2               JL724B           6200F 24G 4SFP+ Switch                             NA39PL64KB       2   
+Chassis              3               JL724B           6200F 24G 4SFP+ Switch                             AC40NQ5280       2   
+Chassis              4               JL724B           6200F 24G 4SFP+ Switch                             JE12HN50LN       2   
+Transceiver          1/1/25          J9281D           10G-DAC1 / 10G SFP+ 1m DAC                         DN78G7ELD7       8121-1797
+Transceiver          1/1/26          J9281D           10G-DAC1 / 10G SFP+ 1m DAC                         LF29N7NC2D       8121-1797
+Transceiver          2/1/25          J9281D           10G-DAC1 / 10G SFP+ 1m DAC                         LF29N7NC2D       8121-1797
+Transceiver          2/1/26          J9281D           10G-DAC1 / 10G SFP+ 1m DAC                         LR13Q2PD4R       8121-1797
+Transceiver          3/1/25          J9281D           10G-DAC1 / 10G SFP+ 1m DAC                         LR13Q2PD4R       8121-1797
+Transceiver          3/1/26          J9281D           10G-DAC1 / 10G SFP+ 1m DAC                         QQ24R3CL54       8121-1797
+Transceiver          4/1/25          J9281D           10G-DAC1 / 10G SFP+ 1m DAC                         QQ24R3CL54       8121-1797
+Transceiver          4/1/26          J9281D           10G-DAC1 / 10G SFP+ 1m DAC                         DN78G7ELD7       8121-1797
+
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show vsf
+
+Force Autojoin             : Disabled
+Autojoin Eligibility Status: Not Eligible
+MAC Address                : 3e:4c:05:75:14:28
+Secondary                  :
+Topology                   : Ring
+Status                     : No Split
+Split Detection Method     : None
+
+
+Mbr Mac Address         type           Status
+ID
+--- ------------------- -------------- ---------------
+1   3e:4c:05:75:14:28   JL724B         Conductor
+2   43:9c:44:46:49:2a   JL724B         Member
+3   73:92:2f:6f:bf:0a   JL724B         Member
+4   45:1b:6f:fc:67:25   JL724B         Member
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#

@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Config Analyzer · NES{% endblock %}
-{% block page_title %}Config Analyzer{% endblock %}
-{% block page_subtitle %}Analyze Cisco, Huawei, and Aruba switch configs, or Mikrotik and Palo Alto firewall configs — dashboards, inventory, and (for firewalls) best-practice/security findings at a glance.{% endblock %}
+{% block title %}Switch Analyzer · NES{% endblock %}
+{% block page_title %}Switch Analyzer{% endblock %}
+{% block page_subtitle %}Analyze Cisco, Huawei, and Aruba switch configs — inventory, VLANs, spanning tree, port-channels, PoE and neighbours at a glance. Routers and firewalls have their own analyzers.{% endblock %}
 {% block content %}
 
 <div class="tab-nav" id="switch-mode-tabs">
@@ -14,8 +14,8 @@
 <div class="tab-content active" id="switch-mode-single">
 
 <form id="switch-form" class="panel switch-action-form" enctype="multipart/form-data">
-    <div class="upload-section"><label class="field-label">Switch Config</label><label class="drop-zone horizontal"><input type="file" name="config_file" id="switch-config-file" accept=".txt,.cfg,.conf,.config,.log,.rsc,.xml"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select switch config</strong><small id="switch-file-label">Cisco, Huawei, or Aruba running-config</small></span></label><button class="clear-upload hidden" id="clear-switch-file" type="button">Cancel selected file</button>
-      <p class="field-hint">Works best with a full running-config export (e.g. <code>show running-config</code> / <code>display current-configuration</code>) plus, if you have them, <code>show ip interface brief</code>, <code>show cdp/lldp neighbors</code>, <code>show etherchannel summary</code> / <code>display eth-trunk</code>, <code>show version</code>, <code>show ip route</code>, and <code>show ip arp</code> — a raw terminal capture with all of these in one file works great.</p>
+    <div class="upload-section"><label class="field-label">Switch Config</label><label class="drop-zone horizontal"><input type="file" name="config_file" id="switch-config-file" accept=".txt,.cfg,.conf,.config,.log,.rsc,.xml" multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select switch config (one or several files)</strong><small id="switch-file-label">Cisco, Huawei, or Aruba capture — each file is one device</small></span></label><ul class="sw-files hidden" id="switch-file-list" aria-label="Files to analyze"></ul><button class="clear-upload hidden" id="clear-switch-file" type="button">Remove all files</button>
+      <p class="field-hint">Works best with a full running-config export (e.g. <code>show running-config</code> / <code>display current-configuration</code>) plus, if you have them, <code>show ip interface brief</code>, <code>show cdp/lldp neighbors</code>, <code>show etherchannel summary</code> / <code>display eth-trunk</code>, <code>show version</code>, <code>show ip route</code>, <code>show ip arp</code> / <code>display arp</code>, and <code>show mac address-table</code> / <code>display mac-address</code> — a raw terminal capture with all of these in one file works great. Add <code>show interfaces status</code> / <code>display interface brief</code> so shut-down ports show as <strong>admin down</strong> instead of unknown.</p>
     </div>
     <div class="action-stack">
         <label class="compact-select"><span>Vendor</span><select name="vendor" id="switch-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option><option>Mikrotik</option><option>Palo Alto</option></select></label>
@@ -25,50 +25,141 @@
 </form>
 <textarea id="switch-config-text" name="config_text" form="switch-form" class="hidden" aria-hidden="true"></textarea>
 
-<div id="switch-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Config Analyzer workspace is ready</h3><p>Upload or paste a switch (Cisco/Huawei/Aruba) or firewall (Mikrotik/Palo Alto) configuration. Switches get a full inventory dashboard; firewalls also get best-practice/security findings — any-any rules, zones without policy, overlapping NAT, weak IPsec crypto.</p></div>
+<div id="switch-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Switch Analyzer workspace is ready</h3><p>Upload or paste a switch (Cisco/Huawei/Aruba) configuration for a full inventory dashboard. Router captures go to the <a href="/router-analyzer">Router Analyzer</a> and firewall configurations (FortiGate, Palo Alto, MikroTik) to the <a href="/firewall-analyzer">Firewall Analyzer</a>, which have their own tables and documentation-linked findings.</p></div>
 
+<div id="switch-device-bar" class="sw-devices hidden" role="tablist" aria-label="Analyzed devices"></div>
 <div id="switch-result" class="hidden">
-    <div class="analysis-toolbar panel"><div><strong id="switch-source-name">Switch Analysis</strong><span id="switch-platform"></span></div><a id="switch-export-button" class="secondary-button" href="#">Export to Excel (.xlsx)</a></div>
+    <div id="switch-device-error" class="assessment-banner attention hidden" role="alert"><div><strong id="switch-device-error-title"></strong><span id="switch-device-error-detail"></span></div></div>
+    <div id="switch-result-body">
+    <div class="analysis-toolbar panel"><div><strong id="switch-source-name">Switch Analysis</strong><span id="switch-platform"></span></div><div class="sw-toolbar-actions"><a id="switch-export-button" class="secondary-button" href="#">Export to Excel (.xlsx)</a><a id="switch-export-all-button" class="secondary-button hidden" href="#">Export all devices (.xlsx)</a></div></div>
+    <div id="switch-detection-note" class="assessment-banner warning hidden" role="status"><div><strong id="switch-detection-title"></strong><span id="switch-detection-detail"></span></div></div>
+    <div id="switch-capture-notes" class="assessment-banner warning hidden" role="status"><div><strong>About this capture</strong><span id="switch-capture-notes-detail"></span></div></div>
     <div class="tab-shell panel">
         <div class="tab-nav" id="switch-tabs">
             <button type="button" class="active" data-tab="overview">Overview</button>
+            <button type="button" data-tab="findings">Findings</button>
+            <button type="button" data-tab="health">Health<span class="tab-count" id="switch-health-tab-count"></span></button>
             <button type="button" data-tab="interfaces">Interfaces</button>
             <button type="button" data-tab="routing">Routing</button>
+            <button type="button" data-tab="arp">ARP<span class="tab-count" id="switch-arp-tab-count"></span></button>
+            <button type="button" data-tab="mac">MAC Table<span class="tab-count" id="switch-mac-tab-count"></span></button>
             <button type="button" data-tab="vlans">VLANs</button>
             <button type="button" data-tab="neighbors">CDP/LLDP</button>
             <button type="button" data-tab="portchannels">Port-Channel</button>
+            <button type="button" data-tab="trunks">Trunks</button>
+            <button type="button" data-tab="stp">Spanning Tree</button>
             <button type="button" data-tab="transceivers">Transceivers</button>
             <button type="button" data-tab="vpcmlag">vPC/M-LAG</button>
             <button type="button" data-tab="poe">PoE</button>
             <button type="button" data-tab="dns">DNS</button>
             <button type="button" data-tab="snmp">SNMP</button>
             <button type="button" data-tab="dhcp">DHCP</button>
+            <button type="button" data-tab="logs">Logs</button>
+            <button type="button" data-tab="coverage">Coverage</button>
         </div>
+        <details id="switch-tabs-missing" class="sw-missing hidden"></details>
         <div class="tab-content active" id="switch-tab-overview">
+            <div id="switch-overview-findings" class="assessment-banner hidden" role="status"></div>
             <div class="overview-grid">
                 <article class="wide">
                     <div class="chart-card-heading"><h3>Switch Overview</h3><p>Click a bar to jump to its underlying data.</p></div>
                     <div class="chart-canvas-wrap" id="switch-dashboard-chart"></div>
                 </article>
                 <article><h3>Device Information</h3><div id="switch-information" class="kv-list"></div></article>
-                <article><h3>Serial Numbers</h3><div class="table-wrap"><table id="switch-serial-table"></table></div></article>
                 <article><h3>DNS</h3><div id="switch-dns-summary" class="kv-list"></div></article>
+                <article class="wide" id="switch-serial-card">
+                    <div class="chart-card-heading"><h3>Serial Numbers</h3><p>Hardware parts and every installed transceiver, with PID and serial.</p></div>
+                    <div class="table-tools"><input type="search" data-table-search="switch-serial-table" placeholder="Search part, PID or serial number..." aria-label="Search serial numbers"><span id="switch-serial-count-label" class="table-count" data-table-count="switch-serial-table"></span></div>
+                    <div class="filter-chips" data-chips-for="switch-serial-table" aria-label="Filter parts by kind"></div>
+                    <div class="table-wrap"><table id="switch-serial-table"></table></div>
+                    <p class="field-hint">PID is the orderable product id: the Cisco inventory PID, the Huawei P/N (Vendor Part Number for a transceiver) or the Aruba product number. An empty PID means the device did not report one, which is normal for a third-party SFP on Cisco IOS.</p>
+                </article>
             </div>
         </div>
+        <div class="tab-content" id="switch-tab-findings">
+            <div id="switch-findings-view"></div>
+        </div>
+        <div class="tab-content" id="switch-tab-health">
+            <div id="switch-health-unsupported" class="empty-state compact hidden"></div>
+            <p id="switch-health-summary" class="field-hint"></p>
+            <div id="switch-health-findings" class="l3-findings"></div>
+            <h3 class="subsection-title">LACP partners</h3>
+            <p class="field-hint" id="switch-health-lacp-hint">From <code>show lacp neighbor</code>. State <code>0x3d</code> = partner is bundled, collecting and distributing; an all-zero partner ID means no LACPDU ever arrived from the far end.</p>
+            <div id="switch-health-lacp-empty" class="empty-state compact hidden">Not in this capture. Add <code>show lacp neighbor</code>.</div>
+            <div class="table-wrap"><table id="switch-health-lacp-table"></table></div>
+            <h3 class="subsection-title">Spanning tree</h3>
+            <div id="switch-health-stp" class="kv-list"></div>
+            <h3 class="subsection-title">Environment</h3>
+            <div id="switch-health-env-empty" class="empty-state compact hidden">Not in this capture. Add <code>show env all</code>.</div>
+            <div class="table-wrap"><table id="switch-health-env-table"></table></div>
+            <h3 class="subsection-title" id="switch-health-software-title">Software and licence</h3>
+            <div id="switch-health-software" class="kv-list"></div>
+            <div class="table-wrap"><table id="switch-health-licence-table"></table></div>
+            <div id="switch-health-licence-section">
+                <h3 class="subsection-title">Licence status</h3>
+                <p class="field-hint" id="switch-health-licence-hint">From <code>show license all</code> and <code>show license usage</code>.</p>
+                <div id="switch-health-licence-status" class="kv-list"></div>
+                <div id="switch-health-entitlement-box" class="hidden"><h4 class="subsection-subtitle">Entitlements in use</h4><div class="table-wrap"><table id="switch-health-entitlement-table"></table></div></div>
+                <div id="switch-health-term-box" class="hidden"><h4 class="subsection-subtitle">Licence terms</h4><div class="table-wrap"><table id="switch-health-term-table"></table></div></div>
+                <div id="switch-health-rtu-box" class="hidden"><h4 class="subsection-subtitle">Right-to-use licences</h4><div class="table-wrap"><table id="switch-health-rtu-table"></table></div></div>
+            </div>
+            <h3 class="subsection-title" data-extra-before>Not in this capture</h3>
+            <div id="switch-health-missing" class="kv-list"></div>
+        </div>
         <div class="tab-content" id="switch-tab-interfaces">
-            <div class="table-tools"><input data-table-search="switch-interface-table" placeholder="Search interface name, VLAN, IP, status..."><span id="switch-interface-count-label"></span></div>
+            <div class="table-tools"><input type="search" data-table-search="switch-interface-table" placeholder="Search interface name, VLAN, IP, description, status..." aria-label="Search interfaces"><span id="switch-interface-count-label" class="table-count" data-table-count="switch-interface-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-interface-table" aria-label="Filter interfaces by state"></div>
+            <p class="field-hint" id="switch-interface-state-hint"><strong>up</strong> link is operational · <strong>down</strong> enabled but no link (or err-disabled) · <strong>admin down</strong> intentionally shut down (<code>shutdown</code> / <code>disable</code>) · <strong>unknown</strong> in the config only, no live state in this capture. Hover a state for the evidence behind it.</p>
+            <p class="field-hint hidden" data-columns-note="switch-interface-table"></p>
             <div class="table-wrap"><table id="switch-interface-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-routing">
+            <nav id="switch-routing-nav" class="sw-subnav" aria-label="Sections of the Routing tab"></nav>
+            <div id="switch-l3-findings" class="l3-findings hidden"></div>
+            <section class="sw-section" id="switch-sec-interfaces" data-section="interfaces">
+            <h3 class="subsection-title">Layer-3 Interfaces (gateways)</h3>
+            <p class="field-hint">Every interface with an IPv4 address, read from the running-config. The address on a VLAN interface (SVI) is the default gateway of the hosts in that VLAN. State comes from the live interface table when the capture has one.</p>
+            <div class="table-wrap"><table id="switch-l3-interface-table"></table></div>
+            </section>
+            <section class="sw-section" id="switch-sec-default" data-section="default">
+            <h3 class="subsection-title">Default Route</h3>
+            <div class="table-wrap"><table id="switch-l3-default-table"></table></div>
+            </section>
+            <section class="sw-section" id="switch-sec-static" data-section="static">
             <h3 class="subsection-title">Static Routes (from running-config)</h3>
             <div class="table-wrap"><table id="switch-route-table"></table></div>
+            </section>
+            <section class="sw-section" id="switch-sec-table" data-section="table">
             <h3 class="subsection-title">Routing Table (from show ip route / display ip routing-table)</h3>
+            <div id="switch-routing-table-summary" class="field-hint"></div>
+            <div class="table-tools"><input type="search" data-table-search="switch-routing-table-table" placeholder="Search prefix, next hop, interface, protocol..." aria-label="Search routing table"><span class="table-count" data-table-count="switch-routing-table-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-routing-table-table" aria-label="Filter routes by protocol"></div>
             <div class="table-wrap"><table id="switch-routing-table-table"></table></div>
-            <h3 class="subsection-title">ARP Table</h3>
-            <div class="table-tools"><input data-table-search="switch-arp-table" placeholder="Search IP, MAC, or interface..."></div>
-            <div class="table-wrap"><table id="switch-arp-table"></table></div>
+            </section>
+            <section class="sw-section" id="switch-sec-ospf" data-section="ospf">
+            <h3 class="subsection-title">OSPF</h3>
+            <p class="field-hint">An OSPF process only forms neighbours and advertises prefixes on interfaces it is enabled on: through a <code>network … area</code> statement whose range contains the interface address, or <code>ip ospf &lt;process&gt; area &lt;area&gt;</code> (Cisco) / <code>ospf enable &lt;process&gt; area &lt;area&gt;</code> (Huawei) on the interface. Neighbour state is not parsed: none of the supported capture scripts collect it.</p>
+            <div id="switch-l3-ospf-summary" class="kv-list"></div>
+            <h4 class="subsection-title">OSPF Processes</h4>
+            <div class="table-wrap"><table id="switch-l3-ospf-process-table"></table></div>
+            <h4 class="subsection-title">Interfaces Running OSPF</h4>
+            <div class="table-wrap"><table id="switch-l3-ospf-interface-table"></table></div>
+            </section>
+            <section class="sw-section" id="switch-sec-acl" data-section="acl">
+            <h3 class="subsection-title">Access Lists (ACL)</h3>
+            <p class="field-hint" id="switch-l3-acl-hint"></p>
+            <div class="table-wrap"><table id="switch-l3-acl-table"></table></div>
+            <h4 class="subsection-title">Where ACLs Are Applied</h4>
+            <div class="table-wrap"><table id="switch-l3-acl-binding-table"></table></div>
+            <details class="l3-rules"><summary>Rule text of every ACL</summary>
+                <div class="table-wrap"><table id="switch-l3-acl-rule-table"></table></div>
+            </details>
+            </section>
+            <section class="sw-section" id="switch-sec-protocols" data-section="protocols">
             <h3 class="subsection-title">Routing Protocols</h3>
             <div id="switch-routing-protocols" class="kv-list"></div>
+            </section>
+            <section class="sw-section" id="switch-sec-pbr" data-section="pbr">
             <h3 class="subsection-title">Policy-Based Routing / SLA-Track / NQA</h3>
             <div id="switch-pbr-empty" class="empty-state compact hidden">No PBR / IP SLA-Track / NQA configuration found on this device — it's routing purely from its static/dynamic routing table.</div>
             <div id="switch-pbr-eem-note" class="assessment-banner warning hidden"><div><strong>PBR applied dynamically via EEM applet — not visible in any interface's own config</strong><span>This device toggles <code>ip policy route-map</code> on/off at runtime from an Event Manager Applet reacting to an SNMP-OID link-state watch, instead of binding it statically under an interface. See the table below for which applet does what and when.</span></div></div>
@@ -82,9 +173,31 @@
             <div class="table-wrap"><table id="switch-pbr-binding-table"></table></div>
             <h4 class="subsection-title">EEM-Triggered Dynamic PBR (Cisco)</h4>
             <div class="table-wrap"><table id="switch-pbr-eem-table"></table></div>
+            </section>
+        </div>
+        <div class="tab-content" id="switch-tab-arp">
+            <div id="switch-arp-empty" class="empty-state compact hidden">No ARP data found — include <code>show ip arp</code> (Cisco / Aruba), <code>show ip arp vrf all</code> (Nexus) or <code>display arp</code> (Huawei) in the capture.</div>
+            <div id="switch-arp-check" class="assessment-banner warning hidden" role="status"><div><strong>ARP table is incomplete in this capture</strong><span id="switch-arp-check-detail"></span></div></div>
+            <p id="switch-arp-device" class="field-hint hidden"></p>
+            <div class="table-tools"><input type="search" data-table-search="switch-arp-table" placeholder="Search IP, MAC (any format), interface, VLAN..." aria-label="Search ARP table"><span class="table-count" data-table-count="switch-arp-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-arp-table" aria-label="Filter ARP entries by type"></div>
+            <p class="field-hint hidden" data-columns-note="switch-arp-table"></p>
+            <div class="table-wrap"><table id="switch-arp-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-mac">
+            <div id="switch-mac-empty" class="empty-state compact hidden">No MAC address table found — include <code>show mac address-table</code> (Cisco / Nexus), <code>show mac-address</code> (Aruba) or <code>display mac-address</code> (Huawei) in the capture.</div>
+            <div id="switch-mac-check" class="assessment-banner warning hidden" role="status"><div><strong>MAC address table is incomplete in this capture</strong><span id="switch-mac-check-detail"></span></div></div>
+            <p id="switch-mac-device" class="field-hint hidden"></p>
+            <details id="switch-mac-vlan-box" class="sw-missing hidden"><summary>MAC entries per VLAN (<code>show mac address-table count</code>)</summary><div class="table-wrap"><table id="switch-mac-vlan-table"></table></div></details>
+            <div class="table-tools"><input type="search" data-table-search="switch-mac-table" placeholder="Search MAC (any format), VLAN, port, type..." aria-label="Search MAC address table"><span class="table-count" data-table-count="switch-mac-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-mac-table" aria-label="Filter MAC entries by type"></div>
+            <p class="field-hint hidden" data-columns-note="switch-mac-table"></p>
+            <div class="table-wrap"><table id="switch-mac-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-vlans">
-            <div class="table-tools"><input data-table-search="switch-vlan-table" placeholder="Search VLAN ID or name..."></div>
+            <p id="switch-vlan-summary" class="field-hint hidden"></p>
+            <div class="table-tools"><input type="search" data-table-search="switch-vlan-table" placeholder="Search VLAN ID, name, state or port..." aria-label="Search VLANs"><span class="table-count" data-table-count="switch-vlan-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-vlan-table" aria-label="Filter VLANs by where they are defined"></div>
             <div class="table-wrap"><table id="switch-vlan-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-neighbors">
@@ -96,13 +209,32 @@
             <div id="switch-portchannel-empty" class="empty-state compact hidden">No port-channel / Eth-Trunk data found — include <code>show etherchannel summary</code> / <code>show port-channel summary</code> or <code>display eth-trunk</code> in the capture.</div>
             <div class="table-wrap"><table id="switch-portchannel-table"></table></div>
         </div>
+        <div class="tab-content" id="switch-tab-trunks">
+            <p id="switch-trunk-summary" class="field-hint"></p>
+            <div class="table-tools"><input type="search" data-table-search="switch-trunk-table" placeholder="Search port, VLAN or mode..." aria-label="Search trunks"><span class="table-count" data-table-count="switch-trunk-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-trunk-table" aria-label="Filter trunks by status"></div>
+            <div class="table-wrap"><table id="switch-trunk-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-stp">
+            <div id="switch-stp-note" class="empty-state compact hidden"></div>
+            <div id="switch-stp-summary" class="kv-list"></div>
+            <h3 class="subsection-title">Instances</h3>
+            <p class="field-hint">One row per VLAN (PVST / rapid-PVST) or MST instance: who is the root bridge, which port leads to it, and this switch's own priority.</p>
+            <div class="table-tools"><input type="search" data-table-search="switch-stp-instance-table" placeholder="Search VLAN, root address or port..." aria-label="Search spanning-tree instances"><span class="table-count" data-table-count="switch-stp-instance-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-stp-instance-table" aria-label="Filter instances by root bridge"></div>
+            <div class="table-wrap"><table id="switch-stp-instance-table"></table></div>
+            <h3 class="subsection-title">Ports</h3>
+            <div class="table-tools"><input type="search" data-table-search="switch-stp-port-table" placeholder="Search VLAN, interface, role or type..." aria-label="Search spanning-tree ports"><span class="table-count" data-table-count="switch-stp-port-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-stp-port-table" aria-label="Filter ports by state"></div>
+            <div class="table-wrap"><table id="switch-stp-port-table"></table></div>
+        </div>
         <div class="tab-content" id="switch-tab-transceivers">
             <div id="switch-transceiver-empty" class="empty-state compact hidden">No transceiver data found — include <code>show interface transceiver</code> / <code>display interface transceiver</code> / <code>show transceiver</code> in the capture.</div>
             <div class="table-tools"><input data-table-search="switch-transceiver-table" placeholder="Search interface, type, serial..."></div>
             <div class="table-wrap"><table id="switch-transceiver-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-vpcmlag">
-            <div id="switch-vpcmlag-empty" class="empty-state compact hidden">No vPC / M-LAG data found on this device — expected for switches that aren't part of a vPC pair (Nexus) or M-LAG pair (Huawei H-series). Include <code>show vpc brief</code> or <code>display m-lag summary</code> / <code>display m-lag brief</code> in the capture if this device should have it.</div>
+            <div id="switch-vpcmlag-empty" class="empty-state compact hidden">No vPC / M-LAG data found on this device — expected for switches that aren't part of a vPC pair (Nexus) or M-LAG pair (Huawei H-series). Include <code>show vpc brief</code> or <code>display dfs-group m-lag brief</code> in the capture if this device should have it.</div>
             <div id="switch-vpcmlag-note" class="assessment-banner warning hidden"><div><strong>Configuration only — no live vPC/M-LAG session</strong><span>This device has vPC configured (domain/peer-link/member VPCs) but never ran a live <code>show vpc brief</code>, so there's no active peer to confirm status or consistency against — expected for a draft/not-yet-deployed config. Members below show as "configured (not active)".</span></div></div>
             <h3 class="subsection-title">Summary</h3>
             <div id="switch-vpcmlag-summary" class="kv-list"></div>
@@ -113,7 +245,8 @@
             <div id="switch-poe-empty" class="empty-state compact hidden">No PoE data found — include <code>show power inline</code> / <code>display poe information</code> / <code>show power-over-ethernet</code> in the capture (not applicable on non-PoE switches such as Nexus, and only present when that exact command was run in the capture).</div>
             <div id="switch-poe-note" class="assessment-banner warning hidden"><div><strong>No live PoE table — power draw from CDP neighbor detail</strong><span>This capture never ran <code>show power inline</code> / <code>display poe information</code> / <code>show power-over-ethernet</code>, so these rows come from each connected device's own reported draw in <code>show cdp neighbors detail</code>'s "Power drawn" field instead. Only currently-powered neighbors get a row — a PoE-capable port with nothing plugged in won't appear, unlike a live table which lists every port either way.</span></div></div>
             <div id="switch-poe-config-note" class="assessment-banner warning hidden"><div><strong>No live PoE table — showing configured PoE-enabled ports only</strong><span>This capture never ran a live PoE show command (no PoE device has been plugged in yet), so these rows just list which ports carry <code>poe enable</code> in the configuration. Admin Status reflects the config; Oper Status, Power, Device and Class are unknown until the switch is live.</span></div></div>
-            <div class="table-tools"><input data-table-search="switch-poe-table" placeholder="Search interface, status..."></div>
+            <div class="table-tools"><input type="search" data-table-search="switch-poe-table" placeholder="Search interface, status, device..." aria-label="Search PoE ports"><span class="table-count" data-table-count="switch-poe-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-poe-table" aria-label="Filter PoE ports by state"></div>
             <div class="table-wrap"><table id="switch-poe-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-dns">
@@ -133,6 +266,13 @@
             <h3 class="subsection-title">DHCP Snooping — Interface Trust &amp; Rate Limit</h3>
             <div class="table-wrap"><table id="switch-dhcp-snooping-table"></table></div>
         </div>
+        <div class="tab-content" id="switch-tab-logs">
+            <div id="switch-logs-view"></div>
+        </div>
+        <div class="tab-content" id="switch-tab-coverage">
+            <div id="switch-coverage-view"></div>
+        </div>
+    </div>
     </div>
 </div>
 
@@ -269,10 +409,69 @@
 
 <div id="switch-compare-result" class="hidden">
     <div class="analysis-toolbar panel"><div><strong id="switch-compare-title">Comparison Result</strong></div><a id="switch-compare-export-button" class="secondary-button" href="#">Export Comparison (.xlsx)</a></div>
+    <div id="switch-compare-detection-note" class="assessment-banner warning hidden" role="status"><div><strong id="switch-compare-detection-title"></strong><span id="switch-compare-detection-detail"></span></div></div>
 
     <div class="panel"><h3 class="subsection-title">Device Info Side-by-Side</h3><div class="table-wrap"><table id="switch-compare-devices-table"></table></div></div>
-    <div class="panel"><h3 class="subsection-title">VLANs</h3><div class="table-wrap"><table id="switch-compare-vlans-table"></table></div></div>
-    <div class="panel"><h3 class="subsection-title">Routes (destination)</h3><div class="table-wrap"><table id="switch-compare-routes-table"></table></div></div>
+    <div class="panel">
+        <h3 class="subsection-title">VLANs</h3>
+        <div class="table-tools"><input type="search" data-table-search="switch-compare-vlans-table" placeholder="Search VLAN ID..." aria-label="Search VLANs"><span class="table-count" data-table-count="switch-compare-vlans-table"></span></div>
+        <div class="filter-chips" data-chips-for="switch-compare-vlans-table" aria-label="Filter VLANs by both, only A or only B"></div>
+        <div class="table-wrap"><table id="switch-compare-vlans-table"></table></div>
+    </div>
+    <div class="panel">
+        <h3 class="subsection-title">Routes (destination)</h3>
+        <div class="table-tools"><input type="search" data-table-search="switch-compare-routes-table" placeholder="Search route destination..." aria-label="Search routes"><span class="table-count" data-table-count="switch-compare-routes-table"></span></div>
+        <div class="filter-chips" data-chips-for="switch-compare-routes-table" aria-label="Filter routes by both, only A or only B"></div>
+        <div class="table-wrap"><table id="switch-compare-routes-table"></table></div>
+    </div>
+    <div class="panel" id="switch-compare-l3-panel">
+        <h3 class="subsection-title">Layer 3 — Gateways, Routing, OSPF, ACLs</h3>
+        <p class="field-hint">Read from each running-config. VLAN, loopback and port-channel interfaces are matched by number (<code>Vlan53</code> = <code>Vlanif53</code>, <code>Port-channel1</code> = <code>Eth-Trunk1</code>); an address that moved to an interface with another name is shown as <strong>Moved</strong>. Static routes are matched on destination and compared on next hop.</p>
+        <div id="switch-compare-l3-findings" class="l3-findings"></div>
+        <h4>Layer-3 Interfaces (gateways)</h4>
+        <div class="table-tools"><input type="search" data-table-search="switch-compare-l3-interfaces" placeholder="Search interface, address, FHRP/VRRP VIP..." aria-label="Search Layer-3 interfaces"><span class="table-count" data-table-count="switch-compare-l3-interfaces"></span></div>
+        <div class="filter-chips" data-chips-for="switch-compare-l3-interfaces" aria-label="Filter interfaces by result"></div>
+        <div class="table-wrap"><table id="switch-compare-l3-interfaces" class="nowrap-table"></table></div>
+        <h4>Default Route</h4>
+        <div class="table-wrap"><table id="switch-compare-l3-default"></table></div>
+        <h4>Static Routes</h4>
+        <div class="table-tools"><input type="search" data-table-search="switch-compare-l3-static" placeholder="Search destination, next hop..." aria-label="Search static routes"><span class="table-count" data-table-count="switch-compare-l3-static"></span></div>
+        <div class="filter-chips" data-chips-for="switch-compare-l3-static" aria-label="Filter static routes by result"></div>
+        <div class="table-wrap"><table id="switch-compare-l3-static" class="nowrap-table"></table></div>
+        <h4>OSPF</h4>
+        <div class="table-wrap"><table id="switch-compare-l3-ospf"></table></div>
+        <h4>Access Lists (ACL)</h4>
+        <p class="field-hint">ACLs are matched by name. Rule text is not compared across vendors (Cisco wildcard masks and Huawei <code>rule</code> lines are different syntaxes); compare the rule counts and where each list is applied, then read the rules in the Excel export.</p>
+        <div class="table-wrap"><table id="switch-compare-l3-acls" class="nowrap-table"></table></div>
+        <h4>DHCP Snooping</h4>
+        <div class="table-wrap"><table id="switch-compare-l3-snooping"></table></div>
+    </div>
+    <div class="panel hidden" id="switch-compare-fhrp-panel">
+        <h3 class="subsection-title">First-hop redundancy (HSRP) pair check</h3>
+        <p class="field-hint" id="switch-compare-fhrp-hint"></p>
+        <div class="table-tools"><input type="search" data-table-search="switch-compare-fhrp-table" placeholder="Search interface, group, virtual IP..." aria-label="Search HSRP pair check"><span class="table-count" data-table-count="switch-compare-fhrp-table"></span></div>
+        <div class="filter-chips" data-chips-for="switch-compare-fhrp-table" aria-label="Filter HSRP groups by verdict"></div>
+        <div class="table-wrap"><table id="switch-compare-fhrp-table" class="nowrap-table"></table></div>
+    </div>
+    <div class="panel hidden" id="switch-compare-ospf-panel">
+        <h3 class="subsection-title">OSPF link-state database pair check</h3>
+        <p class="field-hint" id="switch-compare-ospf-hint"></p>
+        <div class="table-tools"><input type="search" data-table-search="switch-compare-ospf-table" placeholder="Search process, area, LSA type..." aria-label="Search OSPF pair check"><span class="table-count" data-table-count="switch-compare-ospf-table"></span></div>
+        <div class="filter-chips" data-chips-for="switch-compare-ospf-table" aria-label="Filter LSA groups by verdict"></div>
+        <div class="table-wrap"><table id="switch-compare-ospf-table" class="nowrap-table"></table></div>
+    </div>
+    <div class="panel hidden" id="switch-compare-stp-panel">
+        <h3 class="subsection-title">Spanning-tree pair check</h3>
+        <p class="field-hint" id="switch-compare-stp-hint"></p>
+        <div id="switch-compare-stp-findings" class="l3-findings"></div>
+        <div class="table-wrap"><table id="switch-compare-stp-table" class="nowrap-table"></table></div>
+    </div>
+    <div class="panel hidden" id="switch-compare-vpcmlag-panel">
+        <h3 class="subsection-title">vPC / M-LAG pair check</h3>
+        <p class="field-hint" id="switch-compare-vpcmlag-hint"></p>
+        <div class="table-wrap"><table id="switch-compare-vpcmlag-domain-table" class="nowrap-table"></table></div>
+        <div class="table-wrap"><table id="switch-compare-vpcmlag-members-table" class="nowrap-table"></table></div>
+    </div>
     <div class="panel">
         <h3 class="subsection-title">Policy-Based Routing / SLA-Track / NQA</h3>
         <p class="field-hint">Shown side by side rather than diffed — Cisco's route-map/IP SLA and Huawei's traffic-policy/NQA are different vendor mechanisms with no shared naming to compare 1:1, so review each side and confirm the same custom routing intent carried across.</p>
@@ -289,8 +488,45 @@
         <div class="editor-grid"><div class="table-wrap"><table id="switch-compare-pbr-eem-a"></table></div><div class="table-wrap"><table id="switch-compare-pbr-eem-b"></table></div></div>
     </div>
     <div class="panel"><h3 class="subsection-title">DNS Servers</h3><div class="table-wrap"><table id="switch-compare-dns-table"></table></div></div>
+    <div class="panel"><h3 class="subsection-title">NTP Servers</h3><div class="table-wrap"><table id="switch-compare-ntp-table"></table></div></div>
+    <div class="panel"><h3 class="subsection-title">Syslog Servers</h3><div class="table-wrap"><table id="switch-compare-syslog-table"></table></div></div>
+    <div class="panel"><h3 class="subsection-title">TACACS+ Servers</h3><div class="table-wrap"><table id="switch-compare-tacacs-table"></table></div></div>
+    <div class="panel"><h3 class="subsection-title">RADIUS Servers</h3><div class="table-wrap"><table id="switch-compare-radius-table"></table></div></div>
+    <div class="panel"><h3 class="subsection-title">SNMP Trap / Informs Hosts</h3><div class="table-wrap"><table id="switch-compare-snmp-table"></table></div></div>
+    <div class="panel"><h3 class="subsection-title">CDP/LLDP Neighbor Identity</h3><p class="field-hint">Same neighbour hostname seen on both devices is the cheapest cabling confirmation there is for a physical swap; one that only shows up on one side is a link not yet re-terminated (or simply a device that was never meant to be cabled the same way).</p><div class="table-wrap"><table id="switch-compare-neighbor-identity-table"></table></div></div>
 
-    <div class="panel"><h4>Interfaces</h4><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-interfaces-a"></table></div><div class="table-wrap"><table id="switch-compare-interfaces-b"></table></div></div></div>
+    <div class="panel">
+        <h4>Interfaces</h4>
+        <p class="field-hint"><strong>admin down</strong> = intentionally shut down (<code>shutdown</code> / <code>disable</code>); <strong>down</strong> = enabled but no link. Port names differ between vendors, so compare the counts and the admin-down lists rather than expecting 1:1 names. <strong>Compact</strong> keeps the columns a migration check needs so both devices fit on screen; <strong>All columns</strong> adds Protocol, HSRP/VRRP IP and Port Security (each table then scrolls sideways on its own).</p>
+        <div class="table-tools"><input type="search" data-table-search="switch-compare-interfaces-a switch-compare-interfaces-b" placeholder="Filter both devices: name, VLAN, IP, description, state..." aria-label="Filter interfaces on both devices"><div class="segmented" role="group" aria-label="Interface columns"><button type="button" class="active" data-compare-columns="compact" aria-pressed="true">Compact</button><button type="button" data-compare-columns="all" aria-pressed="false">All columns</button></div></div>
+        <div class="filter-chips" data-chips-for="switch-compare-interfaces-a switch-compare-interfaces-b" aria-label="Filter interfaces by state"></div>
+        <div class="editor-grid">
+            <div><div class="table-caption"><strong data-compare-title="a">Device A</strong><span class="table-count" data-table-count="switch-compare-interfaces-a"></span></div><div class="table-wrap"><table id="switch-compare-interfaces-a"></table></div></div>
+            <div><div class="table-caption"><strong data-compare-title="b">Device B</strong><span class="table-count" data-table-count="switch-compare-interfaces-b"></span></div><div class="table-wrap"><table id="switch-compare-interfaces-b"></table></div></div>
+        </div>
+    </div>
+    <div class="panel">
+        <h4>ARP Table</h4>
+        <p class="field-hint">Hosts are matched on IP + MAC, so a host that moved to another port or VLAN interface during the migration still counts as present on both devices. <strong>Only here</strong> rows are the hosts to chase.</p>
+        <div id="switch-compare-arp-empty" class="empty-state compact hidden">Neither capture contains an ARP table.</div>
+        <div class="table-tools"><input type="search" data-table-search="switch-compare-arp-a switch-compare-arp-b" placeholder="Search both devices: IP, MAC (any format), interface..." aria-label="Search ARP tables on both devices"></div>
+        <div class="filter-chips" data-chips-for="switch-compare-arp-a switch-compare-arp-b" aria-label="Filter ARP entries"></div>
+        <div class="editor-grid">
+            <div><div class="table-caption"><strong data-compare-title="a">Device A</strong><span class="table-count" data-table-count="switch-compare-arp-a"></span></div><div class="table-wrap"><table id="switch-compare-arp-a" class="nowrap-table"></table></div></div>
+            <div><div class="table-caption"><strong data-compare-title="b">Device B</strong><span class="table-count" data-table-count="switch-compare-arp-b"></span></div><div class="table-wrap"><table id="switch-compare-arp-b" class="nowrap-table"></table></div></div>
+        </div>
+    </div>
+    <div class="panel">
+        <h4>MAC Address Table</h4>
+        <p class="field-hint">MAC addresses are normalised before matching (<code>0011.2233.4455</code>, <code>0011-2233-4455</code> and <code>001122-334455</code> are the same address). <strong>system</strong> rows are the switch's own CPU / supervisor entries; they exist on every box and are not matched.</p>
+        <div id="switch-compare-mac-empty" class="empty-state compact hidden">Neither capture contains a MAC address table.</div>
+        <div class="table-tools"><input type="search" data-table-search="switch-compare-mac-a switch-compare-mac-b" placeholder="Search both devices: MAC (any format), VLAN, port..." aria-label="Search MAC tables on both devices"></div>
+        <div class="filter-chips" data-chips-for="switch-compare-mac-a switch-compare-mac-b" aria-label="Filter MAC entries"></div>
+        <div class="editor-grid">
+            <div><div class="table-caption"><strong data-compare-title="a">Device A</strong><span class="table-count" data-table-count="switch-compare-mac-a"></span></div><div class="table-wrap"><table id="switch-compare-mac-a" class="nowrap-table"></table></div></div>
+            <div><div class="table-caption"><strong data-compare-title="b">Device B</strong><span class="table-count" data-table-count="switch-compare-mac-b"></span></div><div class="table-wrap"><table id="switch-compare-mac-b" class="nowrap-table"></table></div></div>
+        </div>
+    </div>
     <div class="panel"><h4>Port-Channel / Eth-Trunk</h4><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-portchannels-a"></table></div><div class="table-wrap"><table id="switch-compare-portchannels-b"></table></div></div></div>
     <div class="panel"><h4>Transceivers</h4><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-transceivers-a"></table></div><div class="table-wrap"><table id="switch-compare-transceivers-b"></table></div></div></div>
     <div class="panel"><h4>vPC / M-LAG</h4><p id="switch-compare-vpcmlag-note" class="field-hint hidden"></p><div class="editor-grid"><div class="table-wrap"><table id="switch-compare-vpcmlag-a"></table></div><div class="table-wrap"><table id="switch-compare-vpcmlag-b"></table></div></div></div>
@@ -356,13 +592,21 @@
 
 <div class="panel collect-scripts-panel">
     <h3 class="subsection-title">Need to collect a backup config?</h3>
-    <p class="field-hint">Download the standard show/display-command checklist for your platform, run it on the device, save the full terminal output as one .txt file, then upload that on Single Device / Compare Devices / Sizing Assessment.</p>
+    <p class="field-hint">Download the standard show/display-command checklist for your platform, run it on the device (or press Copy commands and paste it into the session), save the full terminal output as one .txt file, then upload that on Single Device / Compare Devices / Sizing Assessment.</p>
     <div class="collect-scripts-grid">
-        <article><h4>Cisco Catalyst</h4><p>show run, interfaces, CDP/LLDP, EtherChannel, PoE, and more.</p><a class="secondary-button" href="/static/collect-scripts/collect-cisco-catalyst.txt" download>Download .txt</a></article>
-        <article><h4>Cisco Nexus</h4><p>Adds vPC, standby (HSRP), and port-channel compatibility checks.</p><a class="secondary-button" href="/static/collect-scripts/collect-cisco-nexus.txt" download>Download .txt</a></article>
-        <article><h4>Aruba Switch (ArubaOS-Switch)</h4><p>show running-config, system inventory, LLDP/CDP detail, PoE.</p><a class="secondary-button" href="/static/collect-scripts/collect-aruba-switch.txt" download>Download .txt</a></article>
-        <article><h4>Huawei S/L/E-series</h4><p>display current-configuration, Eth-Trunk, LLDP, PoE, stack.</p><a class="secondary-button" href="/static/collect-scripts/collect-huawei-s-l-e-series.txt" download>Download .txt</a></article>
-        <article><h4>Huawei H-series</h4><p>Same as S/L/E plus VRRP and M-LAG/DFS-group commands.</p><a class="secondary-button" href="/static/collect-scripts/collect-huawei-h-series.txt" download>Download .txt</a></article>
+        {% for item in collect_lists %}
+        <article>
+            <h4>{{ item.title }}</h4>
+            <p>{{ item.blurb }}</p>
+            <small class="collect-meta">{{ item.commands }} commands &middot; {{ item.size_label }}</small>
+            <div class="collect-actions">
+                <a class="secondary-button" href="{{ item.url }}" download="{{ item.file }}">Download .txt</a>
+                <button type="button" class="secondary-button" data-copy-collect="{{ item.url }}" data-copy-count="{{ item.commands }}" title="Copy the commands only (comments and blank lines removed) to paste into the device session">Copy commands</button>
+            </div>
+        </article>
+        {% else %}
+        <p class="field-hint">No collect list was found in static/collect-scripts.</p>
+        {% endfor %}
     </div>
 </div>
 

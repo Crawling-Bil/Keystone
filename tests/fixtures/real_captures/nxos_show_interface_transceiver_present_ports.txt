@@ -1,0 +1,72 @@
+YCW-HAUG-AO-B3516-BYT# sh interface tr
+YCW-HAUG-AO-B3516-BYT# sh interface transceiver 
+ 
+sh interface transceiver
+ Ethernet1/47
+    transceiver is not applicable
+
+ Ethernet1/48
+    transceiver is not applicable
+
+ Ethernet1/49
+    transceiver is present
+    type is QSFP-40G-SR4
+    name is CISCO-FINISAR
+    part number is FTL410QE4C-C1
+    revision is A 
+    serial number is FIW2619045C
+    nominal bitrate is 10300 MBit/sec per channel
+    Link length supported for 50/125um OM2 fiber is 30 m
+    Link length supported for 50/125um OM3 fiber is 100 m
+    cisco id is 13
+    cisco extended id number is 16
+    cisco part number is 10-2672-03
+    cisco product id is QSFP-40G-SR4
+    cisco version id is V03
+
+ Ethernet1/50
+    transceiver is not present
+
+ Ethernet1/51
+    transceiver is not present
+
+ Ethernet1/52
+    transceiver is present
+    type is 10Gbase-SR
+    name is CISCO-ACCELINK
+    part number is RTXM228-551-C98
+    revision is 1.0
+    serial number is ACW281112VD
+    nominal bitrate is 10300 MBit/sec
+    Link length supported for 50/125um OM2 fiber is 82 m
+    Link length supported for 62.5/125um fiber is 26 m
+    Link length supported for 50/125um OM3 fiber is 300 m
+    cisco id is 3
+    cisco extended id number is 4
+    cisco part number is 10-2415-03
+    cisco product id is SFP-10G-SR
+    cisco version id is V03
+
+ Ethernet1/53
+    transceiver is present
+    type is 10Gbase-SR
+    name is CISCO-ACCELINK
+    part number is RTXM228-551-C98
+    revision is 1.0
+    serial number is ACW281112W3
+    nominal bitrate is 10300 MBit/sec
+    Link length supported for 50/125um OM2 fiber is 82 m
+    Link length supported for 62.5/125um fiber is 26 m
+    Link length supported for 50/125um OM3 fiber is 300 m
+    cisco id is 3
+    cisco extended id number is 4
+    cisco part number is 10-2415-03
+    cisco product id is SFP-10G-SR
+    cisco version id is V03
+
+ Ethernet1/54
+    transceiver is not present
+
+ 
+YCW-HAUG-AO-B3516-BYT# 
+YCW-HAUG-AO-B3516-BYT# sh int description 

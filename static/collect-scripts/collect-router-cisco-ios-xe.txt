@@ -1,0 +1,112 @@
+!!! Keystone collect list - Cisco IOS-XE routers (ASR1000, ISR4000, Catalyst 8200/8300/8500) and classic IOS
+! Log in with a read-only account that can run 'show running-config' (privilege 15 or a CLI view), paste the commands, save the WHOLE terminal buffer (MobaXterm / PuTTY / SecureCRT session log) and upload it to the Router Analyzer.
+! Every command below only reads. 'terminal length 0' changes the paging of YOUR session only. A command the router does not know ('% Invalid input') is harmless: the analyzer lists it as failed and goes on.
+! Commands under 'Health, IOS-XE only' exist on IOS-XE only; they fail on classic IOS (for example Cisco 3825).
+! Routers in Catalyst SD-WAN controller mode (cEdge) have their own list: collect-router-cisco-sdwan.txt. 'show sdwan ...' commands do not exist on a traditional router, so they are not in this list.
+! Section 1 holds commands whose output was seen in real captures while this analyzer was written (C8200L, C8300, ISR4331, ISR4431, ASR1002-X, Catalyst 9300 in routing mode and Cisco 3825). Where a command was only seen inside a 'show tech-support' capture, the comment says so.
+! Section 2 holds commands the analyzer also reads but that no real capture has answered with a populated table yet (the router either answered with headers only or the command was not run). They use Cisco's documented syntax and output, so treat the first run as a test.
+! The Health tab needs: show version, show process cpu sorted / history, show process memory sorted, show platform resources, the QFP utilization, show environment all, show file systems, show license summary and show logging. All of them are below.
+
+!!! 1. Commands seen in real captures
+
+terminal length 0
+
+show clock
+show version
+show running-config
+show inventory
+
+! Interfaces and neighbours
+show ip interface brief
+show interfaces description
+show interfaces
+show interfaces summary
+show etherchannel summary
+show cdp neighbors
+show cdp neighbors detail
+
+! Routing and ARP (add 'show ip route vrf <name>' for every VRF)
+show ip route
+show ip route summary
+show ipv6 route summary
+show ip arp
+show ip arp summary
+show route-map
+show access-lists
+
+! Routing protocols that are running now, OSPF adjacencies and OSPF interfaces (seen on an ASR1002-X running OSPF and BGP; 'show ip protocols' prints one line on a router that runs none)
+show ip protocols
+show ip ospf neighbor
+show ip ospf interface brief
+
+! BGP ('show ip bgp summary' was seen inside a show tech-support capture only)
+show ip bgp
+show ip bgp summary
+show ip bgp neighbors
+
+! IPsec / GETVPN (the config shows what is configured; these show what is up)
+show crypto session
+show crypto ipsec sa
+! GETVPN only (group member)
+show crypto gdoi
+show crypto gdoi gm
+
+! NAT: translation count and limit, pool use, hits/misses and the drop counters (seen inside a show tech-support capture only)
+! Skip 'show ip nat translations' on a busy router: one capture holds 57,000+ translations and the analyzer does not need them.
+show ip nat statistics
+
+! QoS and flow
+show policy-map interface
+show ip cache flow
+
+! Health: CPU, memory, flash, power, fans, redundancy
+show process cpu sorted
+show process cpu history
+show process memory sorted
+show memory statistics
+show environment all
+show platform
+show redundancy states
+show redundancy history
+show stacks
+show file systems
+show bootflash:
+
+! Health, IOS-XE only (also asked for by Cisco TAC for high-CPU and forwarding-plane cases; seen inside a show tech-support capture only)
+show platform resources
+show platform software status control-processor brief
+show platform hardware qfp active datapath utilization
+show platform hardware qfp active statistics drop
+show platform hardware qfp active infrastructure exmem statistics
+
+! Licensing (Smart Licensing Using Policy, throughput and HSEC licences; 'show license status' and 'show license all' were also seen on an ASR1002-X with classic right-to-use licensing and on a Catalyst 9300)
+show license summary
+show license usage
+show license status
+show license all
+
+! Time source (seen on an ASR1002-X and a Catalyst 9300 in IOS-XE routing mode)
+show ntp status
+
+! Who is logged in, and the log (the log holds flaps, config changes, logins and IPsec events)
+show users
+show logging
+
+!!! 2. Commands read by the analyzer but not yet seen with a populated answer in a real capture (documented syntax; real routers answered some with headers only or nothing)
+
+show ip eigrp neighbors
+show standby brief
+show vrrp brief
+show crypto isakmp sa
+show crypto ikev2 sa
+
+!!! 3. v4 - NEW, documented syntax, no real capture has answered them yet (the Catalyst and Nexus rounds showed what a router capture misses)
+show track
+show ip sla statistics
+show ntp associations
+show ip ssh
+show clock detail
+!!! Optional
+
+! Large (minutes, 40,000+ lines). The analyzer cuts it into its show commands, so it can replace sections 1-2 when you cannot paste a list:
+! show tech-support

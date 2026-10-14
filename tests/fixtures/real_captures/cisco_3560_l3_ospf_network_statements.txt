@@ -1,0 +1,38 @@
+hostname BPKB-SNBDPA-EX-8460
+!
+ip routing
+!
+ip dhcp snooping vlan 12
+!
+ip dhcp snooping information option allow-untrusted
+!
+ip dhcp snooping
+!
+interface GigabitEthernet0/1
+ description To Router TKPT-NSF-M5200
+ no switchport
+ ip address 10.255.1.2 255.255.255.252
+!
+interface Vlan1
+ no ip address
+!
+interface Vlan700
+ ip address 10.255.1.33 255.255.255.224
+!
+interface Vlan701
+ ip address 10.255.3.1 255.255.255.0
+!
+router ospf 100
+ router-id 10.255.1.2
+ passive-interface default
+ no passive-interface GigabitEthernet0/1
+ network 10.255.1.0 0.0.0.3 area 0.0.0.40
+ network 10.255.3.0 0.0.0.255 area 0.0.0.40
+!
+ip route 0.0.0.0 0.0.0.0 10.255.1.1
+!
+line vty 0 4
+ login authentication VTY
+!
+line vty 5 15
+!

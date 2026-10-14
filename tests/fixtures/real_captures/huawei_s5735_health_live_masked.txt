@@ -1,0 +1,168 @@
+<AUB-JHBG-I-A8335>display version
+Huawei YunShan OS
+Version 1.25.0.1 (S5700 V600R025C00SPC500)
+Copyright (C) 2021-2025 Huawei Technologies Co., Ltd.
+HUAWEI CloudEngine S5735-S-V2 uptime is 3 days, 23 hours, 30 minutes
+Patch Version: V600R025SPH120
+
+S5735-S24P4XE-V2(Master) 1 : uptime is  3 days, 23 hours, 28 minutes
+        StartupTime 2026/06/28   07:34:46
+Memory      Size    : 2048 M bytes
+Flash       Size    : 1024 M bytes
+S5735-S24P4XE-V2 version information:
+1.PCB       Version : ES5D2V30S040 VER A
+2.MAB       Version : 2
+3.Board     Type    : S5735-S24P4XE-V2
+4.BIOS      Version : 1696
+5.CPLD      Version : 262
+<AUB-JHBG-I-A8335>
+<AUB-JHBG-I-A8335>display device
+CloudEngine S5735-S-V2's Device status:
+--------------------------------------------------------------------------------
+Slot  Card   Type                           Online   Power Register     Alarm     Primary
+--------------------------------------------------------------------------------
+1     -      S5735-S24P4XE-V2               Present  On    Registered   Normal    Master
+      FAN1   FAN                            Present  On    Registered   Normal    NA
+      FAN2   FAN                            Present  On    Registered   Normal    NA
+      PWR1   PAC600S56-EB                   Present  On    Registered   Normal    NA
+      PWR2   PAC600S56-EB                   Present  On    Registered   Normal    NA
+--------------------------------------------------------------------------------
+<AUB-JHBG-I-A8335>
+<AUB-JHBG-I-A8335>display eth-trunk
+Eth-Trunk1's state information is:
+(h): high priority
+(r): reference port
+Local:
+LAG ID: 1                       Working Mode: Static
+Preempt Delay: Disabled         Hash Arithmetic: profile default
+System Priority: 32768          System ID: f739-fcf9-3b6f
+Least Active-linknumber: 1      Max Active-linknumber: 8
+Operating Status: up            Number Of Up Ports In Trunk: 1
+Timeout Period: Slow
+PortKeyMode: Auto
+------------------------------------------------------------------------------------
+ActorPortName              Status   PortType PortPri PortNo PortKey PortState Weight
+10GE1/0/2                  Unselect 1GE      32768   1      305     10100010  1
+10GE1/0/3(r)               Selected 1GE      32768   2      305     10111100  1
+
+Partner:
+------------------------------------------------------------------------------------
+ActorPortName              SysPri   SystemID        PortPri PortNo PortKey PortState
+10GE1/0/2                  0        0000-0000-0000  0       0      0       10100011
+10GE1/0/3                  32768    972d-b0a8-e02d  32768   285    6       10111100
+
+<AUB-JHBG-I-A8335>
+<AUB-JHBG-I-A8335>display stp
+CIST Global Information:
+  Mode                :VBST
+  CIST Bridge         :32768.f739-fcf9-3b6f
+  Config Times        :Hello 2s MaxAge 20s FwDly 15s MaxHop 20
+  Active Times        :Hello 2s MaxAge 20s FwDly 15s MaxHop 20
+  CIST Root/ERPC      :32768.f739-fcf9-3b6f / 0 (This bridge is the root)
+  CIST RegRoot/IRPC   :32768.f739-fcf9-3b6f / 0 (This bridge is the root)
+  CIST RootPortId     :0.0
+  BPDU-Protection     :Enabled
+  TC or TCN received  :0
+  TC count per hello  :0
+  STP Converge Mode   :Normal
+  Share region-configuration :Enabled
+  Time since last TC  :0 days 0h:0m:0s
+  Number of TC        :0
+  Topo Change Flag    :0
+<AUB-JHBG-I-A8335>
+<AUB-JHBG-I-A8335>display stp brief
+VLANID  Port                        Role  STP State     Protection          Cost    Edged
+     1  Eth-Trunk1                  DESI  forwarding    none                5000    disable
+     1  10GE1/0/4                   DESI  forwarding    none               20000    enable
+     1  GE1/0/23                    DESI  forwarding    none               20000    enable
+     1  GE1/0/14                    DESI  forwarding    none               20000    enable
+     1  GE1/0/3                     DESI  forwarding    none               20000    enable
+    10  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+    10  10GE1/0/4                   DESI  forwarding    none               20000    enable
+    11  Eth-Trunk1                  DESI  forwarding    none                5000    disable
+    11  10GE1/0/4                   DESI  forwarding    none               20000    enable
+    12  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+    12  10GE1/0/4                   DESI  forwarding    none               20000    enable
+    12  GE1/0/15                    DESI  forwarding    bpdu               20000    enable
+    13  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+    13  10GE1/0/4                   DESI  forwarding    none               20000    enable
+    13  GE1/0/23                    DESI  forwarding    none               20000    enable
+    13  GE1/0/14                    DESI  forwarding    none               20000    enable
+    13  GE1/0/3                     DESI  forwarding    none               20000    enable
+    14  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+    14  10GE1/0/4                   DESI  forwarding    none               20000    enable
+    14  GE1/0/23                    DESI  forwarding    none               20000    enable
+    14  GE1/0/14                    DESI  forwarding    none               20000    enable
+    14  GE1/0/3                     DESI  forwarding    none               20000    enable
+    15  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+    15  10GE1/0/4                   DESI  forwarding    none               20000    enable
+    15  GE1/0/23                    DESI  forwarding    none               20000    enable
+    15  GE1/0/14                    DESI  forwarding    none               20000    enable
+    15  GE1/0/3                     DESI  forwarding    none               20000    enable
+    20  Eth-Trunk1                  DESI  forwarding    none                5000    disable
+    20  10GE1/0/4                   DESI  forwarding    none               20000    enable
+    25  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+    25  10GE1/0/4                   DESI  forwarding    none               20000    enable
+    53  10GE1/0/4                   DESI  forwarding    none               20000    enable
+    54  10GE1/0/4                   DESI  forwarding    none               20000    enable
+   100  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+   100  10GE1/0/4                   DESI  forwarding    none               20000    enable
+   100  GE1/0/23                    DESI  forwarding    none               20000    enable
+   100  GE1/0/14                    DESI  forwarding    none               20000    enable
+   100  GE1/0/3                     DESI  forwarding    none               20000    enable
+   102  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+   102  10GE1/0/4                   DESI  forwarding    none               20000    enable
+   102  GE1/0/23                    DESI  forwarding    none               20000    enable
+   102  GE1/0/14                    DESI  forwarding    none               20000    enable
+   102  GE1/0/3                     DESI  forwarding    none               20000    enable
+   108  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+   108  10GE1/0/4                   DESI  forwarding    none               20000    enable
+   108  GE1/0/23                    DESI  forwarding    none               20000    enable
+   108  GE1/0/14                    DESI  forwarding    none               20000    enable
+   108  GE1/0/3                     DESI  forwarding    none               20000    enable
+   109  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+   109  10GE1/0/4                   DESI  forwarding    none               20000    enable
+   109  GE1/0/23                    DESI  forwarding    none               20000    enable
+   109  GE1/0/14                    DESI  forwarding    none               20000    enable
+   109  GE1/0/3                     DESI  forwarding    none               20000    enable
+   110  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+   110  10GE1/0/4                   DESI  forwarding    none               20000    enable
+   110  GE1/0/23                    DESI  forwarding    none               20000    enable
+   110  GE1/0/14                    DESI  forwarding    none               20000    enable
+   110  GE1/0/3                     DESI  forwarding    none               20000    enable
+   111  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+   111  10GE1/0/4                   DESI  forwarding    none               20000    enable
+   111  GE1/0/23                    DESI  forwarding    none               20000    enable
+   111  GE1/0/14                    DESI  forwarding    none               20000    enable
+   111  GE1/0/3                     DESI  forwarding    none               20000    enable
+   112  Eth-Trunk1                  ROOT  forwarding    none                5000    disable
+   112  10GE1/0/4                   DESI  forwarding    none               20000    enable
+   112  GE1/0/23                    DESI  forwarding    none               20000    enable
+   112  GE1/0/14                    DESI  forwarding    none               20000    enable
+   112  GE1/0/3                     DESI  forwarding    none               20000    enable
+<AUB-JHBG-I-A8335>
+<AUB-JHBG-I-A8335>display current-configuration
+sysname AUB-JHBG-I-A8335
+info-center loghost source Vlanif25
+info-center loghost 10.255.0.1
+ntp ipv6 server disable
+ntp server source-interface all disable
+ntp ipv6 server source-interface all disable
+ntp unicast-server domain 0.id.pool.ntp.org
+ntp unicast-server domain 1.id.pool.ntp.org
+ntp unicast-server domain 2.id.pool.ntp.org
+ntp unicast-server domain 3.id.pool.ntp.org
+ntp unicast-server domain ntp.example.net
+ntp server source-interface Vlanif25
+stp mode vbst
+stp bpdu-protection
+snmp-agent
+snmp-agent community read cipher <REDACTED> alias __CommunityAliasName_01
+snmp-agent community read cipher <REDACTED> alias __CommunityAliasName_02
+snmp-agent sys-info contact EXAMPLE-CONTACT
+snmp-agent sys-info location EXAMPLE-SITE
+snmp-agent sys-info version v2c v3
+snmp-agent community complexity-check disable
+snmp-agent protocol source-status all-interface
+stelnet server enable
+<AUB-JHBG-I-A8335>

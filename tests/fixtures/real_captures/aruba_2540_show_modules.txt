@@ -1,0 +1,8 @@
+GEN-MHWA-HHKPW6-5617# show module
+
+ Status and Counters - Module Information
+
+  Chassis: 2540-24G-PoE+-4SFP+  JL356A         Serial Number:   YJ90UAZ1G7
+
+
+GEN-MHWA-HHKPW6-5617#

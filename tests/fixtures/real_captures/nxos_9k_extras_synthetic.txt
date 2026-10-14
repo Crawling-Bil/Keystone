@@ -1,0 +1,351 @@
+show clock
+show version
+show vpc
+show vpc brief
+show vpc role
+show vpc statistics peer-link
+show system resources
+show cdp neighbors
+
+NXSW1# show clock
+20:53:13.039 WIB Mon Oct 12 2026
+Time source is NTP
+
+NXSW1# show version
+Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Software
+  BIOS: version 05.52
+  NXOS: version 10.3(5) [Feature Release]
+  BIOS compile time:  09/21/2023
+  NXOS image file is: bootflash:///nxos64-cs.10.3.5.M.bin
+Hardware
+  cisco Nexus9000 C93180YC-FX Chassis
+  Intel(R) Xeon(R) CPU with 16409112 kB of memory.
+  Device name: NXSW1
+  bootflash:  53298520 kB
+Kernel uptime is 19 day(s), 9 hour(s), 46 minute(s), 13 second(s)
+Last reset at 123456 usecs after Wed Sep 23 11:08:18 2026
+  Reason: Reset Requested by CLI command reload
+  System version: 10.3(5)
+  Service:
+plugin
+  Core Plugin, Ethernet Plugin
+
+NXSW1# show running-config
+!Command: show running-config
+version 10.3(5) Bios:version 05.52
+hostname NXSW1
+feature lacp
+feature vpc
+vpc domain 21
+  peer-keepalive destination 192.0.2.2 source 192.0.2.1 vrf management
+interface port-channel12
+  switchport mode trunk
+  vpc peer-link
+interface Ethernet1/49
+  channel-group 12 mode active
+
+NXSW1# show vpc
+Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 21
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 5
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ -------------------------------------------------
+1     Po12   up     2202,2275
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ---------------
+101   Po101         up     success     success               2202
+102   Po102         up     success     success               2202
+201   Po201         down*  success     success               -
+202   Po202         down*  Not         Consistency Check Not -
+                           Applicable   Performed
+203   Po203         down*  Not         Consistency Check Not -
+                           Applicable   Performed
+
+Please check "show vpc consistency-parameters vpc <vpc-num>" for the
+consistency reason of down vpc and for type-2 consistency reasons for
+any vpc.
+
+NXSW1# show vpc brief
+Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 21
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 5
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ -------------------------------------------------
+1     Po12   up     2202,2275
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ---------------
+101   Po101         up     success     success               2202
+102   Po102         up     success     success               2202
+201   Po201         down*  success     success               -
+202   Po202         down*  Not         Consistency Check Not -
+                           Applicable   Performed
+203   Po203         down*  Not         Consistency Check Not -
+                           Applicable   Performed
+
+Please check "show vpc consistency-parameters vpc <vpc-num>" for the
+consistency reason of down vpc and for type-2 consistency reasons for
+any vpc.
+
+NXSW1# show vpc role
+vPC Role status
+----------------------------------------------------
+vPC role                        : primary
+Dual Active Detection Status    : 2
+vPC system-mac                  : 00:23:04:ee:be:15
+vPC system-priority             : 100
+vPC local system-mac            : 00:aa:bb:cc:dd:01
+vPC local role-priority         : 95
+vPC peer system-mac             : 00:aa:bb:cc:dd:02
+vPC peer role-priority          : 105
+
+NXSW1# show vpc peer-keepalive
+vPC keep-alive status             : peer is alive
+--Peer is alive for             : (1664203) seconds, (123) msec
+--Send status                   : Success
+--Last send at                  : 2026-10-12 20:53:13,123 ms
+--Sent on interface             : mgmt0
+--Receive status                : Success
+--Last receive at               : 2026-10-12 20:53:13,350 ms
+--Received on interface         : mgmt0
+--Last update from peer         : (0) seconds, (240) msec
+
+NXSW1# show vpc statistics peer-link
+port-channel12 is up
+admin state is up,
+  Hardware: Port-Channel, address: 00aa.bbcc.dd01 (bia 00aa.bbcc.dd01)
+  Description: VPC-PEER-LINK
+  MTU 9216 bytes, BW 120000000 Kbit , DLY 10 usec
+  reliability 255/255, txload 1/255, rxload 1/255
+  Encapsulation ARPA, medium is broadcast
+  Port mode is trunk
+  full-duplex, 40 Gb/s
+  Input flow-control is off, output flow-control is off
+  Members in this channel: Eth1/49, Eth1/50, Eth1/51
+  Last clearing of "show interface" counters never
+  1 interface resets
+  Load-Interval #1: 30 seconds
+    30 seconds input rate 4672 bits/sec, 3 packets/sec
+    30 seconds output rate 27584 bits/sec, 12 packets/sec
+    input rate 4.67 Kbps, 3 pps; output rate 27.58 Kbps, 12 pps
+  Load-Interval #2: 5 minute (300 seconds)
+    300 seconds input rate 4072 bits/sec, 3 packets/sec
+    300 seconds output rate 26448 bits/sec, 11 packets/sec
+    input rate 4.07 Kbps, 3 pps; output rate 26.45 Kbps, 11 pps
+  RX
+    3138617 unicast packets  2176624 multicast packets  111478 broadcast packets
+    5426720 input packets  564830825 bytes
+    0 jumbo packets  0 storm suppression bytes
+    0 runts  0 giants  0 CRC  0 no buffer
+    0 input error  0 short frame  0 overrun   0 underrun  0 ignored
+    0 watchdog  0 bad etype drop  0 bad proto drop  0 if down drop
+    0 input with dribble  0 input discard
+    0 Rx pause
+    0 Stomped CRC
+  TX
+    9846387 unicast packets  1894389 multicast packets  256 broadcast packets
+    11741036 output packets  1695986750 bytes
+    401794 jumbo packets
+    0 output error  0 collision  0 deferred  0 late collision
+    0 lost carrier  0 no carrier  0 babble  0 output discard
+    0 Tx pause
+
+NXSW1# show vpc statistics peer-keepalive
+vPC keep-alive statistics
+----------------------------------------------------
+peer-keepalive tx count:          1674097
+peer-keepalive rx count:          1668986
+average interval for peer rx:     969
+Count of peer state changes:      3
+
+NXSW1# show system resources
+Load average:   1 minute: 0.91   5 minutes: 0.62   15 minutes: 0.58
+Processes   :   862 total, 3 running
+CPU states  :   14.26% user,   3.00% kernel,   82.72% idle
+        CPU0 states  :   0.00% user,   2.02% kernel,   97.97% idle
+        CPU1 states  :   2.02% user,   0.00% kernel,   97.97% idle
+        CPU2 states  :   89.00% user,   11.00% kernel,   0.00% idle
+        CPU3 states  :   1.98% user,   2.97% kernel,   95.04% idle
+Memory usage:   16409112K total,   9721616K used,   6687496K free
+Kernel vmalloc:   0K total,   0K free
+Kernel buffers:   177988K Used
+Kernel cached :   5089532K Used
+Current memory status: OK
+
+NXSW1# show port-channel load-balance
+   System config:
+    Non-IP: src-dst mac
+    IP: src-dst ip-l4port   rotate 0
+Port Channel Load-Balancing Configuration for all modules:
+Module 1:
+    Non-IP: src-dst mac
+    IP: src-dst ip-l4port  rotate 0
+
+NXSW1# show port-channel usage
+Total 5 port-channel numbers used
+====================================
+Used  :   1 - 2 , 12 , 101 - 102
+Unused:   3 - 11 , 13 - 100 , 103 - 4096
+
+NXSW1# show port-channel traffic
+NOTE: Clear the port-channel member counters to get accurate statistics
+ChanId      Port Rx-Ucst Tx-Ucst Rx-Mcst Tx-Mcst Rx-Bcst Tx-Bcst
+------ --------- ------- ------- ------- ------- ------- -------
+     1   Eth1/45  89.39%  55.35%  98.76%  96.73%  99.18%  99.81%
+     1   Eth1/46  10.60%  44.64%   1.23%   3.26%   0.81%   0.18%
+------ --------- ------- ------- ------- ------- ------- -------
+   101    Eth1/6 100.00% 100.00% 100.00% 100.00% 100.00% 100.00%
+------ --------- ------- ------- ------- ------- ------- -------
+   102    Eth1/8    0.0% 100.00% 100.00% 100.00% 100.00% 100.00%
+
+NXSW1# show lacp counters
+NOTE: Clear lacp counters to get accurate statistics
+------------------------------------------------------------------------------
+                             LACPDUs                      Markers/Resp LACPDUs
+Port              Sent                Recv                  Recv Sent  Pkts Err
+------------------------------------------------------------------------------
+port-channel1
+Ethernet1/45       55299                14924                  0      0    0
+Ethernet1/46       55291                14917                  0      0    2
+port-channel101
+Ethernet1/6       366538                    0                  0      0    0
+
+NXSW1# show lacp port-channel
+port-channel1
+  Port Channel Mac=02-be-f3-a4-84-1
+  Local System Identifier=0x8000,02-be-f3-a4-84-1
+  Admin key=0x8000
+  Operational key=0x8000
+  Partner System Identifier=0x8000,02-e7-2-90-c9-61
+  Operational key=0xa
+  Max delay=0
+  Aggregate or individual=1
+  Member Port List=Eth1/45 Eth1/46
+Po101
+  Port Channel Mac=02-be-f3-a4-84-1
+  Local System Identifier=0x8000,02-be-f3-a4-84-1
+  Admin key=0x65
+  Operational key=0x65
+  Partner System Identifier=0xffff,02-e5-99-21-3-6a
+  Operational key=0x21
+  Max delay=0
+  Aggregate or individual=1
+  Member Port List=Eth1/6
+
+NXSW1# show license usage
+License Authorization:
+  Status: Not Applicable
+
+(LAN_ENTERPRISE_SERVICES_PKG):
+  Description: LAN license for Nexus 9300-XF
+  Count: 1
+  Version: 1.0
+  Status: IN USE
+  Enforcement Type: NOT ENFORCED
+  License Type: Generic
+
+NXSW1# show license all
+Smart Licensing Status
+======================
+
+Utility:
+    Status: DISABLED
+
+Smart Licensing using Policy:
+    Status: ENABLED
+
+Transport:
+    Type: CSLU
+    VRF: management
+
+Policy:
+    Policy in use: Merged from multiple sources
+    Reporting ACK required: Yes
+    Unenforced/Non-Export:
+        First report requirement (days): 90 (CISCO default)
+        Ongoing reporting frequency (days): 365 (CISCO default)
+
+Usage reporting:
+    Last ACK received: <none>
+    Next ACK deadline: Aug  3 18:35:36 2025  WIB
+    Reporting push interval: 30 days
+    Next ACK push check: <none>
+    Next report push: Sep 23 11:09:27 2026  WIB
+    Last report push: <none>
+
+License Usage
+=============
+
+(LAN_ENTERPRISE_SERVICES_PKG):
+  Description: LAN license for Nexus 9300-XF
+  Count: 1
+  Version: 1.0
+  Status: IN USE
+  Enforcement Type: NOT ENFORCED
+  License Type: Generic
+
+NXSW1# show cdp neighbors
+Capability Codes: R - Router, T - Trans-Bridge, B - Source-Route-Bridge
+                  S - Switch, H - Host, I - IGMP, r - Repeater,
+                  V - VoIP-Phone, D - Remotely-Managed-Device,
+                  s - Supports-STP-Dispute
+
+Device-ID          Local Intrfce  Hldtme Capability  Platform      Port ID
+core-sw-long-name.example.invalid
+                    mgmt0          129    R S I     C9200L-48T-4G     Gig3/0/6
+HOST-A01            Eth1/6         119    S H       Linux             eth2
+HOST-A02            Eth1/8         106    S H       Linux             eth2
+
+Total entries displayed: 3
+
+NXSW1# show lldp neighbors
+                  ^
+% Invalid command at '^' marker.
+
+NXSW1# show ip sla configuration
+IP SLAs Infrastructure Engine-III
+
+NXSW1#

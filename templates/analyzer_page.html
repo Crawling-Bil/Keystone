@@ -1,0 +1,71 @@
+{#
+  Shared page for the result-shaped analyzers (Router, Firewall, Load Balancer).
+  Each analyzer's blueprint supplies page_context:
+    analyzer_key, analyzer_title, analyzer_subtitle, api_prefix, icon,
+    file_hint, accept, platforms [(value, label)], empty_title, empty_text,
+    capabilities [{title, text}], commands [{command, purpose}],
+    collect_prefix, no_collect_message
+  There are deliberately no element ids: the SPA router keeps every visited page
+  mounted in the same document, and analyzer_kit.js scopes itself to the
+  .an-page root through data-role attributes.
+#}
+{% extends "base.html" %}
+{% block title %}{{ analyzer_title }} · Keystone{% endblock %}
+{% block page_title %}{{ analyzer_title }}{% endblock %}
+{% block page_subtitle %}{{ analyzer_subtitle }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/analyzer_kit.css') }}">{% endblock %}
+{% block content %}
+{%- set boot = {"collect_prefix": collect_prefix, "commands": commands, "no_collect_message": no_collect_message} -%}
+<section class="an-page" data-analyzer="{{ analyzer_key }}" data-api="{{ api_prefix }}" data-boot='{{ boot|tojson }}'>
+
+  <form class="panel an-intake" data-role="form" enctype="multipart/form-data" novalidate>
+    <div class="an-intake-bar" data-role="intake-bar">
+      <span class="an-intake-summary" data-role="intake-summary"></span>
+      <button type="button" class="an-btn small" data-role="reopen">Analyze other captures</button>
+    </div>
+    <div class="an-intake-main">
+      <span class="an-label">{{ analyzer_title }} capture</span>
+      <label class="an-drop" data-role="drop">
+        <input type="file" data-role="file-input" multiple accept="{{ accept }}">
+        <span class="an-drop-icon"><svg class="an-icon" aria-hidden="true"><use href="/static/icons/nes-icons.svg#upload"></use></svg></span>
+        <span><strong>Select or drop capture files</strong><small>{{ file_hint }}</small></span>
+      </label>
+      <ul class="an-file-list hidden" data-role="file-list" aria-label="Selected files"></ul>
+      <div class="an-paste-wrap hidden" data-role="paste-wrap">
+        <label><span class="an-label">Paste command output</span>
+        <textarea class="an-paste" data-role="paste" spellcheck="false" placeholder="Paste the terminal session here — prompts, commands and output."></textarea></label>
+      </div>
+      <p class="an-hint">Upload several captures at once to analyze each device and export them into one workbook. Nothing leaves this computer, and credentials, keys and hashes found in a capture are never shown or exported.</p>
+    </div>
+    <div class="an-intake-side">
+      {% if platforms %}
+      <label class="an-field"><span class="an-label">Platform</span>
+        <select class="an-select" data-role="platform">
+          {% for value, label in platforms %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+        </select>
+      </label>
+      {% else %}<input type="hidden" data-role="platform" value="auto">{% endif %}
+      <div class="an-actions">
+        <button type="submit" class="an-btn primary" data-role="analyze">Analyze</button>
+        <button type="button" class="an-btn" data-role="toggle-paste" aria-expanded="false">Paste text</button>
+        <button type="button" class="an-btn" data-role="open-collect">Collect lists</button>
+      </div>
+      <div class="an-status" data-role="status" role="status" aria-live="polite"></div>
+    </div>
+  </form>
+
+  <div class="panel an-empty-state" data-role="empty">
+    <h3>{{ empty_title }}</h3>
+    <p>{{ empty_text }}</p>
+    {% if capabilities %}
+    <ul class="an-capabilities">
+      {% for item in capabilities %}<li><strong>{{ item.title }}</strong><span>{{ item.text }}</span></li>{% endfor %}
+    </ul>
+    {% endif %}
+    <div class="an-collect-inline hidden" data-role="collect-inline"></div>
+  </div>
+
+  <div class="an-result hidden" data-role="result"></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/analyzer_kit.js') }}"></script>{% endblock %}

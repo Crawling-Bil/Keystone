@@ -107,6 +107,8 @@ def _device_sizing_row(result: dict[str, Any]) -> dict[str, Any]:
     port_type_counts: dict[str, int] = {}
     physical_up = 0
     physical_down = 0
+    physical_admin_down = 0
+    physical_unknown = 0
     trunk_count = 0
 
     for iface in interfaces:
@@ -116,8 +118,16 @@ def _device_sizing_row(result: dict[str, Any]) -> dict[str, Any]:
         if label is None:
             continue
         port_type_counts[label] = port_type_counts.get(label, 0) + 1
-        if str(iface.get("status", "")).lower() == "up":
+        # up / down / admin down / unknown are kept apart: "admin down" ports
+        # were shut on purpose (spare capacity), "down" ports are enabled
+        # without link, and "unknown" ports have no live state in the capture.
+        status = str(iface.get("status", "")).lower()
+        if status == "up":
             physical_up += 1
+        elif status == "admin down":
+            physical_admin_down += 1
+        elif status == "unknown":
+            physical_unknown += 1
         else:
             physical_down += 1
 
@@ -144,14 +154,10 @@ def _device_sizing_row(result: dict[str, Any]) -> dict[str, Any]:
     routing = result.get("routing_protocols") or {}
     inventory = result.get("inventory") or {}
     stack = inventory.get("stack") or {}
-    # "show inventory"'s first entry is always the chassis/stack-level
-    # summary row (see _parse_cisco_chassis_pid above, which uses the same
-    # entry for the chassis PID) -- its serial is the device's own serial
-    # number, the one that matches what's printed on the unit and tracked
-    # in an asset spreadsheet, as opposed to a power supply, stack member,
-    # or line card serial further down the same inventory list.
-    inventory_modules = inventory.get("modules") or []
-    serial_number = inventory_modules[0].get("serial", "") if inventory_modules else ""
+    # The device's own serial number (every member's, joined, for a stack), as
+    # chosen by serials.parse_serials -- NOT "the first inventory row", which on
+    # a capture that lost its first lines is a fan with serial "N/A".
+    serial_number = "; ".join(((result.get("serials") or {}).get("display") or "").splitlines())
 
     return {
         "hostname": result.get("hostname", ""),
@@ -159,9 +165,11 @@ def _device_sizing_row(result: dict[str, Any]) -> dict[str, Any]:
         "model": (result.get("os_version") or {}).get("model", ""),
         "serial_number": serial_number,
         "os_version": (result.get("os_version") or {}).get("os_version", ""),
-        "physical_port_count": physical_up + physical_down,
+        "physical_port_count": physical_up + physical_down + physical_admin_down + physical_unknown,
         "physical_ports_up": physical_up,
         "physical_ports_down": physical_down,
+        "physical_ports_admin_down": physical_admin_down,
+        "physical_ports_unknown": physical_unknown,
         "port_type_counts": port_type_counts,
         "trunk_port_count": trunk_count,
         "port_channel_count": len(result.get("port_channels", [])),
@@ -231,6 +239,8 @@ def build_sizing_summary(results: list[dict[str, Any]]) -> dict[str, Any]:
         "physical_port_count": sum(d["physical_port_count"] for d in devices),
         "physical_ports_up": sum(d["physical_ports_up"] for d in devices),
         "physical_ports_down": sum(d["physical_ports_down"] for d in devices),
+        "physical_ports_admin_down": sum(d["physical_ports_admin_down"] for d in devices),
+        "physical_ports_unknown": sum(d["physical_ports_unknown"] for d in devices),
         "port_type_totals": port_type_totals,
         "trunk_port_count": sum(d["trunk_port_count"] for d in devices),
         "port_channel_count": sum(d["port_channel_count"] for d in devices),

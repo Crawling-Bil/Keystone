@@ -1,0 +1,73 @@
+FW-CAP-01 # get system status
+Version: FortiGate-60F v7.2.5,build1517,230606 (GA.F)
+Virus-DB: 1.00000(2018-04-09 18:07)
+Serial-Number: FGT60FTK0000SYN1
+License Status: Valid
+Operation Mode: NAT
+Current virtual domain: root
+Max number of virtual domains: 10
+Virtual domains status: 1 in NAT mode, 0 in TP mode
+Virtual domain configuration: disable
+Current HA mode: standalone
+Branch point: 1517
+Release Version Information: GA
+System time: Fri Oct  9 10:00:00 2026
+
+FW-CAP-01 # get router info routing-table all
+Codes: K - kernel, C - connected, S - static, R - RIP, B - BGP
+       O - OSPF, IA - OSPF inter area
+
+Routing table for VRF=0
+S*      0.0.0.0/0 [10/0] via 198.18.10.1, wan1, [1/0]
+C       10.10.0.0/24 is directly connected, lan
+B       10.50.0.0/16 [20/0] via 198.18.10.1, wan1, 01:02:03
+
+FW-CAP-01 # get router info bgp summary
+BGP router identifier 10.255.255.1, local AS number 65010
+BGP table version is 5
+1 BGP AS-PATH entries
+0 BGP community entries
+
+Neighbor        V         AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+198.18.10.1     4      64512     123     130        5    0    0 01:02:03        10
+198.18.10.9     4      64513       0       0        0    0    0 never    Active
+
+Total number of neighbors 2
+
+FW-CAP-01 # get vpn ipsec tunnel summary
+'DR-VPN' 198.18.30.2:0  selectors(total,up): 1/1  rx(pkt,err): 100/0  tx(pkt,err): 100/0
+'BRANCH-1' 198.18.40.2:0  selectors(total,up): 2/1  rx(pkt,err): 10/0  tx(pkt,err): 10/0
+'BRANCH-2' 198.18.41.2:0  selectors(total,up): 1/0  rx(pkt,err): 0/0  tx(pkt,err): 0/0
+
+FW-CAP-01 # show full-configuration
+config system global
+    set hostname "FW-CAP-01"
+    set admintimeout 5
+    set strong-crypto enable
+end
+config system interface
+    edit "wan1"
+        set vdom "root"
+        set ip 198.18.10.2 255.255.255.252
+        set allowaccess ping
+        set role wan
+    next
+end
+config system admin
+    edit "admin"
+        set accprofile "super_admin"
+        set vdom "root"
+        set trusthost1 10.10.0.0 255.255.255.0
+        set password ENC SH2capcapcapcapcapcapcapcapcapcap==
+    next
+end
+
+FW-CAP-01 # get system ha status
+HA Health Status: OK
+Model: FortiGate-60F
+Mode: HA A-P
+Group Name: HQ-FW
+Primary: FW-CAP-01, FGT60FTK0000SYN1, HA cluster index = 0
+Secondary: FW-CAP-02, FGT60FTK0000SYN2, HA cluster index = 1
+
+FW-CAP-01 # 

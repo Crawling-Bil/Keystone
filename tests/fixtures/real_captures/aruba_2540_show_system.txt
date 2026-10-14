@@ -1,0 +1,26 @@
+show system
+
+ Status and Counters - General System Information
+
+  System Name        : QVO-PDDR-ROFUBO3-3263                           
+  System Contact     : MKS-DVZV.SVU-2116
+  System Location    : JJZ-YQNYADEI
+
+  MAC Age Time (sec) : 300    
+
+  Time Zone          : 0    
+  Daylight Time Rule : None                      
+
+  Software revision  : YC.16.06.0006        Base MAC Addr      : 65a837-f47291 
+   
+  ROM Version        : YC.16.01.0001        Serial Number      : VV24TXJ3CI  
+
+  Up Time            : 37 hours             Memory   - Total   : 361,771,520 
+  CPU Util (%)       : 5                               Free    : 261,040,152 
+
+  IP Mgmt  - Pkts Rx : 29,266               Packet   - Total   : 6600        
+             Pkts Tx : 29,780               Buffers    Free    : 4793        
+                                                       Lowest  : 4739        
+                                                       Missed  : 0           
+
+

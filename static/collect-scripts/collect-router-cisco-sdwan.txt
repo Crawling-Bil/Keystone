@@ -1,0 +1,68 @@
+!!! Keystone collect list - Cisco Catalyst SD-WAN edge routers (IOS-XE in controller mode: Catalyst 8200/8300/8500, ISR1000/4000, ASR1000, 8000V)
+! Log in with a read-only account that can run 'show running-config' (privilege 15 or a CLI view), paste the commands, save the WHOLE terminal buffer (MobaXterm / PuTTY / SecureCRT session log) and upload it to the Router Analyzer.
+! Every command below only reads. 'terminal length 0' changes the paging of YOUR session only. A command the router does not know ('% Invalid input') is harmless: the analyzer lists it as failed and goes on.
+! Use this list on a router that shows 'Router operating mode: Controller-Managed' in 'show version'. On a traditional router use collect-router-cisco-ios-xe.txt: it has no 'show sdwan' commands because they do not exist there.
+! The commands below were all seen in real captures: 'show sdwan system status / control connections / connection-history / bfd sessions' and 'show logging last 3000' on a C8200-1N-4T (IOS-XE 17.09.03a); 'show sdwan control local-properties / omp peers / omp routes / omp tlocs / app-route stats / policy from-vsmart' on two further cEdge routers (IOS-XE 17.x); the other commands on other IOS-XE routers.
+! 'show sdwan omp routes' prints one line per overlay path: about 22,000 lines on a branch router that learns 7,000 prefixes. The Router Analyzer reads it in well under a second, but the terminal log grows by several MB; keep it, it is what the OMP tables, the unresolved-TLOC check and the cross-check with the routing table are built from.
+! 'show running-config' does not contain the sdwan stanza (system-ip, site-id, tunnel colors, allow-service): 'show sdwan running-config' does. 'show sdwan system status' shows vManaged and the Configuration template.
+! The log of a controller-managed router is mostly NETCONF logins from SD-WAN Manager (%DMI-5-AUTH_PASSED), so 'show logging last 3000' keeps the capture small; raise the number if the window it covers is too short.
+
+!!! Commands
+
+terminal length 0
+
+show clock
+show version
+show running-config
+show sdwan running-config
+show inventory
+
+! Interfaces and neighbours
+show ip interface brief
+show interface description
+show interfaces
+show interfaces summary
+show etherchannel summary
+show cdp neighbors
+show cdp neighbors detail
+
+! Routing and ARP (add 'show ip route vrf <n>' for every service VPN)
+show ip route
+show ip route summary
+show ipv6 route summary
+show ip arp
+show ip arp summary
+show access-lists
+
+! SD-WAN control plane and overlay (vManaged / Configuration template are in 'system status'). Add 'show ip route vrf <n>' for every service VPN: the OMP overview compares the routes OMP installed in a VPN with that VPN's routing table.
+show sdwan system status
+show sdwan control connections
+show sdwan control connection-history
+show sdwan control local-properties
+show sdwan bfd sessions
+show sdwan omp peers
+show sdwan omp tlocs
+show sdwan omp routes
+show sdwan app-route stats
+show sdwan policy from-vsmart
+
+! Health: CPU, memory, flash, power, fans (the platform and QFP commands were seen inside a show tech-support capture of other IOS-XE routers only)
+show process cpu sorted
+show process memory sorted
+show platform resources
+show platform hardware qfp active datapath utilization
+show platform hardware qfp active statistics drop
+show environment all
+show file systems
+show license summary
+
+! Who is logged in, and the log (flaps, OMP peer changes, restarts, logins)
+show users
+show logging last 3000
+!!! UNVERIFIED v4 - SD-WAN commands from Cisco's Catalyst SD-WAN command reference that no capture has answered yet. Test on ONE router first; keep only what it accepts.
+show sdwan omp summary
+show sdwan certificate installed
+show sdwan bfd history
+show sdwan tunnel statistics
+show ntp associations
+show ip sla statistics

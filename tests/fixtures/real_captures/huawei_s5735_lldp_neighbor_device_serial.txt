@@ -1,0 +1,67 @@
+<FRH-MIPS-DNH-I6063>display lldp neighbor
+10GE1/0/1 has 0 neighbor(s)
+
+10GE1/0/2 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :e26c-1b9e-443b
+Port ID subtype                    :Interface Name
+Port ID                            :XGigabitEthernet0/0/1
+Port description                   :## to LNK-SAJZ-SCY-6023 ##
+System name                        :FRH-MIPS-A3-S5731
+System description                 :Huawei Switch S5731-S24P4X
+Huawei Versatile Routing Platform Software
+VRP (R) software, Version 5.170 (S5731 V200R022C00SPC500)
+Copyright (C) 2000-2022 HUAWEI TECH Co., Ltd.
+System capabilities supported      :bridge router
+System capabilities enabled        :bridge router
+Management address type            :IPv4
+Management address                 :10.255.0.1
+Expired time                       :113s
+
+Device 0 infomation:
+  Device serial number             :849252413713
+  Device model name                :S5731-S24P4X
+
+Port VLAN ID(PVID)                 :1
+Port and Protocol VLAN ID(PPVID)   :unsupported
+VLAN name of VLAN 1                :VLAN 0001
+Protocol identity                  :--
+Auto-negotiation supported         :Yes
+Auto-negotiation enabled           :Yes
+OperMau                            :speed (1000) /duplex (Full)
+Link aggregation supported         :Yes
+Link aggregation enabled           :No
+Aggregation port ID                :0
+Maximum frame Size                 :9216
+Port Identity                      :--
+Discovered time                    :2026-05-14 19:14:50+07:00
+
+Power port class                   :PD
+PSE power supported                :No
+PSE power enabled                  :No
+PSE pairs control ability          :No
+Power pairs                        :Unknown
+Port power classification          :Unknown
+
+EEE support                        :No
+Transmit Tw                        :65535
+Receive Tw                         :65535
+Fallback Receive Tw                :0
+Echo Transmit Tw                   :0
+Echo Receive Tw                    :0
+
+Network Card ID                    :--
+
+Med capability                     :--
+Med device type                    :--
+
+Unrecognized organizationally defined TLV
+  TLV OUI                          :00-18-82
+  TLV subtype                      :40
+  Index                            :1
+  TLV information                  :00 00 00 01
+
+
+

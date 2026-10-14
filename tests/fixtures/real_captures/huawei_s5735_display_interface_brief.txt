@@ -1,0 +1,55 @@
+<LEG-ZHPU-EVPYEIE-SDOZ-L2945>display interface brief
+PHY: Physical
+*down: administratively down
+^down: standby
+(l): loopback
+(s): spoofing
+(b): BFD down
+(e): ETHOAM down
+(d): Dampening Suppressed
+(p): port alarm down
+(dl): DLDP down
+(c): CFM down
+(sd): STP instance discarding
+(ms): MACsec down
+(ed): error down
+(lb): LBDT block
+InUti/OutUti: input utility rate/output utility rate
+Interface                  PHY      Protocol  InUti OutUti   inErrors  outErrors
+10GE1/0/1                  *down    down         0%     0%          0          0
+10GE1/0/2                  *down    down         0%     0%          0          0
+10GE1/0/3                  *down    down         0%     0%          0          0
+10GE1/0/4                  *down    down         0%     0%          0          0
+Eth-Trunk1                 up       up        0.01%  0.01%          0          0
+  GE1/0/23                 up       up        0.01%  0.01%          0          0
+  GE1/0/24                 up       up        0.01%  0.01%          0          0
+GE1/0/1                    up       up        0.01%  0.01%          0          0
+GE1/0/2                    up       up        0.01%  0.01%          0          0
+GE1/0/3                    up       up        0.01%  0.01%          0          0
+GE1/0/4                    up       up        0.01%  0.01%          0          0
+GE1/0/5                    up       up        0.01%  0.01%          0          0
+GE1/0/6                    up       up        0.01%  0.01%          0          0
+GE1/0/7                    *down    down         0%     0%          0          0
+GE1/0/8                    *down    down         0%     0%          0          0
+GE1/0/9                    *down    down         0%     0%          0          0
+GE1/0/10                   *down    down         0%     0%          0          0
+GE1/0/11                   *down    down         0%     0%          0          0
+GE1/0/12                   *down    down         0%     0%          0          0
+GE1/0/13                   *down    down         0%     0%          0          0
+GE1/0/14                   *down    down         0%     0%          0          0
+GE1/0/15                   *down    down         0%     0%          0          0
+GE1/0/16                   *down    down         0%     0%          0          0
+GE1/0/17                   *down    down         0%     0%          0          0
+GE1/0/18                   *down    down         0%     0%          0          0
+GE1/0/19                   *down    down         0%     0%          0          0
+GE1/0/20                   *down    down         0%     0%          0          0
+GE1/0/21                   *down    down         0%     0%          0          0
+GE1/0/22                   down     down         0%     0%          0          0
+MEth0/0/0                  down     down         0%     0%          0          0
+NULL0                      up       up(s)        0%     0%          0          0
+Stack-Port1/1              down     down         0%     0%          0          0
+  10GE1/0/5                down     down         0%     0%          0          0
+Stack-Port1/2              down     down         0%     0%          0          0
+  10GE1/0/6                down     down         0%     0%          0          0
+Vlanif10                   up       up           --     --          0          0
+<LEG-ZHPU-EVPYEIE-SDOZ-L2945>

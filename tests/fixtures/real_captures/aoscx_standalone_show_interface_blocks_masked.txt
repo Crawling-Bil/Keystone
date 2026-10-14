@@ -1,0 +1,91 @@
+IXN-WIJSMD-IFVUNKJ-CSH# show interface
+Interface 1/1/25 is down
+ Admin state is up
+ State information: No XCVR installed
+ Link state: down for 2 years (since Fri Sep 27 11:51:40 WIB 2024)
+ Link transitions: 281473470948432
+ Description:
+ Persona:
+ Hardware: Ethernet, MAC Address: 48:64:d9:b5:e2:5c
+ MTU 9281
+ Type --
+ Full-duplex
+ qos trust none
+ Speed 0 Mb/s
+ Auto-negotiation is on
+ Flow-control: off
+ Error-control: off
+ Rate collection interval: 300 seconds
+
+ Rate                               RX                   TX        Total (RX+TX)
+ ---------------- -------------------- -------------------- --------------------
+ Mbits / sec                      0.00                 0.00                 0.00
+ KPkts / sec                      0.00                 0.00                 0.00
+   Unicast                        0.00                 0.00                 0.00
+   Multicast                      0.00                 0.00                 0.00
+   Broadcast                      0.00                 0.00                 0.00
+ Utilization %                    0.00                 0.00                 0.00
+
+ Statistic                          RX                   TX                Total
+ ---------------- -------------------- -------------------- --------------------
+ Packets                             0                    0                    0
+   Unicast                           0                    0                    0
+   Multicast                         0                    0                    0
+   Broadcast                         0                    0                    0
+ Bytes                               0                    0                    0
+ Jumbos                              0                    0                    0
+ Dropped                             0                    0                    0
+ Pause Frames                        0                    0                    0
+ Errors                              0                    0                    0
+   CRC/FCS                           0                  n/a                    0
+   Collision                       n/a                    0                    0
+   Runts                             0                  n/a                    0
+   Giants                            0                  n/a                    0
+
+Interface 1/1/1 is up
+ Admin state is up
+ Link state: up for 2 years (since Fri Sep 27 11:56:20 WIB 2024)
+ Link transitions: 1
+ Description: PORT_DESCRIPTION
+ Persona:
+ Hardware: Ethernet, MAC Address: f4:75:5f:bb:dc:e4
+ MTU 1500
+ Type 1GbT
+ Full-duplex
+ qos trust none
+ Speed 100 Mb/s
+ Auto-negotiation is on
+ Energy-Efficient Ethernet is disabled
+ Flow-control: off
+ Error-control: off
+ MDI mode: MDI
+ VLAN Mode: access
+ Access VLAN: 215
+ Rate collection interval: 300 seconds
+
+ Rate                               RX                   TX        Total (RX+TX)
+ ---------------- -------------------- -------------------- --------------------
+ Mbits / sec                      0.00                 0.00                 0.00
+ KPkts / sec                      0.00                 0.00                 0.00
+   Unicast                        0.00                 0.00                 0.00
+   Multicast                      0.00                 0.00                 0.00
+   Broadcast                      0.00                 0.00                 0.00
+ Utilization %                    0.00                 0.00                 0.00
+
+ Statistic                          RX                   TX                Total
+ ---------------- -------------------- -------------------- --------------------
+ Packets                       5610238             71867540             77477778
+   Unicast                     4701362              6195042             10896404
+   Multicast                    312029             39577857             39889886
+   Broadcast                    596847             26094641             26691488
+ Bytes                       598840595           7183395141           7782235736
+ Jumbos                              0                    0                    0
+ Dropped                             0                    0                    0
+ Pause Frames                        0                    0                    0
+ Errors                              0                    0                    0
+   CRC/FCS                           0                  n/a                    0
+   Collision                       n/a                    0                    0
+   Runts                             0                  n/a                    0
+   Giants                            0                  n/a                    0
+
+IXN-WIJSMD-IFVUNKJ-CSH#

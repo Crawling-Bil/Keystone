@@ -12,6 +12,9 @@ from core.database import initialize, recent_activity
 from features.configuration_studio.routes import bp as configuration_bp
 from features.lifecycle_manager.routes import app as lifecycle_bp
 from features.wireless_center.routes import bp as wireless_bp
+from features.router_analyzer.routes import bp as router_analyzer_bp
+from features.firewall_analyzer.routes import bp as firewall_analyzer_bp
+from features.lb_analyzer.routes import bp as lb_analyzer_bp
 from features.switch_analyzer.routes import bp as switch_analyzer_bp
 from features.ztp.routes import bp as ztp_bp
 
@@ -97,6 +100,9 @@ def create_app() -> Flask:
     app.register_blueprint(configuration_bp)
     app.register_blueprint(wireless_bp)
     app.register_blueprint(switch_analyzer_bp)
+    app.register_blueprint(router_analyzer_bp)
+    app.register_blueprint(firewall_analyzer_bp)
+    app.register_blueprint(lb_analyzer_bp)
     app.register_blueprint(lifecycle_bp)
     app.register_blueprint(ztp_bp)
 
@@ -124,11 +130,35 @@ def create_app() -> Flask:
                 "status": "Ready",
             },
             {
-                "name": "Config Analyzer",
-                "version": "Config Analyzer v1.1",
-                "description": "Cisco/Huawei/Aruba switch dashboards, plus Mikrotik/Palo Alto firewall dashboards with best-practice/security findings.",
+                "name": "Switch Analyzer",
+                "version": "Switch Analyzer v1.2",
+                "description": "Cisco, Huawei and Aruba switch dashboards: inventory, VLANs, spanning tree, port-channels, PoE, LLDP/CDP, compare and sizing.",
                 "href": "/switch-analyzer",
                 "icon": "switch",
+                "status": "Ready",
+            },
+            {
+                "name": "Router Analyzer",
+                "version": "Router Analyzer v1.0",
+                "description": "Cisco IOS, IOS-XE and SD-WAN router captures: interfaces, routing, BGP/OSPF, VPN, hardening findings with Cisco documentation links.",
+                "href": "/router-analyzer",
+                "icon": "router",
+                "status": "Ready",
+            },
+            {
+                "name": "Firewall Analyzer",
+                "version": "Firewall Analyzer v1.0",
+                "description": "FortiGate (native), Palo Alto and MikroTik configurations: policies, NAT, VPN, routing, objects and hardening findings with vendor documentation links.",
+                "href": "/firewall-analyzer",
+                "icon": "firewall",
+                "status": "Ready",
+            },
+            {
+                "name": "Load Balancer Analyzer",
+                "version": "Load Balancer Analyzer v1.0",
+                "description": "F5 BIG-IP configurations: virtual server to pool map, monitors, SSL profiles and certificates, persistence, iRules, HA and hardening findings with F5 documentation links.",
+                "href": "/load-balancer-analyzer",
+                "icon": "balancer",
                 "status": "Ready",
             },
             {
@@ -194,6 +224,9 @@ def create_app() -> Flask:
                 "configuration": "ready",
                 "wireless": "ready",
                 "switch_analyzer": "ready",
+                "router_analyzer": "ready",
+                "firewall_analyzer": "ready",
+                "lb_analyzer": "ready",
                 "lifecycle": "ready",
             },
         })

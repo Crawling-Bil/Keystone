@@ -1,0 +1,11 @@
+<LEG-ZHPU-EVPYEIE-SDOZ-L2945>display arp
+ARP Entry Types: D - Dynamic, S - Static, I - Interface
+EXP: Expire-time
+
+IP ADDRESS      MAC ADDRESS    EXP(M) TYPE/VLAN       INTERFACE        VPN-INSTANCE
+----------------------------------------------------------------------------------------
+10.255.0.1     25ab-7e33-cc3a        I               Vlanif10
+10.255.0.2      f336-8919-c039    9   D/10            Eth-Trunk1
+----------------------------------------------------------------------------------------
+Total:2         Dynamic:1       Static:0    Interface:1
+<LEG-ZHPU-EVPYEIE-SDOZ-L2945>

@@ -1,4 +1,9 @@
-!!! collect backup config huawei S/L/E series
+!!! collect backup config huawei S/L/E series (v5 2026-10-13)
+!!! v2: syntax corrected for V600R025C00 (display device power/fan/temperature, poe power-state/power, license resource usage, route-static, lacp statistics eth-trunk); removed display stack peers
+!!! v3: added display logbuffer (VRP log buffer for the Logs tab: link up/down, MAC flapping, STP, LACP).
+!!! v4: NEW block at the end = VRP commands no parser reads yet (CPU / memory, NTP, SNMP agent, SSH / Telnet server state, users, error-down recovery, MAC flapping, VRRP / OSPF state, startup and patch). Run them once so the next parser round can read real output. A command this model does not have answers 'Error: Unrecognized command' - harmless.
+!!! v5: every command checked against 37 real Huawei captures and the V600R025C00 Command Reference. display vrrp brief replaced by display vrrp (an S5700 answered 'Wrong parameter'; display vrrp answered on 4 captures and is in the reference). display current-configuration | include route ignore-case removed (empty in 36 of 36 captures: ignore-case is its own '| ignore-case' stage, so it was searched as part of the pattern; | include route already finds every route line).
+!!! v5: the probe block at the end now uses the V600R025C00 spellings display memory, display ntp status and display ntp sessions; the older display memory-usage and display ntp-service ... follow at the very end for V200R0xx models.
 
 save 
 y
@@ -31,6 +36,8 @@ display port vlan
 
 display ip interface brief
 
+display vrrp
+
 display arp statistics
 
 display arp
@@ -43,11 +50,13 @@ display lldp neighbor
 
 display lacp brief
 
-display lacp statistics
+display lacp statistics eth-trunk
 
 display lacp troubleshooting
 
-display poe power-management
+display poe power-state
+
+display poe power
 
 display poe information
 
@@ -59,13 +68,13 @@ display stp region-configuration
 
 display device
 
-display power
+display device power
 
-display fan
+display device fan
+
+display device temperature
 
 display stack
-
-display stack peers
 
 display dual-active
 
@@ -77,15 +86,13 @@ display stack troubleshooting history
 
 display current-configuration | include route
 
-display current-configuration | include route ignore-case
-
-display current-configuration configuration static-routing
+display current-configuration configuration route-static
 
 display ip routing-table
 
 display license
 
-display license resource-usage
+display license resource usage
 
 display license verbose
 
@@ -103,3 +110,42 @@ display current-configuration | in ftp
 
 display alarm active
 
+display logbuffer
+
+!!! Documented in the V600R025C00 Command Reference (checked 2026-10-13); no parser reads these yet and no capture has answered them. A model or release without one answers 'Error: Unrecognized command' - harmless.
+
+display cpu-usage
+
+display memory
+
+display ntp status
+
+display ntp sessions
+
+display snmp-agent sys-info
+
+display ssh server status
+
+display telnet server status
+
+display users
+
+display error-down recovery
+
+display mac-address flapping
+
+display ospf peer
+
+display startup
+
+display patch-information
+
+display trapbuffer
+
+!!! VRP V200R0xx spellings (S5700 and older) of the three lines above - the V600R025C00 reference has only the short ones, an older release answers only these
+
+display memory-usage
+
+display ntp-service status
+
+display ntp-service sessions

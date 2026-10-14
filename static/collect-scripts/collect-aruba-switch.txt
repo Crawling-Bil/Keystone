@@ -1,4 +1,8 @@
-!!! collect backup config aruba
+!!! collect backup config aruba (v5 2026-10-13)
+!!! v2: removed show system-information / show system inventory / show transceiver / show mac-address-table (+ count) - failed on all 3 Aruba 2540 captures (YC.16.06)
+!!! v3: added show logging (event log for the Logs tab). Aruba/ProCurve: 'show logging' prints the event log; 'show logging -r' prints newest first - both are read.
+!!! v4: UNVERIFIED block at the end = ArubaOS-Switch commands from HPE's documentation that no capture has answered yet (NTP / SNTP, LLDP local device, loop-protect, port-security, authentication, RADIUS / TACACS, SNMP, CDP). Test on ONE switch first and keep only what it accepts ('Invalid input' means this firmware does not have it).
+!!! v5: checked against 9 real ArubaOS-Switch captures (2540, YC.16.06) and HPE / Aruba documentation. show system, show mac-address and show authentication answered on the captures and moved into the main block. show timesync removed: no capture ran it and it is not an ArubaOS-Switch show command (timesync is a configuration command; the time services are show sntp / show timep / show ntp). show trunk is now show trunks and show module is now show modules (the documented spellings; the short forms also answered). show interfaces transceiver added (answered on 3 captures; the Transceivers tab reads it).
 
 write memory
 
@@ -8,21 +12,17 @@ show time
 
 show running-config
 
-show system-information
-
-show system inventory
-
 show version
 
 show vlan
-
-show transceiver
 
 show name
 
 show interfaces brief
 
-show trunk
+show interfaces transceiver
+
+show trunks
 
 show ip
 
@@ -40,13 +40,33 @@ show power-over-ethernet
 
 show spanning-tree
 
-show module
+show modules
 
 show ip route
 
 show access-list
 
-show mac-address-table count
+show system
 
-show mac-address-table
+show authentication
 
+show mac-address
+
+show logging
+
+!!! Documented in the HPE / Aruba ArubaOS-Switch guides (opened 2026-10-13) but no capture has answered them yet. 'Invalid input' means this firmware does not have the command - harmless.
+show lldp info local-device
+
+show sntp
+
+show loop-protect
+
+show port-security
+
+show radius
+
+show tacacs
+
+show snmp-server
+
+show cdp neighbors

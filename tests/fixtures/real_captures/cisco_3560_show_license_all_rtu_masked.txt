@@ -1,0 +1,23 @@
+LAB-C3560#show license all
+License Store: Primary License Storage
+License Store: Built-In License Storage
+StoreIndex: 0 	Feature: ipservices                        Version: 1.0
+	License Type: Evaluation
+	License State: Active, In Use
+	    Evaluation total period: 12 weeks 6  days
+	    Evaluation period left: 2 weeks 3  days
+	    Period used: 10 weeks 3  days
+	License Priority: None
+	License Count: Non-Counted
+StoreIndex: 1 	Feature: ipservices                        Version: 1.0
+	License Type: PermanentRightToUse
+	License State: Inactive
+	    Period used: 0  minute  0  second
+	License Priority: None
+	License Count: Non-Counted
+StoreIndex: 2 	Feature: ipbase                            Version: 1.0
+	License Type: Permanent
+	License State: Active, Not in Use
+	License Priority: Medium
+	License Count: Non-Counted
+LAB-C3560#

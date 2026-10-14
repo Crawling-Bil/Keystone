@@ -1,0 +1,229 @@
+MBR-WSDTQN-70#show clock
+13:58:59.550 WIB Thu Feb 26 2026
+
+MBR-WSDTQN-70#show ver
+Cisco IOS XE Software, Version 17.12.06
+Cisco IOS Software [Dublin], c8000be Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.12.6, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Sun 31-Aug-25 06:28 by mcpre
+
+
+Cisco IOS-XE software, Copyright (c) 2005-2025 by cisco Systems, Inc.
+All rights reserved.  Certain components of Cisco IOS-XE software are
+licensed under the GNU General Public License ("GPL") Version 2.0.  The
+software code licensed under GPL Version 2.0 is free software that comes
+with ABSOLUTELY NO WARRANTY.  You can redistribute and/or modify such
+GPL code under the terms of GPL Version 2.0.  For more details, see the
+documentation or "License Notice" file accompanying the IOS-XE software,
+or the applicable URL provided on the flyer accompanying the IOS-XE
+software.
+
+
+ROM: 17.9(7r)
+MBR-WSDTQN-70 uptime is 20 weeks, 5 days, 14 hours, 21 minutes
+Uptime for this control processor is 20 weeks, 5 days, 14 hours, 22 minutes
+System returned to ROM by BootRomUpgrade at 23:25:24 WIB Fri Oct 3 2025
+System restarted at 23:37:43 WIB Fri Oct 3 2025
+System image file is "bootflash:c8000be-universalk9.17.12.06.SPA.bin"
+Last reload reason: Reload Command
+
+
+
+This product contains cryptographic features and is subject to United
+States and local country laws governing import, export, transfer and
+use. Delivery of Cisco cryptographic products does not imply
+third-party authority to import, export, distribute or use encryption.
+Importers, exporters, distributors and users are responsible for
+compliance with U.S. and local country laws. By using this product you
+agree to comply with applicable laws and regulations. If you are unable
+to comply with U.S. and local laws, return this product immediately.
+
+A summary of U.S. laws governing Cisco cryptographic products may be found at:
+http://www.cisco.com/wwl/export/crypto/tool/stqrg.html
+
+If you require further assistance please contact us by sending email to
+export@cisco.com.
+
+
+Technology Package License Information: 
+
+-----------------------------------------------------------------
+Technology     Type         Technology-package Technology-package
+                            Current            Next Reboot       
+-----------------------------------------------------------------
+Smart License  Perpetual    None               None              
+Smart License  Subscription None               None              
+
+The current crypto throughput level is 250000 kbps 
+
+
+Smart Licensing Status: Smart Licensing Using Policy
+
+cisco C8300-1N1S-6T (1RU) processor with 3686327K/6147K bytes of memory.
+Processor board ID RRB0554N05R
+Router operating mode: Autonomous
+6 Gigabit Ethernet interfaces
+32768K bytes of non-volatile configuration memory.
+8388608K bytes of physical memory.
+7573503K bytes of flash memory at bootflash:.
+15253504K bytes of M.2 USB at harddisk:.
+
+Configuration register is 0x2102
+
+MBR-WSDTQN-70#show run
+Building configuration...
+hostname MBR-WSDTQN-70
+!
+interface Loopback0
+ ip address 10.255.1.27 255.255.255.255
+!
+interface Port-channel30
+ ip address 10.255.2.30 255.255.255.252
+ no negotiation auto
+ hold-queue 150 in
+!
+interface GigabitEthernet0/0/0
+ ip address 10.255.3.1 255.255.255.252
+ ip access-group DC_DRC out
+ negotiation auto
+ no cdp enable
+!
+interface GigabitEthernet0/0/1
+ no ip address
+ negotiation auto
+ channel-group 30
+!
+interface GigabitEthernet0/0/2
+ no ip address
+ negotiation auto
+ channel-group 30
+!
+interface GigabitEthernet0/0/5
+ vrf forwarding mgmt
+ ip address 10.255.4.32 255.255.255.0
+ negotiation auto
+!
+router ospf 1
+ router-id 10.255.5.7
+ network 10.255.3.0 0.0.0.3 area 0
+ network 10.255.1.27 0.0.0.0 area 0
+ network 10.255.2.28 0.0.0.3 area 0
+ network 10.255.6.0 0.0.0.127 area 0
+!
+ip route 0.0.0.0 0.0.0.0 10.255.2.29
+!
+ip route 10.255.7.139 255.255.255.255 10.255.2.29
+!
+ip route 10.255.3.10 255.255.255.255 10.255.3.2
+!
+ip route 10.255.8.11 255.255.255.255 10.255.3.2
+!
+ip route 10.255.8.12 255.255.255.255 10.255.3.2
+!
+ip route 10.255.8.117 255.255.255.255 10.255.3.2
+!
+ip route 10.255.8.213 255.255.255.255 10.255.3.2
+!
+ip route vrf mgmt 0.0.0.0 0.0.0.0 10.255.6.1
+!
+ip route vrf mgmt 0.0.0.0 0.0.0.0 10.255.4.1
+!
+ip access-list extended DC_DRC
+ 10 permit ip 10.255.9.0 0.0.0.255 10.255.3.0 0.0.0.255
+ 20 permit ip 10.255.9.0 0.0.0.255 10.255.1.0 0.0.0.255
+ 30 permit ip 10.255.3.0 0.0.0.255 10.255.3.0 0.0.0.255
+ 40 permit ip 10.255.3.0 0.0.0.255 10.255.6.0 0.0.0.255
+ 50 permit ip 10.255.3.0 0.0.0.255 10.255.9.0 0.0.0.255
+ 60 permit ip 10.255.10.0 0.0.0.255 10.255.11.0 0.0.0.255
+ 70 permit ip host 10.255.12.7 10.255.11.0 0.0.0.255
+ 80 permit ip 10.255.13.0 0.0.0.255 10.255.14.0 0.0.0.255
+!
+
+MBR-WSDTQN-70#show ip int brief
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0/0   10.255.3.1      YES NVRAM  up                    up      
+GigabitEthernet0/0/1   unassigned      YES NVRAM  up                    up      
+GigabitEthernet0/0/2   unassigned      YES NVRAM  up                    up      
+GigabitEthernet0/0/3   unassigned      YES NVRAM  administratively down down    
+GigabitEthernet0/0/4   unassigned      YES NVRAM  administratively down down    
+GigabitEthernet0/0/5   10.255.4.32   YES NVRAM  down                  down    
+Loopback0              10.255.1.27     YES NVRAM  up                    up      
+Port-channel30         10.255.2.30    YES NVRAM  up                    up      
+
+MBR-WSDTQN-70#show logging
+Syslog logging: enabled (0 messages dropped, 3 messages rate-limited, 0 flushes, 0 overruns, xml disabled, filtering disabled)
+
+No Active Message Discriminator.
+
+
+
+No Inactive Message Discriminator.
+
+
+    Console logging: level debugging, 299 messages logged, xml disabled,
+                     filtering disabled
+    Monitor logging: level debugging, 0 messages logged, xml disabled,
+                     filtering disabled
+    Buffer logging:  level debugging, 299 messages logged, xml disabled,
+                    filtering disabled
+    Exception Logging: size (4096 bytes)
+    Count and timestamp logging messages: disabled
+    Persistent logging: disabled
+
+No active filter modules.
+
+    Trap logging: level informational, 297 message lines logged
+        Logging Source-Interface:       VRF Name:
+    TLS Profiles: 
+
+Log Buffer (102400 bytes):
+
+*Oct  3 16:37:52.277: %LINK-3-UPDOWN: Interface EOBC0, changed state to up
+*Oct  3 16:37:52.303: %LINK-3-UPDOWN: Interface Lsmpi0, changed state to up
+*Oct  3 16:37:52.623: %LINK-3-UPDOWN: Interface LIIN0, changed state to up
+*Oct  3 16:37:53.277: %LINEPROTO-5-UPDOWN: Line protocol on Interface EOBC0, changed state to up
+*Oct  3 16:37:53.303: %LINEPROTO-5-UPDOWN: Line protocol on Interface Lsmpi0, changed state to up
+*Oct  3 16:37:53.624: %LINEPROTO-5-UPDOWN: Line protocol on Interface LIIN0, changed state to up
+*Oct  3 16:37:56.737: %LINEPROTO-5-UPDOWN: Line protocol on Interface Loopback0, changed state to up
+*Oct  3 16:37:57.035: %SYS-5-CONFIG_I: Configured from memory by console
+Oct  3 16:37:57.745: %LINEPROTO-5-UPDOWN: Line protocol on Interface Port-channel30, changed state to down
+Oct  3 16:38:16.622: %LINK-3-UPDOWN: Interface GigabitEthernet0/0/0, changed state to down
+Oct  3 16:38:16.707: %LINK-3-UPDOWN: Interface GigabitEthernet0/0/1, changed state to down
+Oct  3 16:38:16.708: %LINK-3-UPDOWN: Interface GigabitEthernet0/0/2, changed state to down
+Oct  3 16:38:16.710: %LINK-3-UPDOWN: Interface GigabitEthernet0/0/5, changed state to down
+Oct  3 16:38:27.668: %LINK-3-UPDOWN: Interface GigabitEthernet0/0/0, changed state to up
+Oct  3 16:38:27.675: %LINK-3-UPDOWN: Interface GigabitEthernet0/0/1, changed state to up
+Oct  3 16:38:27.677: %LINK-3-UPDOWN: Interface GigabitEthernet0/0/2, changed state to up
+Oct  3 16:38:28.668: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0/0, changed state to up
+Oct  3 16:38:28.675: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0/1, changed state to up
+Oct  3 16:38:28.677: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0/2, changed state to up
+Oct  3 16:38:30.686: %LINEPROTO-5-UPDOWN: Line protocol on Interface Port-channel30, changed state to up
+Oct  3 16:38:33.344: %OSPF-5-ADJCHG: Process 1, Nbr 10.255.15.11 on GigabitEthernet0/0/0 from LOADING to FULL, Loading Done
+Oct  3 16:39:10.689: %OSPF-5-ADJCHG: Process 1, Nbr 10.255.16.1 on Port-channel30 from LOADING to FULL, Loading Done
+Oct  3 16:49:09.269: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: ygtzhhimqib] [Source: LOCAL] [localport: 0] at 23:49:09 WIB Fri Oct 3 2025
+Oct  3 16:51:42.189: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.9.13] [localport: 22] at 23:51:42 WIB Fri Oct 3 2025
+Oct  8 09:47:41.424: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.9.13] [localport: 22] at 16:47:41 WIB Wed Oct 8 2025
+Oct 29 08:57:52.612: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.9.13] [localport: 22] at 15:57:52 WIB Wed Oct 29 2025
+Oct 30 09:06:40.313: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.9.13] [localport: 22] at 16:06:40 WIB Thu Oct 30 2025
+Oct 30 09:46:34.251: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.9.13] [localport: 22] at 16:46:34 WIB Thu Oct 30 2025
+Oct 30 10:01:56.522: %SYS-5-CONFIG_I: Configured from console by uatcmqyvvkyz on vty0 (10.255.9.13)
+Nov  7 13:57:31.510: %OSPF-5-ADJCHG: Process 1, Nbr 10.255.15.11 on GigabitEthernet0/0/0 from FULL to DOWN, Neighbor Down: Interface down or detached
+Nov  7 13:57:32.506: %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet0/0/0, changed state to down
+Nov  7 13:59:48.177: %OSPF-5-ADJCHG: Process 1, Nbr 10.255.15.11 on GigabitEthernet0/0/0 from LOADING to FULL, Loading Done
+Nov  7 14:56:06.847: %OSPF-5-ADJCHG: Process 1, Nbr 10.255.15.11 on GigabitEthernet0/0/0 from FULL to DOWN, Neighbor Down: Dead timer expired
+Nov  7 14:57:10.556: %OSPF-5-ADJCHG: Process 1, Nbr 10.255.15.11 on GigabitEthernet0/0/0 from LOADING to FULL, Loading Done
+Nov  7 14:59:24.782: %OSPF-5-ADJCHG: Process 1, Nbr 10.255.15.11 on GigabitEthernet0/0/0 from FULL to DOWN, Neighbor Down: Dead timer expired
+Nov  7 15:00:09.048: %OSPF-5-ADJCHG: Process 1, Nbr 10.255.15.11 on GigabitEthernet0/0/0 from LOADING to FULL, Loading Done
+Nov 14 08:03:41.671: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.9.10] [localport: 22] at 15:03:41 WIB Fri Nov 14 2025
+Nov 14 08:06:55.729: %SYS-5-CONFIG_I: Configured from console by uatcmqyvvkyz on vty0 (10.255.9.10)
+Nov 14 08:07:52.194: %SYS-5-CONFIG_I: Configured from console by uatcmqyvvkyz on vty0 (10.255.9.10)
+Nov 20 07:26:18.628: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: ygtzhhimqib] [Source: 10.255.9.4] [localport: 22] at 14:26:18 WIB Thu Nov 20 2025
+Nov 27 02:32:22.640: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.9.10] [localport: 22] at 09:32:22 WIB Thu Nov 27 2025
+Nov 27 02:36:42.000: %SYS-5-CONFIG_I: Configured from console by uatcmqyvvkyz on vty0 (10.255.9.10)
+Nov 27 02:50:21.255: %SYS-5-CONFIG_I: Configured from console by uatcmqyvvkyz on vty0 (10.255.9.10)
+Nov 27 03:54:11.409: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.9.10] [localport: 22] at 10:54:11 WIB Thu Nov 27 2025
+Nov 27 04:13:21.897: %SYS-5-CONFIG_I: Configured from console by uatcmqyvvkyz on vty0 (10.255.9.10)
+Jan  8 08:47:38.584: %SYS-5-CONFIG_I: Configured from console by uatcmqyvvkyz on vty0 (10.255.9.10)
+Jan 22 10:19:27.781: %SYS-5-CONFIG_I: Configured from console by uatcmqyvvkyz on vty0 (10.255.9.13)
+Jan 22 13:06:55.351: %SYS-5-CONFIG_I: Configured from console by uatcmqyvvkyz on vty0 (10.255.9.13)

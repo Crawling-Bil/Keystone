@@ -1,0 +1,317 @@
+<NZR-FCOI-GADQNU3-P7584>display interface transceiver
+
+ 10GE1/0/1 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_LX10
+   Connector Type                        :LC
+   Wavelength (nm)                       :1310
+   Transfer Distance (m)                 :10000(9um/125um SMF)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URF
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :JX452274108210
+   Manufacturing Date                    :2026-2-26
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 10GE1/0/2 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_LX10
+   Connector Type                        :LC
+   Wavelength (nm)                       :1310
+   Transfer Distance (m)                 :10000(9um/125um SMF)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URF
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :SM502459566054
+   Manufacturing Date                    :2026-2-26
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+<MJC-OHXNAT-AFWOJX-K9640>dis
+<MJC-OHXNAT-AFWOJX-K9640>display tra
+<MJC-OHXNAT-AFWOJX-K9640>display inter
+<MJC-OHXNAT-AFWOJX-K9640>display interfac
+<MJC-OHXNAT-AFWOJX-K9640>display interface tra
+<MJC-OHXNAT-AFWOJX-K9640>display interface transceiver
+
+ 25GE1/0/1 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_SX
+   Connector Type                        :LC
+   Wavelength (nm)                       :850
+   Transfer Distance (m)                 :275(OM1)
+                                          550(OM2)
+                                          1000(OM3)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URD
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :6384633326133
+   Manufacturing Date                    :2026-5-28
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 25GE1/0/2 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_SX
+   Connector Type                        :LC
+   Wavelength (nm)                       :850
+   Transfer Distance (m)                 :275(OM1)
+                                          550(OM2)
+                                          1000(OM3)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URD
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :9562391617947
+   Manufacturing Date                    :2026-5-28
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 25GE1/0/3 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_SX
+   Connector Type                        :LC
+   Wavelength (nm)                       :850
+   Transfer Distance (m)                 :275(OM1)
+                                          550(OM2)
+                                          1000(OM3)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URD
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :0211653509760
+   Manufacturing Date                    :2026-5-28
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 25GE1/0/4 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_SX
+   Connector Type                        :LC
+   Wavelength (nm)                       :850
+   Transfer Distance (m)                 :275(OM1)
+                                          550(OM2)
+                                          1000(OM3)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URD
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :8585903447002
+   Manufacturing Date                    :2026-5-28
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+<MJC-OHXNAT-AFWOJX-K9640> dis
+<MJC-OHXNAT-AFWOJX-K9640> display inter
+<MJC-OHXNAT-AFWOJX-K9640>display lldp neighbor
+GE1/0/22 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :063b-3f6e-7376
+Port ID subtype                    :Interface Name
+Port ID                            :GE1/0/24
+Port description                   :** TO:MJC-OHXNAT-AFWOJX-K9640 (was Aruba port 24, LLDP-confirmed bidirectionally) **
+System name                        :NZR-FCOI-GADQNU3-P7584
+System description                 :Huawei Switch
+Huawei YunShan OS
+Version 10.255.0.1 (S5700 V600R025C00SPC500)
+Copyright (C) 2021-2025 Huawei Technologies Co., Ltd.
+HUAWEI CloudEngine S5735-S-V2
+
+System capabilities supported      :bridge router
+System capabilities enabled        :bridge router
+Management address type            :IPv4
+Management address                 :10.255.0.2
+Expired time                       :109s
+
+Device 1 infomation:
+  Device serial number             :KE2664997336
+  Device model name                :S5735-S24P4XE-V2
+
+Port VLAN ID(PVID)                 :1
+Port and Protocol VLAN ID(PPVID)   :unsupported
+VLAN name of VLAN 1                :VLAN1
+Protocol identity                  :--
+Auto-negotiation supported         :Yes
+Auto-negotiation enabled           :Yes
+OperMau                            :speed (1000) /duplex (Full)
+Link aggregation supported         :Yes
+Link aggregation enabled           :No
+Aggregation port ID                :0
+Maximum frame Size                 :9216
+Port Identity                      :--
+Discovered time                    :2026-10-02 16:29:34+07:00
+
+Power port class                   :PSE
+PSE power supported                :Yes
+PSE power enabled                  :Yes
+PSE pairs control ability          :Yes
+Power pairs                        :Signal
+Port power classification          :Unknown
+
+EEE support                        :No
+Transmit Tw                        :65535
+Receive Tw                         :65535
+Fallback Receive Tw                :0
+Echo Transmit Tw                   :0
+Echo Receive Tw                    :0
+
+Network Card ID                    :--
+
+Med capability                     :--
+Med device type                    :--
+
+
+
+<MJC-OHXNAT-AFWOJX-K9640>display interface transceiver
+
+ 25GE1/0/1 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_SX
+   Connector Type                        :LC
+   Wavelength (nm)                       :850
+   Transfer Distance (m)                 :275(OM1)
+                                          550(OM2)
+                                          1000(OM3)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URD
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :6384633326133
+   Manufacturing Date                    :2026-5-28
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 25GE1/0/2 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_SX
+   Connector Type                        :LC
+   Wavelength (nm)                       :850
+   Transfer Distance (m)                 :275(OM1)
+                                          550(OM2)
+                                          1000(OM3)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URD
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :9562391617947
+   Manufacturing Date                    :2026-5-28
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 25GE1/0/3 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_SX
+   Connector Type                        :LC
+   Wavelength (nm)                       :850
+   Transfer Distance (m)                 :275(OM1)
+                                          550(OM2)
+                                          1000(OM3)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URD
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :0211653509760
+   Manufacturing Date                    :2026-5-28
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 25GE1/0/4 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_SX
+   Connector Type                        :LC
+   Wavelength (nm)                       :850
+   Transfer Distance (m)                 :275(OM1)
+                                          550(OM2)
+                                          1000(OM3)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URD
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :8585903447002
+   Manufacturing Date                    :2026-5-28
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+<MJC-OHXNAT-AFWOJX-K9640>

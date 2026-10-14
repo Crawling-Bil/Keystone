@@ -1,4 +1,13 @@
-!!! collect backup config catalyst 
+!!! collect backup config catalyst (v7 2026-10-13)
+!!! v2: RUN 'enable' MANUALLY FIRST - prompt must end with # (privileged EXEC). Do not paste 'enable' here: a password prompt would swallow the next command.
+!!! v2: removed show interface brief / show port-channel summary (NX-OS syntax), show power inline detail and show license usage/summary/all (failed on 2960/3560/3650 captures)
+!!! v3: added show logging (interface flaps, err-disable, STP/LACP events for the Logs tab). Keep 'terminal length 0' on, the log can be several thousand lines.
+!!! v4: NEW block after show logging = commands no parser reads yet. They answer what the analyzer cannot answer today (error counters, switchport modes, err-disable reason and recovery, VTP, NTP sync, SSH, DHCP snooping, port-security, 802.1X sessions, SPAN, HSRP / VRRP / OSPF state). Run them once so the next parser round can read real output.
+!!! v5: show standby (the full HSRP view: timers, virtual MAC, tracking) and show ip ospf interface brief added next to show standby brief / show ip ospf neighbor, for the next parser round. show standby brief is read now.
+!!! v6: show ip ospf database added after show ip ospf interface brief; the analyzer reads both (LSA totals per area and type, Router LSAs, LSAs near MaxAge). Keep 'term len 0' on: with the pager on, the output is cut and the analyzer warns that the database is incomplete.
+!!! v4: a command your IOS does not know answers '% Invalid input' - harmless, the Coverage tab lists it as rejected. show interface stays last: it is the longest output.
+!!! v7: every command checked against 65 real Catalyst / IOS captures and Cisco's documentation. show run | in route route is now show run | in ip route (the text after 'in' is ONE pattern, so 'route route' matched nothing in 56 of 56 captures). show license summary / usage / all are back: Smart Licensing commands that answered on 16 to 20 captures (Catalyst 9000 class; a 2960 / 3560 / 3650 answers % Invalid input - harmless, the Coverage tab lists it as rejected).
+!!! v7: documentation (opened 2026-10-13): show interfaces counters errors / status err-disabled, show errdisable detect / recovery, show spanning-tree root / inconsistentports, show vtp status, show ntp status / associations, show ip ssh, show ip dhcp snooping, show port-security, show authentication sessions, show monitor session all, show standby, show vrrp brief, show ip ospf neighbor / interface brief / database, show ip protocols, show redundancy, show boot are all documented for Catalyst IOS / IOS-XE; the block after show logging has not been run on a device yet.
 
 write memory
 
@@ -24,8 +33,6 @@ show interface desc
 
 show interface status
 
-show interface brief
-
 show interface trunk
 
 show ip interface brief
@@ -35,8 +42,6 @@ show ip arp summary
 show ip arp
 
 show etherchannel summary
-
-show port-channel summary
 
 show cdp neighbors 
 
@@ -50,17 +55,21 @@ show lacp neighbor
 
 show power inline
 
-show power inline detail
-
 show spanning-tree 
 
 show spanning-tree summary
 
 show env all
 
+show license summary
+
+show license usage
+
+show license all
+
 show switch
 
-show run | in route route
+show run | in ip route
 
 show ip route
 
@@ -72,12 +81,6 @@ show ip sla statistics
 
 show event manager policy registered
 
-show license usage
-
-show license summary
-
-show license all
-
 show ip access-list
 
 show access-list
@@ -85,6 +88,62 @@ show access-list
 show mac address-table count
 
 show mac address-table
+
+show logging
+
+!!! v4 NEW - not parsed yet
+
+show interfaces counters errors
+
+show interfaces switchport
+
+show interfaces status err-disabled
+
+show errdisable detect
+
+show errdisable recovery
+
+show spanning-tree root
+
+show spanning-tree inconsistentports
+
+show vtp status
+
+show ntp status
+
+show ntp associations
+
+show ip ssh
+
+show ip dhcp snooping
+
+show port-security
+
+show authentication sessions
+
+show monitor session all
+
+show standby brief
+
+show standby
+
+show vrrp brief
+
+show ip ospf neighbor
+
+show ip ospf interface brief
+
+show ip ospf database
+
+show ip protocols
+
+show processes cpu sorted
+
+show processes memory sorted
+
+show redundancy
+
+show boot
 
 show interface
 

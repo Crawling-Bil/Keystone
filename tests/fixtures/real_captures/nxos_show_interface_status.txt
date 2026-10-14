@@ -1,0 +1,85 @@
+YCW-HAUG-AO-B3516-BYT# sh int status 
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+mgmt0         --                 connected routed    full    1000    --         
+
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+Eth1/1        *** To-F5_Primary_ notconnec trunk     auto    auto    10g        
+Eth1/2        *** To BBC SANGFOR connected 201       full    1000    10g        
+Eth1/3        *** HCI SERVER 1 * connected 201       full    10G     10g        
+Eth1/4        *** HCI SERVER 1 * connected 201       full    10G     10g        
+Eth1/5        *** HCI SERVER 2 * connected 201       full    10G     10g        
+Eth1/6        *** HCI SERVER 2 * connected 201       full    10G     10g        
+Eth1/7        *** HCI SERVER 3 * connected 201       full    10G     10g        
+Eth1/8        *** HCI SERVER 3 * connected 201       full    10G     10g        
+Eth1/9        *** To Host 2 LXS- connected trunk     full    1000    10g        
+Eth1/10       *** To Host 1 LXS- connected trunk     full    1000    10g        
+Eth1/11       ** PERIMETER TEST  notconnec 201       auto    auto    10g        
+Eth1/12       --                 disabled  routed    auto    auto    10g        
+Eth1/13       --                 disabled  routed    auto    auto    10g        
+Eth1/14       --                 disabled  routed    auto    auto    10g        
+Eth1/15       *** TO ASA DMZ TRI connected trunk     full    1000    10g        
+Eth1/16       *** To Existing DM notconnec trunk     auto    auto    10g        
+Eth1/17       *** KeepAlive Link connected routed    full    10G     10g        
+Eth1/18       *** KeepAlive Link connected routed    full    10G     10g        
+Eth1/19       *** VPC PEER LINK  connected trunk     full    10G     10g        
+Eth1/20       *** VPC PEER LINK  connected trunk     full    10G     10g        
+Eth1/21       *** VPC PEER LINK  connected trunk     full    10G     10g        
+Eth1/22       *** VPC PEER LINK  connected trunk     full    10G     10g        
+Eth1/23       *** POINT TO POINT disabled  205       auto    10G     10g        
+Eth1/24       *** POINT TO POINT disabled  205       auto    10G     10g        
+Eth1/25       --                 disabled  routed    auto    auto    10g        
+Eth1/26       --                 disabled  routed    auto    auto    10g        
+Eth1/27       --                 disabled  routed    auto    auto    10g        
+Eth1/28       --                 disabled  routed    auto    auto    10g        
+Eth1/29       --                 disabled  routed    auto    auto    10g        
+Eth1/30       --                 disabled  routed    auto    auto    10g        
+Eth1/31       --                 disabled  routed    auto    auto    10g        
+Eth1/32       --                 disabled  routed    auto    auto    10g        
+Eth1/33       ** testing**       notconnec 201       auto    auto    10g        
+Eth1/34       --                 disabled  routed    auto    auto    10g        
+Eth1/35       --                 disabled  routed    auto    auto    10g        
+Eth1/36       --                 disabled  routed    auto    auto    10g        
+Eth1/37       --                 disabled  routed    auto    auto    10g        
+Eth1/38       --                 disabled  routed    auto    auto    10g        
+Eth1/39       --                 disabled  routed    auto    auto    10g        
+Eth1/40       --                 disabled  routed    auto    auto    10g        
+Eth1/41       --                 disabled  routed    auto    auto    10g        
+Eth1/42       --                 disabled  routed    auto    auto    10g        
+Eth1/43       --                 disabled  routed    auto    auto    10g        
+Eth1/44       --                 disabled  routed    auto    auto    10g        
+Eth1/45       --                 disabled  routed    auto    auto    10g        
+Eth1/46       --                 disabled  routed    auto    auto    10g        
+Eth1/47       --                 notconnec 91        auto    auto    10g        
+Eth1/48       --                 connected 1         full    10G     10g        
+Eth1/49       *** To-NEW_F5_Prim connected trunk     full    40G     QSFP-40G-SR4
+Eth1/50       Span to PFS5010    xcvrAbsen 1         auto    auto    --         
+Eth1/51       *** vlan-test-f5ne xcvrAbsen trunk     auto    auto    --         
+Eth1/52       * POINT TO POINT T connected 205       full    10G     10Gbase-SR 
+Eth1/53       * POINT TO POINT T connected 205       full    10G     10Gbase-SR 
+Eth1/54       --                 xcvrAbsen routed    auto    auto    --         
+
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+Po1           *** KeepAlive Link connected routed    full    10G     --         
+Po2           *** VPC Peer Link  connected trunk     full    10G     --         
+Po6           *** POINT TO POINT connected 205       full    10G     --         
+Po7           *** POINT TO POINT connected 205       full    10G     --         
+
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+Vlan1         --                 down      routed    auto    auto    --
+Vlan201       *** DMZ SVR Defaul connected routed    auto    auto    --
+Vlan205       *** POINT TO POINT connected routed    auto    auto    --
+Vlan206       *** DMZ SVR TRIAL  connected routed    auto    auto    --
+Vlan215       *** VS WAF PROD IN connected routed    auto    auto    --
+Vlan216       ***VS WAF PROD EXT connected routed    auto    auto    --
+Vlan217       ***VS WAF QA ***   connected routed    auto    auto    --
+Vlan218       *** VS WAF DEV *** connected routed    auto    auto    --
+
+YCW-HAUG-AO-B3516-BYT# 

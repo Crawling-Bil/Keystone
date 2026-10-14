@@ -322,6 +322,16 @@ class HuaweiSwitchParser:
                 # it on.
                 # ---------------------------------------------
 
+                # "dhcp snooping enable" typed INSIDE a VLAN view is the
+                # per-VLAN form (real S5755 captures: one such line under
+                # each of vlan 53 / 700 / 701), so the VLAN is the scope.
+                if current_vlan is not None and line.lower() == "dhcp snooping enable":
+                    config.dhcp_snooping_enabled = True
+                    scope = str(current_vlan.vlan_id)
+                    if scope not in config.dhcp_snooping_vlans:
+                        config.dhcp_snooping_vlans.append(scope)
+                    continue
+
                 if line.lower() in ("dhcp snooping enable", "dhcp snooping enable ipv4"):
                     config.dhcp_snooping_enabled = True
                     continue

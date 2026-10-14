@@ -1,0 +1,66 @@
+TQTQYO-SQK-ONRW-Z2638#show inventory
+NAME: "c36xx Stack", DESCR: "c36xx Stack"
+PID: WS-C3650-24TS     , VID: V04  , SN: XOJ9477F76F
+
+NAME: "Switch 1", DESCR: "WS-C3650-24TS-S"
+PID: WS-C3650-24TS-S   , VID: V04  , SN: XOJ9477F76F
+
+NAME: "StackPort1/1", DESCR: "StackPort1/1"
+PID: STACK-T2-1M       , VID: V03  , SN: PZE5832272W
+
+NAME: "StackPort1/2", DESCR: "StackPort1/2"
+PID: STACK-T2-1M       , VID: V03  , SN: PFA62039432
+
+NAME: "Switch 1 - Power Supply A", DESCR: "Switch 1 - Power Supply A"
+PID: PWR-C2-250WAC     , VID: V03  , SN: FPJ8685D7R6
+
+NAME: "GigabitEthernet1/1/1", DESCR: "1000BaseSX SFP"
+PID:                    , VID:      , SN: EEZ5461Y3OX    
+
+NAME: "GigabitEthernet1/1/2", DESCR: "1000BaseSX SFP"
+PID: GLC-SX-MMD         , VID: V03  , SN: EYS860688IG    
+
+NAME: "GigabitEthernet1/1/3", DESCR: "1000BaseLX SFP"
+PID: GLC-LH-SMD         , VID: V01  , SN: KWF15618CT8    
+
+NAME: "Switch 2", DESCR: "WS-C3650-24TS-S"
+PID: WS-C3650-24TS-S   , VID: V04  , SN: XYY8914E1D6
+
+NAME: "StackPort2/1", DESCR: "StackPort2/1"
+PID: STACK-T2-1M       , VID: V03  , SN: PFA62039432
+
+NAME: "StackPort2/2", DESCR: "StackPort2/2"
+PID: STACK-T2-1M       , VID: V03  , SN: PZE5832272W
+
+NAME: "Switch 2 - Power Supply A", DESCR: "Switch 2 - Power Supply A"
+PID: PWR-C2-250WAC     , VID: V03  , SN: DRW4550Q5YQ
+
+NAME: "GigabitEthernet2/1/1", DESCR: "1000BaseSX SFP"
+PID: GLC-SX-MMD         , VID: V03  , SN: AXO4533783P    
+
+NAME: "GigabitEthernet2/1/2", DESCR: "1000BaseSX SFP"
+PID: GLC-SX-MMD         , VID: V03  , SN: JNG415162LG    
+
+NAME: "GigabitEthernet2/1/3", DESCR: "1000BaseLX SFP"
+PID: GLC-LH-SMD         , VID: V01  , SN: JQZ19871OZ3    
+
+
+TQTQYO-SQK-ONRW-Z2638#
+TQTQYO-SQK-ONRW-Z2638#show interface transceiver
+If device is externally calibrated, only calibrated values are printed.
+++ : high alarm, +  : high warning, -  : low warning, -- : low alarm.
+NA or N/A: not applicable, Tx: transmit, Rx: receive.
+mA: milliamperes, dBm: decibels (milliwatts).
+
+                                 Optical   Optical
+           Temperature  Voltage  Tx Power  Rx Power
+Port       (Celsius)    (Volts)  (dBm)     (dBm)
+---------  -----------  -------  --------  --------
+Gi1/1/2      25.9       3.29      -5.6      -5.5   
+Gi1/1/3      22.6       3.28      N/A      -40.0   
+Gi2/1/1      26.3       3.29      -4.4      -7.0   
+Gi2/1/2      26.1       3.29      -5.9      -5.7   
+Gi2/1/3      22.8       3.29      N/A      -40.0   
+
+
+TQTQYO-SQK-ONRW-Z2638#

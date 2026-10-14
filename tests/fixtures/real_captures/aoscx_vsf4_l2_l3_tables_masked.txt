@@ -1,0 +1,272 @@
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show vlan summary
+Number of existing VLANs   : 32
+Number of static VLANs     : 32
+Number of dynamic VLANs    : 0
+Number of port-access VLANs: 0
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show vlan
+
+------------------------------------------------------------------------------------------------------------------
+VLAN  Name                              Status  Reason                  Type        Interfaces
+------------------------------------------------------------------------------------------------------------------
+1     DEFAULT_VLAN_1                    up      ok                      default     1/1/27-1/1/28,2/1/27-2/1/28,
+                                                                                    3/1/27-3/1/28,4/1/27-4/1/28,
+                                                                                    lag1
+100   VLAN_100                               up      ok                      static      lag1
+120   VLAN_120                          up      ok                      static      lag1
+130   VLAN_130                          up      ok                      static      lag1
+140   VLAN_140                          up      ok                      static      lag1
+150   VLAN_150                          up      ok                      static      lag1
+151   VLAN_151                          up      ok                      static      lag1
+153   VLAN_153                            up      ok                      static      lag1
+160   VLAN_160                          up      ok                      static      lag1
+170   VLAN_170                               up      ok                      static      2/1/21,lag1
+180   VLAN_180                              up      ok                      static      lag1
+190   VLAN_190                          up      ok                      static      1/1/3-1/1/6,1/1/8-1/1/9,
+                                                                                    1/1/13-1/1/16,1/1/19,
+                                                                                    1/1/21-1/1/22,2/1/5,
+                                                                                    2/1/17-2/1/18,2/1/23,3/1/5,
+                                                                                    3/1/15-3/1/16,3/1/19-3/1/20,
+                                                                                    3/1/22,4/1/3-4/1/4,lag1
+191   VLAN_191                          up      ok                      static      3/1/6,lag1
+192   VLAN_192                          up      ok                      static      lag1
+200   VLAN_200                            up      ok                      static      lag1
+202   VLAN_202                           up      ok                      static      lag1
+212   VLAN_212                          up      ok                      static      3/1/9,lag1
+213   VLAN_213                          up      ok                      static      2/1/1,2/1/4,lag1
+214   VLAN_214                          up      ok                      static      lag1
+215   VLAN_215                          up      ok                      static      lag1
+216   VLAN_216                                up      ok                      static      lag1
+217   VLAN_217                              up      ok                      static      1/1/7,1/1/10-1/1/11,1/1/18,
+                                                                                    1/1/20,2/1/2-2/1/3,2/1/7-2/1/8,
+                                                                                    2/1/13-2/1/14,2/1/19-2/1/20,
+                                                                                    3/1/1-3/1/4,3/1/8,
+                                                                                    3/1/10-3/1/12,3/1/21,3/1/24,
+                                                                                    4/1/1-4/1/2,4/1/5-4/1/8,4/1/13,
+                                                                                    lag1
+221   VLAN_221                            up      ok                      static      lag1
+222   VLAN_222                               up      ok                      static      lag1
+245   VLAN_245                              up      ok                      static      lag1
+246   VLAN_246                           up      ok                      static      lag1
+300   VLAN_300                               up      ok                      static      lag1
+301   VLAN_301                          up      ok                      static      lag1
+400   VLAN_400                          up      ok                      static      lag1
+574   VLAN_574                          up      ok                      static      lag1
+575   VLAN_575                             up      ok                      static      lag1
+900   VLAN_900                          up      ok                      static      1/1/1-1/1/2,1/1/12,1/1/17,
+                                                                                    2/1/6,2/1/9-2/1/12,
+                                                                                    2/1/15-2/1/16,2/1/22,2/1/24,
+                                                                                    3/1/7,3/1/13-3/1/14,
+                                                                                    3/1/17-3/1/18,3/1/23,
+                                                                                    4/1/9-4/1/12,4/1/14-4/1/24,
+                                                                                    lag1
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show interface trunk
+
+-------------------------------------------------------------------------
+Port       Native VLAN Trunk VLANs
+-------------------------------------------------------------------------
+lag1       150         All
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show ip interface brief
+
+show arp
+
+show lag brief
+
+Interface         IP Address             Interface Status
+                                           link/admin
+vlan1            No Address                up/up
+
+vlan150          10.255.0.1/29           up/up
+
+
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show arp
+
+IPv4 Address     MAC                Port         Physical Port                                      State
+-------------------------------------------------------------------------------------------------------------
+10.255.0.2      03:53:03:65:8d:a3  vlan150      lag1                                              reachable
+10.255.0.3     1c:ce:87:b8:25:07  vlan150      lag1                                              reachable
+
+Total Number Of ARP Entries Listed: 2.
+-------------------------------------------------------------------------------------------------------------
+show lag
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show ip route
+
+Displaying ipv4 routes selected for forwarding
+
+Origin Codes: C - connected, S - static, L - local
+              R - RIP, B - BGP, O - OSPF, D - DHCP
+Type Codes:   E - External BGP, I - Internal BGP, V - VPN, EV - EVPN
+              IA - OSPF internal area, E1 - OSPF external type 1
+              E2 - OSPF external type 2
+
+VRF: default
+
+Prefix              Nexthop                                  Interface     VRF(egress)       Origin/   Distance/    Age
+                                                                                             Type      Metric
+--------------------------------------------------------------------------------------------------------
+0.0.0.0/0           10.255.0.2                              vlan150       -                 S         [1/0]        01d:02h:15m
+10.255.0.4/29      -                                        vlan150       -                 C         [0/0]        -         
+10.255.0.1/32     -                                        vlan150       -                 L         [0/0]        -         
+
+Total Route Count : 3
+
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show mac-address-table count
+Number of MAC addresses : 57
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show mac-address-table
+MAC age-time            : 300 seconds
+Number of MAC addresses : 57
+
+MAC Address          VLAN     Type                      Port
+--------------------------------------------------------------
+27:ca:21:a2:cd:31    1        dynamic                   lag1
+1c:ce:87:b8:25:07    1        dynamic                   lag1
+b6:52:5f:18:1d:8c    1        dynamic                   lag1
+30:7f:98:46:b5:72    1        dynamic                   lag1
+ad:02:90:e1:b3:cc    1        dynamic                   lag1
+b1:b3:2f:b0:24:89    1        dynamic                   lag1
+03:53:03:65:8d:a3    1        dynamic                   lag1
+5d:61:47:48:b8:1c    100      dynamic                   lag1
+03:53:03:65:8d:a3    130      dynamic                   lag1
+03:53:03:65:8d:a3    140      dynamic                   lag1
+27:ca:21:a2:cd:31    150      dynamic                   lag1
+1c:ce:87:b8:25:07    150      dynamic                   lag1
+b6:52:5f:18:1d:8c    150      dynamic                   lag1
+30:7f:98:46:b5:72    150      dynamic                   lag1
+03:53:03:65:8d:a3    150      dynamic                   lag1
+03:53:03:65:8d:a3    151      dynamic                   lag1
+03:53:03:65:8d:a3    153      dynamic                   lag1
+03:53:03:65:8d:a3    160      dynamic                   lag1
+03:53:03:65:8d:a3    170      dynamic                   lag1
+03:53:03:65:8d:a3    180      dynamic                   lag1
+03:53:03:65:8d:a3    190      dynamic                   lag1
+66:f4:80:11:aa:78    191      dynamic                   lag1
+03:53:03:65:8d:a3    191      dynamic                   lag1
+03:53:03:65:8d:a3    192      dynamic                   lag1
+03:53:03:65:8d:a3    200      dynamic                   lag1
+03:53:03:65:8d:a3    212      dynamic                   lag1
+03:53:03:65:8d:a3    213      dynamic                   lag1
+03:53:03:65:8d:a3    214      dynamic                   lag1
+03:53:03:65:8d:a3    215      dynamic                   lag1
+99:62:48:31:07:a5    217      dynamic                   lag1
+e7:a2:4b:09:f8:a8    217      dynamic                   lag1
+6f:cf:58:32:93:58    217      dynamic                   lag1
+03:53:03:65:8d:a3    217      dynamic                   lag1
+03:53:03:65:8d:a3    221      dynamic                   lag1
+03:53:03:65:8d:a3    222      dynamic                   lag1
+d4:5b:01:6c:de:04    245      dynamic                   lag1
+33:a0:1c:40:b9:b1    245      dynamic                   lag1
+37:b6:55:6d:94:10    245      dynamic                   lag1
+a0:ab:19:59:b8:db    245      dynamic                   lag1
+8d:4a:87:60:b4:83    245      dynamic                   lag1
+51:75:68:e4:76:4a    245      dynamic                   lag1
+a4:d7:4b:a9:94:90    245      dynamic                   lag1
+6c:81:17:0c:ed:5b    245      dynamic                   lag1
+03:53:03:65:8d:a3    245      dynamic                   lag1
+19:f4:11:fd:d2:04    245      dynamic                   lag1
+b6:44:87:fa:14:6f    245      dynamic                   lag1
+6f:f0:4c:78:5e:1b    245      dynamic                   lag1
+03:53:03:65:8d:a3    246      dynamic                   lag1
+2a:ce:3a:bd:d2:e3    300      dynamic                   lag1
+c5:19:80:8d:17:a1    300      dynamic                   lag1
+03:53:03:65:8d:a3    300      dynamic                   lag1
+75:25:40:23:e4:98    301      dynamic                   lag1
+89:1c:39:7d:86:c7    301      dynamic                   lag1
+03:53:03:65:8d:a3    301      dynamic                   lag1
+03:53:03:65:8d:a3    400      dynamic                   lag1
+53:f6:27:21:eb:36    900      dynamic                   lag1
+32:f4:b2:1e:44:38    900      dynamic                   lag1
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show lldp neighbor-info
+
+LLDP Neighbor Information
+=========================
+
+Total Neighbor Entries          : 1
+Total Neighbor Entries Deleted  : 36
+Total Neighbor Entries Dropped  : 0
+Total Neighbor Entries Aged-Out : 36
+
+LOCAL-PORT  CHASSIS-ID         PORT-ID                      PORT-DESC                    TTL      SYS-NAME
+-----------------------------------------------------------------------------------------------------------
+1/1/23      03:53:03:65:8d:a3  2/1/23                       NEIGHBOR_PORT_DESCRIPTION   120      UOR-NUDIQZB-NCR-1-LT-1A-JTD5
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show lldp neighbor-info detail
+
+LLDP Neighbor Information
+=========================
+
+Total Neighbor Entries          : 1
+Total Neighbor Entries Deleted  : 36
+Total Neighbor Entries Dropped  : 0
+Total Neighbor Entries Aged-Out : 36
+
+--------------------------------------------------------------------------------
+
+Port                           : 1/1/23
+Neighbor Entries               : 1
+Neighbor Entries Deleted       : 0
+Neighbor Entries Dropped       : 0
+Neighbor Entries Aged-Out      : 0
+Neighbor System-Name           : UOR-NUDIQZB-NCR-1-LT-1A-JTD5
+Neighbor System-Description    : HPE ANW JL724B  ML.10.16.1020
+Neighbor Chassis-ID            : 03:53:03:65:8d:a3
+Neighbor Management-Address    : 10.255.0.5
+Chassis Capabilities Available : Bridge, Router
+Chassis Capabilities Enabled   : Bridge, Router
+Neighbor Port-ID               : 2/1/23
+Neighbor Port-Desc             : NEIGHBOR_PORT_DESCRIPTION
+Neighbor Port VLAN ID          : 150
+Neighbor Port VLAN Name        : DEFAULT_VLAN_1,VLAN_100,VLAN_120   ,VLAN_130    ,VLAN_140  ,VLAN_150    ,VLAN_151    ,VLAN_153,VLAN_160 ,VLAN_170
+Neighbor Port MFS              : 1500
+Link aggregation supported     : Yes
+Link aggregation enabled       : Yes
+Aggregation port ID            : 6
+TTL                            : 120
+
+Neighbor Mac-Phy details
+Neighbor Auto-neg Supported    : true
+Neighbor Auto-Neg Enabled      : true
+Neighbor Auto-Neg Advertised   : 1000 BASE_TFD, 100 BASE_T4, 10 BASET_FD, Other
+Neighbor MAU type              : 1000 BASETFD
+
+Neighbor EEE information       : DOT3
+Neighbor TX Wake time          : 0 us
+Neighbor RX Wake time          : 0 us
+Neighbor Fallback time         : 0 us
+Neighbor TX Echo time          : 0 us
+Neighbor RX Echo time          : 0 us
+
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show interface transceiver
+-------------------------------------------------------------------------
+Port      Type             Product          Serial           Part
+                           Number           Number           Number
+-------------------------------------------------------------------------
+1/1/25    10G-DAC1         J9281D           DN78G7ELD7       8121-1797
+1/1/26    10G-DAC1         J9281D           LF29N7NC2D       8121-1797
+2/1/25    10G-DAC1         J9281D           LF29N7NC2D       8121-1797
+2/1/26    10G-DAC1         J9281D           LR13Q2PD4R       8121-1797
+3/1/25    10G-DAC1         J9281D           LR13Q2PD4R       8121-1797
+3/1/26    10G-DAC1         J9281D           QQ24R3CL54       8121-1797
+4/1/25    10G-DAC1         J9281D           QQ24R3CL54       8121-1797
+4/1/26    10G-DAC1         J9281D           DN78G7ELD7       8121-1797
+
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show interface desc
+Unknown interface desc.
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show interface status
+Unknown interface status.
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show power inline
+Invalid input
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show run | in route route
+Command not supported.
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#

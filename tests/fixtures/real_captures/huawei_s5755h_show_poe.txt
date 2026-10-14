@@ -1,0 +1,117 @@
+<DSV-MDPZNP-BS-CBN-W1537>display poe information
+PSE Information of slot 1:
+    Power Max Value(mW)        : 2880000
+    Power Current Value(mW)    : 0
+    Power Peak Value(mW)       : 0
+    Total Reference Power(mW)  : 0
+<DSV-MDPZNP-BS-CBN-W1537>
+<DSV-MDPZNP-BS-CBN-W1537>display poe power
+Codes: REFPW(Reference power), USMPW(User set max power),
+       CURPW(Current power), PKPW(Peak power), AVGPW(Average power)
+--------------------------------------------------------------------------------
+PortName               Class  REFPW(mW)  USMPW(mW)  CURPW(mW)  PKPW(mW)   AVGPW(mW)
+--------------------------------------------------------------------------------
+MultiGE1/0/1           -      -          90000      0          0          0
+MultiGE1/0/2           -      -          90000      0          0          0
+MultiGE1/0/3           -      -          90000      0          0          0
+MultiGE1/0/4           -      -          90000      0          0          0
+MultiGE1/0/5           -      -          90000      0          0          0
+MultiGE1/0/6           -      -          90000      0          0          0
+MultiGE1/0/7           -      -          90000      0          0          0
+MultiGE1/0/8           -      -          90000      0          0          0
+MultiGE1/0/9           -      -          90000      0          0          0
+MultiGE1/0/10          -      -          90000      0          0          0
+MultiGE1/0/11          -      -          90000      0          0          0
+MultiGE1/0/12          -      -          90000      0          0          0
+MultiGE1/0/13          -      -          90000      0          0          0
+MultiGE1/0/14          -      -          90000      0          0          0
+MultiGE1/0/15          -      -          90000      0          0          0
+MultiGE1/0/16          -      -          90000      0          0          0
+MultiGE1/0/17          -      -          90000      0          0          0
+MultiGE1/0/18          -      -          90000      0          0          0
+MultiGE1/0/19          -      -          90000      0          0          0
+MultiGE1/0/20          -      -          90000      0          0          0
+MultiGE1/0/21          -      -          90000      0          0          0
+MultiGE1/0/22          -      -          90000      0          0          0
+MultiGE1/0/23          -      -          90000      0          0          0
+MultiGE1/0/24          -      -          90000      0          0          0
+MultiGE1/0/25          -      -          90000      0          0          0
+MultiGE1/0/26          -      -          90000      0          0          0
+MultiGE1/0/27          -      -          90000      0          0          0
+MultiGE1/0/28          -      -          90000      0          0          0
+MultiGE1/0/29          -      -          90000      0          0          0
+MultiGE1/0/30          -      -          90000      0          0          0
+MultiGE1/0/31          -      -          90000      0          0          0
+MultiGE1/0/32          -      -          90000      0          0          0
+MultiGE1/0/33          -      -          90000      0          0          0
+MultiGE1/0/34          -      -          90000      0          0          0
+MultiGE1/0/35          -      -          90000      0          0          0
+MultiGE1/0/36          -      -          90000      0          0          0
+MultiGE1/0/37          -      -          90000      0          0          0
+MultiGE1/0/38          -      -          90000      0          0          0
+MultiGE1/0/39          -      -          90000      0          0          0
+MultiGE1/0/40          -      -          90000      0          0          0
+MultiGE1/0/41          -      -          90000      0          0          0
+MultiGE1/0/42          -      -          90000      0          0          0
+MultiGE1/0/43          -      -          90000      0          0          0
+MultiGE1/0/44          -      -          90000      0          0          0
+MultiGE1/0/45          -      -          90000      0          0          0
+MultiGE1/0/46          -      -          90000      0          0          0
+MultiGE1/0/47          -      -          90000      0          0          0
+MultiGE1/0/48          -      -          90000      0          0          0
+--------------------------------------------------------------------------------
+<DSV-MDPZNP-BS-CBN-W1537>
+<DSV-MDPZNP-BS-CBN-W1537>display poe power-state
+--------------------------------------------------------------------------------
+PortName               PowerOn/Off  Enabled    FAST-ON    Priority   Status
+--------------------------------------------------------------------------------
+MultiGE1/0/1           off          enable     disable    low        detecting
+MultiGE1/0/2           off          enable     disable    low        detecting
+MultiGE1/0/3           off          enable     disable    low        detecting
+MultiGE1/0/4           off          enable     disable    low        detecting
+MultiGE1/0/5           off          enable     disable    low        detecting
+MultiGE1/0/6           off          enable     disable    low        detecting
+MultiGE1/0/7           off          enable     disable    low        detecting
+MultiGE1/0/8           off          enable     disable    low        detecting
+MultiGE1/0/9           off          enable     disable    low        detecting
+MultiGE1/0/10          off          enable     disable    low        detecting
+MultiGE1/0/11          off          enable     disable    low        detecting
+MultiGE1/0/12          off          enable     disable    low        detecting
+MultiGE1/0/13          off          enable     disable    low        detecting
+MultiGE1/0/14          off          enable     disable    low        detecting
+MultiGE1/0/15          off          enable     disable    low        detecting
+MultiGE1/0/16          off          enable     disable    low        detecting
+MultiGE1/0/17          off          enable     disable    low        detecting
+MultiGE1/0/18          off          enable     disable    low        detecting
+MultiGE1/0/19          off          enable     disable    low        detecting
+MultiGE1/0/20          off          enable     disable    low        detecting
+MultiGE1/0/21          off          enable     disable    low        detecting
+MultiGE1/0/22          off          enable     disable    low        detecting
+MultiGE1/0/23          off          enable     disable    low        detecting
+MultiGE1/0/24          off          enable     disable    low        detecting
+MultiGE1/0/25          off          enable     disable    low        detecting
+MultiGE1/0/26          off          enable     disable    low        detecting
+MultiGE1/0/27          off          enable     disable    low        detecting
+MultiGE1/0/28          off          enable     disable    low        detecting
+MultiGE1/0/29          off          enable     disable    low        detecting
+MultiGE1/0/30          off          enable     disable    low        detecting
+MultiGE1/0/31          off          enable     disable    low        detecting
+MultiGE1/0/32          off          enable     disable    low        detecting
+MultiGE1/0/33          off          enable     disable    low        detecting
+MultiGE1/0/34          off          enable     disable    low        detecting
+MultiGE1/0/35          off          enable     disable    low        detecting
+MultiGE1/0/36          off          enable     disable    low        detecting
+MultiGE1/0/37          off          enable     disable    low        detecting
+MultiGE1/0/38          off          enable     disable    low        detecting
+MultiGE1/0/39          off          enable     disable    low        detecting
+MultiGE1/0/40          off          enable     disable    low        detecting
+MultiGE1/0/41          off          enable     disable    low        detecting
+MultiGE1/0/42          off          enable     disable    low        detecting
+MultiGE1/0/43          off          enable     disable    low        detecting
+MultiGE1/0/44          off          enable     disable    low        detecting
+MultiGE1/0/45          off          enable     disable    low        detecting
+MultiGE1/0/46          off          enable     disable    low        detecting
+MultiGE1/0/47          off          enable     disable    low        detecting
+MultiGE1/0/48          off          enable     disable    low        detecting
+--------------------------------------------------------------------------------
+<DSV-MDPZNP-BS-CBN-W1537>

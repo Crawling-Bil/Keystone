@@ -1,0 +1,242 @@
+LCQ_pkwblcj#show crypto gdoi
+GROUP INFORMATION
+
+    Group Name               : GDOI-01
+    Group Identity           : 12345
+    Rekeys received          : 18027
+    IPSec SA Direction       : Both
+    Active Group Server      : 10.255.0.1
+    Group Server list        : 10.255.0.1
+                               10.255.0.2
+                               10.255.0.3
+                               10.255.0.4
+
+    GM Reregisters in        : 64238 secs
+    Rekey Received(hh:mm:ss) : 00:12:34
+
+
+    Rekeys received
+         Cumulative          : 18027
+         After registration  : 18027
+    Rekey Acks sent          : 18027
+
+ ACL Downloaded From KS 10.255.0.1:
+   access-list  deny tcp any port = 992 any
+   access-list  deny tcp any any port = 992
+   access-list  deny tcp any port = 990 any
+   access-list  deny tcp any any port = 990
+   access-list  deny tcp any any port = 22
+   access-list  deny tcp any port = 22 any
+   access-list  deny tcp any any port = 49
+   access-list  deny tcp any port = 49 any
+   access-list  deny tcp any any port = 179
+   access-list  deny tcp any port = 179 any
+   access-list  deny tcp any any port = 443
+   access-list  deny tcp any port = 443 any
+   access-list  deny udp any port = 9996 any
+   access-list  deny udp any any port = 9996
+   access-list  deny udp any port = 848 any port = 848
+   access-list  deny udp any port = 500 any port = 500
+   access-list  deny udp any any port = 1645
+   access-list  deny udp any any port = 1646
+   access-list  deny udp any any port = 1812
+   access-list  deny udp any any port = 1813
+   access-list  deny udp any any port = 123
+   access-list  deny udp any any port = 514
+   access-list  deny esp any any
+   access-list  permit icmp any host 10.255.0.5
+   access-list  permit icmp host 10.255.0.5 any
+   access-list  permit icmp any host 10.255.0.6
+   access-list  permit icmp host 10.255.0.6 any
+   access-list  deny icmp any any
+   access-list  permit ip any any
+
+KEK POLICY:
+    Rekey Transport Type     : Unicast
+    Lifetime (secs)          : 86399
+    Encrypt Algorithm        : AES
+    Key Size                 : 256
+    Sig Hash Algorithm       : HMAC_AUTH_SHA
+    Sig Key Length (bits)    : 1024
+
+TEK POLICY for the current KS-Policy ACEs Downloaded:
+  GigabitEthernet0/1:
+  Vlan151:
+  Vlan152:
+    IPsec SA:
+        spi: 0x8478D17A(2222510458)
+        transform: esp-aes esp-sha-hmac
+        sa timing:remaining key lifetime (sec): (68244)
+        Anti-Replay(Time Based) : 100 sec interval
+
+LCQ_pkwblcj#
+LCQ_pkwblcj#
+LCQ_pkwblcj#show crypto gdoi gm
+Group Member Information For Group GDOI-01:
+    IPSec SA Direction       : Both
+    ACL Received From KS     : gdoi_group_GDOI-01_temp_acl
+    Last rekey seq num       : 0
+    Re-register
+        Remaining time       : 64234 secs
+    Retry Timer
+            :NOT RUNNING
+
+LCQ_pkwblcj#
+LCQ_pkwblcj#show crypto session detail
+Crypto session current status
+
+Code: C - IKE Configuration mode, D - Dead Peer Detection
+K - Keepalives, N - NAT-traversal, X - IKE Extended Authentication
+F - IKE Fragmentation
+
+Interface: GigabitEthernet0/1 Vlan151 Vlan152
+Uptime: 7w0d
+Session status: UP-ACTIVE
+Peer:  port 848 fvrf: (none) ivrf: (none)
+      Phase1_id: 10.255.0.1
+      Desc: (none)
+  IKE SA: local 10.255.0.7/848 remote 10.255.0.1/848 Active
+          Capabilities:(none) connid:4097 lifetime:3w3d
+  IKE SA: local 10.255.0.7/848 remote 10.255.0.1/848 Active
+          Capabilities:(none) connid:4096 lifetime:3w3d
+  IPSEC FLOW: permit ip 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0
+        Active SAs: 2, origin: crypto map
+        Inbound:  #pkts dec'ed -1546454314 drop 1 life (KB/Sec) 0/68231
+        Outbound: #pkts enc'ed 898615006 drop 0 life (KB/Sec) 0/68231
+  IPSEC FLOW: deny 1 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 port 500 0.0.0.0/0.0.0.0 port 500
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 port 22 0.0.0.0/0.0.0.0
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 22
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 514
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 1812
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 port 49 0.0.0.0/0.0.0.0
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 49
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 1813
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: permit 1 host 10.255.0.5 0.0.0.0/0.0.0.0
+        Active SAs: 2, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/68231
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/68231
+  IPSEC FLOW: permit 1 0.0.0.0/0.0.0.0 host 10.255.0.5
+        Active SAs: 2, origin: crypto map
+        Inbound:  #pkts dec'ed 13385437 drop 0 life (KB/Sec) 0/68231
+        Outbound: #pkts enc'ed 2131917 drop 0 life (KB/Sec) 0/68231
+  IPSEC FLOW: permit 1 host 10.255.0.6 0.0.0.0/0.0.0.0
+        Active SAs: 2, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/68231
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/68231
+  IPSEC FLOW: permit 1 0.0.0.0/0.0.0.0 host 10.255.0.6
+        Active SAs: 2, origin: crypto map
+        Inbound:  #pkts dec'ed 57593756 drop 0 life (KB/Sec) 0/68231
+        Outbound: #pkts enc'ed 2096001 drop 0 life (KB/Sec) 0/68231
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 9996
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 port 9996 0.0.0.0/0.0.0.0
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 50 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 1645
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 1646
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 123
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 port 179 0.0.0.0/0.0.0.0
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 179
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 17 0.0.0.0/0.0.0.0 port 848 0.0.0.0/0.0.0.0 port 848
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 port 443 0.0.0.0/0.0.0.0
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 443
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 990
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 port 990 0.0.0.0/0.0.0.0
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 0.0.0.0/0.0.0.0 port 992
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+  IPSEC FLOW: deny 6 0.0.0.0/0.0.0.0 port 992 0.0.0.0/0.0.0.0
+        Active SAs: 0, origin: crypto map
+        Inbound:  #pkts dec'ed 0 drop 0 life (KB/Sec) 0/0
+        Outbound: #pkts enc'ed 0 drop 0 life (KB/Sec) 0/0
+
+LCQ_pkwblcj#
+LCQ_pkwblcj#
+LCQ_pkwblcj#show inventory
+NAME: "3825 chassis", DESCR: "3825 chassis"
+PID: CISCO3825         , VID: V05 , SN: UBV5726C07Q
+
+NAME: "High Speed Wan Interface Card with 4 low speed sync/async serial ports(HWIC-4A/S) on Slot 0 SubSlot 0", DESCR: "High Speed Wan Interface Card with 4 low speed sync/async serial ports(HWIC-4A/S)"
+PID:                   , VID: V01 , SN: PVO900368N2
+
+NAME: "4 Port FE Switch on Slot 0 SubSlot 1", DESCR: "4 Port FE Switch"
+PID: HWIC-4ESW         , VID: V01 , SN: WUA56977Q9C
+
+NAME: "WAN Interface Card - HWIC Serial 2T on Slot 0 SubSlot 2", DESCR: "WAN Interface Card - HWIC Serial 2T"
+PID: HWIC-2T           , VID: V02 , SN: JYC17452P4U
+
+NAME: "3G WWAN HWIC-HSDPA/UMTS/EDGE/GPRS-850/900/1800/1900/2100MHz on Slot 0 SubSlot 3", DESCR: "3G WWAN HWIC-HSDPA/UMTS/EDGE/GPRS-850/900/1800/1900/2100MHz"
+PID: HWIC-3G-GSM       , VID: V02 , SN: ODC19215NN0
+
+NAME: "Virtual Private Network (VPN) Module on Slot 0", DESCR: "Encryption AIM Element"
+PID: AIM-VPN/SSL-3     , VID: V01, SN: YEM16774BFO
+
+
+LCQ_pkwblcj#
+LCQ_pkwblcj#

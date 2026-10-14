@@ -1,0 +1,106 @@
+JUMP1#ssh nxdemo-a
+
+Password:
+Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2020, Cisco and/or its affiliates.
+All rights reserved.
+
+NXDEMO-A# terminal length 0
+NXDEMO-A#
+
+NXDEMO-A# show ip ospf neighbors
+ OSPF Process ID 172 VRF default
+ Total number of neighbors: 3
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 192.0.2.2         1 FULL/DR          4y30w    192.0.2.34      Vlan100
+ 192.0.2.3         1 FULL/BDR         1w6d     192.0.2.66      Vlan200
+ 192.0.2.4         1 FULL/ -          10w4d    192.0.2.5       Po100
+ OSPF Process ID 173 VRF default
+ Total number of neighbors: 1
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 198.51.100.2      1 FULL/ -          10w4d    198.51.100.18   Po200
+NXDEMO-A#
+NXDEMO-A# show ip ospf interface brief vrf all
+ OSPF Process ID 172 VRF default
+ Total number of interface: 5
+ Interface               ID     Area            Cost   State    Neighbors Status
+ Vlan100                 1      0.0.0.0         10     DR       1         up
+ Vlan200                 2      0.0.0.0         10     BDR      1         up
+ Po100                   3      0.0.0.0         1      P2P      1         up
+ Vlan500                 4      0.0.0.5         10     DOWN     0         down
+
+ OSPF Process ID 173 VRF default
+ Total number of interface: 1
+ Interface               ID     Area            Cost   State    Neighbors Status
+ Po200                   5      0.0.0.1         1      P2P      1         up
+
+NXDEMO-A# show ip ospf database
+        OSPF Router with ID (192.0.2.1) (Process ID 172 VRF default)
+
+                Router Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+192.0.2.1       192.0.2.1       1203       0x80000031 0x1a2b   4
+192.0.2.2       192.0.2.2       1650       0x8000002c 0x1a2b   3
+192.0.2.3       192.0.2.3       910        0x80000019 0x1a2b   2
+192.0.2.4       192.0.2.4       411        0x80000007 0x1a2b   2
+
+                Network Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+192.0.2.34      192.0.2.2       1440       0x80000008 0x1a2b
+192.0.2.66      192.0.2.3       905        0x80000004 0x1a2b
+
+                Summary Network Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+198.51.100.0    192.0.2.1       1526       0x80000003 0x1a2b
+198.51.100.64   192.0.2.1       1530       0x80000003 0x1a2b
+198.51.100.128  192.0.2.4       77         0x80000001 0x1a2b
+
+                Summary ASBR Link States (Area 0.0.0.0)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+192.0.2.200     192.0.2.1       1100       0x80000002 0x1a2b
+
+                Router Link States (Area 0.0.0.5)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+192.0.2.1       192.0.2.1       1203       0x80000031 0x1a2b   1
+
+                Summary Network Link States (Area 0.0.0.5)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+198.51.100.0    192.0.2.1       1526       0x80000003 0x1a2b
+198.51.100.64   192.0.2.1       1530       0x80000003 0x1a2b
+
+                Type-5 AS External Link States
+
+Link ID         ADV Router      Age        Seq#       Checksum Tag
+203.0.113.0     192.0.2.9       120        0x80000010 0x1a2b   0
+203.0.113.64    192.0.2.9       1355       0x80000010 0x1a2b   0
+203.0.113.128   192.0.2.9       1799       0x80000010 0x1a2b   0
+203.0.113.192   192.0.2.8       1801       0x8000000a 0x1a2b   0
+198.51.100.200  192.0.2.8       1973       0x8000000a 0x1a2b   0
+
+        OSPF Router with ID (198.51.100.1) (Process ID 173 VRF default)
+
+                Router Link States (Area 0.0.0.1)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+198.51.100.1    198.51.100.1    1520       0x80000012 0x1a2b   2
+198.51.100.2    198.51.100.2    1011       0x8000000e 0x1a2b   2
+
+                Network Link States (Area 0.0.0.1)
+
+Link ID         ADV Router      Age        Seq#       Checksum Link Count
+198.51.100.18   198.51.100.2    3601       0x80000005 0x1a2b
+
+                Type-5 AS External Link States
+
+Link ID         ADV Router      Age        Seq#       Checksum Tag
+203.0.113.16    198.51.100.2    500        0x80000002 0x1a2b   0
+203.0.113.32    198.51.100.2    650        0x80000002 0x1a2b   0
+
+NXDEMO-A#

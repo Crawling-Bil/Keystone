@@ -1,0 +1,53 @@
+LAB-R1#terminal length 0
+LAB-R1#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], ISR Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.9.4a, RELEASE SOFTWARE (fc3)
+LAB-R1 uptime is 3 weeks, 2 days, 1 hour, 5 minutes
+cisco C8300-1N1S-4T2X (1RU) processor with 3849513K/6147K bytes of memory.
+LAB-R1#show ip route summary
+IP routing table name is default (0x0)
+IP routing table maximum-paths is 32
+Route Source    Networks    Subnets     Replicates  Overhead    Memory (bytes)
+application     0           0           0           0           0
+connected       0           66          0           7392        20592
+static          11          14          0           2800        7800
+bgp 65001       1           0           0           112         312
+  External: 1 Internal: 0 Local: 0
+internal        4                                               8928
+Total           16          80          0           10304       37632
+LAB-R1#show ip route vrf 1 summary
+IP routing table name is 1 (0x2)
+IP routing table maximum-paths is 32
+Route Source    Networks    Subnets     Replicates  Overhead    Memory (bytes)
+connected       0           3           0           336         936
+static          1           0           0           56          156
+omp             0           12          0           672         1872
+Total           1           15          0           1064        2964
+LAB-R1#show ipv6 route summary
+IPv6 routing table name is default(0) global scope - 1 entries
+IPv6 routing table default maximum-paths is 16
+Route Source    Networks    Overhead    Memory (bytes)
+omp             0           0           0
+  overlay: 0
+connected       0           0           0
+local           1           192         216
+application     0           0           0
+bgp 65001       0           0           0
+  Internal: 0  External: 0  Local: 0
+Total           1           192         216
+  Number of prefixes:
+    /8: 1
+LAB-R1#show arp summary
+Total number of entries in the ARP table: 248.
+Total number of Dynamic ARP entries: 8.
+Total number of Incomplete ARP entries: 178.
+Total number of Interface ARP entries: 61.
+Total number of Static ARP entries: 0.
+Total number of Alias ARP entries: 0.
+Maximum limit of Learn ARP entry : 15360.
+Total number of Learn ARP entries: 186.
+Interface              Entry Count
+GigabitEthernet0/0/3             4
+Gi0/0/2.30                       5
+GigabitEthernet0/0/2.1         232
+LAB-R1#

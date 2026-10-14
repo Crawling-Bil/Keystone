@@ -190,10 +190,13 @@ select, .table-tools input { width: 100%; height: 42px; border: 1px solid var(--
 .chart-canvas-wrap svg { width: 100%; height: 100%; display: block; }
 .chart-canvas-wrap .dash-bar rect { transition: opacity 0.15s ease; }
 .chart-canvas-wrap .dash-bar:hover rect { opacity: 0.8; }
+.chart-canvas-wrap .dash-grid { stroke: var(--border); }
+.chart-canvas-wrap .dash-tick { fill: var(--muted); }
+.chart-canvas-wrap .dash-value { fill: var(--text); }
 .kv-list { display: grid; gap: 0; }
 .kv-row { display: grid; grid-template-columns: 150px 1fr; gap: 15px; padding: 10px 0; border-bottom: 1px solid #1f2c39; font-size: 11px; }
 .kv-row span { color: var(--muted); }
-.kv-row strong { overflow-wrap: anywhere; }
+.kv-row strong { overflow-wrap: anywhere; white-space: pre-line; }
 .status-breakdown { display: grid; grid-template-columns: repeat(3,1fr); gap: 9px; }
 .status-box { padding: 13px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); }
 .status-box span, .status-box strong { display: block; }
@@ -203,6 +206,14 @@ select, .table-tools input { width: 100%; height: 42px; border: 1px solid var(--
 .assessment-banner.warning { background: rgba(240,173,78,.07); border-color: rgba(240,173,78,.2); }
 .assessment-banner.attention { background: rgba(239,100,116,.07); border-color: rgba(239,100,116,.2); }
 .assessment-banner strong { display: block; }
+.assessment-banner.info { background: color-mix(in srgb, var(--blue) 7%, transparent); border-color: color-mix(in srgb, var(--blue) 24%, transparent); }
+.l3-findings { display: grid; gap: 10px; margin-bottom: 16px; }
+.l3-findings.hidden { display: none; }
+.l3-findings .assessment-banner { padding: 12px 15px; }
+.l3-findings .assessment-banner span { font-size: 12px; line-height: 1.5; }
+details.l3-rules { margin-top: 14px; }
+details.l3-rules summary { cursor: pointer; padding: 8px 0; color: var(--text-soft); font-weight: 700; }
+details.l3-rules summary:hover { color: var(--text); }
 .assessment-banner span { color: var(--muted); font-size: 11px; }
 .table-tools { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 12px; }
 .table-tools input { max-width: 390px; }
@@ -213,6 +224,8 @@ select, .table-tools input { width: 100%; height: 42px; border: 1px solid var(--
    unlike the long Interfaces/VLANs tables the shared 580px cap exists for.
    Let it grow to its natural height instead of scrolling internally. */
 .table-wrap:has(#switch-compare-devices-table) { max-height: none; }
+/* A stack lists one serial per member, one per line. */
+#switch-compare-devices-table td { white-space: pre-line; }
 table { width: 100%; border-collapse: collapse; min-width: 900px; font-size: 11px; }
 /* Compare Devices renders every result table twice, side by side in a
    two-column .editor-grid — the default 900px table floor is more than
@@ -234,12 +247,66 @@ table { width: 100%; border-collapse: collapse; min-width: 900px; font-size: 11p
 #switch-compare-interfaces-a, #switch-compare-interfaces-b { width: auto; min-width: 0; }
 #switch-compare-interfaces-a th, #switch-compare-interfaces-a td,
 #switch-compare-interfaces-b th, #switch-compare-interfaces-b td { white-space: nowrap; }
+/* Tighter side padding than the generic .editor-grid rule above (that one has an
+   ID and a class, so this one needs two IDs to win), and column titles that may wrap
+   ("ALLOWED VLANS" over two lines) so an empty column does not keep the width of its
+   own heading. The cells themselves never wrap. */
+#switch-compare-result #switch-compare-interfaces-a th, #switch-compare-result #switch-compare-interfaces-a td,
+#switch-compare-result #switch-compare-interfaces-b th, #switch-compare-result #switch-compare-interfaces-b td { padding-left: 6px; padding-right: 6px; }
+#switch-compare-result #switch-compare-interfaces-a th, #switch-compare-result #switch-compare-interfaces-b th { white-space: normal; }
+/* Why the right-hand table used to disappear: `1fr` is minmax(auto, 1fr), so the
+   no-wrap interface table (its min-content is the full width of all columns)
+   stretched the left track and pushed the right pane off the page. minmax(0, 1fr)
+   gives each device exactly half, and each pane scrolls on its own if it has to. */
+#switch-compare-result .editor-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+#switch-compare-result .editor-grid > * { min-width: 0; }
+/* Free text in a compact table: ellipsis, full text in the tooltip. */
+td.clip { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Two-way switch (Compare Devices: Compact / All columns). */
+.segmented { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.segmented button { margin: 0; min-height: 0; padding: 6px 13px; border: 0; border-right: 1px solid var(--border); border-radius: 0; background: var(--panel-3); color: var(--text-soft); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.segmented button:last-child { border-right: 0; }
+.segmented button:hover { color: var(--text); }
+.segmented button.active { background: var(--accent-wash); color: var(--text); box-shadow: inset 0 -2px 0 var(--blue); }
+.segmented button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 th { position: sticky; top: 0; z-index: 2; background: var(--panel-3); color: var(--text-soft); text-align: center; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; border-bottom: 2px solid var(--border); }
 th, td { padding: 9px 11px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); vertical-align: top; }
 td { color: var(--text-soft); text-align: center; }
 tbody tr:nth-child(even) { background: rgba(255,255,255,.015); }
 tbody tr:hover { background: var(--accent-wash); }
 .cell-status { display: inline-block; padding: 3px 9px; border-radius: 4px; color: var(--text-soft); background: var(--panel-3); font-weight: 700; font-size: 10px; }
+/* Link / host state tones. "admin down" is amber on purpose: it is an
+   intentional `shutdown`, so it must read differently from a red port that
+   went down by itself. Unknown (config-only, no live state) stays neutral. */
+.cell-status.tone-ok { color: var(--green); background: color-mix(in srgb, var(--green) 14%, var(--panel-3)); }
+.cell-status.tone-bad { color: var(--red); background: color-mix(in srgb, var(--red) 14%, var(--panel-3)); }
+.cell-status.tone-warn { color: var(--amber); background: color-mix(in srgb, var(--amber) 16%, var(--panel-3)); }
+.cell-status.tone-mute { color: var(--muted); background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.table-tools .table-count, .table-caption .table-count { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; }
+.filter-chips:empty { display: none; }
+/* Part kinds are data values lowercased for matching; show them as words ('Stack member'). */
+#switch-serial-card .filter-chip { text-transform: capitalize; }
+.filter-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 3px 11px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-3); color: var(--text-soft); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.filter-chip:hover { border-color: var(--border-strong); }
+.filter-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.filter-chip.active { border-color: var(--blue); background: var(--accent-wash); color: var(--text); }
+.filter-chip .chip-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tone, var(--faint)); }
+.filter-chip .chip-count { color: var(--muted); font-weight: 800; font-variant-numeric: tabular-nums; }
+.filter-chip.tone-ok { --tone: var(--green); }
+.filter-chip.tone-bad { --tone: var(--red); }
+.filter-chip.tone-warn { --tone: var(--amber); }
+.filter-chip.tone-mute { --tone: var(--faint); }
+.table-caption { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 6px; font-size: 12px; }
+.table-caption strong { overflow-wrap: anywhere; }
+tr.more-row td, tr.empty-row td { padding: 11px; text-align: center; color: var(--muted); background: var(--panel-3); }
+tr.more-row td button { margin: 0 4px; padding: 5px 12px; border: 1px solid var(--border-strong); border-radius: 7px; background: var(--panel); color: var(--text-soft); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+tr.more-row td button:hover { border-color: var(--blue); color: var(--text); }
+.tab-nav .tab-count { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--accent-wash); color: var(--text-soft); font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tab-nav .tab-count:empty { display: none; }
+/* Compare panes: MACs / IPs must stay on one line, the pane scrolls instead. */
+#switch-compare-result .nowrap-table { width: auto; min-width: 0; }
+#switch-compare-result .nowrap-table th, #switch-compare-result .nowrap-table td { white-space: nowrap; }
 .finding-list { display: grid; gap: 10px; }
 .finding-card { display: grid; grid-template-columns: 90px minmax(0,1fr); gap: 14px; padding: 15px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-3); }
 .finding-severity { align-self: start; text-align: center; padding: 7px 8px; border-radius: 8px; color: #fff; background: #52657a; font-size: 9px; font-weight: 900; }
@@ -1444,3 +1511,113 @@ html[data-theme="dark"] tbody tr:hover { background: rgba(36, 180, 205, .09); }
 }
 #mapping-interfaces-table td, #mapping-ipsec-table td { text-align: left; }
 .mapping-needs-review { color: var(--orange, #c07a17); font-weight: 700; }
+@media (max-width: 900px) {
+  #switch-compare-result .editor-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Switch Analyzer: Health tab */
+.health-sev { display: inline-block; margin-right: 8px; padding: 1px 7px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-soft); background: var(--panel-3); }
+.health-sev.sev-high { color: var(--red); background: color-mix(in srgb, var(--red) 14%, var(--panel-3)); }
+.health-sev.sev-medium { color: var(--amber); background: color-mix(in srgb, var(--amber) 16%, var(--panel-3)); }
+.l3-findings small { margin-left: 8px; color: var(--muted); font-weight: 500; }
+.health-doc { margin-left: 8px; color: var(--blue); text-decoration: underline; }
+
+
+/* ==========================================================
+   SWITCH ANALYZER - dynamic Single Device page
+   Tabs that have data, Findings / Logs / Coverage, several devices,
+   collapsible Routing sections, Collect Backup cards.
+========================================================== */
+/* Every row of buttons on the Switch page keeps the same 14px above and below (device tiles, section buttons). */
+.sw-devices { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.sw-device { display: grid; gap: 2px; min-width: 150px; max-width: 280px; padding: 9px 14px; text-align: left; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); color: var(--text-soft); cursor: pointer; }
+.sw-device strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text); }
+.sw-device span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; color: var(--muted); }
+.sw-device:hover { border-color: var(--border-strong); }
+.sw-device:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sw-device.active { border-color: var(--blue); background: var(--accent-wash); }
+.sw-device.failed strong { color: var(--red); }
+.sw-toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+#switch-tabs button.is-empty { opacity: .55; font-style: italic; }
+.sw-missing { margin: 0; padding: 9px 16px; border-bottom: 1px solid var(--border); background: var(--panel-3); font-size: 11.5px; color: var(--muted); }
+.sw-missing summary { cursor: pointer; list-style: none; }
+.sw-missing summary::-webkit-details-marker { display: none; }
+.sw-missing summary::before { content: "+"; display: inline-block; width: 14px; color: var(--faint); font-weight: 800; }
+.sw-missing[open] summary::before { content: "−"; }
+.sw-missing summary strong { color: var(--text-soft); }
+.sw-missing ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 22px; margin: 10px 0 8px; padding: 0; list-style: none; }
+.sw-missing li { display: flex; gap: 8px; align-items: baseline; }
+.sw-missing li strong { min-width: 86px; color: var(--text-soft); font-size: 11px; }
+.sw-missing code, .sw-finding code { background: rgba(127,127,127,.15); border-radius: 4px; padding: 1px 5px; font-size: 11px; }
+.sw-link { padding: 0; border: 0; background: transparent; color: var(--blue); font-size: 11.5px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.sw-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.sw-subnav { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
+.sw-subnav:first-child, .sw-devices:first-child { margin-top: 0; }
+.chip-row { display: flex; align-items: flex-start; gap: 10px; }
+.chip-row-label { flex: 0 0 58px; line-height: 28px; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.chip-row .filter-chips { flex: 1 1 auto; min-width: 0; }
+.sw-sev-chips .filter-chip { text-transform: capitalize; }
+.sw-subnav-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 3px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel-3); color: var(--text-soft); font-size: 11px; font-weight: 700; cursor: pointer; }
+.sw-subnav-chip .chip-count { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sw-subnav-chip:hover { border-color: var(--border-strong); }
+.sw-subnav-chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sw-subnav-chip.is-empty { color: var(--faint); font-weight: 600; }
+.sw-section { scroll-margin-top: 12px; }
+.sw-section.is-empty:not(.open) > :not(:first-child) { display: none; }
+.sw-section.is-empty:not(.open) > h3 { cursor: pointer; color: var(--faint); }
+.sw-section.is-empty:not(.open) > h3::after { content: "  none in this capture — click to open"; font-size: 11px; font-weight: 600; color: var(--faint); }
+
+.sw-findings-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
+.sw-findings-tools .filter-chips { margin: 0; }
+.sw-findings-tools select { width: auto; min-width: 170px; height: 36px; }
+.sw-findings-tools input[type="search"] { flex: 1 1 220px; max-width: 360px; height: 36px; padding: 0 10px; }
+.sw-finding-list { display: grid; gap: 10px; }
+.sw-finding { padding: 14px 16px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel-2); }
+.sw-finding-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sw-chip { padding: 2px 9px; border-radius: 999px; background: var(--panel-3); color: var(--muted); font-size: 10.5px; font-weight: 700; }
+.sw-finding h4 { margin: 0 0 6px; font-size: 13.5px; }
+.sw-finding p { margin: 6px 0 0; font-size: 12px; line-height: 1.55; color: var(--text-soft); max-width: 96ch; }
+.sw-finding-object { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.sw-finding-object span { color: var(--muted); font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.sw-finding-fix strong { color: var(--text); }
+.sw-finding-meaning strong { color: var(--text); }
+.sw-evidence { display: grid; grid-template-columns: minmax(96px, max-content) minmax(0, 1fr); gap: 5px 16px; margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-3); font-size: 12px; line-height: 1.5; }
+.sw-evidence dt { color: var(--muted); font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding-top: 2px; }
+.sw-evidence dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.sw-related { margin-top: 10px; }
+.sw-related table { font-size: 11.5px; }
+.sw-ref { display: inline-block; margin-top: 8px; color: var(--blue); font-size: 11.5px; font-weight: 700; }
+
+.sw-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 14px 0 6px; }
+.sw-card { padding: 16px 18px; border: 1px solid var(--border); border-radius: 13px; background: var(--panel-2); }
+.sw-card h3 { margin: 0 0 8px; font-size: 14px; }
+.sw-card .kv-row { border-bottom-color: var(--border); }
+.sw-coverage-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 14px; }
+@media (max-width: 900px) { .sw-two { grid-template-columns: 1fr; } }
+
+.collect-meta { color: var(--faint); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+.collect-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.collect-actions .secondary-button { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; }
+
+/* Single device: the file list (add / remove) and the remove button on a device tab */
+.sw-files { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.sw-files li { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); font-size: 12.5px; }
+.sw-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+.sw-files small { color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.sw-file-state { padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); font-size: 10.5px; font-weight: 700; }
+.sw-file-state.done { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, transparent); }
+.sw-file-state.failed { color: var(--red); border-color: color-mix(in srgb, var(--red) 45%, transparent); }
+.sw-file-x, .sw-device-x { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; }
+.sw-file-x:hover, .sw-device-x:hover { background: var(--panel-3); color: var(--text); }
+.sw-file-x:focus-visible, .sw-device-x:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.sw-device-wrap { position: relative; display: flex; }
+.sw-device-wrap .sw-device { padding-right: 34px; }
+.sw-device-x { position: absolute; top: 6px; right: 6px; }
+/* Switch Analyzer: tone of a value in a card, the log summary card, and the small heading above a table inside a section */
+.sw-tone-ok { color: var(--green); }
+.sw-tone-warn { color: var(--amber); }
+.sw-tone-bad { color: var(--red); }
+.sw-log-summary { margin: 0 0 6px; }
+.subsection-subtitle { margin: 14px 0 6px; font-size: 12.5px; font-weight: 700; color: var(--label); }

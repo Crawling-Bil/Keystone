@@ -1,0 +1,41 @@
+<AUB-JHBG-I-A8335>display eth-trunk
+Eth-Trunk1's state information is:
+(h): high priority
+(r): reference port
+Local:
+LAG ID: 1                       Working Mode: Static
+Preempt Delay: Disabled         Hash Arithmetic: profile default
+System Priority: 32768          System ID: f739-fcf9-3b6f
+Least Active-linknumber: 1      Max Active-linknumber: 8
+Operating Status: up            Number Of Up Ports In Trunk: 1
+Timeout Period: Slow
+PortKeyMode: Auto
+------------------------------------------------------------------------------------
+ActorPortName              Status   PortType PortPri PortNo PortKey PortState Weight
+10GE1/0/2                  Unselect 1GE      32768   1      305     10100010  1
+10GE1/0/3(r)               Selected 1GE      32768   2      305     10111100  1
+
+Partner:
+------------------------------------------------------------------------------------
+ActorPortName              SysPri   SystemID        PortPri PortNo PortKey PortState
+10GE1/0/2                  0        9fe6-b0da-1246  0       0      0       10100011
+10GE1/0/3                  32768    972d-b0a8-e02d  32768   285    6       10111100
+
+<AUB-JHBG-I-A8335>
+<AUB-JHBG-I-A8335>display stack topology
+Stack Topology Type: Link
+----------------------------------------------
+            Stack-Port 1      Stack-Port 2
+MemberID   Status Neighbor   Status Neighbor
+----------------------------------------------
+1          down   --         down   --
+----------------------------------------------
+
+Stack Link:
+-------------------------------------------------------------------------------
+Stack-Port       Port            Speed    Status     PeerPort        PeerStatus
+-------------------------------------------------------------------------------
+Stack-Port1/1    10GE1/0/5       --       down       --              --
+Stack-Port1/2    10GE1/0/6       --       down       --              --
+-------------------------------------------------------------------------------
+<AUB-JHBG-I-A8335>

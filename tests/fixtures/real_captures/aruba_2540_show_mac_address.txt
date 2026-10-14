@@ -1,0 +1,27 @@
+GEN-MHWA-HHKPW6-5617# show mac-address
+ Status and Counters - Port Address Table
+
+  MAC Address       Port  VLAN
+  ----------------- ----- ----
+  c86370-3ee61d     25    1   
+  c86370-3ee61d     25    213 
+  97f0ea-94d0e4     25    213 
+  89126e-5fc0ed     25    213 
+  95741e-0289d6     10    213 
+  8f3fce-39cc30     9     213 
+  1caea3-0dfa28     25    213 
+  dce3d9-82172e     25    214 
+  2b76fc-c31240     3     214 
+  4885e5-fc7e22     7     214 
+  137e5b-7e0614     8     214 
+  c86370-3ee61d     25    214 
+  e0f2f0-2fc104     25    214 
+  98207a-44020a     25    214 
+  f2553a-de971c     5     214 
+  6ff058-7cde04     6     214 
+  1c9422-d2b19d     25    214 
+  0435ae-7c5460     25    214 
+  05a1c0-fdfbe1     9     214 
+  5d6834-d2ee0b     25    214 
+  b96c7e-fde5ba     9     214 
+ 

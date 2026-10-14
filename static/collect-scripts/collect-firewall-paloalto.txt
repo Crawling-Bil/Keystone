@@ -1,0 +1,12 @@
+# Keystone collect list - Palo Alto Networks PAN-OS
+# Run from the CLI (operational mode). The set format is the easiest to analyse; an XML export of the running configuration also works.
+set cli pager off
+set cli config-output-format set
+configure
+show
+exit
+show system info
+show high-availability state
+show routing route
+show vpn ike-sa
+show vpn ipsec-sa

@@ -1,0 +1,94 @@
+<DWQ-TIPCKW-AW-ITX-P7406>display eth-trunk
+Eth-Trunk1's state information is:
+(h): high priority
+(r): reference port
+Local:
+LAG ID: 1                       Working Mode: Static
+Preempt Delay: Disabled         Hash Arithmetic: src-dst-ip
+System Priority: 32768          System ID: a49f-58f5-4260
+Least Active-linknumber: 1      Max Active-linknumber: 128
+Operating Status: up            Number Of Up Ports In Trunk: 2
+Timeout Period: Slow
+PortKeyMode: Auto
+------------------------------------------------------------------------------------
+ActorPortName              Status   PortType PortPri PortNo PortKey PortState Weight
+MultiGE1/0/17(r)           Selected 10GE     32768   1      321     10111100  1
+MultiGE1/0/18              Selected 10GE     32768   2      321     10111100  1
+
+Partner:
+------------------------------------------------------------------------------------
+ActorPortName              SysPri   SystemID        PortPri PortNo PortKey PortState
+MultiGE1/0/17              32768    7d19-4313-a1e5  32768   1      321     10111100
+MultiGE1/0/18              32768    7d19-4313-a1e5  32768   2      321     10111100
+
+Eth-Trunk2's state information is:
+(h): high priority
+(r): reference port
+Local:
+LAG ID: 2                       Working Mode: Static
+Preempt Delay: Disabled         Hash Arithmetic: src-dst-ip
+System Priority: 32768          System ID: a49f-58f5-4260
+Least Active-linknumber: 1      Max Active-linknumber: 128
+Operating Status: up            Number Of Up Ports In Trunk: 4
+Timeout Period: Slow
+PortKeyMode: Auto
+------------------------------------------------------------------------------------
+ActorPortName              Status   PortType PortPri PortNo PortKey PortState Weight
+MultiGE1/0/19(r)           Selected 10GE     32768   3      577     10111100  1
+MultiGE1/0/20              Selected 10GE     32768   4      577     10111100  1
+MultiGE1/0/21              Selected 10GE     32768   5      577     10111100  1
+MultiGE1/0/22              Selected 10GE     32768   6      577     10111100  1
+
+Partner:
+------------------------------------------------------------------------------------
+ActorPortName              SysPri   SystemID        PortPri PortNo PortKey PortState
+MultiGE1/0/19              32768    7d19-4313-a1e5  32768   3      577     10111100
+MultiGE1/0/20              32768    7d19-4313-a1e5  32768   4      577     10111100
+MultiGE1/0/21              32768    7d19-4313-a1e5  32768   5      577     10111100
+MultiGE1/0/22              32768    7d19-4313-a1e5  32768   6      577     10111100
+
+Eth-Trunk6's state information is:
+(h): high priority
+(r): reference port
+Local:
+LAG ID: 6                       Working Mode: Static
+Preempt Delay: Disabled         Hash Arithmetic: src-dst-ip
+System Priority: 32768          System ID: 7d19-4313-a1e5
+Least Active-linknumber: 1      Max Active-linknumber: 128
+Operating Status: down          Number Of Up Ports In Trunk: 0
+Timeout Period: Slow
+PortKeyMode: Auto
+------------------------------------------------------------------------------------
+ActorPortName              Status   PortType PortPri PortNo PortKey PortState Weight
+25GE1/0/1                  Unselect 10GE     32768   32775  1601    10100010  1
+MultiGE1/0/23              Unselect 10GE     32768   32776  1601    10100010  1
+
+Partner:
+------------------------------------------------------------------------------------
+ActorPortName              SysPri   SystemID        PortPri PortNo PortKey PortState
+25GE1/0/1                  0        9fe6-b0da-1246  0       0      0       10100011
+MultiGE1/0/23              0        9fe6-b0da-1246  0       0      0       10100011
+
+Eth-Trunk7's state information is:
+(h): high priority
+(r): reference port
+Local:
+LAG ID: 7                       Working Mode: Static
+Preempt Delay: Disabled         Hash Arithmetic: src-dst-ip
+System Priority: 32768          System ID: 7d19-4313-a1e5
+Least Active-linknumber: 1      Max Active-linknumber: 128
+Operating Status: down          Number Of Up Ports In Trunk: 0
+Timeout Period: Slow
+PortKeyMode: Auto
+------------------------------------------------------------------------------------
+ActorPortName              Status   PortType PortPri PortNo PortKey PortState Weight
+25GE1/0/2                  Unselect 10GE     32768   32777  1857    10100010  1
+MultiGE1/0/24              Unselect 10GE     32768   32778  1857    10100010  1
+
+Partner:
+------------------------------------------------------------------------------------
+ActorPortName              SysPri   SystemID        PortPri PortNo PortKey PortState
+25GE1/0/2                  0        9fe6-b0da-1246  0       0      0       10100011
+MultiGE1/0/24              0        9fe6-b0da-1246  0       0      0       10100011
+
+<DWQ-TIPCKW-AW-ITX-P7406>

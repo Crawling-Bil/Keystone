@@ -1,0 +1,18 @@
+KVG-TDDR-UHDN-52-2625#show interfaces transceiver 
+
+
+show interfaces transceiver
+
+If device is externally calibrated, only calibrated values are printed.
+++ : high alarm, +  : high warning, -  : low warning, -- : low alarm.
+NA or N/A: not applicable, Tx: transmit, Rx: receive.
+mA: milliamperes, dBm: decibels (milliwatts).
+
+                                 Optical   Optical
+           Temperature  Voltage  Tx Power  Rx Power
+Port       (Celsius)    (Volts)  (dBm)     (dBm)
+---------  -----------  -------  --------  --------
+Gi0/1        30.6       3.27      -6.3      -9.0   
+
+
+KVG-TDDR-UHDN-52-2625#

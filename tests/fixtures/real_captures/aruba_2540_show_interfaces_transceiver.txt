@@ -1,0 +1,8 @@
+GEN-MHWA-HHKPW6-5617# show interfaces transceiver
+Transceiver Technical Information:
+
+                     Product      Serial             Part
+ Port    Type        Number       Number             Number
+ ------- ----------- ------------ ------------------ ----------
+ 25      1000LX      J4859D       CN13KC6CLS         1990-4414 
+

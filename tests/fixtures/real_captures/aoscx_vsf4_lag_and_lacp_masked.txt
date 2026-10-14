@@ -1,0 +1,64 @@
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show lag
+
+System-ID       : 3e:4c:05:75:14:28
+System-priority : 65534
+
+Aggregate lag1 is up
+ Admin state is up
+ Description : PORT_DESCRIPTION
+ Type                        : normal
+ Lacp Fallback               : Disabled
+ MAC Address                 : 3e:4c:05:75:14:28
+ Aggregated-interfaces       : 1/1/23 1/1/24
+ Aggregation-key             : 1
+ Aggregate mode              : active
+ Hash                        : l3-src-dst
+ LACP rate                   : slow
+ Speed                       : 1000 Mb/s
+ Mode                        : trunk
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show lag brief
+----------------------------------------------------------
+LAG     Aggregate  Mode    Enabled  Status   Speed
+name   Mode                                (Mb/s)
+----------------------------------------------------------
+lag1    active     trunk   yes      up       1000
+
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show lacp interface
+
+State abbreviations :
+A - Active        P - Passive      F - Aggregable I - Individual
+S - Short-timeout L - Long-timeout N - InSync     O - OutofSync
+C - Collecting    D - Distributing
+X - State m/c expired              E - Default neighbor state
+
+Actor details of all interfaces:
+----------------------------------------------------------------------------------
+Intf       Aggr       Port  Port  State   System-ID         System Aggr Forwarding
+           Name       Id    Pri                             Pri    Key  State
+----------------------------------------------------------------------------------
+1/1/23     lag1       24    1     ALFNCD  3e:4c:05:75:14:28 65534  1    up
+1/1/24     lag1                                                         down
+
+
+Partner details of all interfaces:
+----------------------------------------------------------------------------------
+Intf       Aggr       Port  Port  State   System-ID         System Aggr
+           Name       Id    Pri                             Pri    Key
+----------------------------------------------------------------------------------
+1/1/23     lag1       88    1     ALFNCD  03:53:03:65:8d:a3 65534  6
+1/1/24     lag1
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show lacp aggregate
+
+Aggregate name   : lag1
+Interfaces       : 1/1/23 1/1/24
+Heartbeat rate   : Slow
+Hash             : l3-src-dst
+Aggregate mode   : Active
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show lacp configuration
+System-ID       : 3e:4c:05:75:14:28
+System-priority : 65534
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#

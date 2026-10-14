@@ -1,0 +1,37 @@
+LAB-C3650#show license all
+Smart Licensing Status
+======================
+Smart Licensing is ENABLED
+Registration:
+  Status: UNREGISTERED
+  Export-Controlled Functionality: NOT ALLOWED
+License Authorization:
+  Status: EVAL EXPIRED on Apr 30 11:22:50 2024 GMT
+License Conversion:
+  Automatic Conversion Enabled: False
+  Status: Not started
+Export Authorization Key:
+  Features Authorized:
+    <none>
+Utility:
+  Status: DISABLED
+Transport:
+  Type: Callhome
+License Usage
+==============
+(C3650-24 IP Services):
+  Description:
+  Count: 1
+  Version: 1.0
+  Status: EVAL EXPIRED
+  Export status: NOT RESTRICTED
+Product Information
+===================
+UDI: PID:WS-C3650-24TS,SN:FOC0000B0BB
+Agent Version
+=============
+Smart Agent for Licensing: 4.8.5.2_rel/13
+Reservation Info
+================
+License reservation: DISABLED
+LAB-C3650#

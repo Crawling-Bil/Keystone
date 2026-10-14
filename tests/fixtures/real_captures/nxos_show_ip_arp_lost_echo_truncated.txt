@@ -1,0 +1,50 @@
+YCW-HAUG-AO-B3516-BYT# sh ip arp summary 
+IP ARP Table - Adjacency Summary
+
+  Resolved   : 154
+  Incomplete : 25 (Throttled : 0)
+  Unknown    : 0
+  Total      : 179
+
+YCW-HAUG-AO-B3516-BYT# 
+Flags: * - Adjacencies learnt on non-active FHRP router
+       + - Adjacencies synced via CFSoE
+       # - Adjacencies Throttled for Glean
+       CP - Added via L2RIB, Control plane Adjacencies
+       PS - Added via L2RIB, Peer Sync
+       RO - Re-Originated Peer Sync Entry
+       D - Static Adjacencies attached to down interface
+
+IP ARP Table for context default
+Total number of entries: 204
+Address         Age       MAC Address     Interface       Flags
+10.255.0.1      00:05:47  ef16.c144.eb38  Vlan205                  
+10.255.0.2      00:00:24  33fd.de07.9126  Vlan205                  
+10.255.0.3      00:09:31  33fd.de07.9126  Vlan201                  
+10.255.0.4     00:03:04  9b17.6543.342b  Vlan201                  
+10.255.0.5     00:15:29  162f.ca8b.fbdd  Vlan201                  
+10.255.0.6     00:00:04  INCOMPLETE      Vlan201                  
+10.255.0.7     00:00:04  INCOMPLETE      Vlan201                  
+10.255.0.8     00:00:19  INCOMPLETE      Vlan201                  
+10.255.0.9     00:00:04  INCOMPLETE      Vlan201                  
+10.255.0.10     00:00:19  INCOMPLETE      Vlan201                  
+10.255.0.11     00:00:19  INCOMPLETE      Vlan201                  
+10.255.0.12     00:00:19  INCOMPLETE      Vlan201                  
+10.255.0.13     00:00:21  INCOMPLETE      Vlan201                  
+10.255.0.14     00:00:32  3531.1cea.5eed  Vlan201                  
+10.255.0.15     00:00:24  INCOMPLETE      Vlan201                  
+10.255.0.16     00:01:22  db2d.6a24.5ec3  Vlan201         +        
+10.255.0.17     00:00:07  d0c4.4545.aec9  Vlan201                  
+10.255.0.18     00:05:46  db2d.6a24.5ec3  Vlan201         +        
+10.255.0.19     00:17:53  d062.b6ac.1409  Vlan201         +        
+10.255.0.20    00:12:37  3e5e.1cf9.0c3b  Vlan201         +        
+10.255.0.21    00:09:14  9baa.75db.f6b7  Vlan201                  
+10.255.0.22    00:01:08  ea31.726f.892c  Vlan201         +        
+10.255.0.23    00:00:19  INCOMPLETE      Vlan201                  
+10.255.0.24    00:13:39  3a34.3c68.b6b5  Vlan201         +        
+10.255.0.25         -      7bcb.0952.0e37  Vlan205         
+10.255.0.26         -      4ade.694b.0804  Vlan201         
+10.255.0.27        -      f272.7de9.6a65  Vlan215         
+10.255.0.28        -      fcb6.ac5b.47a9  Vlan216         
+10.255.0.29     00:00:24  INCOMPLET       Vlan201                  
+YCW-HAUG-AO-B3516-BYT# 

@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, render_template, request, send_from_direct
 from werkzeug.utils import secure_filename
 
 from core.database import log_activity
+from features.analyzer_core.collect import COLLECT_DIR, describe_file
 from features.configuration_studio.service import create_engine
 from .compare import compare as compare_results
 from .exporters import FirewallExcelExporter, SwitchExcelExporter, export_comparison
@@ -29,6 +30,14 @@ SAFE_IDENTIFIER = re.compile(r"^[a-f0-9]{32}$")
 # compare path). Applies to every route that goes through
 # _read_config_from_request -- analyze and both sides of compare.
 MAX_CONFIG_BYTES = 20 * 1024 * 1024
+# An uploaded capture may be larger than a pasted one: a switch that logs every ACL hit prints a `show events` / `show logging`
+# of tens of megabytes (one real ArubaOS-CX capture is 36 MB). The Router Analyzer takes 40 MB files as well.
+# Pasted text stays at MAX_CONFIG_BYTES because a textarea field is held in memory (app.py MAX_FORM_MEMORY_SIZE).
+MAX_CONFIG_FILE_BYTES = 40 * 1024 * 1024
+
+
+def _size_text(size: int) -> str:
+    return f"{size // (1024 * 1024)} MB" if size >= 1024 * 1024 else f"{size} bytes"
 
 
 class ConfigTooLargeError(ValueError):
@@ -68,16 +77,46 @@ def _looks_like_firewall_config(content: str, filename: str) -> bool:
     return str(getattr(detection, "device_type", "")).strip().lower() == "firewall"
 
 
+# The collect lists the Collect Backup tab offers, in the order shown. The command count and the
+# file size are read from the file itself (analyzer_core.collect.describe_file), so editing a list
+# updates its card; the one-line description stays hand-written.
+COLLECT_LISTS = (
+    ("collect-cisco-catalyst.txt", "Cisco Catalyst", "show run, interfaces, CDP/LLDP, EtherChannel, PoE, logs, and more."),
+    ("collect-cisco-nexus.txt", "Cisco Nexus", "Adds vPC (status, peer-link and keepalive counters), HSRP, LACP counters, port-channel usage and system resources."),
+    ("collect-aruba-switch.txt", "Aruba Switch (ArubaOS-Switch)", "show running-config, interfaces, ARP, LLDP detail, PoE, event log. Two commands in the list are marked untested."),
+    ("collect-aruba-cx.txt", "Aruba CX (ArubaOS-CX)", "show running-config, VSF stack, LAG/LACP, LLDP detail, spanning tree, environment, event log. Four commands in the list are marked untested."),
+    ("collect-huawei-s-l-e-series.txt", "Huawei S/L/E-series", "display current-configuration, Eth-Trunk, LLDP, PoE, stack, logbuffer."),
+    ("collect-huawei-h-series.txt", "Huawei H-series", "Same as S/L/E plus VRRP and M-LAG/DFS-group commands."),
+)
+
+
+def _size_label(size: int) -> str:
+    return f"{size} B" if size < 1024 else f"{size / 1024:.1f} KB"
+
+
+def collect_lists() -> list[dict]:
+    """``[{file, title, blurb, commands, size, size_label, url}]`` for the lists that exist on disk."""
+    cards = []
+    for file_name, title, blurb in COLLECT_LISTS:
+        path = COLLECT_DIR / file_name
+        if not path.is_file():
+            continue
+        info = describe_file(path, "collect-")
+        info.update(title=title, blurb=blurb, size_label=_size_label(info["size"]))
+        cards.append(info)
+    return cards
+
+
 @bp.get("")
 @bp.get("/")
 def index():
-    return render_template("switch_analyzer.html", active_page="switch_analyzer")
+    return render_template("switch_analyzer.html", active_page="switch_analyzer", collect_lists=collect_lists())
 
 
 def _read_config_from_request(file_field: str, text_field: str) -> tuple[str, str] | None:
     """Read a config either from an uploaded file or a pasted-text
     field. Returns (content, source_name) or None if neither was given.
-    Raises ConfigTooLargeError if the input exceeds MAX_CONFIG_BYTES.
+    Raises ConfigTooLargeError if an uploaded file exceeds MAX_CONFIG_FILE_BYTES or pasted text exceeds MAX_CONFIG_BYTES.
     Shared by the single-device and two-device (compare) analyze routes.
     """
     config_upload = request.files.get(file_field)
@@ -87,9 +126,9 @@ def _read_config_from_request(file_field: str, text_field: str) -> tuple[str, st
         filename = secure_filename(config_upload.filename)
         path = UPLOAD_DIR / f"{uuid.uuid4().hex}_{filename}"
         config_upload.save(path)
-        if path.stat().st_size > MAX_CONFIG_BYTES:
+        if path.stat().st_size > MAX_CONFIG_FILE_BYTES:
             path.unlink(missing_ok=True)
-            raise ConfigTooLargeError("Configuration file exceeds the 20 MB limit.")
+            raise ConfigTooLargeError(f"Configuration file exceeds the {_size_text(MAX_CONFIG_FILE_BYTES)} limit.")
         try:
             content = path.read_text(encoding="utf-8", errors="ignore")
         finally:
@@ -98,7 +137,7 @@ def _read_config_from_request(file_field: str, text_field: str) -> tuple[str, st
 
     if config_text.strip():
         if len(config_text.encode("utf-8")) > MAX_CONFIG_BYTES:
-            raise ConfigTooLargeError("Pasted configuration exceeds the 20 MB limit.")
+            raise ConfigTooLargeError(f"Pasted configuration exceeds the {_size_text(MAX_CONFIG_BYTES)} limit.")
         return config_text, "pasted-switch-config.txt"
 
     return None
@@ -156,6 +195,10 @@ def analyze_route():
             )
         return jsonify({"ok": True, "result": result})
     except Exception as exc:
+        if "tidak dapat dideteksi" in str(exc):
+            # The device list shows this text next to the file, so it has to say what to do about it.
+            return jsonify({"ok": False, "error": "The vendor could not be told from this file (no hostname prompt, show version, inventory or recognisable commands). "
+                                                   "Choose Cisco, Huawei or Aruba in the Vendor box and click Analyze again."}), 400
         return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
 
 

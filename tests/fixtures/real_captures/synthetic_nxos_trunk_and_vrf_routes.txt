@@ -1,0 +1,88 @@
+LAB-NX9K-B# show interface trunk
+
+--------------------------------------------------------------------------------
+Port          Native  Status        Port
+              Vlan                  Channel
+--------------------------------------------------------------------------------
+Eth1/1        1       trunking      --
+Eth1/2        1       trnk-bndl     Po10
+Eth1/3        1       trnk-bndl     Po10
+Eth1/10       99      trunking      --
+Eth1/11       1       not-trunking  --
+Po10          1       trunking      --
+
+--------------------------------------------------------------------------------
+Port          Vlans Allowed on Trunk
+--------------------------------------------------------------------------------
+Eth1/1        1-4094
+Eth1/2        10,20,30-34,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,
+              1500,1600
+Eth1/3        10,20,30-34,100
+Eth1/10       99,201-205
+Eth1/11       1
+Po10          10,20,30-34
+
+--------------------------------------------------------------------------------
+Port          Vlans Err-disabled on Trunk
+--------------------------------------------------------------------------------
+Eth1/1        none
+Eth1/2        none
+Eth1/3        none
+Eth1/10       none
+Eth1/11       none
+Po10          none
+
+--------------------------------------------------------------------------------
+Port          STP Forwarding
+--------------------------------------------------------------------------------
+Eth1/1        1,10,20,30-34
+Eth1/2        none
+Eth1/3        none
+Eth1/10       99,201-205
+Eth1/11       none
+Po10          10,20,30-34
+
+--------------------------------------------------------------------------------
+Port          Vlans Forwarding on FabricPath
+--------------------------------------------------------------------------------
+Eth1/1        none
+LAB-NX9K-B# show ip route vrf all
+IP Route Table for VRF "default"
+'*' denotes best ucast next-hop
+'**' denotes best mcast next-hop
+'[x/y]' denotes [preference/metric]
+'%<string>' in via output denotes VRF <string>
+
+0.0.0.0/0, ubest/mbest: 1/0
+    *via 192.0.2.1, [1/0], 12w3d, static
+172.16.0.0/16, ubest/mbest: 2/0
+    *via 10.12.1.2, Eth1/36, [110/41], 00:00:57, ospf-21, intra
+    *via 10.12.1.6, Eth1/37, [110/41], 00:00:57, ospf-21, intra
+172.17.0.0/16, ubest/mbest: 1/0
+    *via 10.12.1.2, Eth1/36, [110/1], 00:00:57, ospf-21, type-2, tag 6500
+192.168.50.0/24, ubest/mbest: 1/0
+    *via 10.1.1.9, [200/0], 3d04h, bgp-65000, internal, tag 65000
+192.168.2.1/32, ubest/mbest: 1/0, attached
+    *via 192.168.2.1, Lo0, [0/0], 12w3d, local
+198.51.100.0/24, ubest/mbest: 1/0
+    *via Null0, [220/0], 1d00h, static, tag 1
+
+IP Route Table for VRF "management"
+'*' denotes best ucast next-hop
+'**' denotes best mcast next-hop
+'[x/y]' denotes [preference/metric]
+'%<string>' in via output denotes VRF <string>
+
+0.0.0.0/0, ubest/mbest: 1/0
+    *via 203.0.113.1, [1/0], 12w3d, static
+203.0.113.0/24, ubest/mbest: 1/0, attached
+    *via 203.0.113.20, mgmt0, [0/0], 12w3d, direct
+
+IP Route Table for VRF "TENANT-A"
+'*' denotes best ucast next-hop
+'**' denotes best mcast next-hop
+'[x/y]' denotes [preference/metric]
+'%<string>' in via output denotes VRF <string>
+
+10.50.0.0/16, ubest/mbest: 1/0
+    *via 10.1.1.9%default, [20/0], 00:11:02, bgp-65000, external, tag 65001

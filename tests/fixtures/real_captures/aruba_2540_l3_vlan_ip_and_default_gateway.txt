@@ -1,0 +1,22 @@
+hostname "WIE-JKAQ-LFGIIR4-8256"
+!
+ip default-gateway 10.255.0.1
+!
+vlan 213
+   name "Management"
+   untagged 1,15
+   tagged 24
+   ip address 10.255.0.2 255.255.255.0
+   exit
+!
+hostname "WIE-JKAQ-LFGIIR4-8256"
+!
+ip default-gateway 10.255.0.1
+!
+vlan 213
+   name "Management"
+   untagged 1,15
+   tagged 24
+   ip address 10.255.0.2 255.255.255.0
+   exit
+!

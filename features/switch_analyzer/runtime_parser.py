@@ -198,6 +198,89 @@ def parse_interface_brief(lines: list[str]) -> dict[str, dict]:
             "protocol": protocol.strip().lower(),
         }
 
+    for name, entry in _parse_aruba_interfaces_brief(lines).items():
+        results.setdefault(name, entry)
+
+    return results
+
+
+# ArubaOS-Switch "show interfaces brief" (confirmed on three real 2540
+# captures, YC.16.06). One row per port, a "|" splitting the port identity
+# from the state columns:
+#
+#                           | Intrusion                           MDI  Flow Bcast
+#   Port         Type       | Alert     Enabled Status Mode       Mode Ctrl Limit
+#   ------------ ---------- + --------- ------- ------ ---------- ---- ---- -----
+#   1            100/1000T  | No        Yes     Up     1000FDx    MDI  off  0
+#   16           100/1000T  | No        No      Down   1000FDx    Auto off  0
+#   25                      | No        Yes     Down   .               off  0
+#
+# The Type column is blank for an empty SFP+ cage, which is why the row is
+# anchored on the "|" rather than on whitespace. "Enabled" is the admin
+# state and "Status" the link state; Enabled=No is reported the way Cisco's
+# own brief table reports it ("administratively down") so _build_interfaces
+# folds both into "down" exactly as it already does for Cisco.
+_ARUBA_IF_BRIEF_ROW = re.compile(
+    r"^(\S+)\s+[^|]*?\|\s*(?:Yes|No)\s+(Yes|No)\s+(Up|Down)\b",
+    re.IGNORECASE,
+)
+
+
+def _parse_aruba_interfaces_brief(lines: list[str]) -> dict[str, dict]:
+    results: dict[str, dict] = {}
+    for line in _extract_section(lines, ["show interfaces brief"]):
+        match = _ARUBA_IF_BRIEF_ROW.match(line)
+        if not match:
+            continue
+        port, enabled, link = match.groups()
+        if link.lower() == "up":
+            status = "up"
+        elif enabled.lower() == "no":
+            status = "administratively down"
+        else:
+            status = "down"
+        results[port] = {"ip_address": "", "status": status, "protocol": ""}
+    return results
+
+
+# =============================================================
+# VLAN DATABASE ("show vlan brief")
+# =============================================================
+#
+# Cisco IOS keeps VLANs that were created by VTP or by "vlan N" in vlan.dat,
+# and a running-config only lists some of them (confirmed on real captures:
+# a 3650 with four VLANs and an empty VLAN section in the config, and a 2960
+# with 15 VLANs in the config against 18 in the database). "show vlan brief"
+# is the authoritative list. VLAN 1 and the legacy FDDI/Token-Ring VLANs
+# 1002-1005 exist on every Cisco switch and say nothing about this switch's
+# design, so they are not reported from here.
+#
+#   VLAN Name                             Status    Ports
+#   ---- -------------------------------- --------- -------------------------------
+#   100  P2P-To-NSF                       active    Gi1/0/23, Gi1/0/24
+#   1002 fddi-default                     act/unsup
+#
+# Port lists wrap onto indented continuation lines, which never start with a
+# VLAN number, so a row is recognised by "<id> <name> <status>".
+_VLAN_BRIEF_ROW = re.compile(
+    r"^(\d{1,4})\s+(.+?)\s+(active|act/\S+|sus/\S+|suspended)(?:\s|$)",
+    re.IGNORECASE,
+)
+_BUILT_IN_VLAN_IDS = {1, 1002, 1003, 1004, 1005}
+
+
+def parse_vlan_brief(lines: list[str]) -> list[dict]:
+    results: list[dict] = []
+    seen: set[int] = set()
+    for line in _extract_section(lines, ["show vlan brief", "sh vlan brief", "show vlan br"]):
+        match = _VLAN_BRIEF_ROW.match(line)
+        if not match:
+            continue
+        vlan_id = int(match.group(1))
+        if vlan_id in _BUILT_IN_VLAN_IDS or vlan_id in seen:
+            continue
+        seen.add(vlan_id)
+        results.append({"vlan_id": vlan_id, "name": match.group(2).strip()})
     return results
 
 
@@ -322,7 +405,7 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
 
         Neighbor index                     :1
         Chassis type                       :MAC Address
-        Chassis ID                         :744d-6d51-c811
+        Chassis ID                         :02cb-ab37-4877
         Port ID subtype                    :Interface Name
         Port ID                            :MEth0/0/0
         Port description                   :--
@@ -401,6 +484,152 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
     return results
 
 
+_CISCO_LLDP_IF_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z\-]*\d+(?:[/.:]\d+)*$")
+
+
+def _cisco_lldp_brief_columns(header: str) -> tuple[int, int, int, int] | None:
+    """Column offsets of Cisco's LLDP brief table from its header line
+    ("Device ID  Local Intf  Hold-time  Capability  Port ID"), or None if
+    the header is not that table."""
+    lowered = header.lower()
+    offsets = [lowered.find(label) for label in ("local intf", "hold-time", "capability", "port id")]
+    if -1 in offsets or offsets != sorted(offsets) or offsets[0] <= 0:
+        return None
+    return offsets[0], offsets[1], offsets[2], offsets[3]
+
+
+def _parse_cisco_lldp_brief_fixed_width(line: str, columns: tuple[int, int, int, int]) -> dict | None:
+    """One row of Cisco's LLDP brief table read by column offsets.
+
+    Returns None unless every field is plausible (Local Intf looks like an
+    interface, Hold-time is a number, Capability is empty or capability
+    codes). A wrapped Device ID's continuation line has lost its leading
+    spaces, so the offsets do not line up and the row is rejected here and
+    handled by the token-based fallback instead.
+    """
+    local_idx, hold_idx, cap_idx, port_idx = columns
+    if len(line) <= port_idx:
+        return None
+    device_id = line[:local_idx].strip()
+    local_interface = line[local_idx:hold_idx].strip()
+    hold_time = line[hold_idx:cap_idx].strip()
+    capabilities = line[cap_idx:port_idx].strip()
+    port_id = line[port_idx:].strip()
+    if not (device_id and local_interface and port_id and hold_time.isdigit()):
+        return None
+    if not _CISCO_LLDP_IF_NAME_RE.match(local_interface):
+        return None
+    if capabilities and not _CAPABILITY_TOKEN_RE.match(capabilities):
+        return None
+    return {
+        "protocol": "LLDP",
+        "neighbor_id": device_id,
+        "local_interface": local_interface,
+        "remote_interface": port_id,
+        # Cisco's LLDP brief table has no Platform column (see
+        # _parse_neighbor_columns); the detail table does.
+        "platform": "",
+    }
+
+
+_CISCO_LLDP_DETAIL_FIELD_RE = re.compile(
+    r"^(Local Intf|Chassis id|Port id|Port Description|System Name)\s*:\s*(.*?)\s*$", re.IGNORECASE
+)
+
+
+def _parse_cisco_lldp_detail(lines: list[str]) -> list[dict]:
+    """Parse Cisco 'show lldp neighbors detail' (IOS / IOS-XE):
+
+        ------------------------------------------------
+        Local Intf: Gi1/1/1
+        Chassis id: aabb.ccdd.eeff
+        Port id: 25
+        Port Description: 25
+        System Name: SWITCH-A
+
+        System Description:
+        Aruba JL356A 2540-24G-PoE+-4SFP+ Switch, revision YC.16.06.0006, ...
+
+        Time remaining: 99 seconds
+        System Capabilities: B,R
+        ...
+
+    One block per neighbor between divider lines. _extract_section drops
+    blank lines, so the System Description (one or more lines) is read up to
+    the "Time remaining:" line that always follows it. A neighbor that sends
+    no System Name is reported under its Chassis ID, which is also what the
+    brief table shows for it.
+    """
+    section = _extract_section(lines, [
+        "show lldp neighbors detail", "sh lldp neighbors detail",
+        "show lldp nei detail", "sh lldp nei detail",
+    ])
+    if not section:
+        return []
+
+    results: list[dict] = []
+    current: dict = {}
+    description: list[str] = []
+    in_description = False
+
+    def flush() -> None:
+        local_interface = current.get("local intf", "")
+        neighbor_id = current.get("system name") or current.get("chassis id", "")
+        if local_interface and neighbor_id:
+            results.append({
+                "protocol": "LLDP",
+                "neighbor_id": neighbor_id,
+                "local_interface": local_interface,
+                "remote_interface": current.get("port id", ""),
+                "platform": _cisco_lldp_platform(description),
+            })
+
+    for line in section:
+        if set(line) <= {"-"} and len(line) >= 5:
+            flush()
+            current = {}
+            description = []
+            in_description = False
+            continue
+        if line.lower().startswith("system description"):
+            in_description = True
+            continue
+        if in_description:
+            if line.lower().startswith("time remaining"):
+                in_description = False
+            else:
+                description.append(line)
+                continue
+        match = _CISCO_LLDP_DETAIL_FIELD_RE.match(line)
+        if match:
+            current[match.group(1).lower()] = match.group(2)
+
+    flush()
+    return results
+
+
+def _cisco_lldp_platform(description: list[str]) -> str:
+    """A short "what is this neighbor" string from System Description. Huawei
+    prints a generic first line ("Huawei Switch") and the model on a later
+    "HUAWEI <model>" line; everything else puts the product first, ahead of
+    the first comma (Aruba: "Aruba JL356A 2540-24G-PoE+-4SFP+ Switch, ...")."""
+    for text in description:
+        # Case-sensitive on purpose: the model line is "HUAWEI CloudEngine
+        # S5735-L-V2" while the banner lines before it are "Huawei Switch" /
+        # "Huawei YunShan OS".
+        if text.startswith("HUAWEI "):
+            return text[len("HUAWEI "):].strip()
+    if not description:
+        return ""
+    fields = [part.strip() for part in description[0].split(",")]
+    # Every Cisco IOS neighbor starts "Cisco IOS Software, <family> Software
+    # (<image>), Version ..." - the first field says nothing about the model,
+    # the family/image in the second field does.
+    if fields[0].startswith("Cisco IOS Software") and len(fields) > 1 and fields[1]:
+        return fields[1][:80]
+    return fields[0][:80]
+
+
 def parse_neighbors(lines: list[str]) -> list[dict]:
     results = []
 
@@ -439,9 +668,25 @@ def parse_neighbors(lines: list[str]) -> list[dict]:
 
     lldp_cisco_section = _extract_section(lines, ["show lldp neighbors"])
     pending_lldp_id = None
+    lldp_columns = None
     for line in lldp_cisco_section:
         low = line.lower()
-        if low.startswith("device id") or "lldp is not enabled" in low or low.startswith("total entries"):
+        if low.startswith("device id"):
+            lldp_columns = _cisco_lldp_brief_columns(line)
+            pending_lldp_id = None
+            continue
+        if "lldp is not enabled" in low or low.startswith("total entries"):
+            pending_lldp_id = None
+            continue
+        # Real Catalyst output truncates a long Device ID to the 20-character
+        # column and prints Local Intf straight after it with no space
+        # ("sfos-x86_64.localdomGi1/0/23"), so splitting on whitespace swaps
+        # the columns. Use the header's column offsets first; only a row the
+        # offsets cannot explain (a wrapped Device ID, a pasted fragment)
+        # falls through to the token walk below.
+        fixed = _parse_cisco_lldp_brief_fixed_width(line, lldp_columns) if lldp_columns else None
+        if fixed is not None:
+            results.append(fixed)
             pending_lldp_id = None
             continue
         tokens = line.split()
@@ -473,6 +718,20 @@ def parse_neighbors(lines: list[str]) -> list[dict]:
             "platform": "",
         })
         pending_lldp_id = None
+
+    # Cisco "show lldp neighbors detail" carries the full System Name and the
+    # Chassis ID, which the brief table truncates or omits. Where it covers a
+    # local interface it replaces that interface's brief row (by local
+    # interface, like the Huawei detail below, because one peer can sit on
+    # several ports); brief rows for ports the detail does not cover stay.
+    cisco_lldp_detail = _parse_cisco_lldp_detail(lines)
+    if cisco_lldp_detail:
+        detail_locals = {item["local_interface"] for item in cisco_lldp_detail}
+        results = [
+            item for item in results
+            if not (item["protocol"] == "LLDP" and item["local_interface"] in detail_locals)
+        ]
+        results.extend(cisco_lldp_detail)
 
     # "display lldp neighbor brief" real column order is Local Interface
     # / Exptime(s) / Neighbor Interface / Neighbor Device — the Exptime
@@ -524,7 +783,16 @@ def parse_neighbors(lines: list[str]) -> list[dict]:
     # listed, just with fuller interface names and an untruncated
     # platform string — prefer it over the brief row for that neighbor
     # instead of keeping both as separate near-duplicate entries.
-    results = [item for item in results if item["neighbor_id"] not in detail_ids]
+    # Only CDP rows are replaced: the same peer is normally reported by CDP
+    # AND LLDP, and an LLDP row (brief or detail) is a different protocol's
+    # report, not a duplicate of the CDP one. Filtering on neighbor_id alone
+    # silently dropped every LLDP row whose peer name matched a CDP detail
+    # entry, which became common once LLDP detail started carrying the full
+    # System Name.
+    results = [
+        item for item in results
+        if not (item["protocol"] == "CDP" and item["neighbor_id"] in detail_ids)
+    ]
     results.extend(detail_results)
 
     # "display lldp neighbor" (no "brief") — Huawei's per-port LLDP
@@ -770,6 +1038,17 @@ def parse_port_channels(lines: list[str]) -> list[dict]:
     current_trunk = None
     for raw_line in lines:
         stripped = raw_line.strip()
+        # A trunk block ends where the next command starts. Without this the
+        # last trunk in the capture kept collecting rows from every later
+        # command whose second word is Up/Down: "display stack topology"
+        # ("1  down  --") and "display interface" ("10GE1/0/5  down") turned a
+        # 2-port trunk into "10GE1/0/2, 10GE1/0/3, 1, 10GE1/0/2, 10GE1/0/3,
+        # 10GE1/0/5, 10GE1/0/6" on a real S5735.
+        if _SECTION_BREAK_RE.match(stripped) or _BARE_COMMAND_RE.match(stripped):
+            if current_trunk:
+                results.append(current_trunk)
+            current_trunk = None
+            continue
         header_match = trunk_header_re.search(stripped)
         if header_match:
             if current_trunk:
@@ -789,7 +1068,9 @@ def parse_port_channels(lines: list[str]) -> list[dict]:
             continue
         member_match = member_line_re.match(stripped)
         if member_match:
-            current_trunk["members"].append(member_match.group(1))
+            # "10GE1/0/3(r)": (r) marks the reference port and (h) a high
+            # priority port; they are flags on the row, not part of the name.
+            current_trunk["members"].append(re.sub(r"\((?:r|h|rh|hr)\)$", "", member_match.group(1), flags=re.IGNORECASE))
 
     if current_trunk:
         results.append(current_trunk)
@@ -1089,42 +1370,23 @@ def parse_ip_route_table(lines: list[str]) -> list[dict]:
 # =============================================================
 
 def parse_arp_table(lines: list[str]) -> list[dict]:
-    results = []
+    """ARP table as {ip_address, mac_address, age, interface} rows.
 
-    cisco_section = _extract_section(lines, ["show ip arp", "sh ip arp", "show arp", "sh arp"])
-    row_re = re.compile(
-        r"^Internet\s+(\S+)\s+(\S+)\s+([0-9a-fA-F.]{14})\s+\S+\s+(\S+)$"
-    )
-    for line in cisco_section:
-        match = row_re.match(line)
-        if match:
-            ip_address, age, mac_address, interface = match.groups()
-            results.append({
-                "ip_address": ip_address,
-                "mac_address": mac_address,
-                "age": age,
-                "interface": interface,
-            })
+    Kept as the original four-key contract; the full parser (entry type,
+    VLAN, incomplete entries, every vendor, repeated command runs) lives in
+    live_state.parse_arp and is what the Switch Analyzer service uses."""
+    from . import capture_text, live_state
 
-    huawei_section = _extract_section(lines, ["display arp"])
-    huawei_row_re = re.compile(
-        r"^(\d{1,3}(?:\.\d{1,3}){3})\s+([0-9a-fA-F-]{14})\s+(\S+)\s+\S+\s+(\S+)"
-    )
-    for line in huawei_section:
-        low = line.lower()
-        if low.startswith("ip address") or low.startswith("---"):
-            continue
-        match = huawei_row_re.match(line)
-        if match:
-            ip_address, mac_address, age, interface = match.groups()
-            results.append({
-                "ip_address": ip_address,
-                "mac_address": mac_address,
-                "age": age,
-                "interface": interface,
-            })
-
-    return results
+    rows = live_state.parse_arp(capture_text.clean_lines("\n".join(lines)))
+    return [
+        {
+            "ip_address": row["ip_address"],
+            "mac_address": row["mac_address"],
+            "age": row["age"],
+            "interface": row["interface"],
+        }
+        for row in rows
+    ]
 
 
 # =============================================================
@@ -1230,12 +1492,19 @@ def _parse_nxos_transceiver_blocks(dom_section: list[str]) -> list[dict]:
 
     def flush():
         if current and current.get("present"):
-            results.append({key: value for key, value in current.items() if key != "present"} | {"present": True})
+            row = {key: value for key, value in current.items() if key != "present"}
+            # PID: Cisco's own product id when the optic reports one
+            # ("cisco product id is SFP-10G-SR"); a third-party optic has
+            # none, so fall back to the vendor part number rather than
+            # leave the column empty.
+            row["pid"] = row["pid"] or row["vendor_part_number"]
+            row["present"] = True
+            results.append(row)
 
     for line in dom_section:
         if _NXOS_TRANSCEIVER_IFACE_RE.match(line):
             flush()
-            current = {"interface": line, "type": "", "vendor_part_number": "", "serial_number": "", "present": False}
+            current = {"interface": line, "type": "", "vendor_part_number": "", "serial_number": "", "pid": "", "present": False}
             continue
         if current is None:
             continue
@@ -1250,62 +1519,92 @@ def _parse_nxos_transceiver_blocks(dom_section: list[str]) -> list[dict]:
             current["vendor_part_number"] = line[len("part number is "):].strip()
         elif low.startswith("serial number is "):
             current["serial_number"] = line[len("serial number is "):].strip()
+        elif low.startswith("cisco product id is "):
+            current["pid"] = line[len("cisco product id is "):].strip()
 
     flush()
     return results
 
 
-def parse_transceivers(lines: list[str]) -> list[dict]:
-    results: list[dict] = []
-
-    dom_by_short_name: dict[str, dict] = {}
-    dom_section = _extract_section(lines, [
-        "show interface transceiver", "show inter transceiver", "show int transceiver",
-        "sh interface transceiver", "sh inter transceiver", "sh int transceiver",
-    ])
-    for line in dom_section:
-        parsed = _parse_cisco_transceiver_dom_row(line)
-        if parsed:
-            port = parsed.pop("_port")
-            dom_by_short_name[port] = parsed
-
-    results.extend(_parse_nxos_transceiver_blocks(dom_section))
-
-    for entry in _parse_cisco_inventory_entries(lines):
-        if not _CISCO_INTERFACE_NAME_RE.match(entry["slot"]):
+def _extract_all_sections(lines: list[str], keywords: list[str]) -> list[tuple[int, list[str]]]:
+    """Every occurrence of any of ``keywords`` as a command line, in capture
+    order, as (line_index, output_lines). Same matching and stop rules as
+    ``_extract_section`` (which only returns the first occurrence): a real
+    capture often runs a command twice (a half-typed or ``?`` attempt, then
+    the real one) or contains another device's session, and the first
+    occurrence is then empty or foreign."""
+    keywords_lower = [keyword.lower() for keyword in keywords]
+    runs: list[tuple[int, list[str]]] = []
+    for index, raw_line in enumerate(lines):
+        if not any(raw_line.strip().lower().endswith(keyword) for keyword in keywords_lower):
             continue
-        dom = dom_by_short_name.get(_short_cisco_interface_name(entry["slot"]), {})
-        results.append({
-            "interface": entry["slot"],
-            "present": True,
-            "type": entry["description"],
-            "vendor_part_number": entry["pid"],
-            "serial_number": entry["serial"],
-            **dom,
-        })
+        captured: list[str] = []
+        for line in lines[index + 1:]:
+            stripped = line.strip()
+            if _SECTION_BREAK_RE.match(stripped):
+                break
+            if not stripped:
+                continue
+            if _BARE_COMMAND_RE.match(stripped) and stripped.lower() not in keywords_lower:
+                break
+            captured.append(stripped)
+        runs.append((index, captured))
+    return runs
 
-    # Real command on ArubaOS-Switch (verified against a real 2540
-    # capture) is 'show interfaces transceiver', not the bare 'show
-    # transceiver' the collect-script checklist lists — matching both.
-    aruba_section = _extract_section(lines, ["show interfaces transceiver", "show transceiver"])
-    for line in aruba_section:
+
+_CISCO_DOM_COMMANDS = [
+    "show interface transceiver", "show interfaces transceiver", "show inter transceiver", "show int transceiver",
+    "sh interface transceiver", "sh interfaces transceiver", "sh inter transceiver", "sh int transceiver",
+]
+_ARUBA_TRANSCEIVER_COMMANDS = ["show interfaces transceiver", "show transceiver"]
+_HUAWEI_TRANSCEIVER_COMMANDS = [
+    "display interface transceiver", "display interface transceiver verbose",
+    "display transceiver", "display transceiver verbose",
+]
+
+
+def _is_aruba_transceiver_table(section: list[str]) -> bool:
+    """True only for the Aruba 'Transceiver Technical Information' table.
+
+    Cisco IOS answers the very same ``show interfaces transceiver`` with a
+    temperature / voltage / power table whose rows also look like "name,
+    text, value, value". Without this guard each DOM row became a bogus
+    transceiver (type "30.6", serial "-6.3" ...)."""
+    lowered = [line.lower() for line in section]
+    if any("transceiver technical information" in line for line in lowered):
+        return True
+    return any("serial" in line for line in lowered) and any("product" in line for line in lowered) and not any(
+        "temperature" in line for line in lowered
+    )
+
+
+def _parse_aruba_transceiver_rows(section: list[str]) -> list[dict]:
+    rows: list[dict] = []
+    for line in section:
         low = line.lower()
         if low.startswith(("port", "----", "transceiver technical")):
             continue
         match = _ARUBA_TRANSCEIVER_ROW.match(line)
         if match:
             interface, transceiver_type, product_no, serial_no = match.groups()
-            results.append({
+            rows.append({
                 "interface": interface,
                 "present": True,
                 "type": transceiver_type.strip(),
                 "vendor_part_number": product_no,
+                "pid": product_no,
                 "serial_number": serial_no,
             })
+    return rows
 
+
+def _parse_huawei_transceiver_blocks(section: list[str]) -> list[dict]:
+    """Blocks of one 'display interface transceiver' output (already cut at
+    the next command, so a later 'display lldp neighbor' can no longer leak
+    its 'Device serial number' into the last transceiver)."""
+    results: list[dict] = []
     current: dict | None = None
-    for raw_line in lines:
-        stripped = raw_line.strip()
+    for stripped in section:
         header_match = _HUAWEI_TRANSCEIVER_HEADER.match(stripped)
         if header_match:
             if current:
@@ -1315,6 +1614,7 @@ def parse_transceivers(lines: list[str]) -> list[dict]:
                 "present": True,
                 "type": "",
                 "vendor_part_number": "",
+                "pid": "",
                 "serial_number": "",
             }
             continue
@@ -1327,19 +1627,161 @@ def parse_transceivers(lines: list[str]) -> list[dict]:
             current["type"] = value
         elif field.startswith("vendor part number") and value and value.lower() != "none":
             current["vendor_part_number"] = value
-        elif "serial number" in field:
-            # Real field name confirmed on 2 real S5735 transceivers is
-            # "Manu. Serial Number" (under a "Manufacture information:"
-            # sub-section) — neither "vendor serial number" nor a bare
-            # "serial number" as the old code required. Matched
-            # tolerantly on substring so any vendor-prefixed variant
-            # ("Manu.", "Vendor", etc.) is captured the same way.
+            current["pid"] = value
+        elif "serial number" in field and not field.startswith("device"):
+            # Real field name confirmed on real S5735 / S5755 transceivers
+            # is "Manu. Serial Number" (under a "Manufacture information:"
+            # sub-section); matched tolerantly on substring so any vendor-
+            # prefixed variant ("Manu.", "Vendor", ...) is captured the same
+            # way. "Device serial number" is the LLDP neighbour's.
             current["serial_number"] = value
-
     if current:
         results.append(current)
+    return results
+
+
+def _merge_transceiver_rows(rows: list[dict]) -> list[dict]:
+    """One row per interface, first-seen order. A later run of the same
+    command replaces an earlier row only when it carries at least as much
+    (a repeated 'show interface transceiver' must not duplicate ports, and
+    an empty first attempt must not hide the real second one)."""
+    merged: dict[str, dict] = {}
+    for row in rows:
+        key = row["interface"]
+        old = merged.get(key)
+        if old is None:
+            merged[key] = row
+            continue
+        filled_old = sum(1 for value in old.values() if value not in ("", None))
+        filled_new = sum(1 for value in row.values() if value not in ("", None))
+        if filled_new >= filled_old:
+            merged[key] = row
+    return list(merged.values())
+
+
+def _huawei_transceiver_sections(lines: list[str]) -> list[tuple[str | None, list[str]]]:
+    """(prompt_host, output_lines) for every run of 'display interface
+    transceiver'. A run ends at the next command (so a later 'display lldp
+    neighbor' can never feed its 'Device serial number' into the last
+    transceiver). Transceiver blocks whose command echo was lost still form a
+    run, with host None."""
+    from . import capture_text
+
+    keywords = _HUAWEI_TRANSCEIVER_COMMANDS
+    runs: list[tuple[str | None, list[str]]] = []
+    current: list[str] | None = None
+    for line in lines:
+        stripped = line.strip()
+        low = stripped.lower()
+        if any(low.endswith(keyword) for keyword in keywords):
+            current = []
+            runs.append((capture_text.prompt_host(line), current))
+            continue
+        if current is not None and (
+            _SECTION_BREAK_RE.match(stripped) or (_BARE_COMMAND_RE.match(stripped) and low not in keywords)
+        ):
+            current = None
+        if current is None and _HUAWEI_TRANSCEIVER_HEADER.match(stripped):
+            current = []
+            runs.append((None, current))
+        if current is not None and stripped:
+            current.append(stripped)
+    return runs
+
+
+def _huawei_transceiver_runs(lines: list[str]) -> tuple[list[list[str]], dict | None]:
+    """Sections of 'display interface transceiver', limited to the capture's
+    own device when the capture mixes prompts.
+
+    Returns (sections, note). ``note`` is None for an ordinary capture, else
+    {"hosts": {...counts...}, "used_host", "ignored_runs"} when sections typed
+    at another device's prompt were left out. A capture whose dominant host
+    never ran the command keeps every run (nothing can be proven foreign)."""
+    from . import capture_text
+
+    runs = _huawei_transceiver_sections(lines)
+    if not runs:
+        return [], None
+    counts = capture_text.prompt_host_counts(lines)
+    if len(counts) < 2:
+        return [section for _host, section in runs], None
+    dominant = max(counts, key=lambda host: counts[host])
+    foreign = [(host, section) for host, section in runs if host is not None and host != dominant]
+    if not foreign or all(host is not None and host != dominant for host, _section in runs):
+        # nothing foreign, or the capture's own device never ran the command
+        return [section for _host, section in runs], None
+    return [section for host, section in runs if host is None or host == dominant], {
+        "hosts": counts,
+        "used_host": dominant,
+        "ignored_runs": len(foreign),
+    }
+
+
+def parse_transceivers(lines: list[str]) -> list[dict]:
+    """Installed transceivers, one row per interface.
+
+    Every row has ``interface, present, type, vendor_part_number, pid,
+    serial_number``. ``pid`` is the orderable product id: Cisco IOS
+    inventory PID (blank for an optic that reports none), NX-OS "cisco
+    product id" (falls back to the vendor part number), Huawei Vendor Part
+    Number, Aruba Product Number."""
+    results: list[dict] = []
+
+    dom_by_short_name: dict[str, dict] = {}
+    nxos_rows: list[dict] = []
+    aruba_rows: list[dict] = []
+    dom_sections = [section for _index, section in _extract_all_sections(lines, _CISCO_DOM_COMMANDS)]
+    for dom_section in dom_sections:
+        for line in dom_section:
+            parsed = _parse_cisco_transceiver_dom_row(line)
+            if parsed:
+                port = parsed.pop("_port")
+                dom_by_short_name[port] = parsed
+        nxos_rows.extend(_parse_nxos_transceiver_blocks(dom_section))
+    results.extend(_merge_transceiver_rows(nxos_rows))
+
+    seen_inventory: set[tuple[str, str, str]] = set()
+    for entry in _parse_cisco_inventory_entries(lines):
+        if not _CISCO_INTERFACE_NAME_RE.match(entry["slot"]):
+            continue
+        key = (entry["slot"], entry["pid"], entry["serial"])
+        if key in seen_inventory:
+            continue
+        seen_inventory.add(key)
+        dom = dom_by_short_name.get(_short_cisco_interface_name(entry["slot"]), {})
+        results.append({
+            "interface": entry["slot"],
+            "present": True,
+            "type": entry["description"],
+            "vendor_part_number": entry["pid"],
+            "pid": entry["pid"],
+            "serial_number": entry["serial"],
+            **dom,
+        })
+
+    # Real command on ArubaOS-Switch (verified against a real 2540
+    # capture) is 'show interfaces transceiver', not the bare 'show
+    # transceiver' the collect-script checklist lists — matching both. The
+    # Catalyst command of the same name prints a different table, so a
+    # section is only read as Aruba when it carries the Aruba table header.
+    for _index, section in _extract_all_sections(lines, _ARUBA_TRANSCEIVER_COMMANDS):
+        if _is_aruba_transceiver_table(section):
+            aruba_rows.extend(_parse_aruba_transceiver_rows(section))
+    results.extend(_merge_transceiver_rows(aruba_rows))
+
+    huawei_rows: list[dict] = []
+    sections, _note = _huawei_transceiver_runs(lines)
+    for section in sections:
+        huawei_rows.extend(_parse_huawei_transceiver_blocks(section))
+    results.extend(_merge_transceiver_rows(huawei_rows))
 
     return results
+
+
+def transceiver_scope_note(lines: list[str]) -> dict | None:
+    """Set when ``parse_transceivers`` left out Huawei transceiver output
+    typed at another device's prompt (see ``_huawei_transceiver_runs``)."""
+    return _huawei_transceiver_runs(lines)[1]
 
 
 # =============================================================
@@ -1376,6 +1818,69 @@ _ARUBA_POE_ROW = re.compile(
 _HUAWEI_POE_ROW = re.compile(
     r"^(\S+)\s+(Enable|Disable|On|Off|Normal|Fault)\s+(\S+)\s+([\d.]+)\s+([\d.]+)", re.IGNORECASE
 )
+# V600R025C00 S5735/S5755 "display poe information" prints only the PSE
+# totals ("Power Max Value(mW) : 2880000"), never a per-port row, so the
+# per-port data comes from two other commands (both confirmed on real
+# S5755-H captures and listed in the V600R025C00 command reference as
+# DISPLAYPOEPOWERSTATE and DISPLAYPOEPOWER):
+#
+#   display poe power-state
+#   PortName               PowerOn/Off  Enabled    FAST-ON    Priority   Status
+#   MultiGE1/0/1           off          enable     disable    low        detecting
+#
+#   display poe power
+#   PortName               Class  REFPW(mW)  USMPW(mW)  CURPW(mW)  PKPW(mW)   AVGPW(mW)
+#   MultiGE1/0/1           -      -          90000      0          0          0
+#
+# The FAST-ON column is not on every software train (the reference's own
+# example for power-state has no such column), so it is optional.
+_HUAWEI_POE_STATE_ROW = re.compile(
+    r"^(\S*\d/\d+/\d+)\s+(on|off)\s+(enable|disable)\s+(?:(?:enable|disable)\s+)?(\S+)\s+(\S+)\s*$",
+    re.IGNORECASE,
+)
+_HUAWEI_POE_POWER_ROW = re.compile(
+    r"^(\S*\d/\d+/\d+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\d+)\s*$",
+)
+
+
+def _milliwatts_to_watts(value: str) -> str:
+    return f"{int(value) / 1000:.1f}" if value.isdigit() else ""
+
+
+def _parse_huawei_poe_ports(lines: list[str]) -> list[dict]:
+    states: dict[str, tuple[str, str]] = {}
+    for line in _extract_section(lines, ["display poe power-state"]):
+        match = _HUAWEI_POE_STATE_ROW.match(line)
+        if match:
+            port, _power_on_off, enabled, _priority, status = match.groups()
+            states[port] = (enabled.lower(), status.lower())
+
+    powers: dict[str, tuple[str, str, str]] = {}
+    for line in _extract_section(lines, ["display poe power"]):
+        match = _HUAWEI_POE_POWER_ROW.match(line)
+        if match:
+            port, poe_class, _reference, user_max, current, _peak, _average = match.groups()
+            powers[port] = (poe_class if poe_class.isdigit() else "", user_max, current)
+
+    rows: list[dict] = []
+    for port in [*states, *(port for port in powers if port not in states)]:
+        enabled, status = states.get(port, ("", ""))
+        poe_class, user_max, current = powers.get(port, ("", "", ""))
+        rows.append({
+            "interface": port,
+            "admin_status": {"enable": "Enabled", "disable": "Disabled"}.get(enabled, ""),
+            # Huawei's own vocabulary ("powering", "detecting"); not forced
+            # into Aruba's "Delivering"/"Searching".
+            "oper_status": status,
+            # CURPW, the power the port is delivering right now, in watts.
+            "power_watts": _milliwatts_to_watts(current),
+            "device": "",
+            "class": poe_class,
+            # USMPW, the user-set per-port ceiling.
+            "max_watts": _milliwatts_to_watts(user_max),
+            "source": "display poe power-state / display poe power",
+        })
+    return rows
 
 
 def _parse_poe_from_cdp_detail(lines: list[str]) -> list[dict]:
@@ -1513,6 +2018,9 @@ def parse_poe(lines: list[str]) -> list[dict]:
                 "max_watts": power_limit,
                 "source": "display poe information",
             })
+
+    known_ports = {item["interface"] for item in results}
+    results.extend(row for row in _parse_huawei_poe_ports(lines) if row["interface"] not in known_ports)
 
     if not results:
         results = _parse_poe_from_cdp_detail(lines)
@@ -1756,8 +2264,12 @@ def _parse_cisco_inventory_entries(lines: list[str]) -> list[dict]:
         match = _CISCO_INVENTORY_PID_RE.match(stripped)
         if match and pending_name:
             pid, _vid, serial = match.groups()
-            entries.append({"slot": pending_name["slot"], "description": pending_name["description"], "pid": pid, "serial": serial})
+            entry = {"slot": pending_name["slot"], "description": pending_name["description"], "pid": pid, "serial": serial}
             pending_name = None
+            # A capture that ran `show inventory` twice (or echoed it twice)
+            # repeats every entry; one physical part is one row.
+            if entry not in entries:
+                entries.append(entry)
     return entries
 
 
