@@ -1,0 +1,443 @@
+VVR-ONGJ5-IV#terminal length 0
+VVR-ONGJ5-IV#show clock detail
+05:18:25.997 JAKARTA Thu Feb 26 2026
+Time source is NTP
+
+VVR-ONGJ5-IV#show tech-support 
+
+------------------ show clock ------------------
+
+
+05:18:45.469 JAKARTA Thu Feb 26 2026
+
+------------------ show version ------------------
+
+Cisco IOS XE Software, Version 17.12.04b
+Cisco IOS Software [Dublin], c8000be Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.12.4b, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Mon 24-Feb-25 14:42 by mcpre
+
+
+Cisco IOS-XE software, Copyright (c) 2005-2025 by cisco Systems, Inc.
+All rights reserved.  Certain components of Cisco IOS-XE software are
+licensed under the GNU General Public License ("GPL") Version 2.0.  The
+software code licensed under GPL Version 2.0 is free software that comes
+with ABSOLUTELY NO WARRANTY.  You can redistribute and/or modify such
+GPL code under the terms of GPL Version 2.0.  For more details, see the
+documentation or "License Notice" file accompanying the IOS-XE software,
+or the applicable URL provided on the flyer accompanying the IOS-XE
+software.
+
+
+ROM: 17.6(8.1r)
+VVR-ONGJ5-IV uptime is 19 hours, 26 minutes
+Uptime for this control processor is 19 hours, 27 minutes
+System returned to ROM by Reload Command at 09:50:20 JAKARTA Wed Feb 25 2026
+System restarted at 09:52:07 JAKARTA Wed Feb 25 2026
+System image file is "flash:packages.conf"
+Last reload reason: Reload Command
+
+
+
+This product contains cryptographic features and is subject to United
+States and local country laws governing import, export, transfer and
+use. Delivery of Cisco cryptographic products does not imply
+third-party authority to import, export, distribute or use encryption.
+Importers, exporters, distributors and users are responsible for
+compliance with U.S. and local country laws. By using this product you
+agree to comply with applicable laws and regulations. If you are unable
+to comply with U.S. and local laws, return this product immediately.
+
+A summary of U.S. laws governing Cisco cryptographic products may be found at:
+http://www.cisco.com/wwl/export/crypto/tool/stqrg.html
+
+If you require further assistance please contact us by sending email to
+export@cisco.com.
+
+
+Technology Package License Information: 
+
+-----------------------------------------------------------------
+Technology     Type         Technology-package Technology-package
+                            Current            Next Reboot       
+-----------------------------------------------------------------
+Smart License  Perpetual    None               None              
+Smart License  Subscription None               None              
+
+The current crypto throughput level is 250000 kbps 
+
+
+Smart Licensing Status: Smart Licensing Using Policy
+
+cisco C8200L-1N-4T (1RU) processor with 1638523K/6147K bytes of memory.
+Processor board ID HXF8100M6S2
+Router operating mode: Autonomous
+4 Gigabit Ethernet interfaces
+32768K bytes of non-volatile configuration memory.
+4194304K bytes of physical memory.
+7245823K bytes of flash memory at bootflash:.
+
+Configuration register is 0x2102
+
+------------------ show file systems ------------------
+
+
+File Systems:
+
+       Size(b)       Free(b)      Type  Flags  Prefixes
+             -             -    opaque     rw   system:
+             -             -    opaque     rw   tmpsys:
+*   7361155072    5180231680      disk     rw   bootflash: flash: crashinfo:
+    1985277952    1916026880      disk     ro   webui:
+             -             -   network     rw   tftp:
+             -             -    opaque     rw   null:
+             -             -    opaque     ro   tar:
+             -             -    opaque     wo   syslog:
+      33554432      33475456     nvram     rw   nvram:
+             -             -   network     rw   rcp:
+             -             -   network     rw   ftp:
+             -             -   network     rw   http:
+             -             -   network     rw   scp:
+             -             -   network     rw   sftp:
+             -             -   network     rw   https:
+             -             -    opaque     ro   cns:
+
+------------------ show process memory sorted ------------------
+
+
+Processor Pool Total: 1677847884 Used:  239070304 Free: 1438777580
+reserve P Pool Total:     102404 Used:         88 Free:     102316
+ lsmpi_io Pool Total:    6295128 Used:    6294296 Free:        832
+
+ PID TTY  Allocated      Freed    Holding    Getbufs    Retbufs Process
+   0   0  263313000   61564144  179651704          0          0 *Init*          
+  82   0  109031872     512792   11552216          0          0 IOSD ipc task   
+ 271   0    7820624     377024    5477328          0          0 SNMP MA SA      
+ 453   0    4111440       9464    4143936     849828          0 EEM ED Syslog   
+   0   0          0          0    2561208          0          0 *MallocLite*    
+  80   0   22269288   20099776    2223096          0          0 SASRcvWQWrk1    
+ 149   0  150964672  148777768    2161152          0          0 SAMsgThread     
+ 620   0    9326648    7347160    2011800          0          0 NTP Auxiliary Pr
+   0   0 1105231880 1099543328    1730656    8384079          0 *Dead*          
+ 482   0    1711184      32824    1708320          0          0 EEM Server      
+   1   0    1234552     537976    1253336          0          0 Chunk Manager   
+ 188   0    3793048     811216    1092616          0          0 CWAN OIR Handler
+ 240 866    3751896    3009408     910648          0          0 SSH Process     
+ 621   0     885424       2640     625760          0          0 BGP Router      
+
+------------------ show process cpu sorted ------------------
+
+
+CPU utilization for five seconds: 3%/0%; one minute: 2%; five minutes: 2%
+ PID Runtime(ms)     Invoked      uSecs   5Sec   1Min   5Min TTY Process 
+ 422       65889        8697       7576  1.03%  0.18%  0.09%   0 LOCAL AAA        
+ 131      300582     2734268        109  0.47%  0.52%  0.50%   0 IOSXE-RP Punt Se 
+ 118        2829       69981         40  0.07%  0.00%  0.00%   0 Environmental Mo 
+ 605        9162      215981         42  0.07%  0.00%  0.00%   0 SNMP ENGINE      
+ 252       26873     1093292         24  0.07%  0.04%  0.02%   0 VRRS Main thread 
+ 465         911        5878        154  0.07%  0.00%  0.00%   0 SPA ENTITY Proce 
+ 137       36470     4340377          8  0.07%  0.05%  0.06%   0 SIS Punt Process 
+ 135       37245     4340378          8  0.07%  0.04%  0.05%   0 L2 LISP Punt Pro 
+  15        5706       73042         78  0.07%  0.01%  0.00%   0 ARP Background   
+  10         209        1167        179  0.00%  0.00%  0.00%   0 Pool Manager     
+  11           0           1          0  0.00%  0.00%  0.00%   0 DiscardQ Backgro 
+   9       32102       10580       3034  0.00%  0.05%  0.01%   0 Check heaps      
+  13           9         934          9  0.00%  0.00%  0.00%   0 WATCH_AFS        
+  14        1172        6744        173  0.00%  0.00%  0.00%   0 ARP Input        
+   8           0           1          0  0.00%  0.00%  0.00%   0 RO Notify Timers 
+   7           0           1          0  0.00%  0.00%  0.00%   0 EDDRI_MAIN       
+   6           0           1          0  0.00%  0.00%  0.00%   0 IPC ISSU Dispatc 
+  12           0           2          0  0.00%  0.00%  0.00%   0 Timers           
+   1           3          73         41  0.00%  0.00%  0.00%   0 Chunk Manager    
+
+------------------ show platform ------------------
+
+
+Chassis type: C8200L-1N-4T
+
+Slot      Type                State                 Insert time (ago) 
+--------- ------------------- --------------------- ----------------- 
+0         C8200L-1N-4T        ok                    19:27:19      
+ 0/0      2x1G-2xSFP          ok                    19:26:13      
+R0        C8200L-1N-4T        ok, active            19:27:19      
+F0        C8200L-1N-4T        ok, active            19:27:19      
+P0        PWR-CC1-100WAC      ok                    19:26:44      
+P2        C8200-FAN-1R        ok                    19:26:44      
+
+Slot      CPLD Version        Firmware Version                        
+--------- ------------------- --------------------------------------- 
+0         21070847            17.6(8.1r)                          
+R0        21070847            17.6(8.1r)                          
+F0        21070847            17.6(8.1r)                          
+
+------------------ show platform resources ------------------
+
+**State Acronym: H - Healthy, W - Warning, C - Critical                                             
+Resource                 Usage                 Max             Warning         Critical        State
+----------------------------------------------------------------------------------------------------
+RP0 (ok, active)                                                                               H    
+ Control Processor       42.61%                100%            80%             90%             H    
+  DRAM                   2363MB(62%)           3786MB          88%             93%             H    
+  bootflash              2080MB(30%)           7021MB          70%             90%             H    
+ESP0(ok, active)                                                                               H    
+ QFP                                                                                           H    
+  DRAM                   90866KB(17%)          524288KB        85%             95%             H    
+  IRAM                   207KB(10%)            2048KB          85%             95%             H    
+  CPU Utilization        3.00%                 100%            90%             95%             H    
+  B4Q Pool 124           3KB(0%)               1686KB          75%             85%             H    
+  B4Q Pool 128           2KB(0%)               1740KB          75%             85%             H    
+  B4Q Pool 256           1KB(0%)               3481KB          75%             85%             H    
+  B4Q Pool 512           9KB(0%)               4177KB          75%             85%             H    
+  B4Q Pool 1024          24KB(0%)              7736KB          75%             85%             H    
+  B4Q Pool 1536          39KB(0%)              11247KB         75%             85%             H    
+  B4Q Pool 2048          56KB(0%)              14744KB         75%             85%             H    
+  B4Q Pool 4096          24KB(0%)              28696KB         75%             85%             H    
+  B4Q Pool 10240         60KB(0%)              37820KB         75%             85%             H    
+  B4Q Pool 16384         0KB(0%)               51808KB         75%             85%             H    
+  B4Q PMD                13831KB(28%)          48576KB         75%             85%             H    
+
+------------------ show platform software status control-processor brief ------------------
+
+Load Average
+ Slot  Status  1-Min  5-Min 15-Min
+  RP0 Healthy   1.69   1.70   1.61
+
+Memory (kB)
+ Slot  Status    Total     Used (Pct)     Free (Pct) Committed (Pct)
+  RP0 Healthy  3877500  2419720 (62%)  1457780 (38%)   3044824 (79%)
+
+CPU Utilization
+ Slot  CPU   User System   Nice   Idle    IRQ   SIRQ IOwait
+  RP0    0  52.04  17.78   0.00  30.06   0.00   0.09   0.00
+         1   0.00   0.00   0.00 100.00   0.00   0.00   0.00
+         2  29.20   3.20   0.00  67.60   0.00   0.00   0.00
+         3  49.20  18.90   0.00  31.90   0.00   0.00   0.00
+
+------------------ show platform software tech-support ------------------
+
+---- show platform hardware qfp active statistics drop ----
+
+Last clearing of QFP drops statistics : never
+
+-------------------------------------------------------------------------
+Global Drop Stats                         Packets                  Octets  
+-------------------------------------------------------------------------
+BFDoffload                                     13                    1066  
+BadUidbSubIdx                                   1                      94  
+Disabled                                       10                    1625  
+ForUs                                     1015846                68906932  
+Icmp                                          213                   33381  
+IpTtlExceeded                                 909                   59413  
+IpsecInput                                      8                    3408  
+Ipv4NoAdj                                 1249556                83213277  
+Ipv6NoRoute                                    49                    2744  
+NatIn2out                                    9718                 1292628  
+NatOut2in                                   14484                 1635712  
+ReassBadLen                                   288                   16704  
+ReassTimeout                                  306                  134860  
+TcpBadfrag                                      2                     128  
+UnconfiguredIpv6Fia                           286                   20248  
+
+---- show platform hardware qfp active infrastructure exmem statistics ----
+
+QFP exmem statistics
+
+Type: Name: DRAM, QFP: 0
+  Total: 536870912
+  InUse: 93046784
+  Free: 443824128
+  Lowest free water mark: 443812864
+Type: Name: IRAM, QFP: 0
+  Total: 2097152
+  InUse: 211968
+  Free: 1885184
+  Lowest free water mark: 1885184
+Type: Name: SRAM, QFP: 0
+  Total: 0
+  InUse: 0
+  Free: 0
+  Lowest free water mark: 0
+
+------------------ show environment all ------------------
+
+
+Sensor List:  Environmental Monitoring 
+ Sensor                  Location        State           Reading         
+ RPM: fan0               P2              Normal          8580 RPM
+ RPM: fan1               P2              Normal          8580 RPM
+ P: pwr                  P2              Normal          2 Watts
+ Temp: Inlet 1           R0              Normal          16 Celsius
+ Temp: Inlet 2           R0              Normal          16 Celsius
+ Temp: Outlet 1          R0              Normal          18 Celsius
+ Temp: Outlet 2          R0              Normal          24 Celsius
+ Temp: CP-CPU            R0              Normal          21 Celsius
+ V: 12v                  R0              Normal          12079 mV
+ V: 5v                   R0              Normal          4971 mV
+ V: 3.3v                 R0              Normal          3343 mV
+ V: 3.0v                 R0              Normal          2984 mV
+ V: 2.5v                 R0              Normal          2501 mV
+ V: 1.8v                 R0              Normal          1806 mV
+ V: 1.2v_CPU             R0              Normal          1215 mV
+ V: 1.05v_CPU            R0              Normal          1056 mV
+ V: 1.05v                R0              Normal          1056 mV
+ V: 1.0v                 R0              Normal          992 mV
+ V: 0.6v                 R0              Normal          604 mV
+ P: pwr                  R0              Normal          20 Watts
+
+------------------ show ip bgp summary ------------------
+
+BGP router identifier 10.255.1.1, local AS number 64496
+BGP table version is 3, main routing table version 3
+2 network entries using 496 bytes of memory
+3 path entries using 408 bytes of memory
+2/2 BGP path/bestpath attribute entries using 592 bytes of memory
+1 BGP AS-PATH entries using 24 bytes of memory
+0 BGP route-map cache entries using 0 bytes of memory
+0 BGP filter-list cache entries using 0 bytes of memory
+BGP using 1520 total bytes of memory
+1 received paths for inbound soft reconfiguration
+BGP activity 2/0 prefixes, 5/2 paths, scan interval 60 secs
+2 networks peaked at 09:53:38 Feb 25 2026 JAKARTA (19:25:48.417 ago)
+
+Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+10.255.2.45     4         64497    1343    1289        3    0    0 19:25:49        1
+10.255.3.241   4         64498       0       0        1    0    0 12:43:11 Idle (Admin)
+
+------------------ show ip nat statistics ------------------
+
+
+Total active translations: 57747 (91 static, 57656 dynamic; 57743 extended)
+Outside interfaces:
+  GigabitEthernet0/0/2.10, GigabitEthernet0/0/2.20, GigabitEthernet0/0/2.30
+Inside interfaces: 
+  Port-channel7.10
+Hits: 296072073  Misses: 3114401
+ Reserved port setting disabled provisioned no
+Expired translations: 3056741
+Dynamic mappings:
+-- Inside Source
+[Id: 1] access-list ACCESS-ACL pool ACCESS-POOL refcount 185
+ pool ACCESS-POOL: id 1, netmask 255.255.255.240
+start 10.255.1.18 end 10.255.1.19
+type generic, total addresses 2, allocated 1 (50%), misses 0
+[Id: 2] access-list DEV-VA pool NAT-VA refcount 0
+ pool NAT-VA: id 14, netmask 255.255.255.0
+start 10.255.1.31 end 10.255.1.31
+type generic, total addresses 1, allocated 0 (0%), misses 0
+[Id: 3] access-list INET-NAP pool INET-NAP-NAT refcount 845
+ pool INET-NAP-NAT: id 13, netmask 255.255.255.0
+start 10.255.1.18 end 10.255.1.18
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 4] access-list INET-NAP2 pool INET-NAP2-NAT refcount 0
+ pool INET-NAP2-NAT: id 16, netmask 255.255.255.0
+start 10.255.1.19 end 10.255.1.19
+type generic, total addresses 1, allocated 0 (0%), misses 0
+[Id: 5] access-list INET-NAP3 pool INET-NAP3-NAT refcount 411
+ pool INET-NAP3-NAT: id 17, netmask 255.255.255.0
+start 10.255.1.20 end 10.255.1.20
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 6] access-list INET-NAP4 pool INET-NAP4-NAT refcount 317
+ pool INET-NAP4-NAT: id 24, netmask 255.255.255.0
+start 10.255.1.21 end 10.255.1.21
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 7] access-list INET-P2P-LA pool INET-P2P-LA-NAT refcount 0
+ pool INET-P2P-LA-NAT: id 23, netmask 255.255.255.252
+start 10.255.3.242 end 10.255.3.242
+type generic, total addresses 1, allocated 0 (0%), misses 0
+[Id: 8] access-list INET-USER1 pool INET-USER1-NAT refcount 710
+ pool INET-USER1-NAT: id 22, netmask 255.255.255.248
+start 10.255.4.5 end 10.255.4.5
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 9] access-list INET-USER2 pool INET-USER2-NAT refcount 2324
+ pool INET-USER2-NAT: id 21, netmask 255.255.255.248
+start 10.255.4.3 end 10.255.4.3
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 10] access-list INET-USER3 pool INET-USER3-NAT refcount 2749
+ pool INET-USER3-NAT: id 20, netmask 255.255.255.248
+start 10.255.4.4 end 10.255.4.4
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 11] access-list PUB-NS1 pool NAT-PUB-NS1 refcount 0
+ pool NAT-PUB-NS1: id 18, netmask 255.255.255.0
+start 10.255.1.28 end 10.255.1.28
+type generic, total addresses 1, allocated 0 (0%), misses 0
+[Id: 12] access-list PUB-NS2 pool NAT-PUB-NS2 refcount 0
+ pool NAT-PUB-NS2: id 19, netmask 255.255.255.0
+start 10.255.1.29 end 10.255.1.29
+type generic, total addresses 1, allocated 0 (0%), misses 0
+[Id: 13] access-list SVR-MAIL pool NAT-SVR-MAIL refcount 23
+ pool NAT-SVR-MAIL: id 4, netmask 255.255.255.0
+start 10.255.1.90 end 10.255.1.90
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 14] access-list USER-HO-MAIL pool NAT-USER9-MAIL refcount 43
+ pool NAT-USER9-MAIL: id 15, netmask 255.255.255.0
+start 10.255.1.99 end 10.255.1.99
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 15] access-list USER1-MAIL pool NAT-USER1-MAIL refcount 16
+ pool NAT-USER1-MAIL: id 5, netmask 255.255.255.0
+start 10.255.1.91 end 10.255.1.91
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 16] access-list USER2-MAIL pool NAT-USER2-MAIL refcount 40
+ pool NAT-USER2-MAIL: id 6, netmask 255.255.255.0
+start 10.255.1.92 end 10.255.1.92
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 17] access-list USER3-MAIL pool NAT-USER3-MAIL refcount 90
+ pool NAT-USER3-MAIL: id 7, netmask 255.255.255.0
+start 10.255.1.93 end 10.255.1.93
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 18] access-list USER4-MAIL pool NAT-USER4-MAIL refcount 58
+ pool NAT-USER4-MAIL: id 8, netmask 255.255.255.0
+start 10.255.1.94 end 10.255.1.94
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 19] access-list USER5-MAIL pool NAT-USER5-MAIL refcount 58
+ pool NAT-USER5-MAIL: id 9, netmask 255.255.255.0
+start 10.255.1.95 end 10.255.1.95
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 20] access-list USER6-MAIL pool NAT-USER6-MAIL refcount 44
+ pool NAT-USER6-MAIL: id 10, netmask 255.255.255.0
+start 10.255.1.96 end 10.255.1.96
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 21] access-list USER7-MAIL pool NAT-USER7-MAIL refcount 27
+ pool NAT-USER7-MAIL: id 11, netmask 255.255.255.0
+start 10.255.1.97 end 10.255.1.97
+type generic, total addresses 1, allocated 1 (100%), misses 0
+[Id: 22] access-list WEBSVC-CLIENT pool WEBSVC-POOL refcount 0
+ pool WEBSVC-POOL: id 3, netmask 255.255.255.0
+start 10.255.1.18 end 10.255.1.18
+type generic, total addresses 1, allocated 0 (0%), misses 0
+[Id: 23] access-list LXJ-CLIENT pool ACCESS-LXJ refcount 0
+ pool ACCESS-LXJ: id 2, netmask 255.255.255.0
+start 10.255.1.20 end 10.255.1.20
+type generic, total addresses 1, allocated 0 (0%), misses 0
+nat-limit statistics:
+ max entry: max allowed 200000, used 57656, missed 0
+In-to-out drops: 9718  Out-to-in drops: 14484
+Pool stats drop: 0  Mapping stats drop: 0
+Port block alloc fail: 0
+IP alias add fail: 0
+Limit entry add fail: 0
+
+------------------ show platform hardware qfp active datapath utilization ------------------
+
+
+  CPP 0: Subdev 0            5 secs        1 min        5 min       60 min
+Input:  Priority (pps)            0            0            0            0
+                 (bps)            0            0            0            0
+    Non-Priority (pps)         2617         2144         2761         2818
+                 (bps)     14300000     11564912     16272792     16832360
+           Total (pps)         2617         2144         2761         2818
+                 (bps)     14300000     11564912     16272792     16832360
+Output: Priority (pps)            0            0            0            0
+                 (bps)            0            0            0            0
+    Non-Priority (pps)         2558         2123         2730         2779
+                 (bps)     14373664     11790288     16387264     16827528
+           Total (pps)         2558         2123         2730         2779
+                 (bps)     14373664     11790288     16387264     16827528
+Processing: Load (pct)            3            3            5            5
+
+Crypto/IO
+    Crypto: Load (pct)            0            0            0            0
+        RX: Load (pct)            0            0            0            0
+        TX: Load (pct)            4            4            4            4
+            Idle (pct)           95           95           95           95
+

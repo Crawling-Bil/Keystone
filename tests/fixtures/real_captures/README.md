@@ -1,0 +1,126 @@
+# Real-capture fixtures
+
+Masked excerpts of ONE command's output from real devices, taken from the
+Oct 2026 Cisco/Aruba -> Huawei migration captures. They keep the device's own
+column layout, so a parser test exercises the real format. Hostnames, IPs,
+MACs, serials and secrets are replaced by `mask_capture.py`. The raw captures
+stay on the engineer's machine and are never committed.
+
+| Fixture | Source command | Why it exists |
+|---|---|---|
+| `aruba_2540_show_interfaces_brief.txt` | Aruba 2540 (YC.16.06) `show interfaces brief`, mixed up/down | F1: port state was never read, every port reported Up |
+| `aruba_2540_all_down_show_interfaces_brief.txt` | same, every port down | F1: no port may be reported Up |
+| `cisco_3650_show_vlan_brief.txt` | Catalyst 3650 `show vlan brief` | F2: VLANs live in the VLAN database, not only in the config |
+| `cisco_2960_show_vlan_brief.txt` | Catalyst 2960 `show vlan brief`, 18 VLANs with wrapped port lists | F2 |
+| `cisco_3650_lldp.txt` | Catalyst 3650 `show lldp neighbors` + `... detail` | F3: 20-character Device ID runs into Local Intf; detail gives the full name |
+| `huawei_s5755h_show_poe.txt` | S5755-H `display poe information`, `display poe power`, `display poe power-state` | F4: per-port PoE rows are not in `display poe information` |
+| `huawei_s5735_eth_trunk_then_stack_topology.txt` | S5735 `display eth-trunk` followed by `display stack topology` | F9: the trunk reader kept collecting rows from the next command |
+| `cisco_2960s_show_version.txt` | Catalyst 2960S `show version` | V1: a capture with no running-config was reported as Aruba; the device's own identity must decide the vendor |
+| `cisco_2960s_show_interfaces_status.txt` | 2960S `show interfaces status`, 54 ports | S1: `disabled` = admin down (the engineer typed `shutdown`), `notconnect` = down |
+| `cisco_2960s_show_ip_interface_brief.txt` | 2960S `show ip interface brief` | S1: `administratively down`; also covers Vlan SVIs and Port-channel |
+| `cisco_2960s_show_ip_arp.txt` | 2960S `show ip arp` | A1: age `-` is the switch's own address |
+| `cisco_2960s_show_mac_address_table.txt` | 2960S `show mac address-table`, 62 rows | M1: `All` / `CPU` rows are the switch itself and the footer states the total |
+| `cisco_2960s_session_log_show_ip_arp.txt` | 2960S terminal session log (`STDI`/`TERM`/`KEYS` records) | A1: tab-completed half-typed prompt, repeated runs, timestamps glued to the output |
+| `huawei_s5735_display_interface_brief.txt` | S5735 `display interface brief` | S1: `*down` = administratively down, `^down` = standby |
+| `huawei_s5735_display_arp.txt` | S5735 `display arp` | A1: `I` interface row without an age, `D/vlan` rows, `Total:` footer |
+| `huawei_s5735_display_mac_address.txt` | S5735 `display mac-address`, 38 rows | M1: `mac vlan/-/- port type age`, `Total items:` footer |
+| `aruba_2540_show_arp.txt` | 2540 `show arp` | A1: `ip mac type port` |
+| `aruba_2540_show_mac_address.txt` | 2540 `show mac-address`, 21 rows | M1: `xxxxxx-xxxxxx port vlan`, no type column |
+| `aruba_2540_show_interface_status_redraw.txt` | 2540 `show interface status` whose echo is glued to a terminal redraw escape | S1: bare command, `[24;44H` cursor remnants |
+| `nxos_show_interface_brief.txt` | Nexus `sh int brief` (abbreviated command), 67 interfaces | S1: the `Reason` column ("Administratively down", "Link not connected") |
+| `nxos_show_interface_status.txt` | Nexus `sh int status` | S1: `disabled` / `connected` / `notconnect` |
+| `nxos_show_ip_arp_lost_echo_truncated.txt` | Nexus `show ip arp`; the command echo was lost and the table is cut after 29 of the 204 entries the device printed (last row `INCOMPLET`) | A1: header-found table, `HH:MM:SS` ages, `INCOMPLETE` rows, and the integrity check (reported 204, parsed 29 -> incomplete) |
+| `nxos_show_mac_address_table_lost_echo.txt` | Nexus `show mac address-table`, printed after the next command's echo | M1: flag column (`*`, `G`) + `VLAN MAC type age secure ntfy ports` |
+| `cisco_2960x_stack_show_inventory_version.txt` | 2-member Catalyst 2960X stack: `show inventory` + `show version` | N1: one `N` entry per member; each member also prints its own `System serial number` under a `Switch 0N` header, so the two commands can be cross-checked |
+| `cisco_3850_stack_show_inventory_version.txt` | 2-member Catalyst 3850 stack: `show inventory` + `show version` | N1: `Switch 1` / `Switch 2` entries and `Switch N - Power Supply B` rows whose serials must not be taken for the switch |
+| `nxos_show_inventory_session_log_truncated.txt` | Nexus 9000 `sh inventory` from a terminal session log that lost its first lines (the `Chassis` entry is still there, `Fan N` rows have `SN: N/A`) | N1: the chassis serial is the device serial; a fan row (`N/A`) must never be |
+| `huawei_s5735_display_device_elabel_brief.txt` | S5735 single switch `display device elabel brief` | N1: `Equipment SN(ESN)` is the device serial; FAN/PWR sub-rows are not |
+| `huawei_s5735_stack_display_device_elabel_brief.txt` | 2-member S5735 stack `display device elabel brief` + `display stack` | N1: SN column of the main-board row (Sub `--`) of each member, roles from `display stack`; the four power-supply serials are not device serials |
+| `huawei_s5735_lldp_neighbor_device_serial.txt` | S5735 `display lldp neighbor` with one neighbor that prints `Device serial number` | N2: that number belongs to the NEIGHBOR; on its own this capture has no serial of the device |
+| `aruba_2540_show_system.txt` | 2540 `show system` | N1: `Serial Number` under "General System Information" |
+| `aruba_2540_show_modules.txt` | 2540 `show module` (singular, as typed) | N1: `Chassis: <model> Serial Number: <sn>`; used when `show system` was not captured |
+| `cisco_3650_show_inventory_sfp_and_dom.txt` | 2-member Catalyst 3650 stack: `show inventory` (chassis, StackPorts, PSUs, six SFPs, one with an empty PID) + `show interface transceiver` (DOM table, 5 of the 6 ports) | T3 / parts: interface-named inventory entries are the transceivers, an empty PID stays empty, DOM readings are joined by short port name |
+| `cisco_2960_show_interfaces_transceiver_dom_only.txt` | Catalyst 2960 `show interfaces transceiver` (plural, DOM table only) | T2: the Aruba table reader must not turn a DOM row into a transceiver; T3: plural command |
+| `nxos_show_interface_transceiver_present_ports.txt` | Nexus 9000 `sh interface transceiver` (typed twice, the first half-typed): present, not present and not applicable ports | T4: `cisco product id is` is the PID, `part number is` the vendor part number; empty cages are not listed |
+| `nxos_show_inventory_half_stripped_log_prefix.txt` | Nexus 9000 `sh inventory` from a session log where some chunks carry `HH:MM:SS|n|` with no date | T5: `NAME: "Fan 1"` was hidden behind the short prefix |
+| `huawei_s5735_display_interface_transceiver_then_lldp.txt` | S5735 stack `display interface transceiver` (4 ports) followed by `display lldp neighbor` with two `Device serial number` lines | T1: the neighbour's serial overwrote the last transceiver's serial |
+| `huawei_s5755_mixed_device_prompts_transceiver_runs.txt` | one file holding another switch's `display interface transceiver` (2 ports) before this switch's own, which ran twice (4 ports) with half-typed `dis` / `display tra` prompts in between | T6 / T7: one row per port, rows of the other prompt are left out and the page says so |
+| `aruba_2540_show_interfaces_transceiver.txt` | 2540 `show interfaces transceiver` with one 1000LX optic | the product number (`J4859D`) is the PID |
+| `cisco_3560g_l3_ospf_process_without_networks.txt` | Catalyst 3560G running-config, Layer-3 statements only (SVIs, `router ospf 100` with just `log-adjacency-changes`, one default route) | L1: an OSPF process with no `network` and no interface command runs nowhere |
+| `cisco_2960_l3_default_gateway_only.txt` | Catalyst 2960 running-config, Layer-3 statements only | L6: a Layer-2 switch's default route is `ip default-gateway` |
+| `huawei_s5755_l3_vlan_snooping_and_repeated_static_route.txt` | S5755 current-configuration, Layer-3 statements only; the same `ip route-static` line three times (config + two `| include` runs) | L4: one route, not three; L5: `dhcp snooping enable` inside `vlan N` is the per-VLAN form; `Vlanif1` asks for DHCP |
+| `cisco_3650_l3_interface_level_ospf_and_acls.txt` | Catalyst 3650 running-config, Layer-3 statements only: eight SVIs with `ip ospf 100 area 0`, no `network` line, `passive-interface default`, EIGRP stub, two ACLs (one used by a route-map) | L2 / L3: interface-level OSPF is not an empty process; ACL referenced by a route-map is not applied to an interface |
+| `cisco_3560_l3_ospf_network_statements.txt` | 3560 running-config, Layer-3 statements only: `network ... area` statements, `passive-interface default` + `no passive-interface Gi0/1`. **Addresses renumbered by hand after masking** (the masker maps wildcard masks and area ids to 10.255.x.x, which breaks the range matching the test is about) | L3: a network statement enables OSPF on the interfaces inside its range; only Gi0/1 forms neighbours |
+| `cisco_3650_l3_acl_applied_on_svi_and_static_routes.txt` | Catalyst 3650 running-config, Layer-3 statements only: `ip access-group NAME in` on Vlan214, two default routes with distance and name | L7: the Cisco side of the ACL-on-SVI comparison; static route `name` and distance |
+| `huawei_s5755_l3_traffic_policy_acl_and_vpn_instance_route.txt` | S5755 current-configuration, Layer-3 statements only: `acl name ... advance` -> `traffic classifier` -> `traffic policy` -> `traffic-policy NAME inbound` on Vlanif214, two default routes with preference and description | L7: the Huawei side of the same ACL; the chain must resolve to the ACL on the VLAN interface |
+| `nxos_9000_l3_vrf_context_static_routes.txt` | Nexus 9000 running-config, Layer-3 statements only: SVIs, `mgmt0` in VRF `management`, default route inside `vrf context management` | L8: NX-OS routes live under `vrf context`; NX-OS is never told `ip routing` is off |
+| `aruba_2540_l3_vlan_ip_and_default_gateway.txt` | 2540 running-config, Layer-3 statements only, printed twice | the SVI address is inside the `vlan N` block; `ip default-gateway` |
+| `cisco_2960_l2_tables_masked.txt` | Catalyst 2960 Layer-2 tables in one capture, typed the way an engineer types them: `show vlan`, `sh vlan sum`, `sh int desc`, `sh int tru`, `sh ip arp su`, `sh mac add count`, `sh span` (VLAN0001 root, VLAN0010 with a Root port, a `BLK` and a `BKN*19 ... *TYPE_Inc` port) and the `show ip arp` / `show mac address-table` tables they are checked against | S2: short command syntax, wrapped VLAN port lists, `admin down` interfaces, wrapped trunk VLAN lists, the device's own ARP and MAC totals, a broken (inconsistent) STP port with its cost glued to the state |
+| `aruba_2540_show_vlan_and_stp_off_masked.txt` | 2540 `show vlan` (three VLANs, one voice) and `show spanning-tree` with STP disabled | S2: ArubaOS-Switch VLAN table; only the "Key : value" summary of `show spanning-tree` is read |
+| `cisco_9300x_show_license_all_policy_masked.txt` | Catalyst 9300X (IOS XE 17.12) `show license all` + `show license usage`, Smart Licensing Using Policy: three entitlements, two terms, CSLU transport | S3: `<none>` / `<empty>` values are not Huawei prompts (they cut the output); no finding is raised for a healthy device |
+| `cisco_3650_show_license_all_eval_expired_masked.txt` | Catalyst 3650 classic Smart Licensing, `UNREGISTERED`, one entitlement `EVAL EXPIRED` whose tag has no name | S3: nameless `(tag):` entitlement; SW-LIC-002 |
+| `cisco_3560_show_license_all_rtu_masked.txt` | Catalyst 3560 right-to-use licences (`Evaluation`, `Permanent`, `Active, Not in Use`) | S3: RTU table, time left of the evaluation licence; SW-LIC-005 |
+
+The `*_l3_*` fixtures are excerpts of a whole configuration (the Layer-3 statements only), made with a
+throw-away script and then masked with `mask_capture.py` in whole-file mode.
+
+`huawei_s5735_display_device_elabel_brief.txt` and `huawei_s5735_stack_display_device_elabel_brief.txt`
+were re-masked after `mask_capture.py` stopped treating the `[PWR1]` section header of the raw capture
+as a hostname (the Sub column had become `GJI6` / `IBM5` / `LQI3` instead of `FAN1` / `PWR1` / `PWR2`).
+
+## Regenerating or adding a fixture
+
+```
+python mask_capture.py RAW.txt OUT.txt --extract "show vlan brief"
+python mask_capture.py RAW.txt OUT.txt --extract "show lldp neighbors" --extract "show lldp neighbors detail"
+python mask_capture.py RAW.txt OUT.txt --extract "show vlan brief" --name SITECODE
+```
+
+* `--extract` copies only that command's output (prompt line to next prompt line).
+* `--name` masks extra words you know are sensitive, such as a site code that
+  appears inside VLAN names or interface descriptions. Repeat it per word.
+* The salt is fixed, so masking the same capture twice gives the same file and
+  a regenerated fixture produces no diff.
+* The script re-scans its own output and refuses to write if any original
+  hostname, IP, MAC (colon, dotted, dashed and Aruba `xxxxxx-xxxxxx` notation) or
+  serial number is still present.
+* Never commit `RAW.txt`. Read the masked file once before committing it.
+* Clock-shaped tokens (`14:02:40`, an NX-OS ARP age `00:05:47`) are left alone:
+  they look like a short IPv6 address but masking them would rewrite the very
+  columns a parser test needs. Real IPv6 addresses are still masked.
+* `nxos_show_ip_arp_lost_echo_truncated.txt` is deliberately a capture that lost
+  lines (the raw file is too); do not "complete" it, the integrity check test
+  depends on the device-reported total being larger than the rows kept.
+* `cisco_c9300x_health_live_tables.txt` is a masked excerpt of a real Catalyst 9300X stack (IOS XE 17.12): `show version` uptime lines, `show etherchannel summary`, `show lacp neighbor`, `show spanning-tree summary`, `show env all` (stack of 2, four power supplies) and `show license summary`. Hostname, serial numbers, MAC addresses and the Smart Account name are replaced; the layout and values are untouched. It has no running-config on purpose (the Health tab must not judge configuration it did not see).
+* `cisco_3650_show_logging.txt` is a masked `show logging` of a real Catalyst 3650 (IOS XE): the settings header (buffer size 4096 bytes, console / monitor / buffer / trap levels with the logged counters) and 40 buffered messages, oldest first, with link flaps on Gi1/0/23, Gi1/1/1 and Gi1/1/2 (a LINK and a LINEPROTO message per flap). `tests/test_switch_logs.py` and `tests/test_switch_findings_tabs.py` read it.
+* `huawei_s5735_display_logbuffer.txt` is built from real S5735 `display logbuffer` message bodies (IFNET linkDown, DEVM hwPortDown / hwPortUp, LACP negotiation failure and total link loss, LLDP remote-table change, CPUDEFEND attack notices, NTP peer selection, STACK auto-config failure): the timestamps are regenerated, the hostname and addresses are masked, and the newest-first order of the device is kept. Do not regenerate it with the masking script; it is not a raw capture.
+
+## Added with the Health tab for NX-OS, Huawei and Aruba (12 Oct 2026)
+
+Real, masked excerpts from the TTC DMZ Nexus 9000 pair, the S5735 / S5755 stack and an Aruba 2540. Where a line had to be edited by hand after masking, that is said here.
+
+* `cisco_nxos_9k_health_live_masked.txt` (real): `show version`, `show environment all` (6 fans, 2 power supplies, 4 temperature sensors), `show spanning-tree summary`, `show port-channel summary`, `show lacp neighbor` (the partner MAC is not zero-padded, for example `02-a7-39-9-ea-df`; `mask_capture.py` does not see that form or the run-together form where two octets join, so those partner MACs were replaced by hand), `show vpc brief`, `show vpc role`, `show vpc peer-keepalive`, `show vpc consistency-parameters global`, `show license usage`. `show vpc consistency-parameters global` was cut short by `mask_capture.py` (a wrapped row starting `T->Enabled,` looks like a prompt to it) and was completed from the raw capture by hand; it holds no addresses. The `show running-config` block at the end is **partly synthetic**: the lines are the real ones (features, five `snmp-server community ... group network-admin`, four MD5 SNMPv3 users, one NTP server, two syslog servers, the spanning-tree priority, the vPC domain), but the community strings and the user hashes are placeholders typed by hand.
+* `cisco_nxos_9k_ha_reset_version_masked.txt` (real): `show version` of the second Nexus. `Reason: Reset triggered due to HA policy of Reset` and `Service: snmpd hap reset`: the switch reset itself because a process crashed.
+* `huawei_s5735_health_live_masked.txt` (real): `display version` (uptime per stack member, YunShan OS), `display device` (slot, two fans, two power supplies), `display eth-trunk` (one member `Unselect` whose partner is `0000-0000-0000`, port state `10100011`; the masker had randomised that all-zero ID and it was restored by hand), `display stp` (VBST, this bridge is the root), `display stp brief`. The configuration block at the end is the real hygiene lines of the same switch (loghost, five NTP servers, SNMP v2c community, `complexity-check disable`); community strings are placeholders, the engine ID, contact and site were removed or renamed by hand.
+* `huawei_s5755_eth_trunks_down_masked.txt` (real): `display eth-trunk` of an S5755-H where Eth-Trunk6 and Eth-Trunk7 are down because both members are `Unselect`, next to two healthy trunks.
+* `aruba_2540_health_banner_config_masked.txt` (real, YC.16.06): `show system` (`Up Time : 37 hours`, CPU, memory), `show flash`, and the running-config including the multi-line `banner motd "####...\n#` that used to be read as a CLI prompt and cut the configuration in half. Community strings are masked (`<REDACTED>`), so the rule for the default name `public` is tested with a typed line in the test file instead. The customer name in the banner and an uplink description were renamed by hand.
+* `synthetic_nxos_trunk_and_vrf_routes.txt` is **synthetic**, not a capture: a `show interface trunk` and a `show ip route vrf all` written in the layout Cisco documents for NX-OS, because no real Nexus trunk output was available. Treat tests on it as format tests, not as evidence of what a real device prints.
+* `cisco_nxos_9k_routes_arp_masked.txt` (real): `show ip route` (default VRF, `ubest/mbest`, `*via` lines, HSRP and direct routes) and `show ip arp summary` of a Nexus 9000, without a hostname or `show version`, so the vendor is recognised from the output alone.
+
+## Added with ArubaOS-CX support (12 Oct 2026)
+
+Masked excerpts of real ArubaOS-CX 10.16 captures: a 4-member VSF stack, a 6-member VSF stack and a standalone switch. Hostnames, addresses, MACs, serial numbers, account names, VLAN and ACL names are replaced; the host names left in the files are scrambled letters. `mask_capture.py` did not clear the serial-number column of `show system inventory` or free-text names (VLAN, ACL, user), so those were scrubbed by a second pass and every file was checked for leaks before it was committed. Never add a raw AOS-CX capture: `show running-config` prints password hashes and `show logging` prints user names and source addresses.
+
+* `aoscx_vsf4_version_inventory_vsf_masked.txt` (real): `show clock` (a date, `WIB`, no UTC offset), `show version`, `show system inventory` (four members, the serial column scrubbed by hand) and `show vsf` (one Conductor and three Members, topology Ring, split detection method None).
+* `aoscx_vsf4_lag_and_lacp_masked.txt` (real): `show lag`, `show lag brief`, `show lacp interface`, `show lacp aggregate` and `show lacp configuration` of one two-port LAG: member 1 is up with partner state letters `ALFNCD` on both sides, member 2 is down and prints no LACP state at all.
+* `aoscx_vsf4_environment_masked.txt` (real): `show environment` fan, led, power-supply input-voltage, power-consumption, power-redundancy, power-supply and temperature, one command after another with each command echoed on a line of its own (typed ahead, no prompt in front of it).
+* `aoscx_vsf4_l2_l3_tables_masked.txt` (real): `show vlan summary`, `show vlan`, `show interface trunk`, `show ip interface brief`, `show arp`, `show lag`, `show ip route`, `show mac-address-table` (+ `count`), `show lldp neighbor-info` (+ `detail`) and `show interface transceiver`. It ends with `show interface desc`, `show interface status`, `show power inline` and `show run | in ...`, which AOS-CX rejects (`Unknown interface desc.`, `Invalid input`, `Command not supported.`): the Coverage tab must show them as rejected, not as read.
+* `aoscx_vsf4_show_interface_blocks_masked.txt` (real): three `show interface` blocks of the 4-member stack (a 1 Gb/s port that is up, the `vlan1` interface, a port that is down): speed, link transitions, rx/tx statistics, error and drop counters, utilisation.
+* `aoscx_vsf6_show_interface_bad_counters_masked.txt` (real): three `show interface` blocks of a 6-member stack: two ports that are up with 190 and 459 million transmit drops, and a down port with 70 receive errors. They prove the error and drop columns.
+* `aoscx_standalone_show_interface_blocks_masked.txt` (real): two `show interface` blocks of a standalone switch (the member number is 1 in the port name). The down port prints a link-transition counter of 281473470948432, close to 2^48, which is a cage with no transceiver and not a count; it is shown as blank.
+* `aoscx_vsf4_show_spanning_tree_head_masked.txt` (real): the head of `show spanning-tree` (RPVST, VLAN 1 and VLAN 100 root and bridge ID, the port table with role / state / cost / BPDU counters and the topology-change counter).
+* `aoscx_vsf4_show_logging_excerpt_masked.txt` (real): 48 lines of `show logging` in the form `<ISO time> <host> <daemon>[pid]: Event|<id>|LOG_<LEVEL>|||<text>`: the first boot lines are logged in UTC and the later ones in local time (`normalise_times`), then module reboot and boot count, VSF link up, VSF split detection not configured, a firmware component waiting for an update (event 7210), memory use, NTP lost and re-established, LACP out of sync and state changes, spanning-tree root change and topology changes, link down and SSH logins.
+* `aoscx_standalone_event_log_excerpt_masked.txt` (real): six ACL-logging lines (`ops-switchd` events 10001 and 10002) with no command echo and no prompt, as a switch that logs ACL hits prints them. The flood finding SW-EVT-025 is tested on a synthetic repetition of these lines, because a real flood is tens of megabytes.
+* `nxos_9k_extras_synthetic.txt` (synthetic, invented values): a Nexus 9000 pair member with the pasted command list first, then `show vpc` (two vPCs up, three `down*` with wrapped Consistency / Reason text), `show vpc brief`, `show vpc role`, `show vpc peer-keepalive`, `show vpc statistics peer-link` / `peer-keepalive`, `show system resources`, `show port-channel load-balance` / `usage` / `traffic`, `show lacp counters` / `port-channel`, `show cdp neighbors` (one wrapped Device-ID), `show license usage` / `all` (Smart Licensing Using Policy, last ACK none), `show lldp neighbors` (`% Invalid command`: feature not enabled) and `show ip sla configuration` (title only). The layouts are those a real pair printed; host name, MACs, addresses, counters and dates are made up.
+| `synthetic_nxos_hsrp_ospf_vpc_a.txt`, `synthetic_nxos_hsrp_ospf_vpc_b.txt` | a vPC pair of Nexus 9000 (device A and device B), each a terminal session with `show ip arp`, `show hsrp`, `show hsrp brief`, `show hsrp summary`, `show hsrp all`, a rejected `show ip ospf brief vrf all`, `show ip ospf neighbors summary vrf all` and `show ip ospf neighbors`. 11 groups on A and 10 on B: healthy pairs, a group Disabled on A (`Virtual IP not cfged`, which `show hsrp brief` hides), Initial (`Interface Down`), Active on both, one group on A only, a different hello timer, an equal priority, a priority below the configured one, MD5 and plain-text authentication, a routed-port group on two different interface names, and an OSPF neighbour in ExStart on B | HSRP / OSPF round (13 Oct 2026): the layout is that of the real pair, host names, addresses (RFC 5737 only), group numbers, names and strings are invented. Used by `test_switch_hsrp_ospf_live.py` for the HSRP and OSPF readers, the A/B pair check, multi-device files and the Excel sheets |
+| `synthetic_nxos_ospf_db_a.txt`, `synthetic_nxos_ospf_db_b.txt` | two Nexus 9000 routers of one OSPF domain (invented names, RFC 5737 addresses and documentation area IDs only) with `show ip ospf neighbors`, `show ip ospf interface brief vrf all` and `show ip ospf database`. A is complete: two processes, three areas, all LSA types, one Network LSA at age 3601 (MaxAge) and a `Total number of interface` that is one more than the rows listed. B is cut by the terminal pager (`--More--`, `...skipping 9 lines` and the pager's help screen) in the middle of the Router LSAs of area 0.0.0.0. They prove the interface and database parsers, the pager fold, SW-OSPF-002 / 003 / 004 / 005 and the Compare Devices LSDB check (complete against cut = Check, never Differs). Generated by a script, not captured. |

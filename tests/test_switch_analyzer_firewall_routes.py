@@ -95,7 +95,10 @@ class SwitchAnalyzerFirewallDispatchTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         result = response.get_json()["result"]
         self.assertEqual(result["hostname"], "PASTE-SW01")
-        self.assertNotIn("findings", result)
+        # A switch result now carries its own findings list (Findings tab); the firewall dashboard is
+        # told apart by its device_type and its firewall-only sections.
+        self.assertEqual(result["device_type"], "Switch")
+        self.assertNotIn("security_rules", result)
 
     def test_export_succeeds_for_firewall_shaped_result(self):
         analyze_response = self.client.post(

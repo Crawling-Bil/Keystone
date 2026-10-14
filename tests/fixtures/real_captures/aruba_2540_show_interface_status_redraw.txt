@@ -1,0 +1,37 @@
+GEN-MHWA-HHKPW6-5617# show interface status[24;44H[24;44H  Port     Name       Status  Config-mode   Speed    Type       Tagged Untagged
+  -------- ---------- ------- ------------- -------- ---------- ------ --------
+  1                   Down    Auto          1000FDx  100/1000T  No     214     
+  2                   Down    Auto          1000FDx  100/1000T  No     214     
+  3                   Up      Auto          100FDx   100/1000T  No     214     
+  4                   Down    Auto          1000FDx  100/1000T  No     214     
+  5                   Up      Auto          100FDx   100/1000T  No     214     
+  6                   Up      Auto          100FDx   100/1000T  No     214     
+  7                   Up      Auto          100FDx   100/1000T  No     214     
+  8                   Up      Auto          100FDx   100/1000T  No     214     
+  9                   Up      Auto          1000FDx  100/1000T  214    213     
+  10                  Up      Auto          1000FDx  100/1000T  214    213     
+  11                  Down    Auto          1000FDx  100/1000T  214    213     
+  12                  Down    Auto          1000FDx  100/1000T  214    213     
+  13                  Down    Auto          1000FDx  100/1000T  214    213     
+  14                  Down    Auto          1000FDx  100/1000T  214    213     
+  15                  Down    Auto          1000FDx  100/1000T  214    213     
+  16                  Down    Auto          1000FDx  100/1000T  No     1       
+  17                  Down    Auto          1000FDx  100/1000T  No     1       
+  18                  Down    Auto          1000FDx  100/1000T  No     1       
+  19                  Down    Auto          1000FDx  100/1000T  No     1       
+  20                  Down    Auto          1000FDx  100/1000T  No     1       
+  21                  Down    Auto          1000FDx  100/1000T  No     1       
+  22                  Down    Auto          1000FDx  100/1000T  No     1       
+  23                  Down    Auto          1000FDx  100/1000T  No     1       
+  24                  Down    Auto          1000FDx  100/1000T  No     1       
+  25       Uplink ... Up      Auto          1000FDx  1000LX     multi  1       
+  26                  Down                                      No     1       
+  27                  Down                                      No     1       
+  28                  Down                                      No     1       
+ GEN-MHWA-HHKPW6-5617# show trunks
+ Load Balancing Method:  L3-based (default)
+
+  Port   | Name                             Type       | Group Type    
+  ------ + -------------------------------- ---------- + ----- --------
+ 
+

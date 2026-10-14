@@ -1,0 +1,40 @@
+ 
+YCW-HAUG-AO-B3516-BYT# 
+YCW-HAUG-AO-B3516-BYT# sh mac address-table count
+Legend: 
+	* - primary entry, G - Gateway MAC, (R) - Routed MAC, O - Overlay MAC
+	age - seconds since last seen,+ - primary entry using vPC Peer-Link,
+	(T) - True, (F) - False, C - ControlPlane MAC, ~ - vsan
+   VLAN     MAC Address      Type      age     Secure NTFY Ports
+---------+-----------------+--------+---------+------+----+------------------
+*  201     cb9e.c1ff.e806   dynamic  0         F      F    Eth1/7
+*  201     3f9d.8d9f.8298   dynamic  0         F      F    Eth1/6
+*  201     a96c.8ad9.6597   dynamic  0         F      F    Eth1/8
+*  201     2bd9.a308.f758   dynamic  0         F      F    Eth1/4
+*  201     5bf5.eda8.54d0   dynamic  0         F      F    Eth1/7
+*  201     9baa.75db.f6b7   dynamic  0         F      F    Eth1/7
+*  201     3a34.3c68.b6b5   dynamic  0         F      F    Eth1/5
+*  201     ea31.726f.892c   dynamic  0         F      F    Eth1/7
+*  201     3e5e.1cf9.0c3b   dynamic  0         F      F    Eth1/5
+*  201     e43d.46fa.9328   dynamic  0         F      F    Eth1/5
+*  201     8d48.a49e.43f7   dynamic  0         F      F    Eth1/7
+*  201     688e.4812.a9f6   dynamic  0         F      F    Eth1/5
+*  201     854a.9eef.1a19   dynamic  0         F      F    Eth1/7
+*  201     884b.6c69.7b5d   dynamic  0         F      F    Eth1/7
+*  201     c21e.a07c.0fbe   dynamic  0         F      F    Eth1/5
+*  201     8d6a.ee8f.e666   dynamic  0         F      F    Eth1/5
+*  201     d062.b6ac.1409   dynamic  0         F      F    Eth1/3
+*  201     64e0.7968.7c9b   dynamic  0         F      F    Eth1/3
+*  201     3531.1cea.5eed   dynamic  0         F      F    Eth1/3
+*  201     df86.4ee8.b84f   dynamic  0         F      F    Eth1/7
+*  201     aacb.aa5f.e22c   dynamic  0         F      F    Eth1/3
+*  201     d0c4.4545.aec9   dynamic  0         F      F    Eth1/2
+*  201     30e8.49a2.792b   dynamic  0         F      F    Eth1/49
++  205     ef16.c144.eb38   dynamic  0         F      F    Po6
++  205     c1bd.dba5.e1b5   dynamic  0         F      F    Po7
++  205     b934.aac4.feb0   dynamic  0         F      F    Po6
+*  206     1f3f.55a6.cafe   dynamic  0         F      F    Eth1/15
+*  206     645c.4b99.29a3   dynamic  0         F      F    Eth1/10
+*  215     30e8.49a2.792b   dynamic  0         F      F    Eth1/49
+*  216     30e8.49a2.792b   dynamic  0         F      F    Eth1/49
+YCW-HAUG-AO-B3516-BYT# 

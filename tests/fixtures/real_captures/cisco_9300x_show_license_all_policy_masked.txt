@@ -1,0 +1,110 @@
+LAB-CORE#show license usage
+License Authorization:
+  Status: Not Applicable
+
+network-essentials (C9300X-12/24Y Network Essentials):
+  Description: C9300X Low-density NW Essentials Fiber Agg/Core License
+  Count: 2
+  Version: 1.0
+  Status: IN USE
+  Export status: NOT RESTRICTED
+  Feature Name: network-essentials
+  Feature Description: C9300X Low-density NW Essentials Fiber Agg/Core License
+  Enforcement type: NOT ENFORCED
+  License type: Perpetual
+
+dna-essentials (C9300X-12/24Y DNA Essentials):
+  Description: C9300X Low-density DNA Essentials Fiber Agg/Core License
+  Count: 2
+  Version: 1.0
+  Status: IN USE
+  Export status: NOT RESTRICTED
+  Feature Name: dna-essentials
+  Feature Description: C9300X Low-density DNA Essentials Fiber Agg/Core License
+  Enforcement type: NOT ENFORCED
+  License type: Subscription
+
+C9K HSEC (Cat9K HSEC):
+  Description: HSEC Key for Export Compliance on Cat9K Series Switches
+  Count: 0
+  Status: NOT IN USE
+  Export status: RESTRICTED - ALLOWED
+  Enforcement type: EXPORT RESTRICTED
+  License type: Perpetual
+
+LAB-CORE#show license all
+Smart Licensing Status
+======================
+
+Smart Licensing is ENABLED
+
+Export Authorization Key:
+  Features Authorized:
+    <none>
+
+Utility:
+  Status: DISABLED
+
+Smart Licensing Using Policy:
+  Status: ENABLED
+
+Account Information:
+  Smart Account: Example Corp As of May 12 12:27:31 2025 UTC
+  Virtual Account: Example Corp
+
+Transport:
+  Type: cslu
+  Cslu address: <empty>
+  Proxy:
+    Not Configured
+  VRF: <empty>
+
+Usage Reporting:
+  Last ACK received: <none>
+  Next ACK deadline: Oct 14 18:56:26 2026 UTC
+  Next report push: Jul 16 18:58:26 2026 UTC
+  Last report push: <none>
+
+License Usage
+=============
+
+network-essentials (C9300X-12/24Y Network Essentials):
+  Description: C9300X Low-density NW Essentials Fiber Agg/Core License
+  Count: 2
+  Version: 1.0
+  Status: IN USE
+  Export status: NOT RESTRICTED
+  Feature Name: network-essentials
+  Enforcement type: NOT ENFORCED
+  License type: Perpetual
+
+Product Information
+===================
+UDI: PID:C9300X-24Y,SN:FOC0000A0AA
+
+License Authorizations
+======================
+Overall status:
+  Active: PID:C9300X-24Y,SN:FOC0000A0AA
+      Status: SMART AUTHORIZATION INSTALLED on May 12 12:33:05 2025 UTC
+
+Purchased Licenses:
+  C9300X Low-density DNA Essentials Fiber Agg/Core (C9300X-12/24Y DNA Essentials):
+    Description: C9300X Low-density DNA Essentials Fiber Agg/Core License
+    Total available count: 2
+    Term information:
+      Active: PID:C9300X-24Y,SN:FOC0000A0AA
+        Authorization type: SMART AUTHORIZATION INSTALLED
+        License type: TERM
+          Start Date: 2025-JUL-20 UTC
+          End Date: 2030-JUL-20 UTC
+          Term Count: 1
+  C9300X Low-density NW Essentials Fiber Agg/Core (C9300X-12/24Y Network Essentials):
+    Description: C9300X Low-density NW Essentials Fiber Agg/Core License
+    Total available count: 2
+    Term information:
+      Active: PID:C9300X-24Y,SN:FOC0000A0AA
+        Authorization type: SMART AUTHORIZATION INSTALLED
+        License type: PERPETUAL
+          Term Count: 1
+LAB-CORE#

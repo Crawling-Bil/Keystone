@@ -1,0 +1,421 @@
+YCW-HAUG-AO-B3516-BYT# sh version 
+sh: /mnt/pss/patch_debug.log: Read-only file system
+Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2020, Cisco and/or its affiliates.
+All rights reserved.
+The copyrights to certain works contained in this software are
+owned by other third parties and used and distributed under their own
+licenses, such as open source.  This software is provided "as is," and unless
+otherwise stated, there is no warranty, express or implied, including but not
+limited to warranties of merchantability and fitness for a particular purpose.
+Certain components of this software are licensed under
+the GNU General Public License (GPL) version 2.0 or 
+GNU General Public License (GPL) version 3.0  or the GNU
+Lesser General Public License (LGPL) Version 2.1 or 
+Lesser General Public License (LGPL) Version 2.0. 
+A copy of each such license is available at
+http://www.opensource.org/licenses/gpl-2.0.php and
+http://opensource.org/licenses/gpl-3.0.html and
+http://www.opensource.org/licenses/lgpl-2.1.php and
+http://www.gnu.org/licenses/old-licenses/library.txt.
+
+Software
+  BIOS: version 07.68
+ NXOS: version 9.3(5)
+  BIOS compile time:  05/18/2020
+  NXOS image file is: bootflash:///nxos.9.3.5.bin
+  NXOS compile time:  7/20/2020 20:00:00 [07/21/2020 13:30:11]
+
+
+Hardware
+  cisco Nexus9000 C93108TC-EX chassis 
+  Intel(R) Xeon(R) CPU  @ 1.80GHz with 24631956 kB of memory.
+  Processor Board ID JIP11654DUF
+
+  Device name: YCW-HAUG-AO-B3516-BYT
+  bootflash:   53298520 kB
+Kernel uptime is 2127 day(s), 21 hour(s), 21 minute(s), 11 second(s)
+
+Last reset at 969174 usecs after Fri Sep 11 18:23:27 2020
+  Reason: Reset Requested by CLI command reload
+  System version: 9.3(5)
+  Service: 
+
+plugin
+  Core Plugin, Ethernet Plugin
+
+Active Package(s):
+YCW-HAUG-AO-B3516-BYT# 
+YCW-HAUG-AO-B3516-BYT# show environment all
+Fan:
+---------------------------------------------------------------------------
+Fan             Model                Hw     Direction       Status
+---------------------------------------------------------------------------
+Fan1(sys_fan1)  NXA-FAN-30CFM-B      --     front-to-back   Ok 
+Fan2(sys_fan2)  NXA-FAN-30CFM-B      --     front-to-back   Ok 
+Fan3(sys_fan3)  NXA-FAN-30CFM-B      --     front-to-back   Ok 
+Fan4(sys_fan4)  NXA-FAN-30CFM-B      --     front-to-back   Ok 
+Fan_in_PS1      --                   --     front-to-back   Ok
+Fan_in_PS2      --                   --     front-to-back   Ok
+Fan Zone Speed: Zone 1: 0x80
+Fan Air Filter : NotSupported
+
+
+Power Supply:
+Voltage: 12 Volts
+Power                      Actual             Actual        Total
+Supply    Model            Output             Input        Capacity     Status
+                           (Watts )           (Watts )     (Watts )
+-------  ----------  ---------------  ------  ----------  --------------------
+1        NXA-PAC-500W-PI        84 W               94 W       500 W      Ok
+2        NXA-PAC-500W-PI        80 W               90 W       500 W      Ok
+
+
+Power Usage Summary:
+--------------------
+Power Supply redundancy mode (configured)                PS-Redundant
+Power Supply redundancy mode (operational)               PS-Redundant
+
+Total Power Capacity (based on configured mode)             500.00 W
+Total Grid-A (first half of PS slots) Power Capacity        500.00 W
+Total Grid-B (second half of PS slots) Power Capacity       500.00 W
+Total Power of all Inputs (cumulative)                     1000.00 W
+Total Power Output (actual draw)                            164.00 W
+Total Power Input (actual draw)                             184.00 W
+Total Power Allocated (budget)                                N/A   
+Total Power Available for additional modules                  N/A   
+
+
+
+Temperature:
+--------------------------------------------------------------------
+Module   Sensor        MajorThresh   MinorThres   CurTemp     Status
+                       (Celsius)     (Celsius)    (Celsius)         
+--------------------------------------------------------------------
+1        FRONT           70              42          21         Ok             
+1        BACK            80              70          28         Ok             
+1        CPU             90              80          39         Ok             
+1        Sugarbowl       100             90          45         Ok             
+ YCW-HAUG-AO-B3516-BYT# 
+YCW-HAUG-AO-B3516-BYT# show spanning-tree summary 
+Switch is in rapid-pvst mode 
+Root bridge for: VLAN0201, VLAN0205-VLAN0206, VLAN0215-VLAN0218
+L2 Gateway STP                           is disabled
+Port Type Default                        is disable
+Edge Port [PortFast] BPDU Guard Default  is disabled
+Edge Port [PortFast] BPDU Filter Default is disabled
+Bridge Assurance                         is enabled
+Loopguard Default                        is disabled
+Pathcost method used                     is short
+vPC peer-switch                          is enabled (operational)
+STP-Lite                                 is disabled
+
+Name                   Blocking Listening Learning Forwarding STP Active
+---------------------- -------- --------- -------- ---------- ----------
+VLAN0201                     0         0        0         11         11
+VLAN0205                     0         0        0          3          3
+VLAN0206                     0         0        0          4          4
+VLAN0215                     0         0        0          2          2
+VLAN0216                     0         0        0          2          2
+VLAN0217                     0         0        0          2          2
+VLAN0218                     0         0        0          2          2
+---------------------- -------- --------- -------- ---------- ----------
+7 vlans                      0         0        0         26         26
+YCW-HAUG-AO-B3516-BYT# 
+YCW-HAUG-AO-B3516-BYT# sh port-channel summary 
+Flags:  D - Down        P - Up in port-channel (members)
+        I - Individual  H - Hot-standby (LACP only)
+        s - Suspended   r - Module-removed
+        b - BFD Session Wait
+        S - Switched    R - Routed
+        U - Up (port-channel)
+        p - Up in delay-lacp mode (member)
+        M - Not in use. Min-links not met
+--------------------------------------------------------------------------------
+Group Port-       Type     Protocol  Member Ports
+      Channel
+--------------------------------------------------------------------------------
+1     Po1(RU)     Eth      LACP      Eth1/17(P)   Eth1/18(P)   
+2     Po2(SU)     Eth      LACP      Eth1/19(P)   Eth1/20(P)   Eth1/21(P)
+                                     Eth1/22(P)   
+6     Po6(SU)     Eth      LACP      Eth1/23(D)   Eth1/52(P)   
+7     Po7(SU)     Eth      LACP      Eth1/24(D)   Eth1/53(P)   
+YCW-HAUG-AO-B3516-BYT# sh lacp neighbor 
+Flags:  S - Device is sending Slow LACPDUs F - Device is sending Fast LACPDUs
+        A - Device is in Active mode       P - Device is in Passive mode
+port-channel1 neighbors
+Partner's information
+            Partner                Partner                     Partner
+Port        System ID              Port Number     Age         Flags
+Eth1/17     32768,02-00-00-3b-4a-170x141           35349601    SA
+
+            LACP Partner           Partner                     Partner
+            Port Priority          Oper Key                    Port State
+            32768                  0x8000                      0x3d
+
+Partner's information
+            Partner                Partner                     Partner
+Port        System ID              Port Number     Age         Flags
+Eth1/18     32768,02-00-00-3b-4a-170x145           35349601    SA
+
+            LACP Partner           Partner                     Partner
+            Port Priority          Oper Key                    Port State
+            32768                  0x8000                      0x3d
+
+
+Po2 neighbors
+Partner's information
+            Partner                Partner                     Partner
+Port        System ID              Port Number     Age         Flags
+Eth1/19     32768,02-00-00-3b-4a-170x149           35349599    SA
+
+            LACP Partner           Partner                     Partner
+            Port Priority          Oper Key                    Port State
+            32768                  0x1                         0x3d
+
+Partner's information
+            Partner                Partner                     Partner
+Port        System ID              Port Number     Age         Flags
+Eth1/20     32768,02-00-00-3b-4a-170x14d           35349601    SA
+
+            LACP Partner           Partner                     Partner
+            Port Priority          Oper Key                    Port State
+            32768                  0x1                         0x3d
+
+Partner's information
+            Partner                Partner                     Partner
+Port        System ID              Port Number     Age         Flags
+Eth1/21     32768,02-00-00-3b-4a-170x151           35349599    SA
+
+            LACP Partner           Partner                     Partner
+            Port Priority          Oper Key                    Port State
+            32768                  0x1                         0x3d
+
+Partner's information
+            Partner                Partner                     Partner
+Port        System ID              Port Number     Age         Flags
+Eth1/22     32768,02-00-00-3b-4a-170x155           35349599    SA
+
+            LACP Partner           Partner                     Partner
+            Port Priority          Oper Key                    Port State
+            32768                  0x1                         0x3d
+
+
+Po6 neighbors
+Partner's information
+            Partner                Partner                     Partner
+Port        System ID              Port Number     Age         Flags
+Eth1/52     65535,02-10-20-f-26-b9 0x1             38607628    SA
+
+            LACP Partner           Partner                     Partner
+            Port Priority          Oper Key                    Port State
+            255                    0x21                        0x3d
+
+
+Po7 neighbors
+Partner's information
+            Partner                Partner                     Partner
+Port        System ID              Port Number     Age         Flags
+Eth1/53     65535,02-10-20-f-24-9  0x1             38607306    SA
+
+            LACP Partner           Partner                     Partner
+            Port Priority          Oper Key                    Port State
+            255                    0x21                        0x3d
+
+
+YCW-HAUG-AO-B3516-BYT# 
+YCW-HAUG-AO-B3516-BYT# sh vpc brief 
+Legend:
+		(*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 1   
+Peer status                       : peer adjacency formed ok      
+vPC keep-alive status             : peer is alive                 
+Configuration consistency status  : success 
+Per-vlan consistency status       : success                       
+Type-2 consistency status         : success 
+vPC role                          : secondary, operational primary
+Number of vPCs configured         : 2   
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 360s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+Virtual-peerlink mode             : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans    
+--    ----   ------ -------------------------------------------------
+1     Po2    up     201,205-206,215-218                                                  
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ---------------
+6     Po6           up     success     success               205                         
+                                                                                         
+7     Po7           up     success     success               205                         
+                                                                                         
+
+Please check "show vpc consistency-parameters vpc <vpc-num>" for the 
+consistency reason of down vpc and for type-2 consistency reasons for 
+any vpc.
+
+ YCW-HAUG-AO-B3516-BYT# 
+YCW-HAUG-AO-B3516-BYT# sh vpc role 
+vPC Role status
+----------------------------------------------------
+vPC role                        : secondary, operational primary
+Dual Active Detection Status    : 0
+vPC system-mac                  : bd:54:c9:55:3d:06             
+vPC system-priority             : 32667
+vPC local system-mac            : f6:01:d8:e3:f9:9a             
+vPC local role-priority         : 32667
+vPC local config role-priority  : 32667
+vPC peer system-mac             : 2c:93:a0:cb:19:59             
+ 16:16:39|000000000082|vPC peer role-priority          : 32667
+vPC peer config role-priority   : 32667
+ 16:16:39|000000000024|YCW-HAUG-AO-B3516-BYT# 
+YCW-HAUG-AO-B3516-BYT# sh vpc peer-keepalive 
+
+
+vPC keep-alive status             : peer is alive                 
+--Peer is alive for             : (35349537) seconds, (356) msec
+--Send status                   : Success 
+--Last send at                  : 2026.07.10 16:16:45 667 ms
+--Sent on interface             : Po1
+--Receive status                : Success
+--Last receive at               : 2026.07.10 16:16:45 667 ms
+--Received on interface         : Po1
+--Last update from peer         : (0) seconds, (426) msec
+
+vPC Keep-alive parameters
+--Destination                   : 10.255.0.1
+--Keepalive interval            : 1000 msec
+--Keepalive timeout             : 5 seconds
+--Keepalive hold timeout        : 3 seconds
+--Keepalive vrf                 : KEEPALIVE
+--Keepalive udp port            : 3200
+--Keepalive tos                 : 192
+YCW-HAUG-AO-B3516-BYT# 
+YCW-HAUG-AO-B3516-BYT# sh vpc consistency-parameters global 
+    Legend:
+        Type 1 : vPC will be suspended in case of mismatch
+
+Name                        Type  Local Value            Peer Value             
+-------------               ----  ---------------------- -----------------------
+STP MST Simulate PVST       1     Enabled                Enabled               
+STP Port Type, Edge         1     Normal, Disabled,      Normal, Disabled,     
+BPDUFilter, Edge BPDUGuard        Disabled               Disabled              
+STP MST Region Name         1     ""                     ""                    
+STP Disabled                1     None                   None                  
+STP Mode                    1     Rapid-PVST             Rapid-PVST            
+STP Bridge Assurance        1     Enabled                Enabled               
+STP Loopguard               1     Disabled               Disabled              
+STP MST Region Instance to  1                                                  
+ VLAN Mapping                                                                  
+STP MST Region Revision     1     0                      0                     
+Interface-vlan admin up     2     201,205-206,215-218    201,205-206,215-218   
+Interface-vlan routing      2     201,205-206,215-218    201,205-206,215-218   
+capability                                                                     
+Xconnect Vlans              1                                                  
+QoS (Cos)                   2     ([0-7], [], [], [],    ([0-7], [], [], [],   
+                                  [], [], [], [])        [], [], [], [])       
+Network QoS (MTU)           2     (1500, 1500, 1500,     (1500, 1500, 1500,    
+                                  1500, 1500, 1500,      1500, 1500, 1500,     
+                                  1500, 1500)            1500, 1500)           
+Network Qos (Pause:         2     (F, F, F, F, F, F, F,  (F, F, F, F, F, F, F, 
+T->Enabled, F->Disabled)          F)                     F)                    
+Input Queuing (Bandwidth)   2     (0, 0, 0, 0, 0, 0, 0,  (0, 0, 0, 0, 0, 0, 0, 
+                                  0)                     0)                    
+Input Queuing (Absolute     2     (F, F, F, F, F, F, F,  (F, F, F, F, F, F, F, 
+Priority: T->Enabled,             F)                     F)                    
+F->Disabled)                                                                   
+Output Queuing (Bandwidth   2     (100, 0, 0, 0, 0, 0,   (100, 0, 0, 0, 0, 0,  
+Remaining)                        0, 0)                  0, 0)                 
+Output Queuing (Absolute    2     (F, F, F, F, F, F, F,  (F, F, F, F, F, F, F, 
+Priority: T->Enabled,             T)                     T)                    
+F->Disabled)                                                                   
+Allowed VLANs               -     201,205-206,215-218    201,205-206,215-218   
+Local suspended VLANs       -     -                      -                     
+YCW-HAUG-AO-B3516-BYT# sh license usage 
+Feature                      Ins  Lic   Status Expiry Date Comments
+                                 Count
+--------------------------------------------------------------------------------
+ACI-STRG                      No    -   Unused             -
+ ACI-AD-GF                     No    -   Unused             -
+ ACI-AD-XF                     No    -   Unused             -
+ACI-ES-GF                     No    -   Unused             -
+ ACI-ES-XF                     No    -   Unused             -
+ACI-AD-XF2                    No    -   Unused             -
+ACI-ES-XF2                    No    -   Unused             -
+ ACI-SEC-GF                    No    -   Unused             -
+ACI-SEC-XF                    No    -   Unused             -
+ ACI-SEC-XM                    No    0   Unused             -
+N9K_LIC_1G                    No    -   Unused             -
+ VPN_FABRIC                    No    -   Unused             -
+ACI-STRG-GF                   No    -   Unused             -
+ ACI-STRG-XF                   No    -   Unused             -
+NXOS_OE_PKG                   No    -   Unused             -
+ FCOE_NPV_PKG                  No    -   Unused             -
+ SECURITY_PKG                  No    0   Unused             -
+ACI-PREMIER-GF                No    -   Unused             -
+ ACI-PREMIER-XF                No    -   Unused             -
+N9K_UPG_EX_10G                No    -   Unused             -
+ ACI-PREMIER-XF2               No    -   Unused             -
+NXOS-PREMIER-M4               No    -   Unused             -
+ TP_SERVICES_PKG               No    -   Unused             -
+ NXOS-PREMIER-M816             No    -   Unused             -
+NXOS_ADVANTAGE_GF             No    -   Unused             -
+ NXOS_ADVANTAGE_M4             No    -   Unused             -
+ NXOS_ADVANTAGE_XF             No    -   Unused             -
+ NXOS_ESSENTIALS_GF            No    -   Unused             -
+ NXOS_ESSENTIALS_M4            No    -   Unused             -
+NXOS_ESSENTIALS_XF            No    -   Unused             -
+ NXOS_ESSENTIALS_XM            No    -   Unused             -
+SAN_ENTERPRISE_PKG            No    -   Unused             -
+ PORT_ACTIVATION_PKG           No    0   Unused             -
+ NETWORK_SERVICES_PKG          No    -   Unused             -
+ NXOS_ADVANTAGE_M8-16          No    -   Unused             -
+ NXOS_ESSENTIALS_M8-16         No    -   Unused             -
+ FC_PORT_ACTIVATION_PKG        No    0   Unused             -
+NEXUS_24PORTEX_UPGRADE        No    -   Unused             -
+ LAN_ENTERPRISE_SERVICES_PKG   No    -   Unused             -
+--------------------------------------------------------------------------------
+ YCW-HAUG-AO-B3516-BYT#
+YCW-HAUG-AO-B3516-BYT# show running-config
+!Command: show running-config
+version 9.3(5) Bootstrap
+hostname YCW-HAUG-AO-B3516-BYT
+feature interface-vlan
+feature hsrp
+feature lacp
+feature vpc
+snmp-server contact EXAMPLE-CONTACT
+snmp-server user admin network-admin auth md5 0x00000000000000000000000000000001 priv 0x00000000000000000000000000000001 localizedkey
+snmp-server user admin priv-7
+snmp-server user recon network-admin auth md5 0x00000000000000000000000000000002 priv 0x00000000000000000000000000000002 localizedkey
+snmp-server user yaris network-operator auth md5 0x00000000000000000000000000000003 priv 0x00000000000000000000000000000003 localizedkey
+snmp-server user kijang network-admin auth md5 0x00000000000000000000000000000003 priv 0x00000000000000000000000000000003 localizedkey
+snmp-server host 10.255.0.9 traps version 2c <REDACTED>
+snmp-server community <REDACTED-1> group network-admin
+snmp-server community <REDACTED-2> group network-admin
+snmp-server community <REDACTED-3> group network-admin
+snmp-server community <REDACTED-4> group network-admin
+snmp-server community <REDACTED-5> group network-admin
+logging server 10.255.0.6
+logging server 10.255.0.7
+logging history 4
+ntp server 10.255.0.8 use-vrf default
+ntp source-interface Vlan201
+spanning-tree vlan 1,201,205-206,215-218 priority 4096
+vpc domain 1
+  peer-switch
+  peer-keepalive destination 10.255.0.1 source 10.255.0.2 vrf KEEPALIVE
+  peer-gateway
+  auto-recovery
+YCW-HAUG-AO-B3516-BYT#

@@ -1,4 +1,9 @@
-!!! collect backup config huawei H series
+!!! collect backup config huawei H series (v5 2026-10-13)
+!!! v2: removed display poe power-management (not a V600R025C00 command); M-LAG/DFS block below failed on S5755-H captures - keep for M-LAG-capable models only
+!!! v3: added display logbuffer (VRP log buffer for the Logs tab: link up/down, MAC flapping, STP, LACP).
+!!! v4: NEW block at the end = VRP commands no parser reads yet (CPU / memory, NTP, SNMP agent, SSH / Telnet server state, users, error-down recovery, MAC flapping, OSPF state, startup and patch). display vrrp brief is not repeated: display vrrp is already above.
+!!! v5: every command checked against 37 real Huawei captures and the V600R025C00 Command Reference. display m-lag summary / brief removed (not in that reference; an S5700 answered 'Unrecognized command'): the M-LAG overview is display dfs-group m-lag brief, which is already in the block. display current-configuration | include route ignore-case removed (empty in 36 of 36 captures: ignore-case is its own '| ignore-case' stage, so it was searched as part of the pattern; | include route already finds every route line). Added display interface, display device power / fan and display alarm active (answered on real captures) and display device temperature (documented in the reference, not run yet).
+!!! v5: the probe block at the end now uses the V600R025C00 spellings display memory, display ntp status and display ntp sessions; the older display memory-usage and display ntp-service ... follow at the very end for V200R0xx models.
 
 save 
 y
@@ -25,6 +30,8 @@ display interface description
 
 display interface brief
 
+display interface
+
 display port vlan
 
 display ip interface brief
@@ -39,9 +46,7 @@ display arp
 
 display eth-trunk
 
-display m-lag summary
-
-display m-lag brief
+!!! BEGIN M-LAG/DFS block - fails on S5755-H, skip there
 
 display m-lag consistency-check whitelist status
 
@@ -75,13 +80,13 @@ display dfs-group consistency-check static-mac
 
 display dfs-group m-lag brief
 
+!!! END M-LAG/DFS block
+
 display lldp neighbor brief
 
 display lldp neighbor
 
 display lacp brief
-
-display poe power-management
 
 display poe information
 
@@ -99,6 +104,12 @@ display stp region-configuration
 
 display device
 
+display device power
+
+display device fan
+
+display device temperature
+
 display stack
 
 display stack topology
@@ -110,8 +121,6 @@ display stack troubleshooting history
 display dual-active
 
 display current-configuration | include route
-
-display current-configuration | include route ignore-case
 
 display current-configuration configuration route-static
 
@@ -137,3 +146,44 @@ display current-configuration | in telnet
 
 display current-configuration | in ftp
 
+display logbuffer
+
+display alarm active
+
+!!! Documented in the V600R025C00 Command Reference (checked 2026-10-13); no parser reads these yet and no capture has answered them. A model or release without one answers 'Error: Unrecognized command' - harmless.
+
+display cpu-usage
+
+display memory
+
+display ntp status
+
+display ntp sessions
+
+display snmp-agent sys-info
+
+display ssh server status
+
+display telnet server status
+
+display users
+
+display error-down recovery
+
+display mac-address flapping
+
+display ospf peer
+
+display startup
+
+display patch-information
+
+display trapbuffer
+
+!!! VRP V200R0xx spellings (S5700 and older) of the three lines above - the V600R025C00 reference has only the short ones, an older release answers only these
+
+display memory-usage
+
+display ntp-service status
+
+display ntp-service sessions

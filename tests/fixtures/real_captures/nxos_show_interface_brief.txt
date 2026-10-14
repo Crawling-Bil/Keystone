@@ -1,0 +1,86 @@
+YCW-HAUG-AO-B3516-BYT# sh int brief 
+--------------------------------------------------------------------------------
+Port   VRF          Status IP Address                              Speed    MTU
+--------------------------------------------------------------------------------
+mgmt0  --           up     10.255.0.1                            1000    1500    
+--------------------------------------------------------------------------------
+Ethernet        VLAN    Type Mode   Status  Reason                 Speed     Port
+Interface                                                                    Ch #
+--------------------------------------------------------------------------------
+Eth1/1          1       eth  trunk  down    Link not connected       auto(D) --
+Eth1/2          201     eth  access up      none                     1000(D) --
+Eth1/3          201     eth  access up      none                      10G(D) --
+Eth1/4          201     eth  access up      none                      10G(D) --
+Eth1/5          201     eth  access up      none                      10G(D) --
+Eth1/6          201     eth  access up      none                      10G(D) --
+Eth1/7          201     eth  access up      none                      10G(D) --
+Eth1/8          201     eth  access up      none                      10G(D) --
+Eth1/9          1       eth  trunk  up      none                     1000(D) --
+Eth1/10         1       eth  trunk  up      none                     1000(D) --
+Eth1/11         201     eth  access down    Link not connected       auto(D) --
+Eth1/12         --      eth  routed down    Administratively down    auto(D) --
+Eth1/13         --      eth  routed down    Administratively down    auto(D) --
+Eth1/14         --      eth  routed down    Administratively down    auto(D) --
+Eth1/15         1       eth  trunk  up      none                     1000(D) --
+Eth1/16         1       eth  trunk  down    Link not connected       auto(D) --
+Eth1/17         --      eth  routed up      none                      10G(D) 1
+Eth1/18         --      eth  routed up      none                      10G(D) 1
+Eth1/19         1       eth  trunk  up      none                      10G(D) 2
+Eth1/20         1       eth  trunk  up      none                      10G(D) 2
+Eth1/21         1       eth  trunk  up      none                      10G(D) 2
+Eth1/22         1       eth  trunk  up      none                      10G(D) 2
+Eth1/23         205     eth  access down    Administratively down     10G(D) 6
+Eth1/24         205     eth  access down    Administratively down     10G(D) 7
+Eth1/25         --      eth  routed down    Administratively down    auto(D) --
+Eth1/26         --      eth  routed down    Administratively down    auto(D) --
+Eth1/27         --      eth  routed down    Administratively down    auto(D) --
+Eth1/28         --      eth  routed down    Administratively down    auto(D) --
+Eth1/29         --      eth  routed down    Administratively down    auto(D) --
+Eth1/30         --      eth  routed down    Administratively down    auto(D) --
+Eth1/31         --      eth  routed down    Administratively down    auto(D) --
+Eth1/32         --      eth  routed down    Administratively down    auto(D) --
+Eth1/33         201     eth  access down    Link not connected       auto(D) --
+Eth1/34         --      eth  routed down    Administratively down    auto(D) --
+Eth1/35         --      eth  routed down    Administratively down    auto(D) --
+Eth1/36         --      eth  routed down    Administratively down    auto(D) --
+Eth1/37         --      eth  routed down    Administratively down    auto(D) --
+Eth1/38         --      eth  routed down    Administratively down    auto(D) --
+Eth1/39         --      eth  routed down    Administratively down    auto(D) --
+Eth1/40         --      eth  routed down    Administratively down    auto(D) --
+Eth1/41         --      eth  routed down    Administratively down    auto(D) --
+Eth1/42         --      eth  routed down    Administratively down    auto(D) --
+Eth1/43         --      eth  routed down    Administratively down    auto(D) --
+Eth1/44         --      eth  routed down    Administratively down    auto(D) --
+Eth1/45         --      eth  routed down    Administratively down    auto(D) --
+Eth1/46         --      eth  routed down    Administratively down    auto(D) --
+Eth1/47         91      eth  access down    Link not connected       auto(D) --
+Eth1/48         monitor eth  access up      none                      10G(D) --
+Eth1/49         1       eth  trunk  up      none                      40G(D) --
+Eth1/50         monitor eth  access down    XCVR not inserted        auto(D) --
+Eth1/51         1       eth  trunk  down    XCVR not inserted        auto(D) --
+Eth1/52         205     eth  access up      none                      10G(D) 6
+Eth1/53         205     eth  access up      none                      10G(D) 7
+Eth1/54         --      eth  routed down    XCVR not inserted        auto(D) --
+
+------------------------------------------------------------------------------------------
+Port-channel VLAN    Type Mode   Status  Reason                              Speed   Protocol
+Interface                                                                            
+------------------------------------------------------------------------------------------
+Po1          --      eth  routed up      none                                 a-10G(D)  lacp
+Po2          1       eth  trunk  up      none                                 a-10G(D)  lacp
+Po6          205     eth  access up      none                                 a-10G(D)  lacp
+Po7          205     eth  access up      none                                 a-10G(D)  lacp
+
+-------------------------------------------------------------------------------
+Interface Secondary VLAN(Type)                    Status Reason                 
+-------------------------------------------------------------------------------
+Vlan1     --                                      down   Administratively down  
+Vlan201   --                                      up     --        
+Vlan205   --                                      up     --        
+Vlan206   --                                      up     --        
+Vlan215   --                                      up     --        
+Vlan216   --                                      up     --        
+Vlan217   --                                      up     --        
+Vlan218   --                                      up     --        
+
+YCW-HAUG-AO-B3516-BYT# 

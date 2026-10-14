@@ -1,0 +1,25 @@
+hostname GNWO-ZBJP-ZY-5550
+!
+interface Vlan1
+ no ip address
+!
+interface Vlan700
+ description MGMT-OT
+ ip address 10.255.0.1 255.255.255.224
+!
+interface Vlan701
+ description OT-ENDDEVICE
+ no ip address
+!
+ip default-gateway 10.255.0.2
+!
+line vty 0 4
+ privilege level 15
+ login local
+ transport input all
+!
+line vty 5 15
+ privilege level 15
+ login local
+ transport input all
+!

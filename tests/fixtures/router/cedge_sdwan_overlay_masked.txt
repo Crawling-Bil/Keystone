@@ -1,0 +1,568 @@
+EDGE-A#terminal length 0
+
+EDGE-A#show clock
+20:21:00.123 WIB Mon Oct 12 2026
+
+EDGE-A#show sdwan bfd sessions
+                                      SOURCE TLOC      REMOTE TLOC                                      DST PUBLIC                      DST PUBLIC         DETECT      TX
+SYSTEM IP        SITE ID     STATE       COLOR            COLOR            SOURCE IP                                       IP                                              PORT        ENCAP  MULTIPLIER  INTERVAL(msec  UPTIME          TRANSITIONS
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+192.0.2.1        900001      up          private2         mpls             192.0.2.2                                       192.0.2.3                                       12426       ipsec  7           1000           20:01:52:08     2
+192.0.2.4        900001      up          private2         mpls             192.0.2.2                                       192.0.2.5                                       12346       ipsec  7           1000           20:01:52:08     2
+192.0.2.6        900002      up          private2         mpls             192.0.2.2                                       192.0.2.7                                       12426       ipsec  7           1000           13:06:50:22     0
+192.0.2.8        900002      up          private2         mpls             192.0.2.2                                       192.0.2.9                                       12426       ipsec  7           1000           13:06:50:30     0
+192.0.2.1        900001      up          private1         mpls             192.0.2.10                                      192.0.2.3                                       12426       ipsec  7           1000           19:10:17:04     5
+192.0.2.4        900001      up          private1         mpls             192.0.2.10                                      192.0.2.5                                       12346       ipsec  7           1000           19:10:17:04     5
+192.0.2.6        900002      up          private1         mpls             192.0.2.10                                      192.0.2.7                                       12426       ipsec  7           1000           13:06:50:22     0
+192.0.2.8        900002      up          private1         mpls             192.0.2.10                                      192.0.2.9                                       12426       ipsec  7           1000           13:06:50:28     0
+
+EDGE-A#
+
+EDGE-A#show sdwan control local-properties
+personality                       vedge
+sp-organization-name              MASKED
+organization-name                 MASKED
+root-ca-chain-status              Installed
+root-ca-crl-status                Not-Installed
+
+certificate-status                Installed
+certificate-validity              Valid
+certificate-not-valid-before      Jun 21 09:04:52 2025 GMT
+certificate-not-valid-after       Aug  9 20:58:26 2099 GMT
+
+enterprise-cert-status            Not Applicable
+enterprise-cert-validity          Not Applicable
+enterprise-cert-not-valid-before  Not Applicable
+enterprise-cert-not-valid-after   Not Applicable
+
+dns-name                          MASKED
+site-id                           10001
+domain-id                         1
+protocol                          dtls
+tls-port                          0
+system-ip                         192.0.2.11
+chassis-num/unique-id             MASKED
+serial-num                        MASKED
+subject-serial-num                MASKED
+enterprise-serial-num             MASKED
+token                             MASKED
+keygen-interval                   1:00:00:00
+retry-interval                    0:00:00:15
+no-activity-exp-interval          0:00:00:20
+dns-cache-ttl                     0:00:02:00
+port-hopped                       TRUE
+time-since-last-port-hop          37:03:19:09
+embargo-check                     success
+device-role                       edge-router
+region-id-set                     N/A
+number-vbond-peers                0
+number-active-wan-interfaces      2
+
+
+ NAT TYPE: E -- indicates End-point independent mapping
+           A -- indicates Address-port dependent mapping
+           N -- indicates Not learned
+           Note: Requires minimum two vbonds to learn the NAT type
+
+                         PUBLIC          PUBLIC PRIVATE         PRIVATE                                 PRIVATE                              MAX   RESTRICT/           LAST         SPI TIME    NAT  VM
+INTERFACE                IPv4            PORT   IPv4            IPv6                                    PORT    VS/VM COLOR            STATE CNTRL CONTROL/     LR/LB  CONNECTION   REMAINING   TYPE CON REG
+                                                                                                                                                   STUN                                              PRF IDs
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+GigabitEthernet0/0/0          192.0.2.10      12366  192.0.2.10      ::                                      12366    2/0  private1         up     2      no/yes/no   No/No  13:06:51:06  0:08:40:50  N    5  Default
+GigabitEthernet0/0/1          192.0.2.2       12366  192.0.2.2       ::                                      12366    2/1  private2         up     2      no/yes/no   No/No  13:06:51:08  0:08:40:41  N    5  Default
+
+
+EDGE-A#
+
+EDGE-A#show sdwan omp peers
+R -> routes received
+I -> routes installed
+S -> routes sent
+
+TENANT                             DOMAIN    OVERLAY   SITE      REGION
+ID        PEER             TYPE    ID        ID        ID        ID        STATE    UPTIME           R/I/S
+-----------------------------------------------------------------------------------------------------------------
+0         192.0.2.12       vsmart  1         1         900001    None      up       37:03:21:21      12708/2175/8
+0         192.0.2.13       vsmart  1         1         900002    None      up       13:06:51:22      9698/0/8
+
+
+EDGE-A#
+
+EDGE-A#show sdwan omp tlocs
+---------------------------------------------------
+tloc entries for 192.0.2.1
+                 mpls
+                 ipsec
+---------------------------------------------------
+            RECEIVED FROM:
+tenant-id       0
+peer            192.0.2.12
+status          C,I,R
+loss-reason     not set
+lost-to-peer    not set
+lost-to-path-id not set
+    Attributes:
+     attribute-type    installed
+     encap-key         not set
+     encap-proto       0
+     encap-spi         3854
+     encap-auth        sha1-hmac,ah-sha1-hmac
+     encap-encrypt     aes256
+     public-ip         192.0.2.3
+     public-port       12426
+     private-ip        192.0.2.3
+     private-port      12426
+     public-ip         ::
+     public-port       0
+     private-ip        ::
+     private-port      0
+     bfd-status        up
+     domain-id         not set
+     site-id           900001
+     overlay-id        not set
+     preference        400
+     region-id         None
+     tag               not set
+     stale             not set
+     weight            1
+     version           3
+    gen-id             0x80000002
+     carrier           default
+     restrict          0
+     on-demand          0
+     groups            [ 0 ]
+     bandwidth         0
+     bandwidth-dmin    0
+     bandwidth-down    0
+     bandwidth-dmax    0
+     adapt-qos-period  0
+     adapt-qos-up      0
+     qos-group         default-group
+     border             not set
+     extended-ipsec-anti-replay      not set
+     unknown-attr-len  not set
+
+---------------------------------------------------
+tloc entries for 192.0.2.11
+                 private1
+                 ipsec
+---------------------------------------------------
+            RECEIVED FROM:
+tenant-id       0
+peer            0.0.0.0
+status          C,Red,R
+loss-reason     not set
+lost-to-peer    not set
+lost-to-path-id not set
+    Attributes:
+     attribute-type    installed
+     encap-key         not set
+     encap-proto       0
+     encap-spi         335
+     encap-auth        sha1-hmac,ah-sha1-hmac
+     encap-encrypt     aes256
+     public-ip         192.0.2.10
+     public-port       12366
+     private-ip        192.0.2.10
+     private-port      12366
+     public-ip         ::
+     public-port       0
+     private-ip        ::
+     private-port      0
+     bfd-status        up
+     domain-id         not set
+     site-id           10001
+     overlay-id        not set
+     preference        0
+     region-id         None
+     tag               not set
+     stale             not set
+     weight            1
+     version           3
+    gen-id             0x80000008
+     carrier           default
+     restrict          0
+     on-demand          0
+     groups            [ 0 ]
+     bandwidth         0
+     bandwidth-dmin    0
+     bandwidth-down    0
+     bandwidth-dmax    0
+     adapt-qos-period  0
+     adapt-qos-up      0
+     qos-group         default-group
+     border             not set
+     extended-ipsec-anti-replay      not set
+     unknown-attr-len  not set
+
+---------------------------------------------------
+tloc entries for 192.0.2.11
+                 private2
+                 ipsec
+---------------------------------------------------
+            RECEIVED FROM:
+tenant-id       0
+peer            0.0.0.0
+status          C,Red,R
+loss-reason     not set
+lost-to-peer    not set
+lost-to-path-id not set
+    Attributes:
+     attribute-type    installed
+     encap-key         not set
+     encap-proto       0
+     encap-spi         336
+     encap-auth        sha1-hmac,ah-sha1-hmac
+     encap-encrypt     aes256
+     public-ip         192.0.2.2
+     public-port       12366
+     private-ip        192.0.2.2
+     private-port      12366
+     public-ip         ::
+     public-port       0
+     private-ip        ::
+     private-port      0
+     bfd-status        up
+     domain-id         not set
+     site-id           10001
+     overlay-id        not set
+     preference        0
+     region-id         None
+     tag               not set
+     stale             not set
+     weight            1
+     version           3
+    gen-id             0x80000008
+     carrier           default
+     restrict          0
+     on-demand          0
+     groups            [ 0 ]
+     bandwidth         0
+     bandwidth-dmin    0
+     bandwidth-down    0
+     bandwidth-dmax    0
+     adapt-qos-period  0
+     adapt-qos-up      0
+     qos-group         default-group
+     border             not set
+     extended-ipsec-anti-replay      not set
+     unknown-attr-len  not set
+
+EDGE-A#
+
+EDGE-A#show sdwan omp routes
+Generating output, this might take time, please wait ...
+Code:
+C   -> chosen
+I   -> installed
+Red -> redistributed
+Rej -> rejected
+L   -> looped
+R   -> resolved
+S   -> stale
+Ext -> extranet
+Inv -> invalid
+Stg -> staged
+IA  -> On-demand inactive
+U   -> TLOC unresolved
+BR-R -> border-router reoriginated
+TGW-R -> transport-gateway reoriginated
+
+                                                                                                                                                AFFINITY
+                                                      PATH                      ATTRIBUTE                                                       GROUP   
+TENANT    VPN    PREFIX              FROM PEER        ID     LABEL    STATUS    TYPE       TLOC IP          COLOR            ENCAP  PREFERENCE  NUMBER      REGION ID   REGION PATH
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+0         1      0.0.0.0/0           192.0.2.12       30000  1004     C,I,R     installed  192.0.2.1        mpls             ipsec  -           None        None        -
+                                     192.0.2.12       30001  1003     R         installed  192.0.2.4        mpls             ipsec  -           None        None        -
+0         1      192.0.2.14/29       192.0.2.12       2987   1004     C,I,R     installed  192.0.2.1        mpls             ipsec  -           None        None        -
+                                     192.0.2.12       2988   1003     R         installed  192.0.2.4        mpls             ipsec  -           None        None        -
+0         1      192.0.2.15/29       192.0.2.12       2987   1004     C,I,R     installed  192.0.2.1        mpls             ipsec  -           None        None        -
+                                     192.0.2.12       2988   1003     R         installed  192.0.2.4        mpls             ipsec  -           None        None        -
+0         1      192.0.2.16/29      192.0.2.12        2987   1004     C,I,R     installed  192.0.2.1        mpls             ipsec  -           None        None        -
+                                     192.0.2.12       2988   1003     R         installed  192.0.2.4        mpls             ipsec  -           None        None        -
+0         1      192.0.2.17/29      192.0.2.12        2987   1004     C,I,R     installed  192.0.2.1        mpls             ipsec  -           None        None        -
+                                     192.0.2.12       2988   1003     R         installed  192.0.2.4        mpls             ipsec  -           None        None        -
+0         1      192.0.2.18/30      192.0.2.12        2282   1004     Inv,U     installed  192.0.2.19       private1         ipsec  -           None        None        -
+                                     192.0.2.13       1549   1004     Inv,U     installed  192.0.2.19       private1         ipsec  -           None        None        -
+0         1      192.0.2.20/29       192.0.2.12       40205  1004     Inv,U     installed  192.0.2.21       private1         ipsec  -           None        None        -
+                                                      2                                                                                                 
+                                     192.0.2.12       40286  1004     Inv,U     installed  192.0.2.21       private2         ipsec  -           None        None        -
+                                                      7                                                                                                 
+                                     192.0.2.13       18968  1004     Inv,U     installed  192.0.2.21       private1         ipsec  -           None        None        -
+                                                      7                                                                                                 
+                                     192.0.2.13       18968  1004     Inv,U     installed  192.0.2.21       private2         ipsec  -           None        None        -
+                                                      8                                                                                                 
+0         1      192.0.2.22/29       192.0.2.12       65010  1004     Inv,U     installed  192.0.2.23       private1         ipsec  -           None        None        -
+                                     192.0.2.12       67652  1004     Inv,U     installed  192.0.2.23       private4         ipsec  -           None        None        -
+                                     192.0.2.13       24856  1004     Inv,U     installed  192.0.2.23       private1         ipsec  -           None        None        -
+                                     192.0.2.13       24857  1004     Inv,U     installed  192.0.2.23       private4         ipsec  -           None        None        -
+0         1      192.0.2.24/29     192.0.2.12         10932  1004     Inv,U     installed  192.0.2.25       private1         ipsec  -           None        None        -
+                                     192.0.2.12       10933  1004     Inv,U     installed  192.0.2.25       private3         ipsec  -           None        None        -
+                                     192.0.2.13       16409  1004     Inv,U     installed  192.0.2.25       private1         ipsec  -           None        None        -
+                                     192.0.2.13       16410  1004     Inv,U     installed  192.0.2.25       private3         ipsec  -           None        None        -
+0         1      192.0.2.26/23      192.0.2.12        880    1004     Inv,U     installed  192.0.2.27       custom1          ipsec  -           None        None        -
+                                     192.0.2.12       8347   1004     Inv,U     installed  192.0.2.27       custom2          ipsec  -           None        None        -
+                                     192.0.2.13       9249   1004     Inv,U     installed  192.0.2.27       custom1          ipsec  -           None        None        -
+                                     192.0.2.13       9250   1004     Inv,U     installed  192.0.2.27       custom2          ipsec  -           None        None        -
+0         1      192.0.2.28/24      0.0.0.0           81     1004     C,Red,R   installed  192.0.2.11       private1         ipsec  -           None        None        -
+                                     0.0.0.0          82     1004     C,Red,R   installed  192.0.2.11       private2         ipsec  -           None        None        -
+0         1      192.0.2.29/29       192.0.2.12       40210  1004     Inv,U     installed  192.0.2.21       private1         ipsec  -           None        None        -
+                                                      0                                                                                                 
+                                     192.0.2.12       40291  1004     Inv,U     installed  192.0.2.21       private2         ipsec  -           None        None        -
+                                                      5                                                                                                 
+                                     192.0.2.13       18969  1004     Inv,U     installed  192.0.2.21       private1         ipsec  -           None        None        -
+                                                      6                                                                                                 
+                                     192.0.2.13       18969  1004     Inv,U     installed  192.0.2.21       private2         ipsec  -           None        None        -
+                                                      7                                                                                                 
+
+EDGE-A#show sdwan app-route stats
+app-route statistics 192.0.2.2      192.0.2.3    ipsec 12366 12426
+ remote-system-ip         192.0.2.1
+ local-color              private2
+ remote-color             mpls
+ sla-class-index          0,1
+ fallback-sla-class-index None
+ app-probe-class-list None
+  mean-loss    0
+  mean-latency 2
+  mean-jitter  0
+  interval 0
+   total-packets     664
+   loss              0
+   average-latency   3
+   average-jitter    0
+   tx-data-pkts      36547
+   rx-data-pkts      17758
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 1
+   total-packets     663
+   loss              0
+   average-latency   2
+   average-jitter    0
+   tx-data-pkts      25346
+   rx-data-pkts      13192
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 2
+   total-packets     663
+   loss              0
+   average-latency   2
+   average-jitter    0
+   tx-data-pkts      30533
+   rx-data-pkts      13214
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 3
+   total-packets     665
+   loss              1
+   average-latency   2
+   average-jitter    0
+   tx-data-pkts      36971
+   rx-data-pkts      16311
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 4
+   total-packets     663
+   loss              0
+   average-latency   2
+   average-jitter    0
+   tx-data-pkts      27095
+   rx-data-pkts      15096
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 5
+   total-packets     663
+   loss              0
+   average-latency   2
+   average-jitter    1
+   tx-data-pkts      26987
+   rx-data-pkts      15716
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+app-route statistics 192.0.2.10      192.0.2.3    ipsec 12366 12426
+ remote-system-ip         192.0.2.1
+ local-color              private1
+ remote-color             mpls
+ sla-class-index          0,1
+ fallback-sla-class-index None
+ app-probe-class-list None
+  mean-loss    0
+  mean-latency 4
+  mean-jitter  1
+  interval 0
+   total-packets     663
+   loss              0
+   average-latency   5
+   average-jitter    1
+   tx-data-pkts      15311
+   rx-data-pkts      17874
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 1
+   total-packets     663
+   loss              0
+   average-latency   5
+   average-jitter    1
+   tx-data-pkts      11380
+   rx-data-pkts      11553
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 2
+   total-packets     662
+   loss              0
+   average-latency   4
+   average-jitter    1
+   tx-data-pkts      11645
+   rx-data-pkts      31530
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 3
+   total-packets     662
+   loss              0
+   average-latency   4
+   average-jitter    1
+   tx-data-pkts      13276
+   rx-data-pkts      41505
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 4
+   total-packets     663
+   loss              0
+   average-latency   4
+   average-jitter    0
+   tx-data-pkts      12048
+   rx-data-pkts      16095
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+  interval 5
+   total-packets     664
+   loss              0
+   average-latency   4
+   average-jitter    1
+   tx-data-pkts      11911
+   rx-data-pkts      11282
+   ipv6-tx-data-pkts 0
+   ipv6-rx-data-pkts 0
+
+EDGE-A#show sdwan policy from-vsmart
+from-vsmart sla-class Default
+ loss    25
+ latency 300
+ jitter  100
+from-vsmart app-route-policy POLICY_A
+ vpn-list VPN1
+  sequence 1
+   match
+    source-data-prefix-list      LIST_A
+    destination-data-prefix-list LIST_B
+   action
+    backup-sla-preferred-color private2
+    sla-class       Default
+    no sla-class strict
+    sla-class preferred-color custom1 custom2
+  sequence 11
+   match
+    source-data-prefix-list      LIST_B
+    destination-data-prefix-list LIST_A
+   action
+    backup-sla-preferred-color private2
+    sla-class       Default
+    no sla-class strict
+    sla-class preferred-color custom1 custom2
+  sequence 21
+   match
+    destination-data-prefix-list LIST_C
+   action
+    backup-sla-preferred-color private2
+    sla-class       Default
+    no sla-class strict
+    sla-class preferred-color custom1 custom2
+from-vsmart lists vpn-list VPN1
+ vpn 1
+from-vsmart lists data-prefix-list LIST_C
+ ip-prefix 192.0.2.30/24
+from-vsmart lists data-prefix-list LIST_B
+ ip-prefix 192.0.2.31/16
+from-vsmart lists data-prefix-list LIST_A
+ ip-prefix 192.0.2.26/24
+ ip-prefix 192.0.2.32/24
+ ip-prefix 192.0.2.33/24
+
+EDGE-A#show ip route vrf 1
+
+Routing Table: 1
+Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP
+       D - EIGRP, EX - EIGRP external, O - OSPF, IA - OSPF inter area
+       N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2
+       E1 - OSPF external type 1, E2 - OSPF external type 2, m - OMP
+       n - NAT, Ni - NAT inside, No - NAT outside, Nd - NAT DIA
+       i - IS-IS, su - IS-IS summary, L1 - IS-IS level-1, L2 - IS-IS level-2
+       ia - IS-IS inter area, * - candidate default, U - per-user static route
+       H - NHRP, G - NHRP registered, g - NHRP registration summary
+       o - ODR, P - periodic downloaded static route, l - LISP
+       a - application route
+       + - replicated route, % - next hop override, p - overrides from PfR
+       & - replicated local route overrides by connected
+
+Gateway of last resort is 192.0.2.1    to network 0.0.0.0
+
+m*    0.0.0.0/0 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+      192.0.2.34/8 is variably subnetted, 524 subnets, 7 masks
+m        192.0.2.14/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.15/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.16/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.17/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.35/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.36/24 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.37/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.38/29 [251/0] via 192.0.2.6, 1w6d, Sdwan-system-intf
+m        192.0.2.39/32 [251/0] via 192.0.2.1, 1w6d, Sdwan-system-intf
+m        192.0.2.40/32 [251/0] via 192.0.2.1, 1w6d, Sdwan-system-intf
+m        192.0.2.41/32 [251/0] via 192.0.2.1, 1w6d, Sdwan-system-intf
+m        192.0.2.42/32 [251/0] via 192.0.2.1, 1w6d, Sdwan-system-intf
+m        192.0.2.43/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.44/32 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.45/32 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.46/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.47/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.48/28 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.49/29 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.50/28 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+m        192.0.2.51/32 [251/0] via 192.0.2.1, 5w2d, Sdwan-system-intf
+
+EDGE-A#show etherchannel summary
+Flags:  D - down        P/bndl - bundled in port-channel
+        I - stand-alone s/susp - suspended
+        H - Hot-standby (LACP only)
+        R - Layer3      S - Layer2
+        U - in use      f - failed to allocate aggregator
+
+        M - not in use, minimum links not met
+        u - unsuitable for bundling
+        w - waiting to be aggregated
+        d - default port
+
+
+Number of channel-groups in use: 0
+Number of aggregators:           0
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+
+RU - L3 port-channel UP State
+SU - L2 port-channel UP state
+P/bndl -  Bundled
+S/susp  - Suspended
+
+EDGE-A#
+
+EDGE-A#show cdp neighbors
+Capability Codes: R - Router, T - Trans Bridge, B - Source Route Bridge
+                  S - Switch, H - Host, I - IGMP, r - Repeater, P - Phone,
+                  D - Remote, C - CVTA, M - Two-port Mac Relay
+
+Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID
+
+Total cdp entries displayed : 0
+EDGE-A#

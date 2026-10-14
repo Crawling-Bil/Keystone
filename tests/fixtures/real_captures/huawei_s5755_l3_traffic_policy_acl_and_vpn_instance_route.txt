@@ -1,0 +1,89 @@
+sysname MJC-OHXNAT-AFWOJX-K9640
+#
+dhcp snooping enable ipv4
+#
+ip vpn-instance _management_vpn_
+ ipv4-family
+#
+vlan 100
+ dhcp snooping enable
+ name P2P-To-NSF
+#
+vlan 213
+ dhcp snooping enable
+ name MGMT
+#
+vlan 214
+ dhcp snooping enable
+ name VOIP
+#
+vlan 710
+ dhcp snooping enable
+ name OT-HRGA
+#
+acl name VOIP-GA-BCQ advance
+ rule 5 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.2 0.0.0.255
+ rule 10 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.3 0.0.0.255
+ rule 15 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.4 0
+ rule 20 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.5 0
+ rule 25 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.6 0
+ rule 30 permit icmp source 10.255.0.7 10.255.0.8
+ rule 35 permit icmp source 10.255.0.9 10.255.0.8
+ rule 40 permit icmp source 10.255.0.10 0.0.0.255 destination 10.255.0.11 0.0.0.255
+ rule 45 permit icmp source 10.255.0.10 0.0.0.255 destination 10.255.0.12 0.0.0.255
+ rule 50 permit ip source 10.255.0.10 0.0.0.255 destination 10.255.0.11 0.0.0.255
+ rule 55 permit ip source 10.255.0.10 0.0.0.255 destination 10.255.0.12 0.0.0.255
+ rule 60 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.13 0
+ rule 65 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.14 0
+ rule 70 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.15 0
+ rule 75 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.16 0
+ rule 80 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.17 0
+ rule 85 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.18 0
+ rule 90 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.19 0
+ rule 95 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.20 0
+ rule 100 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.21 0
+ rule 105 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.22 0
+ rule 110 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.23 0
+ rule 115 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.24 0
+ rule 120 permit ip source 10.255.0.1 0.0.0.255 destination 10.255.0.25 0
+#
+traffic classifier VOIP-GA-BCQ type and
+ if-match acl VOIP-GA-BCQ
+#
+traffic behavior VOIP-GA-BCQ
+#
+traffic policy VOIP-GA-BCQ
+ classifier VOIP-GA-BCQ behavior VOIP-GA-BCQ precedence 5
+#
+interface Vlanif100
+ description P2P-To-NSF
+ ip address 10.255.0.26 255.255.255.252
+#
+interface Vlanif213
+ description MGMT
+ ip address 10.255.0.27 255.255.255.0
+ dhcp select global
+#
+interface Vlanif214
+ description VOIP
+ ip address 10.255.0.28 255.255.255.0
+ traffic-policy VOIP-GA-BCQ inbound
+ dhcp select global
+#
+interface Vlanif710
+ description OT-HRGA
+ ip address 10.255.0.29 255.255.255.0
+#
+ip route-static 0.0.0.0 0.0.0.0 10.255.0.30 preference 5 description SANGFOR-NSF
+#
+ip route-static 0.0.0.0 0.0.0.0 10.255.0.31 preference 10 description TO-BCQ-ROU-BACKUP
+#
+user-interface vty 0 4
+ authentication-mode aaa
+ idle-timeout 15 0
+ protocol inbound ssh
+#
+ip route-static 0.0.0.0 0.0.0.0 10.255.0.30 preference 5 description SANGFOR-NSF
+#
+ip route-static 0.0.0.0 0.0.0.0 10.255.0.31 preference 10 description TO-BCQ-ROU-BACKUP
+#

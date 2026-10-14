@@ -716,7 +716,7 @@ class VersionParsingRegressionTest(unittest.TestCase):
 hostname "TTC-SWAC-PABXGA1-2540"
 module 1 type jl356a
 show system
-  Software revision  : YC.16.06.0006        Base MAC Addr      : 20677c-473b40
+  Software revision  : YC.16.06.0006        Base MAC Addr      : 02a114-c15dc0
 Platform: cisco AIR-CAP2702E-C-K9, Version: some other device's own string
 """.strip().splitlines()
         result = runtime_parser.parse_version(lines)
@@ -928,8 +928,8 @@ class HuaweiInventoryStackTest(unittest.TestCase):
         "--------------------------------------------------------------------------------",
         "MemberID Role     MAC              Priority   DeviceType              Description",
         "--------------------------------------------------------------------------------",
-        "1        Master   a46c-24c2-4400   200        S5735-S24T4XE-V2",
-        "2        Standby  a46c-24c2-4410   100        S5735-S24T4XE-V2",
+        "1        Master   02a4-ec4e-cc00   200        S5735-S24T4XE-V2",
+        "2        Standby  02a4-ec4e-cc70   100        S5735-S24T4XE-V2",
         "--------------------------------------------------------------------------------",
     ]
 
@@ -962,10 +962,10 @@ class CiscoStackTest(unittest.TestCase):
     def test_master_role_and_abbreviated_command_detected(self):
         lines = [
             "SW1#sh switch",
-            "Switch/Stack Mac Address : 2c0b.e990.1c00",
+            "Switch/Stack Mac Address : 020d.2ff0.7400",
             "Switch#  Role   Mac Address     Priority Version  State",
             "-----------------------------------------------------------",
-            "*1       Master 2c0b.e990.1c00     1      4       Ready",
+            "*1       Master 020d.2ff0.7400     1      4       Ready",
         ]
         inv = runtime_parser.parse_inventory(lines)
         self.assertEqual(inv["stack"]["mode"], "Standalone")

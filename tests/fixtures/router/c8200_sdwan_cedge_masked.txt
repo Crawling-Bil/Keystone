@@ -1,0 +1,81 @@
+FEL-GMXZBYZH-RZJ#show sdwan system status
+Viptela (tm) vEdge Operating System Software
+Copyright (c) 2013-2026 by Viptela, Inc.
+Controller Compatibility: 20.9
+Version: 17.09.03.0.15
+Build: Not applicable
+
+System logging to host  is disabled
+System logging to disk is enabled
+
+System state:            GREEN. All daemons up
+System FIPS state:       Disabled
+
+Last reboot:             Reload Command.
+CPU-reported reboot:     Initiated by other
+Boot loader version:     Not applicable
+System uptime:           13 days 02 hrs 34 min 40 sec
+Current time:            Fri Sep 18 12:00:00 WIB 2026
+
+Hypervisor Type:         None
+Cloud Hosted Instance:   false
+
+Load average:            1 minute: 2.99, 5 minutes: 2.49, 15 minutes: 2.40
+Processes:               501 total
+CPU allocation:          8 total,   1 control,   7 data
+CPU states:              20.03% user,   2.39% system,   77.55% idle
+Memory usage:            8000756K total,    3175208K used,   4825548K free
+                         813320K buffers,  2713432K cache
+
+Disk usage:              Filesystem      Size   Used  Avail   Use %  Mounted on
+                         /dev/bootflash1       7020M  2106M  4559M   32%   /bootflash
+                                387M  162M  220M   42   /bootflash/.installer
+
+
+Personality:             vEdge
+Model name:              C8200-1N-4T
+Device role:             cEdge-SDWAN
+Services:                None
+vManaged:                true
+Commit pending:          false
+Configuration template:  LAB-SDWANR-TEMPLATE
+Chassis serial number:   JNL8270FGA4
+
+
+FEL-GMXZBYZH-RZJ#
+FEL-GMXZBYZH-RZJ#
+FEL-GMXZBYZH-RZJ#show sdwan control connections
+                                                                                       PEER                                          PEER                                          CONTROLLER
+PEER    PEER PEER            SITE       DOMAIN PEER                                    PRIV  PEER                                    PUB                                           GROUP
+TYPE    PROT SYSTEM IP       ID         ID     PRIVATE IP                              PORT  PUBLIC IP                               PORT  ORGANIZATION            LOCAL COLOR     PROXY STATE UPTIME      ID
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+vsmart  dtls 10.255.0.1     910000     1      10.255.0.2                            13046 10.255.0.2                            13046 LAB-SDWAN-FABRIC      private2        No    up     0:19:23:45   0
+vsmart  dtls 10.255.0.1     910000     1      10.255.0.2                            13046 10.255.0.2                            13046 LAB-SDWAN-FABRIC      private1        No    up     0:19:23:45   0
+vsmart  dtls 10.255.0.3     920000     1      10.255.0.4                            13046 10.255.0.4                            13046 LAB-SDWAN-FABRIC      private2        No    up     0:19:23:45   0
+vsmart  dtls 10.255.0.3     920000     1      10.255.0.4                            13046 10.255.0.4                            13046 LAB-SDWAN-FABRIC      private1        No    up     0:19:23:45   0
+vmanage dtls 10.255.0.5     910000     0      10.255.0.6                            13046 10.255.0.6                            13046 LAB-SDWAN-FABRIC      private2        No    up     0:19:23:45   0
+
+
+FEL-GMXZBYZH-RZJ#
+FEL-GMXZBYZH-RZJ#show sdwan bfd session
+                                      SOURCE TLOC      REMOTE TLOC                                      DST PUBLIC                      DST PUBLIC         DETECT      TX
+SYSTEM IP        SITE ID     STATE       COLOR            COLOR            SOURCE IP                                       IP                                              PORT        ENCAP  MULTIPLIER  INTERVAL(msec  UPTIME          TRANSITIONS
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+10.255.0.7     910000      up          private2         SGLB             10.255.0.8                                  10.255.0.9                                    12426       ipsec  7           1000           7:11:52:03     0
+10.255.0.10     910000      up          private2         SGLB             10.255.0.8                                  10.255.0.11                                   12346       ipsec  7           1000           7:11:52:03     0
+10.255.0.12     920000      up          private2         SGLB             10.255.0.8                                  10.255.0.13                                    12346       ipsec  7           1000           7:11:52:03     0
+10.255.0.14     920000      up          private2         SGLB             10.255.0.8                                  10.255.0.15                                   12406       ipsec  7           1000           7:11:52:03     0
+10.255.0.7     910000      up          private1         SGLB             10.255.0.16                                 10.255.0.9                                    12426       ipsec  7           1000           7:11:52:03      4
+10.255.0.10     910000      up          private1         SGLB             10.255.0.16                                 10.255.0.11                                   12346       ipsec  7           1000           7:11:52:03      4
+10.255.0.12     920000      up          private1         SGLB             10.255.0.16                                 10.255.0.13                                    12346       ipsec  7           1000           7:11:52:03      4
+10.255.0.14     920000      up          private1         SGLB             10.255.0.16                                 10.255.0.15                                   12406       ipsec  7           1000           7:11:52:03      4
+
+FEL-GMXZBYZH-RZJ#
+FEL-GMXZBYZH-RZJ#show ip arp vrf 1
+Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+Internet  10.255.0.17             -   aedf.f7cb.0dfe  ARPA   GigabitEthernet0/0/3
+Internet  10.255.0.18             1   93a7.3c23.a2f6  ARPA   GigabitEthernet0/0/3
+Internet  10.255.0.19             0   7f28.a1e8.ce32  ARPA   GigabitEthernet0/0/3
+Internet  10.255.0.20             1   ddf0.68f1.de99  ARPA   GigabitEthernet0/0/3
+Internet  10.255.0.21             0   11ac.d664.fdd5  ARPA   GigabitEthernet0/0/3
+FEL-GMXZBYZH-RZJ#

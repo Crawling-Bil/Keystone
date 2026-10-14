@@ -1,0 +1,283 @@
+AHD-DM-MCT-05#show clock
+14:14:56.585 WIB Thu Feb 26 2026
+
+AHD-DM-MCT-05#show ver
+Cisco IOS XE Software, Version 17.03.03
+Cisco IOS Software [Amsterdam], ISR Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.3.3, RELEASE SOFTWARE (fc7)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2021 by Cisco Systems, Inc.
+Compiled Thu 04-Mar-21 12:38 by mcpre
+
+
+Cisco IOS-XE software, Copyright (c) 2005-2021 by cisco Systems, Inc.
+All rights reserved.  Certain components of Cisco IOS-XE software are
+licensed under the GNU General Public License ("GPL") Version 2.0.  The
+software code licensed under GPL Version 2.0 is free software that comes
+with ABSOLUTELY NO WARRANTY.  You can redistribute and/or modify such
+GPL code under the terms of GPL Version 2.0.  For more details, see the
+documentation or "License Notice" file accompanying the IOS-XE software,
+or the applicable URL provided on the flyer accompanying the IOS-XE
+software.
+
+
+ROM: 16.12(2r)
+
+AHD-DM-MCT-05 uptime is 1 year, 9 weeks, 4 days, 7 hours, 32 minutes
+Uptime for this control processor is 1 year, 9 weeks, 4 days, 7 hours, 32 minutes
+System returned to ROM by PowerOn at 10:02:45 WIB Sat Dec 10 2022
+System restarted at 06:42:56 WIB Sat Dec 21 2024
+System image file is "bootflash:isr4400-universalk9.17.03.03.SPA.bin"
+Last reload reason: PowerOn
+
+
+
+This product contains cryptographic features and is subject to United
+States and local country laws governing import, export, transfer and
+use. Delivery of Cisco cryptographic products does not imply
+third-party authority to import, export, distribute or use encryption.
+Importers, exporters, distributors and users are responsible for
+compliance with U.S. and local country laws. By using this product you
+agree to comply with applicable laws and regulations. If you are unable
+to comply with U.S. and local laws, return this product immediately.
+
+A summary of U.S. laws governing Cisco cryptographic products may be found at:
+http://www.cisco.com/wwl/export/crypto/tool/stqrg.html
+
+If you require further assistance please contact us by sending email to
+export@cisco.com.
+
+
+
+Suite License Information for Module:'esg' 
+
+--------------------------------------------------------------------------------
+Suite                 Suite Current         Type           Suite Next reboot     
+--------------------------------------------------------------------------------
+FoundationSuiteK9     None                  Smart License  None                  
+securityk9
+appxk9
+
+AdvUCSuiteK9          None                  Smart License  None                  
+uck9
+cme-srst
+cube
+
+
+Technology Package License Information: 
+
+-----------------------------------------------------------------
+Technology    Technology-package           Technology-package
+              Current       Type           Next reboot  
+------------------------------------------------------------------
+appxk9           appxk9           Smart License    appxk9
+uck9             None             Smart License    None
+securityk9       securityk9       Smart License    securityk9
+ipbase           ipbasek9         Smart License    ipbasek9
+
+The current throughput level is 500000 kbps 
+
+
+Smart Licensing Status: Registration Not Applicable/Not Applicable
+
+cisco ISR4431/K9 (1RU) processor with 1714855K/6147K bytes of memory.
+Processor board ID PAV8370XNB1
+Router operating mode: Autonomous
+1 Virtual Ethernet interface
+8 Gigabit Ethernet interfaces
+32768K bytes of non-volatile configuration memory.
+4194304K bytes of physical memory.
+7081983K bytes of flash memory at bootflash:.
+
+Configuration register is 0x2102
+
+AHD-DM-MCT-05#show platform
+Chassis type: ISR4431/K9
+
+Slot      Type                State                 Insert time (ago) 
+--------- ------------------- --------------------- ----------------- 
+0         ISR4431/K9          ok                    1y9w          
+ 0/0      ISR4431-X-4x1GE     ok                    1y9w          
+ 0/1      NIM-ES2-4           ok                    1y9w          
+R0        ISR4431/K9          ok, active            1y9w          
+F0        ISR4431/K9          ok, active            1y9w          
+P0        PWR-4430-AC         ok                    1y9w          
+P1        Unknown             fail, badinput        1y9w          
+P2        ACS-4430-FANASSY    ok                    1y9w          
+
+Slot      CPLD Version        Firmware Version                        
+--------- ------------------- --------------------------------------- 
+0         19042950            16.12(2r)                           
+R0        19042950            16.12(2r)                           
+F0        19042950            16.12(2r)                           
+
+AHD-DM-MCT-05#show env all
+Sensor List:  Environmental Monitoring 
+ Sensor           Location          State             Reading
+ Temp: Temp 1     P0                Normal            35 Celsius
+ Temp: Temp 2     P0                Normal            42 Celsius
+ Temp: Temp 3     P0                Normal            42 Celsius
+ V: PEM Out       P0                Normal            12000 mV
+ I: PEM In        P0                Normal            1 A
+ I: PEM Out       P0                Normal            5 A
+ P: In pwr        P0                Normal            70 Watts
+ P: Out pwr       P0                Normal            56 Watts
+ RPM: fan0        P0                Normal            4864 RPM
+ Temp: Temp 1     P1                Normal            0 Celsius
+ Temp: Temp 2     P1                Normal            0 Celsius
+ Temp: Temp 3     P1                Normal            0 Celsius
+ V: PEM Out       P1                Warning           0 mV
+ I: PEM In        P1                Normal            0 A
+ I: PEM Out       P1                Normal            0 A
+ P: In pwr        P1                Normal            0 Watts
+ P: Out pwr       P1                Normal            0 Watts
+ RPM: fan0        P1                Normal            0 RPM
+ RPM: fan0        P2                Normal            8962 RPM
+ RPM: fan1        P2                Normal            8940 RPM
+ RPM: fan2        P2                Normal            8752 RPM
+ P: pwr           P2                Normal            3 Watts
+ Temp: Inlet 1    R0                Normal            22 Celsius
+ Temp: Inlet 2    R0                Normal            33 Celsius
+ Temp: Outlet 1   R0                Normal            31 Celsius
+ Temp: Outlet 2   R0                Normal            32 Celsius
+ Temp: core-A     R0                Normal            48 Celsius
+ Temp: core-B     R0                Normal            43 Celsius
+ Temp: core-C     R0                Normal            42 Celsius
+ V: 12v           R0                Normal            12070 mV
+ V: 5v            R0                Normal            5139 mV
+ V: 3.3v          R0                Normal            3348 mV
+ V: 3.0v          R0                Normal            3011 mV
+ V: 2.5v          R0                Normal            2499 mV
+ V: 1.05v         R0                Normal            1060 mV
+ V: 1.8v          R0                Normal            1811 mV
+ V: 1.2v          R0                Normal            1220 mV
+ V: Vcore-C       R0                Normal            1157 mV
+ V: 1.1v          R0                Normal            1110 mV
+ V: 1.0v          R0                Normal            1017 mV
+ V: 1.8v-A        R0                Normal            1801 mV
+ V: 1.5v-A        R0                Normal            1508 mV
+ V: 1.5v-C1       R0                Normal            1518 mV
+ V: 1.5v-B        R0                Normal            1521 mV
+ V: Vcore-A       R0                Normal            1004 mV
+ V: 1.5v-C2       R0                Normal            1508 mV
+ V: Vcore-B1      R0                Normal            833 mV
+ V: Vcore-B2      R0                Normal            817 mV
+ V: 0.75v-B       R0                Normal            759 mV
+ V: 0.75v-C       R0                Normal            762 mV
+ I: 12v           R0                Normal            5 A
+ P: pwr           R0                Normal            50 Watts
+ P: pwr: Pwr      0/1               Normal            3 Watts
+
+AHD-DM-MCT-05#show file systems
+File Systems:
+
+       Size(b)       Free(b)      Type  Flags  Prefixes
+             -             -    opaque     rw   system:
+             -             -    opaque     rw   tmpsys:
+*   7194652672    4850216960      disk     rw   bootflash: flash:
+    1713029120    1632956416      disk     ro   webui:
+             -             -    opaque     rw   null:
+             -             -    opaque     ro   tar:
+             -             -   network     rw   tftp:
+             -             -    opaque     wo   syslog:
+      33554432      33527550     nvram     rw   nvram:
+             -             -   network     rw   rcp:
+             -             -   network     rw   pram:
+             -             -   network     rw   http:
+             -             -   network     rw   ftp:
+             -             -   network     rw   scp:
+             -             -   network     rw   sftp:
+             -             -   network     rw   https:
+             -             -    opaque     ro   cns:
+
+AHD-DM-MCT-05#show bootflash:
+-#- --length-- ---------date/time--------- path
+  4       4096 Dec 21 2024 13:49:18.0000000000 +00:00 /bootflash/sysboot
+ 24         35 Aug 13 2021 14:53:06.0000000000 +00:00 /bootflash/pnp-tech-time
+ 25      65688 Aug 13 2021 14:53:17.0000000000 +00:00 /bootflash/pnp-tech-discovery-summary
+ 26  586985114 Apr 29 2021 10:46:58.0000000000 +00:00 /bootflash/isr4400-universalk9.16.09.05.SPA.bin
+ 27       4096 Apr 29 2021 10:52:26.0000000000 +00:00 /bootflash/core
+ 32       4096 Apr 29 2021 10:51:25.0000000000 +00:00 /bootflash/gs_script
+ 33      40960 Feb 26 2026 14:09:34.0000000000 +00:00 /bootflash/tracelogs
+283       4096 Apr 29 2021 10:51:35.0000000000 +00:00 /bootflash/virtual-instance
+284         30 Dec 21 2024 13:50:22.0000000000 +00:00 /bootflash/throughput_monitor_params
+285       4096 Apr 29 2021 10:52:22.0000000000 +00:00 /bootflash/onep
+287  703926387 Aug 13 2021 15:12:32.0000000000 +00:00 /bootflash/isr4400-universalk9.17.03.03.SPA.bin
+288       3184 Dec 21 2024 13:49:51.0000000000 +00:00 /bootflash/mode_event_log
+289     134458 Dec 21 2024 13:50:10.0000000000 +00:00 /bootflash/memleak.tcl
+290      20109 Aug 13 2021 15:39:57.0000000000 +00:00 /bootflash/ios_core.p7b
+291       1314 Aug 13 2021 15:39:57.0000000000 +00:00 /bootflash/trustidrootx3_ca.ca
+292       4096 Dec 21 2024 13:50:31.0000000000 +00:00 /bootflash/license_evlog
+309       4096 Aug 16 2021 13:10:53.0000000000 +00:00 /bootflash/lost+found
+
+AHD-DM-MCT-05#show license summary
+License Usage:
+  License                 Entitlement Tag               Count Status
+  -----------------------------------------------------------------------------
+  hseck9                  (ISR_4400_Hsec)                   1 IN USE
+  appxk9                  (ISR_4400_Application)            1 IN USE
+  securityk9              (ISR_4400_Security)               1 IN USE
+
+AHD-DM-MCT-05#show license usage
+License Authorization: 
+  Status: Not Applicable
+
+hseck9 (ISR_4400_Hsec):
+  Description: hseck9
+  Count: 1
+  Version: 1.0
+  Status: IN USE
+  Export status: RESTRICTED - ALLOWED
+  Feature Name: hseck9
+  Feature Description: hseck9
+  Enforcement type: EXPORT RESTRICTED
+  License type: Perpetual
+
+appxk9 (ISR_4400_Application):
+  Description: appxk9
+  Count: 1
+  Version: 1.0
+  Status: IN USE
+  Export status: NOT RESTRICTED
+  Feature Name: appxk9
+  Feature Description: appxk9
+  Enforcement type: NOT ENFORCED
+  License type: Perpetual
+
+securityk9 (ISR_4400_Security):
+  Description: securityk9
+
+AHD-DM-MCT-05#show logging
+Syslog logging: enabled (0 messages dropped, 3 messages rate-limited, 0 flushes, 0 overruns, xml disabled, filtering disabled)
+
+No Active Message Discriminator.
+
+
+
+No Inactive Message Discriminator.
+
+
+    Console logging: level debugging, 2673 messages logged, xml disabled,
+                     filtering disabled
+    Monitor logging: level debugging, 0 messages logged, xml disabled,
+                     filtering disabled
+    Buffer logging:  level debugging, 2673 messages logged, xml disabled,
+                    filtering disabled
+    Exception Logging: size (4096 bytes)
+    Count and timestamp logging messages: disabled
+    Persistent logging: disabled
+
+No active filter modules.
+
+    Trap logging: level informational, 2660 message lines logged
+        Logging Source-Interface:       VRF Name:
+
+Log Buffer (9999 bytes):
+
+Jan 17 07:44:30: %SMART_LIC-3-COMM_FAILED: Communications failure with the Cisco Smart License Utility (CSLU) : Unable to resolve server hostname/domain name 
+Jan 18 06:43:36: %SMART_LIC-3-COMM_FAILED: Communications failure with the Cisco Smart License Utility (CSLU) : Communications failure 
+Jan 18 07:44:39: %SMART_LIC-3-COMM_FAILED: Communications failure with the Cisco Smart License Utility (CSLU) : Unable to resolve server hostname/domain name 
+Jan 28 14:39:12: %TRACK-6-STATE: 1 ip sla 1 reachability Up -> Down
+Jan 28 14:39:17: %TRACK-6-STATE: 1 ip sla 1 reachability Down -> Up
+Jan 30 11:20:07: %TRACK-6-STATE: 1 ip sla 1 reachability Up -> Down
+Feb 18 08:56:34: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.1.10] [localport: 22] at 08:56:34 WIB Wed Feb 18 2026
+Feb 26 14:14:38: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: uatcmqyvvkyz] [Source: 10.255.1.13] [localport: 22] at 14:14:38 WIB Thu Feb 26 2026

@@ -1,0 +1,291 @@
+ETN-BAM-IVW-34#show clock
+*07:10:23.405 UTC Wed Feb 25 2026
+
+ETN-BAM-IVW-34#show ver
+Cisco IOS XE Software, Version 17.03.03
+Cisco IOS Software [Amsterdam], ISR Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.3.3, RELEASE SOFTWARE (fc7)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2021 by Cisco Systems, Inc.
+Compiled Thu 04-Mar-21 12:38 by mcpre
+
+
+Cisco IOS-XE software, Copyright (c) 2005-2021 by cisco Systems, Inc.
+All rights reserved.  Certain components of Cisco IOS-XE software are
+licensed under the GNU General Public License ("GPL") Version 2.0.  The
+software code licensed under GPL Version 2.0 is free software that comes
+with ABSOLUTELY NO WARRANTY.  You can redistribute and/or modify such
+GPL code under the terms of GPL Version 2.0.  For more details, see the
+documentation or "License Notice" file accompanying the IOS-XE software,
+or the applicable URL provided on the flyer accompanying the IOS-XE
+software.
+
+
+ROM: 16.12(2r)
+
+ETN-BAM-IVW-34 uptime is 15 weeks, 3 days, 21 hours, 16 minutes
+Uptime for this control processor is 15 weeks, 3 days, 21 hours, 17 minutes
+System returned to ROM by PowerOn
+System image file is "bootflash:packages.conf"
+Last reload reason: PowerOn
+
+
+
+This product contains cryptographic features and is subject to United
+States and local country laws governing import, export, transfer and
+use. Delivery of Cisco cryptographic products does not imply
+third-party authority to import, export, distribute or use encryption.
+Importers, exporters, distributors and users are responsible for
+compliance with U.S. and local country laws. By using this product you
+agree to comply with applicable laws and regulations. If you are unable
+to comply with U.S. and local laws, return this product immediately.
+
+A summary of U.S. laws governing Cisco cryptographic products may be found at:
+http://www.cisco.com/wwl/export/crypto/tool/stqrg.html
+
+If you require further assistance please contact us by sending email to
+export@cisco.com.
+
+
+
+Suite License Information for Module:'esg' 
+
+--------------------------------------------------------------------------------
+Suite                 Suite Current         Type           Suite Next reboot     
+--------------------------------------------------------------------------------
+FoundationSuiteK9     None                  Smart License  None                  
+securityk9
+appxk9
+
+AdvUCSuiteK9          None                  Smart License  None                  
+uck9
+cme-srst
+cube
+
+
+Technology Package License Information: 
+
+-----------------------------------------------------------------
+Technology    Technology-package           Technology-package
+              Current       Type           Next reboot  
+------------------------------------------------------------------
+appxk9           appxk9           Smart License    appxk9
+uck9             None             Smart License    None
+securityk9       securityk9       Smart License    securityk9
+ipbase           ipbasek9         Smart License    ipbasek9
+
+The current throughput level is 100000 kbps 
+
+
+Smart Licensing Status: Registration Not Applicable/Not Applicable
+
+cisco ISR4331/K9 (1RU) processor with 1714855K/3071K bytes of memory.
+Processor board ID IFC0948P78A
+Router operating mode: Autonomous
+1 Virtual Ethernet interface
+7 Gigabit Ethernet interfaces
+32768K bytes of non-volatile configuration memory.
+4194304K bytes of physical memory.
+3207167K bytes of flash memory at bootflash:.
+
+Configuration register is 0x2102
+
+ETN-BAM-IVW-34#show run
+Building configuration...
+hostname ETN-BAM-IVW-34
+!
+track 1 ip sla 1 reachability
+!
+interface Loopback0
+ ip address 10.255.1.200 255.255.255.255
+!
+interface Port-channel1
+ no ip address
+ no negotiation auto
+!
+interface GigabitEthernet0/0/0
+ ip address 10.255.2.2 255.255.255.252
+ negotiation auto
+ crypto map PRWJ-VPN-000
+!
+interface GigabitEthernet0/0/1
+ ip address 10.255.3.2 255.255.255.252
+ negotiation auto
+ crypto map PRWJ-VPN-001
+!
+router ospf 1
+!
+ip route 0.0.0.0 0.0.0.0 10.255.2.1 track 1
+!
+ip route 0.0.0.0 0.0.0.0 10.255.3.1 5
+!
+ip sla 1
+ icmp-echo 10.255.2.1 source-interface GigabitEthernet0/0/0
+  tag PRIMARY-iForte
+  threshold 1000
+  timeout 2000
+  frequency 5
+!
+ip sla schedule 1 life forever start-time now
+!
+
+ETN-BAM-IVW-34#show license all
+Smart Licensing Status
+======================
+
+Smart Licensing is ENABLED
+
+License Conversion:
+  Automatic Conversion Enabled: False
+  Status: Not started
+
+Export Authorization Key:
+  Features Authorized:
+    <none>
+
+Utility:
+  Status: DISABLED
+
+Smart Licensing Using Policy:
+  Status: ENABLED
+
+Data Privacy:
+  Sending Hostname: yes
+    Callhome hostname privacy: DISABLED
+    Smart Licensing hostname privacy: DISABLED
+  Version privacy: DISABLED
+
+Transport:
+  Type: cslu
+  Cslu address: <empty>
+  Proxy:
+    Not Configured
+
+Miscellaneous:
+  Custom Id: <empty>
+
+Policy:
+  Policy in use: Merged from multiple sources.
+  Reporting ACK required: yes (CISCO default)
+  Unenforced/Non-Export Perpetual Attributes:
+    First report requirement (days): 365 (CISCO default)
+    Reporting frequency (days): 0 (CISCO default)
+    Report on change (days): 90 (CISCO default)
+  Unenforced/Non-Export Subscription Attributes:
+    First report requirement (days): 90 (CISCO default)
+    Reporting frequency (days): 90 (CISCO default)
+    Report on change (days): 90 (CISCO default)
+  Enforced (Perpetual/Subscription) License Attributes:
+    First report requirement (days): 0 (CISCO default)
+    Reporting frequency (days): 0 (CISCO default)
+    Report on change (days): 0 (CISCO default)
+  Export (Perpetual/Subscription) License Attributes:
+    First report requirement (days): 0 (CISCO default)
+    Reporting frequency (days): 0 (CISCO default)
+    Report on change (days): 0 (CISCO default)
+
+Usage Reporting:
+  Last ACK received: <none>
+  Next ACK deadline: Aug 13 10:50:36 2022 UTC
+  Reporting push interval: 30  days
+  Next ACK push check: <none>
+  Next report push: Nov 08 09:56:49 2025 UTC
+  Last report push: <none>
+  Last report file write: <none>
+
+Trust Code Installed: <none>
+
+License Usage
+=============
+
+hseck9 (ISR_4331_Hsec):
+  Description: hseck9
+  Count: 1
+  Version: 1.0
+  Status: IN USE
+  Export status: RESTRICTED - ALLOWED
+  Feature Name: hseck9
+  Feature Description: hseck9
+  Enforcement type: EXPORT RESTRICTED
+  License type: Perpetual
+
+
+ETN-BAM-IVW-34#show license summary
+License Usage:
+  License                 Entitlement Tag               Count Status
+  -----------------------------------------------------------------------------
+  hseck9                  (ISR_4331_Hsec)                   1 IN USE
+  appxk9                  (ISR_4331_Application)            1 IN USE
+  securityk9              (ISR_4331_Security)               1 IN USE
+
+ETN-BAM-IVW-34#show license usage
+License Authorization: 
+  Status: Not Applicable
+
+hseck9 (ISR_4331_Hsec):
+  Description: hseck9
+  Count: 1
+  Version: 1.0
+  Status: IN USE
+  Export status: RESTRICTED - ALLOWED
+  Feature Name: hseck9
+  Feature Description: hseck9
+  Enforcement type: EXPORT RESTRICTED
+  License type: Perpetual
+
+appxk9 (ISR_4331_Application):
+  Description: appxk9
+  Count: 1
+  Version: 1.0
+  Status: IN USE
+  Export status: NOT RESTRICTED
+  Feature Name: appxk9
+  Feature Description: appxk9
+  Enforcement type: NOT ENFORCED
+
+ETN-BAM-IVW-34#show logging
+Syslog logging: enabled (0 messages dropped, 3 messages rate-limited, 0 flushes, 0 overruns, xml disabled, filtering disabled)
+
+No Active Message Discriminator.
+
+
+
+No Inactive Message Discriminator.
+
+
+    Console logging: level debugging, 768 messages logged, xml disabled,
+                     filtering disabled
+    Monitor logging: level debugging, 0 messages logged, xml disabled,
+                     filtering disabled
+    Buffer logging:  level debugging, 768 messages logged, xml disabled,
+                    filtering disabled
+    Exception Logging: size (4096 bytes)
+    Count and timestamp logging messages: disabled
+    Persistent logging: disabled
+
+No active filter modules.
+
+    Trap logging: level informational, 768 message lines logged
+        Logging Source-Interface:       VRF Name:
+
+Log Buffer (9999 bytes):
+
+ %TRACK-6-STATE: 1 ip sla 1 reachability Down -> Up
+*Feb  6 04:41:52.478: %TRACK-6-STATE: 1 ip sla 1 reachability Up -> Down
+*Feb  6 04:41:57.479: %TRACK-6-STATE: 1 ip sla 1 reachability Down -> Up
+*Feb  6 04:48:07.493: %TRACK-6-STATE: 1 ip sla 1 reachability Up -> Down
+*Feb  6 05:14:41.379: %CRYPTO-4-RECVD_PKT_INV_SPI: decaps: rec'd IPSEC packet has invalid spi for destaddr=10.255.2.2, prot=50, spi=0x9FCB6A07(2680908295), srcaddr=10.255.2.1, input interface=GigabitEthernet0/0/0
+*Feb  6 10:10:29.968: %SMART_LIC-3-COMM_FAILED: Communications failure with the Cisco Smart License Utility (CSLU) : Unable to resolve server hostname/domain name 
+*Feb  6 12:01:29.652: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: aenw] [Source: 10.255.4.13] [localport: 22] at 12:01:29 UTC Fri Feb 6 2026
+*Feb  7 03:08:38.547: %BW_LICENSE-5-THROUGHPUT_THRESHOLD_LEVEL: R0/0: cpp_ha: Average throughput rate exceeded 95 percent of licensed bandwidth of 100 Mbps during 2 sampling periods in the last 24 hours, sampling period is 300 seconds
+*Feb  7 03:08:38.547: %BW_LICENSE-4-THROUGHPUT_MAX_LEVEL: R0/0: cpp_ha: Average throughput rate approached the licensed bandwidth of 100 Mbps during 46 sampling periods in the last 24 hours, sampling period is 300 seconds
+*Feb  7 10:10:38.984: %SMART_LIC-3-COMM_FAILED: Communications failure with the Cisco Smart License Utility (CSLU) : Unable to resolve server hostname/domain name 
+*Feb  8 09:54:28.247: %SMART_LIC-3-COMM_FAILED: Communications failure with the Cisco Smart License Utility (CSLU) : Communications failure 
+*Feb  8 10:10:48.003: %SMART_LIC-3-COMM_FAILED: Communications failure with the Cisco Smart License Utility (CSLU) : Unable to resolve server hostname/domain name 
+*Feb 10 03:09:26.032: %BW_LICENSE-5-THROUGHPUT_THRESHOLD_LEVEL: R0/0: cpp_ha: Average throughput rate exceeded 95 percent of licensed bandwidth of 100 Mbps during 2 sampling periods in the last 24 hours, sampling period is 300 seconds
+*Feb 10 03:09:26.032: %BW_LICENSE-4-THROUGHPUT_MAX_LEVEL: R0/0: cpp_ha: Average throughput rate approached the licensed bandwidth of 100 Mbps during 13 sampling periods in the last 24 hours, sampling period is 300 seconds
+*Feb 10 10:18:44.067: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: aenw] [Source: 10.255.4.13] [localport: 22] at 10:18:44 UTC Tue Feb 10 2026
+*Feb 13 11:20:21.238: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: aenw] [Source: 10.255.4.13] [localport: 22] at 11:20:21 UTC Fri Feb 13 2026
+*Feb 18 01:58:52.144: %SEC_LOGIN-5-LOGIN_SUCCESS: Login Success [user: aenw] [Source: 10.255.4.13] [localport: 22] at 01:58:52 UTC Wed Feb 18 2026
+*Feb 18 10:01:41.609: %SYS-5-CONFIG_I: Configured from console by aenw on vty0 (10.255.4.13)
+*Feb 18 10:04:04.642: %SYS-5-CONFIG_I: Configured from console by aenw on vty0 (10.255.4.13)
+*Feb 18 10:10:54.857: %SYS-5-CONFIG_I: Configured from console by aenw on vty0 (10.255.4.13)

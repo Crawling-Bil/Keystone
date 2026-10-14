@@ -1,0 +1,158 @@
+<WFB-MZMD-CAA-PCO63-V0321>display interface transceiver
+
+ 10GE1/0/1 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_LX10
+   Connector Type                        :LC
+   Wavelength (nm)                       :1310
+   Transfer Distance (m)                 :10000(9um/125um SMF)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URF
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :CW500604051220
+   Manufacturing Date                    :2026-2-27
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 10GE1/0/2 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_LX10
+   Connector Type                        :LC
+   Wavelength (nm)                       :1310
+   Transfer Distance (m)                 :10000(9um/125um SMF)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URF
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :BT520202023115
+   Manufacturing Date                    :2026-2-26
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 10GE2/0/1 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_LX10
+   Connector Type                        :LC
+   Wavelength (nm)                       :1310
+   Transfer Distance (m)                 :10000(9um/125um SMF)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URF
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :VD178667888973
+   Manufacturing Date                    :2026-2-26
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+
+ 10GE2/0/2 transceiver information:
+-------------------------------------------------------------------
+ Common information:
+   Transceiver Type                      :1000BASE_LX10
+   Connector Type                        :LC
+   Wavelength (nm)                       :1310
+   Transfer Distance (m)                 :10000(9um/125um SMF)
+   Digital Diagnostic Monitoring         :YES
+   Vendor Name                           :HUAWEI
+   Vendor Part Number                    :02313URF
+   Ordering Name                         :
+-------------------------------------------------------------------
+ Manufacture information:
+   Manu. Serial Number                   :XV324219619002
+   Manufacturing Date                    :2026-2-27
+   Vendor Name                           :HUAWEI
+-------------------------------------------------------------------
+ Alarm information:
+    LOS Alarm
+-------------------------------------------------------------------
+ Warning information:
+-------------------------------------------------------------------
+<WFB-MZMD-CAA-PCO63-V0321>
+<WFB-MZMD-CAA-PCO63-V0321>display lldp neighbor
+GE1/0/23 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :20ad-b5b1-0efc
+Port ID subtype                    :Interface Name
+Port ID                            :GE2/0/23
+Port description                   :** TO:Palo1-eth3 **
+System name                        :WFB-MZMD-CAA-PCO63-V0321
+System description                 :Huawei Switch
+Huawei YunShan OS
+Version 10.255.0.1 (S5700 V600R025C00SPC500)
+Copyright (C) 2021-2025 Huawei Technologies Co., Ltd.
+HUAWEI CloudEngine S5735-S-V2
+
+System capabilities supported      :bridge router
+System capabilities enabled        :bridge router
+Management address type            :IPv4
+Management address                 :10.255.0.2
+Expired time                       :102s
+
+Device 1 infomation:
+  Device serial number             :7U7192926730
+  Device model name                :S5735-S24T4XE-V2
+Device 2 infomation:
+  Device serial number             :4S5472471912
+  Device model name                :S5735-S24T4XE-V2
+
+Port VLAN ID(PVID)                 :58
+Port and Protocol VLAN ID(PPVID)   :unsupported
+VLAN name of VLAN 58               :SDWAN-TGN
+Protocol identity                  :--
+Auto-negotiation supported         :Yes
+Auto-negotiation enabled           :Yes
+OperMau                            :speed (1000) /duplex (Full)
+Link aggregation supported         :Yes
+Link aggregation enabled           :No
+Aggregation port ID                :0
+Maximum frame Size                 :9216
+Port Identity                      :--
+Discovered time                    :2026-07-12 01:22:13+07:00
+
+Power port class                   :PD
+PSE power supported                :No
+PSE power enabled                  :No
+PSE pairs control ability          :No
+Power pairs                        :Unknown
+Port power classification          :Unknown
+
+EEE support                        :No
+Transmit Tw                        :65535
+Receive Tw                         :65535
+Fallback Receive Tw                :0
+Echo Transmit Tw                   :0
+Echo Receive Tw                    :0
+
+Network Card ID                    :--
+
+Med capability                     :--
+Med device type                    :--
+
+
+

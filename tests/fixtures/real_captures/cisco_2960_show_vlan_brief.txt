@@ -1,0 +1,31 @@
+IPW-IZZL-SOM-9695#show vlan brief
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Fa0/19, Fa0/23, Gi0/1
+8    MGMT-SERVER                      active
+9    CLIENT-VIRTUAL                   active
+10   MANAGEMENT                       active
+11   SERVER-VIRTUAL                   active
+12   VLAN-STAFF                       active    Fa0/1, Fa0/2, Fa0/3, Fa0/4, Fa0/5, Fa0/6, Fa0/7, Fa0/8, Fa0/9, Fa0/10, Fa0/11, Fa0/12
+                                                Fa0/13, Fa0/14, Fa0/15, Fa0/16, Fa0/17, Fa0/18, Fa0/20, Fa0/21, Fa0/22, Fa0/24, Fa0/25
+                                                Fa0/26, Fa0/27, Fa0/28, Fa0/29, Fa0/30, Fa0/31, Fa0/32, Fa0/33, Fa0/34, Fa0/35, Fa0/36
+                                                Fa0/37, Fa0/38, Fa0/39, Fa0/40, Fa0/41, Fa0/42, Fa0/43, Fa0/44, Fa0/45, Fa0/46
+13   VLAN-STAFF-2                     active
+14   VLAN-STAFF-3                     active
+15   MGMT-WIRELESS                    active
+16   VLAN-WIFI-CLIENT-BCQ             active
+19   VLAN-GUEST-WIFI                  active
+20   VLAN-IP-CAMERA                   active
+25   Network-Device                   active
+53   VLAN-to-Router-YFC               active
+54   VLAN-to-Router-UCXS              active
+100  SERVER-PHYSIC                    active
+102  VLAN0102                         active
+109  VLAN0109                         active
+112  VLAN0112                         active
+1002 fddi-default                     act/unsup
+1003 token-ring-default               act/unsup
+1004 fddinet-default                  act/unsup
+1005 trnet-default                    act/unsup
+IPW-IZZL-SOM-9695#

@@ -1,0 +1,130 @@
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show interface
+Interface 1/1/23 is up
+ Admin state is up
+ Link state: up for 1 day (since Sun Oct 11 18:04:29 WIB 2026)
+ Link transitions: 1
+ Description: PORT_DESCRIPTION
+ Persona:
+ Hardware: Ethernet, MAC Address: 2c:75:91:a6:c8:bb
+ MTU 1500
+ Type 1GbT
+ Full-duplex
+ qos trust none
+ Speed 1000 Mb/s
+ Auto-negotiation is on
+ Energy-Efficient Ethernet is disabled
+ Flow-control: off
+ Error-control: off
+ MDI mode: MDIX
+ Rate collection interval: 300 seconds
+
+ Rate                               RX                   TX        Total (RX+TX)
+ ---------------- -------------------- -------------------- --------------------
+ Mbits / sec                      0.02                 0.01                 0.03
+ KPkts / sec                      0.02                 0.01                 0.03
+   Unicast                        0.00                 0.01                 0.01
+   Multicast                      0.02                 0.00                 0.02
+   Broadcast                      0.00                 0.00                 0.00
+ Utilization %                    0.00                 0.00                 0.00
+
+ Statistic                          RX                   TX                Total
+ ---------------- -------------------- -------------------- --------------------
+ Packets                      11202508              7954611             19157119
+   Unicast                     8714796              7881101             16595897
+   Multicast                   1985840                24606              2010446
+   Broadcast                    501872                48904               550776
+ Bytes                      7239014416           3703405041          10942419457
+ Jumbos                        1068042              1436245              2504287
+ Dropped                             0                    0                    0
+ Pause Frames                        0                    0                    0
+ Errors                              0                    0                    0
+   CRC/FCS                           0                  n/a                    0
+   Collision                       n/a                    0                    0
+   Runts                             0                  n/a                    0
+   Giants                            0                  n/a                    0
+
+Aggregate lag1 is up
+ Admin state is up
+ Description : PORT_DESCRIPTION
+ MAC Address                 : 3e:4c:05:75:14:28
+ Aggregated-interfaces       : 1/1/23 1/1/24
+ Aggregation-key             : 1
+ Aggregate mode              : active
+ Speed                       : 1000 Mb/s
+ qos trust none
+ VLAN Mode: native-untagged
+ Native VLAN: 150
+ Allowed VLAN List: all
+ L3 Counters: Rx Disabled, Tx Disabled
+
+ Statistic                          RX                   TX                Total
+ ---------------- -------------------- -------------------- --------------------
+ Packets                      11202659              7954945             19157604
+   Unicast                     8714907              7881435             16596342
+   Multicast                   1985876                24606              2010482
+   Broadcast                    501876                48904               550780
+ Bytes                      7239029664           3703683096          10942712760
+ Jumbos                        1068042              1436245              2504287
+ Dropped                             0                    0                    0
+ Pause Frames                        0                    0                    0
+ Errors                              0                    0                    0
+   CRC/FCS                           0                  n/a                    0
+   Collision                       n/a                    0                    0
+   Runts                             0                  n/a                    0
+   Giants                            0                  n/a                    0
+
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#
+Interface vlan1 is up
+ Admin state is up
+ Description:
+ Hardware: Ethernet, MAC Address: 3e:4c:05:75:14:28
+ L3 Counters: Rx Disabled, Tx Disabled
+
+Interface 1/1/1 is down
+ Admin state is up
+ State information: Waiting for link
+ Link state: down for 1 hour (since Mon Oct 12 18:29:29 WIB 2026)
+ Link transitions: 2
+ Description: PORT_DESCRIPTION
+ Persona:
+ Hardware: Ethernet, MAC Address: 3a:0d:9d:6c:d7:46
+ MTU 1500
+ Type 1GbT
+ Full-duplex
+ qos trust none
+ Speed 0 Mb/s
+ Auto-negotiation is on
+ Energy-Efficient Ethernet is disabled
+ Flow-control: off
+ Error-control: off
+ MDI mode: none
+ VLAN Mode: access
+ Access VLAN: 900
+ Rate collection interval: 300 seconds
+
+ Rate                               RX                   TX        Total (RX+TX)
+ ---------------- -------------------- -------------------- --------------------
+ Mbits / sec                      0.00                 0.00                 0.00
+ KPkts / sec                      0.00                 0.00                 0.00
+   Unicast                        0.00                 0.00                 0.00
+   Multicast                      0.00                 0.00                 0.00
+   Broadcast                      0.00                 0.00                 0.00
+ Utilization %                    0.00                 0.00                 0.00
+
+ Statistic                          RX                   TX                Total
+ ---------------- -------------------- -------------------- --------------------
+ Packets                             0               418403               418403
+   Unicast                           0                 1257                 1257
+   Multicast                         0               273721               273721
+   Broadcast                         0               143425               143425
+ Bytes                               0             74991554             74991554
+ Jumbos                              0                    0                    0
+ Dropped                             0                    0                    0
+ Pause Frames                        0                    0                    0
+ Errors                              0                    0                    0
+   CRC/FCS                           0                  n/a                    0
+   Collision                       n/a                    0                    0
+   Runts                             0                  n/a                    0
+   Giants                            0                  n/a                    0
+
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7#

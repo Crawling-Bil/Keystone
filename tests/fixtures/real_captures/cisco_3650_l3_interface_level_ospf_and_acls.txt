@@ -1,0 +1,131 @@
+hostname RVCTZZ-LTB-YHLZUH-C9131
+!
+ip routing
+!
+interface Port-channel1
+ switchport mode trunk
+!
+interface Port-channel2
+ switchport mode trunk
+!
+interface Port-channel3
+ switchport mode trunk
+!
+interface Port-channel4
+ description Link To Server 
+ switchport access vlan 489
+ switchport mode access
+!
+interface Port-channel10
+ description **To-NSF-Active**
+ switchport trunk allowed vlan 50
+ switchport mode trunk
+!
+interface Port-channel11
+ description **To-NSF-Passive**
+ switchport trunk allowed vlan 50
+ switchport mode trunk
+!
+interface Port-channel12
+ description *To-Switch-Edge-Huawei-MGMT*
+ switchport trunk allowed vlan 489
+ switchport mode trunk
+!
+interface Port-channel13
+ description TO ROUTER
+!
+interface Vlan1
+ no ip address
+ shutdown
+!
+interface Vlan14
+ no ip address
+!
+interface Vlan50
+ ip address 10.255.0.1 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf 100 area 0
+!
+interface Vlan100
+ description SUV
+ ip address 10.255.0.2 255.255.255.0
+ ip helper-address 10.255.0.3
+ ip helper-address 10.255.0.4
+ ip helper-address 10.255.0.5
+ ip ospf 100 area 0
+!
+interface Vlan108
+ description SUV-VIP
+ ip address 10.255.0.6 255.255.255.0
+ ip helper-address 10.255.0.4
+ ip helper-address 10.255.0.5
+ ip ospf 100 area 0
+!
+interface Vlan109
+ description MPV
+ ip address 10.255.0.7 255.255.255.0
+ ip helper-address 10.255.0.8
+ ip ospf 100 area 0
+!
+interface Vlan110
+ ip address 10.255.0.9 255.255.255.0
+ ip helper-address 10.255.0.4
+ ip helper-address 10.255.0.5
+ ip ospf 100 area 0
+!
+interface Vlan112
+ description SUV-DEV
+ ip address 10.255.0.10 255.255.255.0
+ ip helper-address 10.255.0.4
+ ip helper-address 10.255.0.5
+ ip ospf 100 area 0
+!
+interface Vlan489
+ description NETWORK-DEVICE
+ ip address 10.255.0.11 255.255.255.0
+ ip helper-address 10.255.0.4
+ ip helper-address 10.255.0.5
+ ip ospf 100 area 0
+!
+interface Vlan492
+ no ip address
+!
+interface Vlan494
+ description TAM-PGND-LXGVKIQP
+ ip address 10.255.0.12 255.255.255.0
+ ip helper-address 10.255.0.13
+ ip route-cache policy
+ ip ospf 100 area 0
+!
+router eigrp 100
+ eigrp stub connected summary
+!
+router ospf 100
+ router-id 10.255.0.1
+ passive-interface default
+ no passive-interface Vlan50
+!
+ip access-list extended SSCYFR_Ccjcaf
+ permit ip 10.255.0.14 10.255.0.15 host 10.255.0.16
+ permit ip 10.255.0.14 10.255.0.15 host 10.255.0.17
+ permit ip 10.255.0.14 10.255.0.15 host 10.255.0.18
+ permit ip 10.255.0.14 10.255.0.15 host 10.255.0.19
+ permit ip 10.255.0.14 10.255.0.15 host 10.255.0.20
+ permit ip 10.255.0.14 10.255.0.15 host 10.255.0.21
+ permit ip 10.255.0.14 10.255.0.15 host 10.255.0.22
+ permit ip 10.255.0.14 10.255.0.15 host 10.255.0.23
+!
+ip access-list extended testDebugAP
+ deny   ip host 10.255.0.24 host 10.255.0.25
+ permit ip any any
+!
+route-map Ccjcaf permit 10
+ match ip address SSCYFR_Ccjcaf
+ set ip next-hop verify-availability 10.255.0.1 10 track 2
+!
+line vty 0 4
+ login authentication VTY
+ transport input ssh
+!
+line vty 5 15
+!

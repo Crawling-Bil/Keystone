@@ -1,0 +1,110 @@
+UOR-NUDIQZB-NCR-6-ZW0-CUZWJ-NMA7# show spanning-tree
+Spanning tree status           : Enabled Protocol: RPVST
+Extended System-id             : Enabled
+Ignore PVID Inconsistency      : Disabled
+Path cost method               : Long
+RPVST-MSTP Interconnect VLAN   : 1
+Current Virtual Ports Count    : 32
+Maximum Allowed Virtual Ports  : 2048
+
+VLAN1
+  Root ID    Priority   : 32768
+             MAC-Address: 03:53:03:65:8d:a3
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+  Bridge ID  Priority  : 32768
+             MAC-Address: 3e:4c:05:75:14:28
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+Port         Role           State      Cost           Priority   Type       BPDU-Tx    BPDU-Rx    TCN-Tx     TCN-Rx
+------------ -------------- ---------- -------------- ---------- ---------- ---------- ---------- ---------- ----------
+1/1/27       Disabled       Down       20000          128        Shr        0          0          0          0
+1/1/28       Disabled       Down       20000          128        Shr        0          0          0          0
+2/1/27       Disabled       Down       20000          128        Shr        0          0          0          0
+2/1/28       Disabled       Down       20000          128        Shr        0          0          0          0
+3/1/27       Disabled       Down       20000          128        Shr        0          0          0          0
+3/1/28       Disabled       Down       20000          128        Shr        0          0          0          0
+4/1/27       Disabled       Down       20000          128        Shr        0          0          0          0
+4/1/28       Disabled       Down       20000          128        Shr        0          0          0          0
+lag1         Root           Forwarding 20000          64         P2P        4          94522      3          2
+
+Number of topology changes    : 1
+Last topology change occurred : 94519 seconds ago
+
+VLAN100
+  Root ID    Priority   : 32768
+             MAC-Address: 36:fa:46:33:f0:db
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+  Bridge ID  Priority  : 32768
+             MAC-Address: 3e:4c:05:75:14:28
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+Port         Role           State      Cost           Priority   Type       BPDU-Tx    BPDU-Rx    TCN-Tx     TCN-Rx
+------------ -------------- ---------- -------------- ---------- ---------- ---------- ---------- ---------- ----------
+lag1         Root           Forwarding 20000          64         P2P        2          47261      1          2
+
+Number of topology changes    : 1
+Last topology change occurred : 94519 seconds ago
+
+VLAN120
+  Root ID    Priority   : 32768
+             MAC-Address: 03:53:03:65:8d:a3
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+  Bridge ID  Priority  : 32768
+             MAC-Address: 3e:4c:05:75:14:28
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+Port         Role           State      Cost           Priority   Type       BPDU-Tx    BPDU-Rx    TCN-Tx     TCN-Rx
+------------ -------------- ---------- -------------- ---------- ---------- ---------- ---------- ---------- ----------
+lag1         Root           Forwarding 20000          64         P2P        2          47261      1          2
+
+Number of topology changes    : 1
+Last topology change occurred : 94519 seconds ago
+
+VLAN130
+  Root ID    Priority   : 32768
+             MAC-Address: 03:53:03:65:8d:a3
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+  Bridge ID  Priority  : 32768
+             MAC-Address: 3e:4c:05:75:14:28
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+Port         Role           State      Cost           Priority   Type       BPDU-Tx    BPDU-Rx    TCN-Tx     TCN-Rx
+------------ -------------- ---------- -------------- ---------- ---------- ---------- ---------- ---------- ----------
+lag1         Root           Forwarding 20000          64         P2P        2          47261      1          2
+
+Number of topology changes    : 1
+Last topology change occurred : 94519 seconds ago
+
+VLAN140
+  Root ID    Priority   : 32768
+             MAC-Address: 03:53:03:65:8d:a3
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+  Bridge ID  Priority  : 32768
+             MAC-Address: 3e:4c:05:75:14:28
+             Hello time(in seconds):2  Max Age(in seconds):20
+             Forward Delay(in seconds):15
+
+Port         Role           State      Cost           Priority   Type       BPDU-Tx    BPDU-Rx    TCN-Tx     TCN-Rx
+------------ -------------- ---------- -------------- ---------- ---------- ---------- ---------- ---------- ----------
+lag1         Root           Forwarding 20000          64         P2P        2          47261      1          2
+
+Number of topology changes    : 1
+Last topology change occurred : 94519 seconds ago
+
+VLAN150
+  Root ID    Priority   : 32768
+             MAC-Address: 03:53:03:65:8d:a3

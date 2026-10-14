@@ -1,0 +1,70 @@
+JYZ-FIH-UOUL-SBNH-1706>show mac address-table
+          Mac Address Table
+-------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+ All    0f56.5b76.7505    STATIC      CPU
+ All    a5dc.9169.30b7    STATIC      CPU
+ All    82e1.8120.2d0d    STATIC      CPU
+ All    750a.2e65.fac7    STATIC      CPU
+ All    5cb0.2e3d.f416    STATIC      CPU
+ All    8dd2.6a98.1bf8    STATIC      CPU
+ All    58ab.c947.5c9f    STATIC      CPU
+ All    8adc.b941.068d    STATIC      CPU
+ All    b744.ddbe.3932    STATIC      CPU
+ All    7bb1.01be.c268    STATIC      CPU
+ All    f1ba.7306.3783    STATIC      CPU
+ All    a363.914c.aaee    STATIC      CPU
+ All    f64a.7787.e4a1    STATIC      CPU
+ All    453a.6084.a133    STATIC      CPU
+ All    72e7.ba36.dfca    STATIC      CPU
+ All    7295.56c0.a065    STATIC      CPU
+ All    f2a2.a856.3885    STATIC      CPU
+ All    e2d7.2e9e.8b21    STATIC      CPU
+ All    13b5.2ac7.2045    STATIC      CPU
+ All    387d.365a.605f    STATIC      CPU
+   1    bb0d.53ac.8fa6    DYNAMIC     Fa1/0/48
+   1    ea7c.afe1.22b1    DYNAMIC     Fa1/0/48
+   1    ea58.e340.c694    DYNAMIC     Fa1/0/48
+   1    e5e9.c11b.8463    DYNAMIC     Fa1/0/48
+  10    9afa.6c2b.97c2    DYNAMIC     Fa1/0/48
+  10    bc4e.18ec.a89d    DYNAMIC     Fa1/0/48
+  10    2faf.7392.cbce    DYNAMIC     Fa1/0/48
+  66    dd94.ba68.c7d1    DYNAMIC     Fa1/0/48
+  66    0245.1de6.f7fb    DYNAMIC     Fa1/0/48
+  66    4f97.c7f9.324d    DYNAMIC     Fa1/0/2
+  66    8d8d.9838.a632    DYNAMIC     Fa1/0/1
+  66    2cef.7c39.1029    DYNAMIC     Fa1/0/48
+  66    45f8.cc31.edb5    DYNAMIC     Fa1/0/3
+  66    1f0f.2551.f4e7    DYNAMIC     Fa1/0/48
+  66    74b3.dd95.c4c1    DYNAMIC     Fa1/0/48
+  66    7eaa.2a8c.b042    DYNAMIC     Fa1/0/48
+  66    b0c5.a0de.ac40    DYNAMIC     Fa1/0/48
+  66    03c4.ab64.73e4    DYNAMIC     Fa1/0/48
+  66    86e7.c9ea.e238    DYNAMIC     Fa1/0/48
+  66    7ef5.a927.19b3    DYNAMIC     Fa1/0/48
+  66    4526.720a.bacf    DYNAMIC     Fa1/0/48
+  66    0bf1.a815.d2ed    DYNAMIC     Fa1/0/48
+  66    4ad0.bf26.7a8e    DYNAMIC     Fa1/0/48
+  66    fd9a.fade.1bce    DYNAMIC     Fa1/0/48
+  66    27d0.f895.9f3a    DYNAMIC     Fa1/0/48
+  66    b990.5647.8546    DYNAMIC     Fa1/0/48
+  66    777d.52ae.74c7    DYNAMIC     Fa1/0/48
+  66    181d.3942.f18e    DYNAMIC     Fa1/0/48
+  66    35f0.9387.45db    DYNAMIC     Fa1/0/48
+  66    5435.5450.91f1    DYNAMIC     Fa1/0/5
+  66    8ae4.f057.a7cd    DYNAMIC     Fa1/0/6
+  66    38dc.e5be.f3b2    DYNAMIC     Fa1/0/4
+  66    6693.70ba.c3c5    DYNAMIC     Fa1/0/48
+  66    4a69.434e.9984    DYNAMIC     Fa1/0/48
+  66    b4d4.6ecc.5a75    DYNAMIC     Fa1/0/48
+  66    341e.c482.a72e    DYNAMIC     Fa1/0/48
+  66    cdd7.1647.9190    DYNAMIC     Fa1/0/48
+  66    9578.d88d.484e    DYNAMIC     Fa1/0/48
+  66    2d72.a1d7.d4c1    DYNAMIC     Fa1/0/48
+  66    a9ff.254f.d0f6    DYNAMIC     Fa1/0/48
+  66    9cba.f010.9bc5    DYNAMIC     Fa1/0/48
+  66    36e8.ec29.d246    DYNAMIC     Fa1/0/48
+Total Mac Addresses for this criterion: 62
+JYZ-FIH-UOUL-SBNH-1706>

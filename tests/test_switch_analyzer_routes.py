@@ -31,6 +31,15 @@ class SwitchAnalyzerRoutesTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.get_json()["ok"])
 
+    def test_an_undetectable_file_gets_an_english_message_that_says_what_to_do(self):
+        # The device list shows this text next to the failed file, so it must not be the raw (Indonesian) engine error.
+        response = self.client.post("/switch-analyzer/api/analyze", data={"config_text": "nothing useful here\n", "vendor": "Auto Detect"})
+        body = response.get_json()
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(body["ok"])
+        self.assertIn("Choose Cisco, Huawei or Aruba", body["error"])
+        self.assertNotIn("tidak dapat", body["error"])
+
     def test_analyze_pasted_text(self):
         response = self.client.post(
             "/switch-analyzer/api/analyze",
@@ -65,6 +74,27 @@ class SwitchAnalyzerRoutesTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("20 MB", response.get_json()["error"])
+
+    def test_uploaded_file_may_be_larger_than_pasted_text(self):
+        """A capture file may reach 40 MB (an ACL-log flood makes a `show events` of tens of MB); pasted text stays at 20 MB."""
+        from unittest import mock
+        from features.switch_analyzer import routes
+
+        self.assertEqual(routes.MAX_CONFIG_BYTES, 20 * 1024 * 1024)
+        self.assertEqual(routes.MAX_CONFIG_FILE_BYTES, 40 * 1024 * 1024)
+        config = "hostname SIZE-SW01\ninterface GigabitEthernet1/0/1\n description x\n"
+        padded = config + "! " + "a" * 3000 + "\n"
+        with mock.patch.object(routes, "MAX_CONFIG_BYTES", 1024), mock.patch.object(routes, "MAX_CONFIG_FILE_BYTES", 4096):
+            accepted = self.client.post("/switch-analyzer/api/analyze", content_type="multipart/form-data",
+                                        data={"config_file": (io.BytesIO(padded.encode()), "size.txt"), "vendor": "Cisco"})
+            self.assertEqual(accepted.status_code, 200, accepted.get_json())
+            pasted = self.client.post("/switch-analyzer/api/analyze", data={"config_text": padded, "vendor": "Cisco"})
+            self.assertEqual(pasted.status_code, 400)
+            self.assertIn("1024 bytes", pasted.get_json()["error"])
+            huge = self.client.post("/switch-analyzer/api/analyze", content_type="multipart/form-data",
+                                    data={"config_file": (io.BytesIO(b"x" * 5000), "huge.txt"), "vendor": "Cisco"})
+            self.assertEqual(huge.status_code, 400)
+            self.assertIn("4096 bytes", huge.get_json()["error"])
 
     def test_unparseable_config_returns_400_not_500(self):
         response = self.client.post(

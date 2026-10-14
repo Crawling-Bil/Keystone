@@ -1,0 +1,7 @@
+GEN-MHWA-HHKPW6-5617# show arp
+ IP ARP table
+
+  IP Address       MAC Address       Type    Port
+  ---------------  ----------------- ------- ----
+  10.255.0.1      97f0ea-94d0e4     dynamic 25  
+

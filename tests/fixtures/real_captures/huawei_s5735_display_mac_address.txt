@@ -1,0 +1,49 @@
+<LEG-ZHPU-EVPYEIE-SDOZ-L2945>display mac-address
+Flags: * - Backup
+       # - forwarding logical interface, operations cannot be performed based
+           on the interface.
+BD   : bridge-domain   Age : dynamic MAC learned time in seconds
+-------------------------------------------------------------------------------
+MAC Address    VLAN/VSI/BD   Learned-From        Type                Age
+-------------------------------------------------------------------------------
+0af7-c539-b250 1/-/-         Eth-Trunk1          dynamic             717
+244c-b4a9-b042 1/-/-         Eth-Trunk1          dynamic             719
+fdaf-2a4a-1bf9 1/-/-         Eth-Trunk1          dynamic             704
+f336-8919-c039 10/-/-        Eth-Trunk1          dynamic             549
+a496-1af8-0e44 10/-/-        Eth-Trunk1          dynamic             541
+b980-8c4e-1e91 66/-/-        Eth-Trunk1          dynamic             140
+3778-e662-c0a2 66/-/-        Eth-Trunk1          dynamic             118
+6e2f-0759-65e9 66/-/-        GE1/0/2             dynamic            7449
+b242-2cef-5613 66/-/-        GE1/0/1             dynamic             535
+66c7-ea26-3d99 66/-/-        Eth-Trunk1          dynamic             320
+303e-feba-1b73 66/-/-        GE1/0/3             dynamic             623
+f49c-3ee3-7413 66/-/-        Eth-Trunk1          dynamic             251
+a9a9-e60e-f35b 66/-/-        Eth-Trunk1          dynamic             458
+cce0-0624-7a24 66/-/-        Eth-Trunk1          dynamic             541
+ea92-2253-d7cb 66/-/-        Eth-Trunk1          dynamic             462
+1b17-189e-8340 66/-/-        Eth-Trunk1          dynamic             541
+ede3-facd-ef63 66/-/-        Eth-Trunk1          dynamic             489
+e05e-ba09-7072 66/-/-        Eth-Trunk1          dynamic             458
+e72a-622e-0c88 66/-/-        Eth-Trunk1          dynamic             381
+d5ae-2571-c2d4 66/-/-        Eth-Trunk1          dynamic             382
+5c5f-7b5e-8a32 66/-/-        Eth-Trunk1          dynamic             481
+aaa8-db90-6cce 66/-/-        Eth-Trunk1          dynamic             463
+41f2-91b4-db80 66/-/-        Eth-Trunk1          dynamic             608
+0ef4-e463-cc04 66/-/-        Eth-Trunk1          dynamic             518
+5545-9b2e-bde3 66/-/-        Eth-Trunk1          dynamic             508
+c6aa-fce1-8c8e 66/-/-        GE1/0/5             dynamic             478
+611d-aa43-5107 66/-/-        GE1/0/6             dynamic             556
+9439-2409-da53 66/-/-        GE1/0/4             dynamic             447
+821c-8439-b263 66/-/-        Eth-Trunk1          dynamic             302
+2780-5c6e-b8d5 66/-/-        Eth-Trunk1          dynamic             498
+97fc-b170-8722 66/-/-        Eth-Trunk1          dynamic             509
+cf89-3629-6eb4 66/-/-        Eth-Trunk1          dynamic             493
+6c09-6640-8b2a 66/-/-        Eth-Trunk1          dynamic             506
+f76e-1de5-e8b4 66/-/-        Eth-Trunk1          dynamic             321
+0de8-a982-6adc 66/-/-        Eth-Trunk1          dynamic             373
+841f-3579-9f92 66/-/-        Eth-Trunk1          dynamic             373
+2e75-f4ad-a41d 66/-/-        Eth-Trunk1          dynamic             486
+b843-9493-5eac 66/-/-        Eth-Trunk1          dynamic             486
+-------------------------------------------------------------------------------
+Total items: 38
+<LEG-ZHPU-EVPYEIE-SDOZ-L2945>

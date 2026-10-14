@@ -1,0 +1,14 @@
+# Keystone collect list - Fortinet FortiGate (FortiOS 6.4 - 7.6)
+# Log in with a read-only profile (super_admin_readonly is enough), paste the commands, save the whole terminal buffer and upload it to the Firewall Analyzer.
+# Every command below only reads. If the session stops at --More--, enable "no paging" in your terminal tool; changing 'config system console / set output standard' is a configuration change, so it is not part of this list.
+
+get system status
+
+# Complete configuration, including values that equal the default (needed for a full audit). Multi-VDOM: run it from the global context.
+show full-configuration
+
+get router info routing-table all
+get router info bgp summary
+get vpn ipsec tunnel summary
+get system ha status
+get system performance status

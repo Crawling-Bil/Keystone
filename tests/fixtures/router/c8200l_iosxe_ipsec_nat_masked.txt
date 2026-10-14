@@ -1,0 +1,330 @@
+WAW-RSLS8-SC#show clock
+16:02:23.591 JAKARTA Tue Apr 7 2026
+
+WAW-RSLS8-SC#show ver
+Cisco IOS XE Software, Version 17.09.06
+Cisco IOS Software [Cupertino], c8000be Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.9.6, RELEASE SOFTWARE (fc2)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2024 by Cisco Systems, Inc.
+Compiled Wed 11-Sep-24 23:19 by mcpre
+
+
+Cisco IOS-XE software, Copyright (c) 2005-2024 by cisco Systems, Inc.
+All rights reserved.  Certain components of Cisco IOS-XE software are
+licensed under the GNU General Public License ("GPL") Version 2.0.  The
+software code licensed under GPL Version 2.0 is free software that comes
+with ABSOLUTELY NO WARRANTY.  You can redistribute and/or modify such
+GPL code under the terms of GPL Version 2.0.  For more details, see the
+documentation or "License Notice" file accompanying the IOS-XE software,
+or the applicable URL provided on the flyer accompanying the IOS-XE
+software.
+
+
+ROM: 17.6(8.1r)
+
+WAW-RSLS8-SC uptime is 1 year, 19 weeks, 5 days, 23 hours, 41 minutes
+Uptime for this control processor is 1 year, 19 weeks, 5 days, 23 hours, 42 minutes
+System returned to ROM by PowerOn at 13:39:08 JAKARTA Mon Oct 2 2023
+System restarted at 16:21:03 JAKARTA Tue Nov 19 2024
+System image file is "bootflash:packages.conf"
+Last reload reason: PowerOn
+
+
+
+This product contains cryptographic features and is subject to United
+States and local country laws governing import, export, transfer and
+use. Delivery of Cisco cryptographic products does not imply
+third-party authority to import, export, distribute or use encryption.
+Importers, exporters, distributors and users are responsible for
+compliance with U.S. and local country laws. By using this product you
+agree to comply with applicable laws and regulations. If you are unable
+to comply with U.S. and local laws, return this product immediately.
+
+A summary of U.S. laws governing Cisco cryptographic products may be found at:
+http://www.cisco.com/wwl/export/crypto/tool/stqrg.html
+
+If you require further assistance please contact us by sending email to
+export@cisco.com.
+
+
+Technology Package License Information:
+
+-----------------------------------------------------------------
+Technology     Type         Technology-package Technology-package
+                            Current            Next Reboot
+-----------------------------------------------------------------
+Smart License  Perpetual    network-advantage  network-advantage
+Smart License  Subscription None               None
+
+The current crypto throughput level is 250000 kbps
+
+
+Smart Licensing Status: Smart Licensing Using Policy
+
+cisco C8200L-1N-4T (1RU) processor with 1653558K/6147K bytes of memory.
+Processor board ID CYX6484QIVG
+Router operating mode: Autonomous
+4 Gigabit Ethernet interfaces
+32768K bytes of non-volatile configuration memory.
+4194304K bytes of physical memory.
+7577599K bytes of flash memory at bootflash:.
+
+Configuration register is 0x102
+
+WAW-RSLS8-SC#show run
+Building configuration...
+hostname WAW-RSLS8-SC
+!
+crypto ikev2 proposal A128-S1-G2
+ encryption aes-cbc-128
+ integrity sha1
+ group 2
+!
+crypto ikev2 proposal A256-S1-G14
+ encryption aes-cbc-256
+ integrity sha1
+ group 14
+!
+crypto ikev2 proposal A256-S1-G2
+ encryption aes-cbc-256
+ integrity sha1
+ group 2
+!
+crypto ikev2 proposal A256-S256-G14
+ encryption aes-cbc-256
+ integrity sha256
+ group 14
+!
+crypto ikev2 proposal A256-S256-G19
+ encryption aes-cbc-256
+ integrity sha256
+ group 19
+!
+crypto ikev2 proposal default
+ encryption aes-cbc-256 aes-cbc-192 aes-cbc-128
+ integrity sha512 sha384 sha256 sha1 md5
+ group 2 5
+!
+crypto ikev2 policy POL-DPTP
+ proposal A256-S1-G2
+ proposal A256-S256-G14
+ proposal A128-S1-G2
+ proposal A256-S256-G19
+ proposal A256-S1-G14
+!
+crypto ikev2 keyring KR-CWVRFG-DC
+ peer CWVRFG-DC
+  address 10.255.1.90
+  pre-shared-key FIXTURE-PSK-01
+ !
+!
+crypto ikev2 keyring KR-CMQUZG-DC
+ peer CMQUZG-DC
+  address 10.255.2.72
+  pre-shared-key FIXTURE-PSK-02
+ !
+!
+crypto ikev2 keyring KR-CNSG-DC
+ peer CNSG-DC
+  address 10.255.3.114
+  pre-shared-key FIXTURE-PSK-03
+ !
+!
+crypto ikev2 profile PROFILE-CWVRFG-DC
+ match identity remote address 10.255.1.90 255.255.255.255
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local KR-CWVRFG-DC
+ lifetime 5400
+!
+crypto ikev2 profile PROFILE-CMQUZG-DC
+ match identity remote address 10.255.2.72 255.255.255.255
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local KR-CMQUZG-DC
+ lifetime 36600
+!
+crypto ikev2 profile PROFILE-CNSG-DC
+ match identity remote address 10.255.3.114 255.255.255.255
+ match identity remote address 10.255.4.170 255.255.255.255
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local KR-CNSG-DC
+!
+crypto isakmp policy 10
+ encryption aes
+ hash sha
+ authentication pre-share
+ group 5
+ lifetime 28800
+!
+crypto isakmp policy 20
+ encryption 3des
+ hash sha
+ authentication pre-share
+ group 2
+!
+crypto isakmp policy 30
+ encryption aes
+ hash sha
+ authentication pre-share
+ group 2
+ lifetime 28800
+!
+crypto isakmp policy 40
+ encryption aes 256
+ hash sha256
+ authentication pre-share
+ group 2
+!
+crypto isakmp key FIXTURE-PSK-04 address 10.255.5.14
+!
+crypto isakmp key FIXTURE-PSK-05 address 10.255.6.109
+!
+crypto isakmp key FIXTURE-PSK-05 address 10.255.7.22
+!
+crypto isakmp key FIXTURE-PSK-04 address 10.255.8.54
+!
+crypto ipsec transform-set VXN-TS esp-3des esp-sha-hmac
+ mode tunnel
+!
+crypto ipsec transform-set FRRVUB-TS esp-aes esp-sha-hmac
+ mode tunnel
+!
+crypto ipsec transform-set CNSG-TS esp-aes 256 esp-sha-hmac
+ mode tunnel
+!
+crypto ipsec transform-set CWVRFG-TS esp-aes 256 esp-sha256-hmac
+ mode tunnel
+!
+crypto ipsec transform-set AMQUQLPDT-TS esp-3des esp-md5-hmac
+ mode tunnel
+!
+crypto map VXN-CM 10 ipsec-isakmp
+ set peer 10.255.8.54
+ set peer 10.255.5.14
+ set security-association lifetime seconds 86400
+ set security-association idle-time 86400
+ set transform-set VXN-TS
+ match address IPSEC-VXN-DC
+!
+crypto map FRRVUB-CM 10 ipsec-isakmp
+ set peer 10.255.6.109
+ set security-association lifetime seconds 1800
+ set transform-set FRRVUB-TS
+ set pfs group5
+ match address FRRVUB-DC
+!
+crypto map FRRVUB-CM 20 ipsec-isakmp
+ set peer 10.255.7.22
+ set security-association lifetime seconds 1800
+ set transform-set FRRVUB-TS
+ set pfs group5
+ match address FRRVUB-DRC
+!
+interface Port-channel5
+ ip address 10.255.9.70 255.255.255.248
+ ip nat inside
+ standby version 2
+ standby 1 ip 10.255.9.68
+ no negotiation auto
+!
+interface GigabitEthernet0/0/2.2
+ encapsulation dot1Q 275
+ ip address 10.255.10.197 255.255.255.252
+ ip nat outside
+ ip access-group ACL-NUUNBG-H2H in
+ ip virtual-reassembly
+!
+interface GigabitEthernet0/0/2.101
+ encapsulation dot1Q 284
+ ip address 10.255.11.145 255.255.255.252
+ ip nat outside
+ crypto map FRRVUB-CM
+ ip virtual-reassembly
+!
+interface GigabitEthernet0/0/2.102
+ bandwidth 1024
+ encapsulation dot1Q 244
+ ip address 10.255.12.142 255.255.255.252
+ ip nat outside
+ crypto map VXN-CM
+ crypto ipsec df-bit clear
+ ip virtual-reassembly
+!
+interface GigabitEthernet0/0/2.301
+ bandwidth 256
+ encapsulation dot1Q 202
+ ip address 10.255.13.178 255.255.255.248
+ ip nat outside
+ ip virtual-reassembly
+!
+ip nat pool NAT-ITAK 10.255.14.88 10.255.14.88 netmask 255.255.255.0
+!
+ip nat pool NAT-ILRPOCM-DEV 10.255.14.202 10.255.14.202 netmask 255.255.255.0
+!
+ip nat pool NAT-CWVRFG 10.255.14.90 10.255.14.90 netmask 255.255.255.0
+!
+ip nat inside source static tcp 10.255.15.146 21 10.255.14.10 21 extendable
+!
+ip nat inside source static tcp 10.255.15.146 22 10.255.14.10 22 extendable
+!
+ip nat inside source static tcp 10.255.15.146 1433 10.255.14.10 1433 extendable
+!
+ip nat inside source static tcp 10.255.15.146 3389 10.255.14.10 3389 extendable
+!
+ip nat inside source static tcp 10.255.15.146 5102 10.255.14.10 5102 extendable
+!
+ip nat inside source static tcp 10.255.15.146 5201 10.255.14.10 5201 extendable
+!
+ip nat inside source static tcp 10.255.15.146 6101 10.255.14.10 6101 extendable
+!
+ip nat inside source static tcp 10.255.15.146 6201 10.255.14.10 6201 extendable
+!
+ip nat inside source static tcp 10.255.15.146 8133 10.255.14.10 8133 extendable
+!
+ip nat inside source static 10.255.15.146 10.255.14.10
+!
+ip nat inside source static tcp 10.255.15.30 5535 10.255.16.7 5355 extendable
+!
+ip nat inside source list ILRPOCM-DEV pool NAT-ILRPOCM-DEV overload
+!
+ip nat inside source list CWVRFG pool NAT-CWVRFG overload
+!
+ip access-list extended ACL-NUUNBG-H2H
+ 10 permit icmp any any echo-reply
+ 20 permit icmp any any ttl-exceeded
+ 30 permit icmp any any port-unreachable
+ 40 permit ip host 10.255.17.2 host 10.255.10.197
+ 50 permit tcp host 10.255.17.2 eq 8080 host 10.255.10.197
+ 60 permit tcp host 10.255.18.1 eq 1540 host 10.255.14.3
+ 70 permit tcp host 10.255.18.1 eq 8080 host 10.255.14.2
+ 80 permit tcp host 10.255.18.1 eq 8181 host 10.255.14.2
+!
+ip access-list extended ILRPOCM-DEV
+ 10 permit ip 10.255.19.0 0.0.0.255 10.255.20.0 0.0.0.255
+!
+ip access-list extended CWVRFG
+ 10 permit ip host 10.255.19.70 host 10.255.21.5
+!
+ip access-list extended IPSEC-VXN-DC
+ 10 permit ip 10.255.22.0 0.0.0.255 10.255.23.120 0.0.0.7
+ 20 permit ip 10.255.23.120 0.0.0.7 10.255.22.0 0.0.0.255
+!
+ip access-list extended FRRVUB-DC
+ 10 permit ip 10.255.24.0 0.0.0.255 10.255.25.0 0.0.0.255
+ 20 permit ip 10.255.25.0 0.0.0.255 10.255.24.0 0.0.0.255
+ 30 permit ip 10.255.24.0 0.0.0.255 10.255.26.0 0.0.0.255
+ 40 permit ip 10.255.26.0 0.0.0.255 10.255.24.0 0.0.0.255
+ 50 permit ip 10.255.24.0 0.0.0.255 10.255.27.0 0.0.0.255
+ 60 permit ip 10.255.27.0 0.0.0.255 10.255.24.0 0.0.0.255
+!
+ip access-list extended FRRVUB-DRC
+ 10 permit ip 10.255.24.0 0.0.0.255 10.255.28.0 0.0.0.255
+ 20 permit ip 10.255.28.0 0.0.0.255 10.255.24.0 0.0.0.255
+ 30 permit ip 10.255.24.0 0.0.0.255 10.255.29.0 0.0.0.255
+ 40 permit ip 10.255.29.0 0.0.0.255 10.255.24.0 0.0.0.255
+ 50 permit ip 10.255.24.0 0.0.0.255 10.255.30.0 0.0.0.255
+ 60 permit ip 10.255.30.0 0.0.0.255 10.255.24.0 0.0.0.255
+!
+

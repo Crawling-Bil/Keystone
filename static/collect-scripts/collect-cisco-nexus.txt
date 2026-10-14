@@ -1,4 +1,13 @@
-!!! collect backup config nexus 
+!!! collect backup config nexus (v7 2026-10-13)
+!!! v3: added show logging last 1000 (the NX-OS command; a bare show logging prints the whole 10000-line log buffer).
+!!! v3: added the Nexus commands the analyzer now reads: show system resources, show vpc statistics peer-link / peer-keepalive, show port-channel usage / traffic / load-balance, show lacp counters / port-channel, show lldp neighbors system-detail.
+!!! v3: HSRP is show hsrp on NX-OS (a Nexus answers % Invalid command to show standby, the IOS spelling).
+!!! v4: NEW block before show logging last 1000 = commands no parser reads yet. show feature explains every '% Invalid command' (the feature is simply not enabled); show module, show boot, show system reset-reason, show cores and show processes log tell why and when a Nexus restarted; show port-channel database, show vpc orphan-ports and show interface switchport complete the vPC and port-channel picture; the rest feed OSPF / BGP / VRF / NTP / DOM tables.
+!!! v5: HSRP: show hsrp all replaces show hsrp (it also lists a group that is Disabled because its virtual IP is missing; show hsrp and show hsrp brief leave that group out); show hsrp summary added (group totals and packet counters). OSPF: show ip ospf neighbors vrf all and show ip ospf neighbors summary vrf all added, the analyzer reads both. show ip ospf brief vrf all is not an NX-OS command (a Nexus 9000 rejected it); the interface table is show ip ospf interface brief vrf all, added to the block no parser reads yet.
+!!! v6: show ip ospf database added as the LAST command: it prints one line per LSA and ran to about 19,000 lines on a router that carries an external feed, so it goes after the log. It is read now together with show ip ospf interface brief vrf all (LSA totals per area and type, Router LSAs, LSAs near MaxAge). 'term len 0' above must stay: with the pager on, the output is cut by '...skipping N lines' and the analyzer warns that the database is incomplete.
+!!! v4: a command your NX-OS does not know answers '% Invalid command' - harmless. show interface counters errors can be long on a 48-port leaf: keep it above show logging so a cut-off paste keeps the log.
+!!! v7: every command checked against 13 real Nexus captures (NX-OS 7.0(3)I7, 9.3(5), 10.5(5)) and Cisco's NX-OS documentation. show lacp neighbors is now show lacp neighbor (the documented spelling; the plural was rejected by 5 of 5 devices). show switch removed (not an NX-OS command: 'Ambiguous' / 'Invalid command' on every device). show interface trunk added (answered on 5 captures; the Trunks tab reads it).
+!!! v7: kept on purpose - show environment all (accepted by NX-OS 9.3(5), rejected by 7.0(3)I7 and 10.5(5), where show environment answers) and show license summary / all (Smart Licensing, NX-OS 9.3(3) and later; older releases answer % Invalid command).
 
 write memory
 
@@ -24,6 +33,8 @@ show interface desc
 
 show interface status
 
+show interface trunk
+
 show interface brief
 
 show ip interface brief
@@ -32,11 +43,19 @@ show ip arp summary
 
 show ip arp
 
-show standby
+show hsrp all
 
-show standby brief
+show hsrp brief
+
+show hsrp summary
 
 show port-channel summary
+
+show port-channel usage
+
+show port-channel traffic
+
+show port-channel load-balance
 
 show vpc
 
@@ -46,7 +65,9 @@ show vpc role
 
 show vpc peer-keepalive
 
-show vpc statistics
+show vpc statistics peer-link
+
+show vpc statistics peer-keepalive
 
 show vpc consistency-parameters global
 
@@ -60,17 +81,23 @@ show lldp neighbors
 
 show lldp neighbors detail
 
-show lacp neighbors
+show lldp neighbors system-detail
+
+show lacp neighbor
+
+show lacp counters
+
+show lacp port-channel
 
 show spanning-tree 
 
 show spanning-tree summary
 
+show system resources
+
 show environment all
 
 show environment 
-
-show switch
 
 show run | in route
 
@@ -90,6 +117,52 @@ show mac address-table count
 
 show mac address-table
 
+!!! v4 NEW - not parsed yet
 
+show feature
 
+show module
 
+show boot
+
+show system reset-reason
+
+show cores
+
+show processes log
+
+show interface switchport
+
+show interface counters errors
+
+show interface transceiver details
+
+show port-channel database
+
+show vpc orphan-ports
+
+show spanning-tree root
+
+show spanning-tree inconsistentports
+
+show ntp peer-status
+
+show ip ospf neighbors
+
+show ip ospf neighbors vrf all
+
+show ip ospf neighbors summary vrf all
+
+show ip ospf interface brief vrf all
+
+show ip bgp summary
+
+show vrf
+
+show vrf interface
+
+show logging server
+
+show logging last 1000
+
+show ip ospf database

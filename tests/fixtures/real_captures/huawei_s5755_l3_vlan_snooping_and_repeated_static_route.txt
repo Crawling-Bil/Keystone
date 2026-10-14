@@ -1,0 +1,51 @@
+sysname YZTM-DLQIJJ-DM-T3356
+#
+dhcp snooping enable ipv4
+#
+ip vpn-instance _management_vpn_
+ ipv4-family
+#
+vlan 53
+ dhcp snooping enable
+ name P2P-Sangfor
+#
+vlan 700
+ dhcp snooping enable
+ name OT-MGMT
+#
+vlan 701
+ dhcp snooping enable
+ name OT-END-DEVICE
+#
+interface Vlanif1
+ ip address dhcp-alloc
+#
+interface Vlanif53
+ description ** P2P-Sangfor **
+ ip address 10.255.0.1 255.255.255.252
+#
+interface Vlanif700
+ description ** OT-MGMT **
+ ip address 10.255.0.2 255.255.255.224
+#
+interface Vlanif701
+ description ** OT-END-DEVICE **
+ ip address 10.255.0.3 255.255.255.0
+#
+interface Eth-Trunk1
+ description PFUZ-SWAC-OT-S5735
+ port link-type trunk
+ port trunk allow-pass vlan 53 700 to 701
+ dhcp snooping trusted
+#
+ip route-static 0.0.0.0 0.0.0.0 10.255.0.4 description ** PROD-DEFAULT via P2P-Sangfor **
+#
+user-interface vty 0 4
+ authentication-mode aaa
+ idle-timeout 15 0
+ protocol inbound ssh
+#
+ip route-static 0.0.0.0 0.0.0.0 10.255.0.4 description ** PROD-DEFAULT via P2P-Sangfor **
+#
+ip route-static 0.0.0.0 0.0.0.0 10.255.0.4 description ** PROD-DEFAULT via P2P-Sangfor **
+#

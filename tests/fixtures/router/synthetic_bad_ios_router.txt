@@ -1,0 +1,62 @@
+lab-r1#show running-config
+Building configuration...
+
+Current configuration : 4096 bytes
+!
+version 15.2
+service timestamps debug datetime msec
+no service password-encryption
+!
+hostname lab-r1
+!
+enable password cisco123
+!
+username admin privilege 15 password 0 labpass
+username ops privilege 15 password 7 070C285F4D06
+!
+aaa new-model
+!
+ip domain name lab.example
+ip http server
+ip http secure-server
+no ip source-route
+!
+interface Loopback0
+ ip address 192.0.2.1 255.255.255.255
+!
+interface GigabitEthernet0/0
+ description WAN uplink
+ ip address 198.51.100.2 255.255.255.252
+ ip access-group EDGE-IN in
+ no shutdown
+!
+interface GigabitEthernet0/1
+ ip address 10.10.10.1 255.255.255.0
+ ip access-group MISSING-ACL in
+ no shutdown
+!
+router bgp 65001
+ bgp log-neighbor-changes
+ neighbor 198.51.100.1 remote-as 65002
+ neighbor 198.51.100.1 route-map NOT-DEFINED in
+ neighbor 198.51.100.1 password 0 bgpsecret
+!
+ip route 0.0.0.0 0.0.0.0 198.51.100.1
+!
+ip access-list extended EDGE-IN
+ permit ip any any
+!
+ip access-list extended UNUSED-ACL
+ permit tcp any any eq 22
+!
+snmp-server community public RO
+snmp-server community private RW
+!
+line con 0
+ exec-timeout 0 0
+line vty 0 4
+ transport input telnet ssh
+ password vtypass
+ login
+!
+end

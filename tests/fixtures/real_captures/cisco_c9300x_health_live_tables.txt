@@ -1,0 +1,134 @@
+EXAMPLE-CORE1#show version
+Cisco IOS XE Software, Version 17.12.05
+EXAMPLE-CORE1 uptime is 1 year, 12 weeks, 2 days, 22 hours, 28 minutes
+System returned to ROM by Reload Command at 18:51:54 UTC Wed Jul 16 2025
+Last reload reason: Reload Command
+Model Number                       : C9300X-24Y
+Model Number                       : C9300X-24Y
+Last reload reason                 : Reload Command
+
+EXAMPLE-CORE1#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        H - Hot-standby (LACP only)
+        R - Layer3      S - Layer2
+        U - in use      f - failed to allocate aggregator
+        M - not in use, minimum links not met
+        u - unsuitable for bundling
+        w - waiting to be aggregated
+        d - default port
+        A - formed by Auto LAG
+Number of channel-groups in use: 6
+Number of aggregators:           6
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+1      Po1(SU)         LACP        Twe1/0/4(P)     Twe2/0/4(P)
+2      Po2(SU)         LACP        Twe1/0/1(P)     Twe2/0/1(P)
+3      Po3(SU)         LACP        Twe1/0/2(P)     Twe2/0/2(P)
+4      Po4(SU)         LACP        Twe1/0/3(P)     Twe2/0/3(P)
+5      Po5(SU)         LACP        Twe1/1/1(P)     Twe2/1/1(P)
+6      Po6(SU)         LACP        Twe1/1/2(P)     Twe2/1/2(P)
+
+EXAMPLE-CORE1#show lacp neighbor
+Flags:  S - Device is requesting Slow LACPDUs
+        F - Device is requesting Fast LACPDUs
+        A - Device is in Active mode       P - Device is in Passive mode
+Channel group 1 neighbors
+                     LACP port                      Admin  Oper   Port    Port
+Port          Flags  Priority  Dev ID          Age  key    Key    Number  State
+Twe1/0/4      SA     32768     0000.5e00.5301  18s  0x0    0x2    0x132   0x3D
+Twe2/0/4      SA     32768     0000.5e00.5301  20s  0x0    0x2    0x232   0x3D
+Channel group 2 neighbors
+                     LACP port                      Admin  Oper   Port    Port
+Port          Flags  Priority  Dev ID          Age  key    Key    Number  State
+Twe1/0/1      SA     32768     0000.5e00.5301   2s  0x0    0x1    0x11A   0x3D
+Twe2/0/1      SA     32768     0000.5e00.5301   1s  0x0    0x1    0x21A   0x3D
+
+EXAMPLE-CORE1#show spanning-tree summary
+Switch is in rapid-pvst mode
+Root bridge for: VLAN0160, VLAN0163-VLAN0164, VLAN0167, VLAN0170, VLAN0500
+Extended system ID                      is enabled
+Portfast Default                        is disabled
+PortFast BPDU Guard Default            is disabled
+Portfast BPDU Filter Default           is disabled
+Loopguard Default                      is disabled
+EtherChannel misconfig guard            is enabled
+UplinkFast                              is disabled
+BackboneFast                            is disabled
+Configured Pathcost method used is long
+Name                   Blocking Listening Learning Forwarding STP Active
+---------------------- -------- --------- -------- ---------- ----------
+VLAN0001                     0         0        0         10         10
+VLAN0002                     0         0        0          6          6
+
+EXAMPLE-CORE1#show env all
+Sensor List: Environmental Monitoring
+ Sensor          Location        State               Reading       Range(min-max)
+ PS1 Vout        1               GOOD               56174 mV          na
+ PS1 Vin         1               GOOD              227750 mV        90 - 264
+ PS1 CURin       1               GOOD                 355 mA          na
+ PS1 Curout      1               GOOD                1078 mA          na
+ PS1 POWin       1               GOOD               69000 mW          na
+ PS1 POWout      1               GOOD               60500 mW          na
+ PS1 FAN         1               GOOD                4160 rpm         na
+ PS2 Vout        1               GOOD               56432 mV          na
+ PS2 Vin         1               GOOD              229500 mV        90 - 264
+ PS2 CURin       1               GOOD                 480 mA          na
+ PS2 CURout      1               GOOD                1445 mA          na
+ PS2 POWin       1               GOOD               89000 mW          na
+ PS2 POWout      1               GOOD               81500 mW          na
+ PS2 FAN         1               GOOD                3888 rpm         na
+ SYSTEM INLET    1               GREEN                 25 Celsius   0 - 56
+ SYSTEM OUTLET   1               GREEN                 43 Celsius   0 - 125
+ SYSTEM HOTSPOT  1               GREEN                 58 Celsius   0 - 125
+Switch   FAN     Speed   State   Airflow direction
+---------------------------------------------------
+  1       1     6400      OK     Front to Back
+  1       2     6400      OK     Front to Back
+  1       3     6400      OK     Front to Back
+SW  PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts
+--  ------------------  ----------  ---------------  -------  -------  -----
+1A  PWR-C1-715WAC-P     FOC0000X000  OK              Good     n/a      715
+1B  PWR-C1-715WAC-P     FOC0000X000  OK              Good     n/a      715
+---------------------------------------------------
+Sensor List: Environmental Monitoring
+ Sensor          Location        State               Reading       Range(min-max)
+ PS1 Vout        2               GOOD               56367 mV          na
+ PS1 Vin         2               GOOD              226500 mV        90 - 264
+ PS1 CURin       2               GOOD                 465 mA          na
+ PS1 Curout      2               GOOD                1297 mA          na
+ PS1 POWin       2               GOOD               86750 mW          na
+ PS1 POWout      2               GOOD               83625 mW          na
+ PS1 FAN         2               GOOD                4080 rpm         na
+ PS2 Vout        2               GOOD               56432 mV          na
+ PS2 Vin         2               GOOD              227750 mV        90 - 264
+ PS2 CURin       2               GOOD                 469 mA          na
+ PS2 CURout      2               GOOD                1492 mA          na
+ PS2 POWin       2               GOOD               86500 mW          na
+ PS2 POWout      2               GOOD               71750 mW          na
+ PS2 FAN         2               GOOD                4096 rpm         na
+ SYSTEM INLET    2               GREEN                 26 Celsius   0 - 56
+ SYSTEM OUTLET   2               GREEN                 42 Celsius   0 - 125
+ SYSTEM HOTSPOT  2               GREEN                 58 Celsius   0 - 125
+Switch   FAN     Speed   State   Airflow direction
+---------------------------------------------------
+  2       1     6400      OK     Front to Back
+  2       2     6400      OK     Front to Back
+  2       3     6400      OK     Front to Back
+SW  PID                 Serial#     Status           Sys Pwr  PoE Pwr  Watts
+--  ------------------  ----------  ---------------  -------  -------  -----
+2A  PWR-C1-715WAC-P     FOC0000X000  OK              Good     n/a      715
+2B  PWR-C1-715WAC-P     FOC0000X000  OK              Good     n/a      715
+---------------------------------------------------
+
+EXAMPLE-CORE1#show license summary
+Account Information:
+  Smart Account: Example Org As of May 12 12:27:31 2025 UTC
+  Virtual Account: Example Org
+License Usage:
+  License                 Entitlement Tag               Count Status
+  -----------------------------------------------------------------------------
+  network-essentials      (C9300X-12/24Y Network ...)       2 IN USE
+  dna-essentials          (C9300X-12/24Y DNA Esse...)       2 IN USE
+  C9K HSEC                (Cat9K HSEC)                      0 NOT IN USE
+

@@ -1,0 +1,8 @@
+# Keystone collect list - MikroTik RouterOS 6.x / 7.x
+# Paste into a terminal (SSH or WinBox New Terminal) and save the output. hide-sensitive is the default from RouterOS 7; do not export secrets.
+/system resource print
+/system routerboard print
+/export verbose
+/ip firewall connection print count-only
+/ip ipsec active-peers print
+/ip route print

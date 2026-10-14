@@ -1,0 +1,162 @@
+LAB-SW1#terminal length 0
+LAB-SW1#show vlan
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Fa0/7, Fa0/8, Fa0/10, Fa0/11
+                                                Fa0/12, Fa0/13, Fa0/14, Fa0/15
+                                                Gi0/1
+10   MGMT                             active    Fa0/4, Fa0/9
+21   USERS                            active    Fa0/1, Fa0/2, Fa0/3, Fa0/5
+                                                Fa0/6
+22   GUEST                            active
+23   VOICE                            active    Gi0/2
+30   RETIRED                          act/lshut
+1002 fddi-default                     act/unsup
+1003 token-ring-default               act/unsup
+1004 fddinet-default                  act/unsup
+1005 trnet-default                    act/unsup
+
+VLAN Type  SAID       MTU   Parent RingNo BridgeNo Stp  BrdgMode Trans1 Trans2
+---- ----- ---------- ----- ------ ------ -------- ---- -------- ------ ------
+1    enet  100001     1500  -      -      -        -    -        0      0
+10   enet  100010     1500  -      -      -        -    -        0      0
+21   enet  100021     1500  -      -      -        -    -        0      0
+22   enet  100022     1500  -      -      -        -    -        0      0
+23   enet  100023     9000  -      -      -        -    -        0      0
+30   enet  100030     1500  -      -      -        -    -        0      0
+1002 fddi  101002     1500  -      -      -        -    -        0      0
+1003 tr    101003     1500  -      -      -        -    -        0      0
+1004 fdnet 101004     1500  -      -      -        ieee -        0      0
+1005 trnet 101005     1500  -      -      -        ibm  -        0      0
+
+Remote SPAN VLANs
+------------------------------------------------------------------------------
+
+
+Primary Secondary Type              Ports
+------- --------- ----------------- ------------------------------------------
+
+LAB-SW1#sh vlan sum
+Number of existing VLANs               : 10
+ Number of existing VTP VLANs          : 10
+ Number of existing extended VLANS     : 0
+
+LAB-SW1#sh int desc
+Interface                      Status         Protocol Description
+Vl1                            up             up
+Vl10                           up             up       MGMT SVI
+Fa0/1                          up             up       USER PC LAB-01
+Fa0/2                          down           down     "spare patch"
+Fa0/3                          admin down     down
+Fa0/4                          up             up       Uplink to LAB-SW2
+Fa0/5                          down           down     Printer
+Gi0/1                          up             up       Uplink to LAB-CORE
+Gi0/2                          up             up       VoIP gateway
+Po1                            up             up       Etherchannel to LAB-CORE
+LAB-SW1#sh int tru
+
+Port        Mode             Encapsulation  Status        Native vlan
+Gi0/1       on               802.1q         trunking      1
+Po1         on               802.1q         trunking      99
+
+Port        Vlans allowed on trunk
+Gi0/1       1-4094
+Po1         10,21-23,100-102,104-108,111-112,114-126,136-143,147,150-158,161-162,165,201-202,210-217,
+            300-301,307,900,999
+
+Port        Vlans allowed and active in management domain
+Gi0/1       1,10,21-23,30
+Po1         10,21-23
+
+Port        Vlans in spanning tree forwarding state and not pruned
+Gi0/1       1,10,21-23
+Po1         10,21
+LAB-SW1#sh ip arp su
+3 IP ARP entries, with 0 of them incomplete
+LAB-SW1#show ip arp
+Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+Internet  10.10.10.1              -   0011.2233.4401  ARPA   Vlan10
+Internet  10.10.10.20             3   0011.2233.4402  ARPA   Vlan10
+Internet  10.21.0.15              1   0011.2233.4403  ARPA   Vlan21
+LAB-SW1#show mac address-table
+          Mac Address Table
+-------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+ All    0100.0ccc.cccc    STATIC      CPU
+ All    0180.c200.0000    STATIC      CPU
+  10    0011.2233.4402    DYNAMIC     Fa0/4
+  21    0011.2233.4411    DYNAMIC     Fa0/1
+  21    0011.2233.4412    DYNAMIC     Fa0/2
+  23    0011.2233.4421    DYNAMIC     Gi0/2
+Total Mac Addresses for this criterion: 6
+LAB-SW1#sh mac add count
+
+Mac Entries for Vlan 10:
+---------------------------
+Dynamic Address Count  : 1
+Static  Address Count  : 0
+Total Mac Addresses    : 1
+
+Mac Entries for Vlan 21:
+---------------------------
+Dynamic Address Count  : 2
+Static  Address Count  : 0
+Total Mac Addresses    : 2
+
+Mac Entries for Vlan 23:
+---------------------------
+Dynamic Address Count  : 1
+Static  Address Count  : 0
+Total Mac Addresses    : 1
+
+Total Dynamic Address Count  : 4
+Total Static  Address Count  : 0
+Total Mac Address In Use     : 4
+Total Mac Address Space Available: 8188
+LAB-SW1#sh span
+
+VLAN0001
+  Spanning tree enabled protocol rstp
+  Root ID    Priority    32769
+             Address     0011.2233.5500
+             This bridge is the root
+             Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+  Bridge ID  Priority    32769  (priority 32768 sys-id-ext 1)
+             Address     0011.2233.5500
+             Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec
+             Aging Time  300 sec
+
+Interface           Role Sts Cost      Prio.Nbr Type
+------------------- ---- --- --------- -------- --------------------------------
+Gi0/1               Desg FWD 4         128.25   P2p
+Po1                 Desg FWD 3         128.56   P2p
+
+
+
+VLAN0010
+  Spanning tree enabled protocol rstp
+  Root ID    Priority    24586
+             Address     0011.2233.6600
+             Cost        19
+             Port        4 (FastEthernet0/4)
+             Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+  Bridge ID  Priority    32778  (priority 32768 sys-id-ext 10)
+             Address     0011.2233.5500
+             Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec
+             Aging Time  300 sec
+
+Interface           Role Sts Cost      Prio.Nbr Type
+------------------- ---- --- --------- -------- --------------------------------
+Fa0/4               Root FWD 19        128.4    P2p
+Fa0/9               Desg FWD 19        128.9    P2p Edge
+Gi0/1               Altn BLK 4         128.25   P2p Peer(STP)
+Fa0/14              Desg BKN*19        128.14   P2p *TYPE_Inc
+Po1                 Desg FWD 3         128.56   P2p
+
+
+
+LAB-SW1#

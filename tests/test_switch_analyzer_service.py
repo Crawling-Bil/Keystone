@@ -612,7 +612,7 @@ class HuaweiLldpNeighborTest(unittest.TestCase):
             "MEth0/0/0 has 1 neighbor(s):\n"
             "\n"
             "Neighbor index                     :1\n"
-            "Chassis ID                         :744d-6d51-c811\n"
+            "Chassis ID                         :02cb-ab37-4877\n"
             "Port ID subtype                    :Interface Name\n"
             "Port ID                            :MEth0/0/0\n"
             "System name                        :TTC-SWCODI-BU-DMZ-S5755\n"
@@ -891,8 +891,8 @@ class HuaweiFullDeviceModelTest(unittest.TestCase):
             "--------------------------------------------------------------------------------\n"
             "MemberID Role     MAC              Priority   DeviceType              Description\n"
             "--------------------------------------------------------------------------------\n"
-            "1        Master   5041-728c-fab0   200        S5755-H24T4Y2CZ\n"
-            "2        Standby  5041-728c-f6e0   100        S5755-H24T4Y2CZ\n"
+            "1        Master   02c7-1e84-96d0   200        S5755-H24T4Y2CZ\n"
+            "2        Standby  02c7-1e84-9a20   100        S5755-H24T4Y2CZ\n"
             "--------------------------------------------------------------------------------\n"
         )
         result = analyze(config_text, filename="sw1.txt", vendor="Huawei")
@@ -1243,10 +1243,11 @@ class TestAnalyzeCisco(unittest.TestCase):
 
     def test_interface_status_comes_from_show_command_not_just_shutdown_state(self):
         by_name = {item["name"]: item for item in self.result["interfaces"]}
-        # Vlan20 has no "shutdown" line's counterpart checked here -- it's
-        # the runtime brief showing "administratively down" that must
-        # win and get normalized to plain "down".
-        self.assertEqual(by_name["Vlan20"]["status"], "down")
+        # The runtime brief says "administratively down" for Vlan20. That is
+        # an intentional shutdown, so it is reported as "admin down" and is
+        # no longer folded into a plain "down" (which would look like a fault).
+        self.assertEqual(by_name["Vlan20"]["status"], "admin down")
+        self.assertEqual(by_name["Vlan20"]["status_source"], "show ip interface brief")
         self.assertEqual(by_name["GigabitEthernet0/1"]["mode"], "trunk")
         self.assertEqual(by_name["GigabitEthernet0/2"]["port_security"], "Enabled")
 
@@ -1270,7 +1271,10 @@ class TestAnalyzeCisco(unittest.TestCase):
         cards = self.result["cards"]
         self.assertEqual(cards["total_interfaces"], len(self.result["interfaces"]))
         self.assertEqual(cards["total_vlans"], 2)
-        self.assertEqual(cards["interfaces_up"] + cards["interfaces_down"], cards["total_interfaces"])
+        self.assertEqual(
+            cards["interfaces_up"] + cards["interfaces_down"] + cards["interfaces_admin_down"] + cards["interfaces_unknown"],
+            cards["total_interfaces"],
+        )
 
 
 class TestAnalyzeHuawei(unittest.TestCase):

@@ -1,0 +1,22 @@
+# event lines of a standalone switch, no command echo
+2026-06-16T04:57:28.613112+07:00 ODA-ENIERQ-TWJKWFP-YAK ops-switchd[664]: Event|10001|LOG_INFO|CDTR|1|List ACL_ONE_IN, seq# 10 permitted tcp 10.255.0.1(49678) -> 10.255.0.2(5328) on vlan 216, port 1/1/24, direction routed-in
+2026-06-16T05:02:28.730725+07:00 ODA-ENIERQ-TWJKWFP-YAK ops-switchd[664]: Event|10002|LOG_INFO|CDTR|1|ACL_TWO_IN on vlan218 (routed-in):          128 10 permit any GROUP_A GROUP_B log count
+2026-06-16T05:02:28.740738+07:00 ODA-ENIERQ-TWJKWFP-YAK ops-switchd[664]: Event|10002|LOG_INFO|CDTR|1|ACL_TWO_OUT on vlan218 (routed-out):          119 10 permit any GROUP_B GROUP_A log count
+2026-06-16T05:02:28.743248+07:00 ODA-ENIERQ-TWJKWFP-YAK ops-switchd[664]: Event|10002|LOG_INFO|CDTR|1|ACL_ONE_IN on vlan216 (routed-in):          179 10 permit any GROUP_C GROUP_D log count
+2026-06-16T05:02:30.220672+07:00 ODA-ENIERQ-TWJKWFP-YAK ops-switchd[664]: Event|10001|LOG_INFO|CDTR|1|List ACL_ONE_IN, seq# 10 permitted tcp 10.255.0.1(49678) -> 10.255.0.2(5328) on vlan 216, port 1/1/24, direction routed-in
+2026-06-16T05:07:32.559881+07:00 ODA-ENIERQ-TWJKWFP-YAK ops-switchd[664]: Event|10001|LOG_INFO|CDTR|1|List ACL_TWO_IN, seq# 10 permitted tcp 10.255.0.3(60870) -> 10.255.0.4(443) on vlan 218, port 1/1/20, direction routed-in
+2026-06-16T08:22:28.796942+07:00 ODA-ENIERQ-TWJKWFP-YAK hpe-sysmond[3331]: Event|6303|LOG_INFO|CDTR|1|Current system memory usage for module 1/1 is 29%
+2026-06-16T14:22:29.948652+07:00 ODA-ENIERQ-TWJKWFP-YAK hpe-sysmond[3331]: Event|6303|LOG_INFO|CDTR|1|Current system memory usage for module 1/1 is 28%
+2026-06-16T20:22:36.289100+07:00 ODA-ENIERQ-TWJKWFP-YAK hpe-sysmond[3331]: Event|6303|LOG_INFO|CDTR|1|Current system memory usage for module 1/1 is 28%
+2026-06-17T07:52:38.229038+07:00 ODA-ENIERQ-TWJKWFP-YAK hpe-pvstd[3412]: Event|5007|LOG_INFO|CDTR|1|Topology change generated on port 1/1/6 on VLAN 200.
+2026-06-17T12:25:37.077031+07:00 ODA-ENIERQ-TWJKWFP-YAK ops-switchd[664]: Event|2108|LOG_INFO|CDTR|1|Created Mac based VLAN entry. VLAN 200 is mapped to client ef:01:5a:8c:d7:6a on port 1/1/6
+2026-06-17T12:30:29.388415+07:00 ODA-ENIERQ-TWJKWFP-YAK ops-switchd[664]: Event|2108|LOG_INFO|CDTR|1|Created Mac based VLAN entry. VLAN 200 is mapped to client ef:01:5a:8c:d7:6a on port 1/1/6
+2026-06-17T12:35:29.389524+07:00 ODA-ENIERQ-TWJKWFP-YAK ops-switchd[664]: Event|2108|LOG_INFO|CDTR|1|Created Mac based VLAN entry. VLAN 200 is mapped to client ef:01:5a:8c:d7:6a on port 1/1/6
+2026-06-18T06:37:46.202793+07:00 ODA-ENIERQ-TWJKWFP-YAK hpe-pvstd[3412]: Event|5007|LOG_INFO|CDTR|1|Topology change generated on port 1/1/6 on VLAN 200.
+2026-06-18T06:38:05.317192+07:00 ODA-ENIERQ-TWJKWFP-YAK hpe-pvstd[3412]: Event|5007|LOG_INFO|CDTR|1|Topology change generated on port 1/1/7 on VLAN 200.
+2026-06-21T06:32:22.305845+07:00 ODA-ENIERQ-TWJKWFP-YAK log-proxyd[716]: Event|5209|LOG_INFO|CDTR|1|User monitor.user logged in from 10.255.0.5 through SSH session.
+2026-06-28T06:33:04.063208+07:00 ODA-ENIERQ-TWJKWFP-YAK log-proxyd[716]: Event|5209|LOG_INFO|CDTR|1|User monitor.user logged in from 10.255.0.5 through SSH session.
+2026-06-30T12:00:04.805890+07:00 ODA-ENIERQ-TWJKWFP-YAK log-proxyd[716]: Event|5209|LOG_INFO|CDTR|1|User monitor.user logged in from 10.255.0.6 through SSH session.
+2026-07-07T15:11:24.377701+07:00 ODA-ENIERQ-TWJKWFP-YAK log-mgmtd[3219]: Event|1223|LOG_WARN|CDTR|1|The event-log buffer is almost full.
+2026-07-14T15:53:59.306548+07:00 ODA-ENIERQ-TWJKWFP-YAK log-proxyd[716]: Event|5210|LOG_ERR|CDTR|1|User login.user login from 10.255.0.6 for SSH session has failed.
+2026-08-17T00:13:14.756419+07:00 ODA-ENIERQ-TWJKWFP-YAK log-mgmtd[3219]: Event|1224|LOG_WARN|CDTR|1|The event-log buffer has wrapped, older logs will be overwritten.

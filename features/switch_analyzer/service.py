@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import ipaddress
 import re
 from pathlib import Path
 from typing import Any
 
 from features.configuration_studio.service import create_engine
-from . import runtime_parser
+from . import aoscx, bundles, capture_text, coverage, finding_context, findings, fingerprint, fhrp, fhrp_live, health, health_aoscx, l3, live_state, logs, nxos_extras, nxos_routes, ospf_db, ospf_live, parts, runtime_parser, serials, show_tables, stp_detail, tabs
 
 IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 
@@ -57,6 +58,15 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
     """
     engine = create_engine()
 
+    # Vendor/brand comes from the device's own identity (show version /
+    # inventory / config header) rather than keyword counting, which mistook
+    # a config-less Cisco Catalyst 2960S capture for Aruba. Only used for
+    # "Auto Detect"; an explicit pick is respected but contradicted picks are
+    # reported in result["detection"]["warning"].
+    detection = fingerprint.detect(text)
+    detection_info = _detection_info(detection, vendor, engine)
+    effective_vendor = detection_info["vendor_used"]
+
     tmp_dir = Path("/tmp") if Path("/tmp").exists() else Path.cwd()
     tmp_path = tmp_dir / f"switch-analyzer-{abs(hash(text)) % (10 ** 8)}-{Path(filename).name}"
     tmp_path.write_text(text, encoding="utf-8")
@@ -64,31 +74,91 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
     try:
         config = engine.parse(
             tmp_path,
-            source_vendor=vendor,
+            source_vendor=effective_vendor,
             source_device_type="Switch",
         )
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    detected_vendor = str(getattr(config, "source_vendor", "") or vendor)
+    detected_vendor = str(getattr(config, "source_vendor", "") or effective_vendor)
+    detection_info["vendor_reported"] = detected_vendor
 
     lines = text.splitlines()
+    clean = capture_text.clean_lines(text)
+    # Only the Logs tab and Coverage need the device log itself. A 35 MB ArubaOS-CX `show logging` dump (180,000 syslog
+    # lines) made every table reader scan all of it; they get the capture without those lines.
+    clean_all = clean
+    clean, lines = _without_syslog_flood(clean_all, lines)
+    # ArubaOS-CX (6000 / 6100 / 6200 / 6300 ...) has its own CLI; its show output is read by aoscx.py and replaces the readers that find nothing in it.
+    av = aoscx.build(clean) if aoscx.is_aoscx(clean) else None
     interface_brief = runtime_parser.parse_interface_brief(lines)
     if detected_vendor.lower() == "huawei":
         interface_brief = _normalize_huawei_brief_keys(interface_brief)
-    neighbors = runtime_parser.parse_neighbors(lines)
+    # the cleaned capture: a pasted command list puts `show cdp neighbors` on a line of its own ahead of the real prompt line, and the section reader stops at the next bare command
+    neighbors = runtime_parser.parse_neighbors(clean)
     port_channels = runtime_parser.parse_port_channels(lines)
+    if av:
+        neighbors = av["neighbors"] or neighbors
+        port_channels = av["port_channels"] or port_channels
     os_version = runtime_parser.parse_version(lines)
+    if av and (av["os_version"]["os_version"] or av["os_version"]["model"]):
+        os_version = av["os_version"]
     routing_table = runtime_parser.parse_ip_route_table(lines)
-    arp_table = runtime_parser.parse_arp_table(lines)
-    transceivers = runtime_parser.parse_transceivers(lines)
+    # NX-OS prints a prefix line plus one `via` line per next hop; the IOS reader above finds nothing in that layout
+    routing_table += nxos_routes.parse_ip_routes(clean)
+    if av and av["routes"]:
+        routing_table = list(av["routes"])
+    for route_row in routing_table:
+        # one routing protocol name per row (Connected / Static / OSPF ...) for the filter chips on the Routing tab
+        route_row["group"] = l3.protocol_group(route_row.get("protocol", "")) or "Other"
+    arp_table, arp_check = live_state.parse_arp_with_meta(clean)
+    mac_table, mac_check = live_state.parse_mac_table_with_meta(clean)
+    if av and not arp_table and av["arp_meta"]:
+        arp_table, arp_check = av["arp"], av["arp_meta"]
+    if av and not mac_table and av["mac_meta"]:
+        mac_table, mac_check = av["mac"], av["mac_meta"]
+    tables = show_tables.build(clean)
+    stp_view = stp_detail.build_spanning_tree(clean)
+    if av:
+        tables["vlan_db"] = av["vlan_db"] if av["vlan_db"]["captured"] else tables["vlan_db"]
+        tables["trunks"] = av["trunks"] if av["trunks"]["captured"] else tables["trunks"]
+        tables["mac_count"] = av["mac_count"] or tables["mac_count"]
+        stp_view = av["stp"] if av["stp"]["captured"] else stp_view
+    _attach_device_counts(arp_check, len(arp_table), tables["arp_summary"], "ARP", "IP ARP entries")
+    # the device does not count its own CPU rows ("All 0100.0ccc.cccc STATIC CPU"), so the host rows are what its total matches
+    _attach_device_counts(mac_check, sum(1 for row in mac_table if not row.get("system")), tables["mac_count"], "MAC", "MAC entries")
+    live_observations = live_state.observe_interface_states(clean)
+    if av:
+        live_state.add_observations(live_observations, av["observations"])
+    config_admin = live_state.config_admin_state(clean, detected_vendor)
+    # Cleaned lines: a session-log record header in front of `NAME:` / the
+    # transceiver block would otherwise hide it from the reader.
+    transceivers = runtime_parser.parse_transceivers(clean)
+    if av and av["transceivers"]:
+        transceivers = av["transceivers"]
     poe = runtime_parser.parse_poe(lines)
     vpc_mlag = runtime_parser.parse_vpc_mlag(lines)
-    inventory = runtime_parser.parse_inventory(lines)
+    vpc_mlag = nxos_extras.refine_vpc(vpc_mlag, clean)       # NX-OS: the live `show vpc` rows (down*, wrapped reasons) from the cleaned capture
+    # Session-log captures prefix every line with a record header, which hides
+    # `NAME:` / `Switch 1` from the inventory parser; the cleaned text is the
+    # same capture without the transport noise.
+    inventory = runtime_parser.parse_inventory(clean)
+    if av and (av["inventory"]["modules"] or av["inventory"]["stack"]["members"]):
+        inventory = dict(inventory, **av["inventory"])
+    # The device's own serial number (and one per stack member). Taken from the
+    # live stack table, before the config-only stack fallback below.
+    serial_info = serials.parse_serials(clean, detected_vendor, inventory["stack"]["members"])
+    if av and av["serials"]["serial_number"]:
+        serial_info = av["serials"]
 
-    interfaces = _build_interfaces(config, interface_brief)
-    routes = _build_routes(config)
-    vlans = _build_vlans(config)
+    interfaces = _build_interfaces(config, interface_brief, live_observations, config_admin, detected_vendor)
+    if av:
+        _apply_aoscx_detail(interfaces, av["interfaces"])
+    _apply_runtime_descriptions(interfaces, tables["descriptions"]["rows"])
+    _apply_runtime_trunks(interfaces, tables["trunks"]["rows"])
+    l3_view = l3.build_l3(clean, detected_vendor, interfaces=interfaces, routing_table=routing_table)
+    routes = _build_routes(config, l3_view)
+    vlans = _build_vlans(config, runtime_parser.parse_vlan_brief(lines), tables["vlan_db"])
     dns = _extract_dns(config)
     snmp = _extract_snmp(config)
     dhcp = _build_dhcp(config, interfaces)
@@ -123,23 +193,67 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
             status = status_by_interface.get(short_name, "")
         item["status"] = status
 
-    up_count = sum(1 for item in interfaces if item["status"] == "up")
-    down_count = sum(1 for item in interfaces if item["status"] == "down")
+    # The Overview "Serial Numbers" table: hardware parts and every installed
+    # transceiver, each with its PID and serial (see parts.py).
+    device_parts = parts.build_parts(
+        inventory["modules"],
+        transceivers,
+        is_stack=inventory["stack"]["mode"] == "Stack",
+        aruba_chassis=serials.aruba_chassis(clean) if detected_vendor.lower() == "aruba" and not av else None,
+    )
+    capture_notes = _capture_notes(clean)
+
+    up_count = sum(1 for item in interfaces if item["status"] == live_state.UP)
+    down_count = sum(1 for item in interfaces if item["status"] == live_state.DOWN)
+    admin_down_count = sum(1 for item in interfaces if item["status"] == live_state.ADMIN_DOWN)
+    unknown_count = sum(1 for item in interfaces if item["status"] == live_state.UNKNOWN)
 
     pbr_summary = _build_pbr_summary(config)
+    logs_view = logs.build_logs(clean_all, detected_vendor)
+    if av:
+        health_view = health_aoscx.build(clean, av, facts=logs_view.get("aoscx"), interfaces=interfaces)
+    else:
+        health_view = health.build_health(clean, detected_vendor, interfaces=interfaces, port_channels=port_channels, dhcp=dhcp)
 
-    return {
-        "hostname": config.hostname or Path(filename).stem,
+    # Which bundle each physical port belongs to (Interfaces tab); a bundle the live table did not list gets a Port-Channel row
+    bundle_view = bundles.build(interfaces, port_channels, health_view.get("lacp"), getattr(config, "interfaces", []), bundles.default_prefix(detected_vendor, bool(av)))
+    if bundle_view["added"]:
+        _enrich_port_channels(port_channels, interfaces)
+
+    # A file that holds two devices (a second device's show output pasted below the first): the live HSRP / OSPF tables are read from the commands typed at this device's prompt only
+    device_host = _device_host(clean, config.hostname)
+    fhrp_view = fhrp.analyse(clean, device_host)   # HSRP / VRRP groups from the configuration, the live state from Huawei `display vrrp`, NX-OS `show hsrp`, IOS `show standby brief`
+    ospf_state = ospf_live.read(clean, device_host)
+    ospf_dbv = ospf_db.read(clean, device_host)     # `show ip ospf interface brief` and the link-state database summary
+    ospf_view = {"neighbors": ospf_state["neighbors"], "summary": ospf_state["summary"],
+                 "findings": ospf_live.findings(ospf_state["neighbors"]) + ospf_db.findings(ospf_dbv, ospf_state["neighbors"]),
+                 "checks": ospf_live.checks(ospf_state) + ospf_db.checks(ospf_dbv, ospf_state["neighbors"]),
+                 "interfaces": ospf_dbv["interfaces"], "database": ospf_dbv["database"]}
+    capture_notes += _scope_notes(clean, device_host) + ospf_db.notes(ospf_dbv)
+
+    result = {
+        # the device's own name: the configuration's hostname, else the prompt it was typed at (`SW1#`), else the file name
+        "hostname": config.hostname or capture_text.dominant_prompt_host(clean_all) or Path(filename).stem,
         "vendor": detected_vendor,
+        "detection": detection_info,
         "device_type": getattr(config, "source_device_type", "Switch"),
         "os_version": os_version,
         "interfaces": interfaces,
         "routes": routes,
         "routing_table": routing_table,
         "arp_table": arp_table,
+        "mac_table": mac_table,
+        # Device-reported totals vs rows found (live_state._table_meta): a table
+        # shorter than the device said it printed means the capture lost lines.
+        "table_checks": {"arp": arp_check, "mac": mac_check, **_group_checks(fhrp_view, ospf_state)},
         "neighbors": neighbors,
         "port_channels": port_channels,
         "vlans": vlans,
+        "vlan_summary": _vlan_summary(tables["vlan_db"]),
+        "trunks": tables["trunks"],
+        "spanning_tree": stp_view,
+        "interface_descriptions": {"captured": tables["descriptions"]["captured"], "rows": len(tables["descriptions"]["rows"]),
+                                   "described": tables["descriptions"]["described"]},
         "dns": dns,
         "snmp": snmp,
         "dhcp": dhcp,
@@ -147,7 +261,19 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
         "poe": poe,
         "vpc_mlag": vpc_mlag,
         "inventory": inventory,
+        "parts": device_parts,
+        "capture_notes": capture_notes,
+        "serials": serial_info,
         "routing_protocols": _routing_protocol_summary(config),
+        "l3": l3_view,
+        "health": health_view,
+        # Sections a module adds to an existing tab (Nexus CPU / memory, vPC statistics, LACP counters ...): the page appends each to its tab.
+        "extra_tables": list(health_view.get("extra_tables") or []) + fhrp_view["tables"] + _ospf_tables(ospf_state, ospf_dbv),
+        "extras": {**dict(health_view.get("extra_counts") or {}), **fhrp_view["counts"], "ospf_nbr": len(ospf_state["neighbors"]), "ospf_nbr_summary": len(ospf_state["summary"]), **ospf_db.counts(ospf_dbv)},
+        # Live first-hop redundancy and OSPF state (the Compare Devices pair check and the Findings tab read these)
+        "fhrp": {"groups": fhrp_view["groups"], "summary": fhrp_view["summary"], "findings": fhrp_view["findings"], "config_hsrp": fhrp_view["config_hsrp"]},
+        "ospf_live": ospf_view,
+        "logs": logs_view,
         "pbr": pbr_summary,
         "spanning_tree_commands": list(getattr(config, "spanning_tree_commands", [])),
         "ntp_commands": list(getattr(config, "ntp_commands", [])),
@@ -157,12 +283,18 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
             "total_interfaces": len(interfaces),
             "interfaces_up": up_count,
             "interfaces_down": down_count,
+            "interfaces_admin_down": admin_down_count,
+            "interfaces_unknown": unknown_count,
             "total_vlans": len(vlans),
+            "trunk_count": len(tables["trunks"]["rows"]),
+            "stp_instances": len(stp_view["instances"]),
+            "stp_broken_ports": len(stp_view["broken"]),
             "total_routes": len(routes),
             "dns_servers": len(dns["servers"]),
             "neighbor_count": len(neighbors),
             "port_channel_count": len(port_channels),
             "arp_entries": len(arp_table),
+            "mac_entries": len(mac_table),
             "transceiver_count": len(transceivers),
             "poe_port_count": len(poe),
             "vpc_mlag_count": len(vpc_mlag["members"]),
@@ -170,8 +302,111 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
             "dhcp_pool_count": len(dhcp["pools"]),
             "dhcp_snooping_enabled": dhcp["snooping"]["enabled"],
             "has_custom_routing": pbr_summary["has_custom_routing"],
+            "health_findings": len(health_view["findings"]),
+            "health_attention": health_view["counts"].get("high", 0) + health_view["counts"].get("medium", 0),
+            **_l3_cards(l3_view),
         },
     }
+    # Findings, Coverage and the tab map are built from the finished result, in this order.
+    result["coverage"] = coverage.build_coverage(clean_all, detected_vendor, result)
+    result["findings"] = findings.build_findings(result)
+    finding_context.attach(result)       # neighbour, bundle, vPC and log detail next to each finding
+    result["cards"]["findings_total"] = len(result["findings"])
+    result["cards"]["findings_high"] = sum(1 for item in result["findings"] if item["severity"] == "high")
+    result["cards"]["findings_medium"] = sum(1 for item in result["findings"] if item["severity"] == "medium")
+    result["tabs"] = tabs.build_tabs(result)
+    return result
+
+
+_SYSLOG_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}")
+_SYSLOG_FLOOD_LINES = 5000
+
+
+def _without_syslog_flood(clean: list[str], lines: list[str]) -> tuple[list[str], list[str]]:
+    """Both line lists without ISO-8601 syslog lines when the capture holds thousands of them, else unchanged."""
+    if len(clean) < _SYSLOG_FLOOD_LINES * 2:
+        return clean, lines
+    kept = [line for line in clean if not _SYSLOG_ISO.match(line)]
+    if len(clean) - len(kept) < _SYSLOG_FLOOD_LINES:
+        return clean, lines
+    return kept, [line for line in lines if not _SYSLOG_ISO.match(line)]
+
+
+def _device_host(clean: list[str], hostname: str) -> str | None:
+    """The prompt host whose commands describe this device: None when the capture has a single prompt (nothing to separate), else the one named like the configuration's
+    hostname, else the host that typed the most commands."""
+    counts = capture_text.prompt_host_counts(clean)
+    if len(counts) < 2:
+        return None
+    for host in counts:
+        if hostname and host.lower() == hostname.lower():
+            return host
+    return capture_text.dominant_prompt_host(clean)
+
+
+def _scope_notes(clean: list[str], host: str | None) -> list[dict[str, str]]:
+    """A note for the live HSRP / OSPF output that was typed at another prompt and so left out."""
+    if host is None:
+        return []
+    other: dict[str, int] = {}
+    for patterns in (fhrp_live.PATTERN_DETAIL, fhrp_live.PATTERN_BRIEF, fhrp_live.PATTERN_SUMMARY, ospf_live.PATTERN_NEIGHBORS, ospf_live.PATTERN_SUMMARY, ospf_db.PATTERN_INTERFACE, ospf_db.PATTERN_DATABASE):
+        for index, _block in capture_text.find_blocks(clean, patterns):
+            typed_at = capture_text.prompt_host(clean[index])
+            if typed_at and typed_at != host:
+                other[typed_at] = other.get(typed_at, 0) + 1
+    if not other:
+        return []
+    names = ", ".join(f"{name} ({count} command{'s' if count != 1 else ''})" for name, count in sorted(other.items()))
+    return [{"level": "warning", "text": f"HSRP / OSPF output typed at another prompt was left out: {names}. The HSRP and OSPF tables are those of {host}. Upload that device's capture on its own to see it."}]
+
+
+def _ospf_tables(ospf_state: dict[str, Any], ospf_dbv: dict[str, Any]) -> list[dict[str, Any]]:
+    """The OSPF tables of the Routing tab in reading order: processes, interfaces, neighbours, neighbour summary, database totals, Router LSAs."""
+    by_id = {table["id"]: table for table in ospf_live.tables(ospf_state) + ospf_db.tables(ospf_dbv, ospf_state["neighbors"])}
+    return [by_id[key] for key in ("ospf-overview", "ospf-interfaces", "ospf-neighbors", "ospf-neighbor-summary", "ospf-lsdb", "ospf-routers") if key in by_id]
+
+
+def _group_checks(fhrp_view: dict[str, Any], ospf_state: dict[str, Any]) -> dict[str, Any]:
+    """The device's own count of HSRP groups (``show hsrp summary``) against the groups the other HSRP commands listed, in the shape of the ARP / MAC checks."""
+    out: dict[str, Any] = {}
+    reported = fhrp_view.get("reported")
+    if reported is not None and fhrp_view.get("listed") is not None:
+        out["hsrp"] = {"reported": reported, "source": "show hsrp summary", "parsed": fhrp_view["listed"], "complete": fhrp_view["listed"] >= reported, "captured": True, "device": {}, "device_note": ""}
+    return out
+
+
+def _capture_notes(clean: list[str]) -> list[dict[str, str]]:
+    """Warnings about the capture itself, shown above the Overview tables.
+
+    A file that holds commands typed at more than one prompt (two devices
+    pasted into one file) cannot be told apart by most tables; the reader
+    cannot know which rows belong to the device, so it says so instead of
+    guessing. Only the Huawei transceiver output is cut by prompt host (see
+    runtime_parser._huawei_transceiver_runs)."""
+    counts = capture_text.prompt_host_counts(clean)
+    if len(counts) < 2:
+        return []
+    ranked = sorted(counts.items(), key=lambda item: -item[1])
+    listed = ", ".join(f"{host} ({count})" for host, count in ranked[:4])
+    more = f" and {len(ranked) - 4} more" if len(ranked) > 4 else ""
+    notes = [{
+        "level": "warning",
+        "text": (
+            f"This file holds commands typed at {len(ranked)} different prompts: {listed}{more}. "
+            "Most tables are read from the whole file, so check that every table belongs to this device."
+        ),
+    }]
+    scope = runtime_parser.transceiver_scope_note(clean)
+    if scope:
+        runs = scope["ignored_runs"]
+        notes.append({
+            "level": "warning",
+            "text": (
+                f"Transceiver output from {runs} run{'s' if runs != 1 else ''} typed at another prompt was left out; "
+                f"transceiver rows are those of {scope['used_host']}."
+            ),
+        })
+    return notes
 
 
 def _normalize_huawei_brief_keys(interface_brief: dict[str, dict]) -> dict[str, dict]:
@@ -247,24 +482,121 @@ def _format_ip_with_mask(ip_address: str, subnet_mask: str = "") -> str:
     return f"{ip_address}/{prefix}"
 
 
-def _build_interfaces(config, interface_brief: dict[str, dict] | None = None) -> list[dict[str, Any]]:
+def _detection_info(detection: fingerprint.Detection, requested: str, engine) -> dict[str, Any]:
+    """Explain how the vendor was chosen, and flag a contradicted pick."""
+    info: dict[str, Any] = {
+        "requested": requested,
+        "fingerprint": detection.vendor,
+        "confidence": detection.confidence,
+        "evidence": list(detection.evidence),
+        "model_hint": detection.model_hint,
+        "method": "",
+        "vendor_used": requested,
+        "warning": "",
+    }
+    if engine.is_auto(requested):
+        if detection.vendor and detection.confidence in ("high", "medium"):
+            info["vendor_used"] = detection.vendor
+            info["method"] = "device identity"
+        else:
+            info["method"] = "keyword scoring"
+    else:
+        info["method"] = "selected by user"
+        if (
+            detection.vendor
+            and detection.confidence == "high"
+            and detection.vendor.lower() != requested.strip().lower()
+        ):
+            reasons = ", ".join(detection.evidence[:3])
+            info["warning"] = (
+                f"Vendor was set to {requested}, but this capture identifies itself as "
+                f"{detection.vendor} ({reasons}). Choose Auto Detect unless that is intended."
+            )
+    return info
+
+
+def _natural_key(name: str) -> list:
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", name or "")]
+
+
+def _resolve_interface_status(
+    key: str,
+    config_shutdown: bool,
+    live_observations: dict[str, list[dict[str, Any]]],
+    config_admin: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """One interface's final state: up / down / admin down / unknown.
+
+    Live show-command state decides up vs down. "admin down" is the
+    intentional case (shutdown / disable) so it is also assigned when the
+    live table only says "down" but the running-config shuts the port.
+    Without any live state, a shutdown in the config is still a certain
+    admin down; anything else is "unknown" rather than a guessed "up"."""
+    live = live_state.resolve_state(live_observations.get(key, []))
+    config_entry = config_admin.get(key) or {}
+    shut_in_config = bool(config_shutdown or config_entry.get("admin_down"))
+    keyword = config_entry.get("keyword") or "shutdown"
+
+    if live:
+        state = live["state"]
+        detail = live["detail"]
+        if state == live_state.DOWN and shut_in_config:
+            state = live_state.ADMIN_DOWN
+            detail = f"{keyword} in config (link {detail})"
+        elif state == live_state.UP and shut_in_config:
+            detail = f"up, but config has {keyword} (capture and config differ)"
+        if live.get("conflict") and state != live_state.ADMIN_DOWN:
+            detail = f"{detail}; sources disagree"
+        return {
+            "status": state,
+            "status_detail": detail,
+            "status_source": ", ".join(live["sources"]),
+            "protocol": live.get("protocol", ""),
+            "live_ip": live.get("ip_address", ""),
+        }
+    if shut_in_config:
+        return {
+            "status": live_state.ADMIN_DOWN,
+            "status_detail": f"{keyword} in config",
+            "status_source": "config",
+            "protocol": "",
+            "live_ip": "",
+        }
+    return {
+        "status": live_state.UNKNOWN,
+        "status_detail": "no live state in this capture (enabled in config, link state not captured)",
+        "status_source": "",
+        "protocol": "",
+        "live_ip": "",
+    }
+
+
+def _build_interfaces(
+    config,
+    interface_brief: dict[str, dict] | None = None,
+    live_observations: dict[str, list[dict[str, Any]]] | None = None,
+    config_admin: dict[str, dict[str, Any]] | None = None,
+    vendor: str = "",
+) -> list[dict[str, Any]]:
     interface_brief = interface_brief or {}
+    live_observations = live_observations or {}
+    config_admin = config_admin or {}
     results = []
+    seen_keys: set[str] = set()
     for item in getattr(config, "interfaces", []):
         vlan = item.access_vlan if item.access_vlan is not None else item.native_vlan
         brief = interface_brief.get(item.name) or interface_brief.get(item.name.lower()) or {}
-        # "show ip interface brief" / "display ip interface brief" reports
-        # the actual line/protocol state — more authoritative than just
-        # inferring "up" from the absence of a "shutdown" config line.
-        status = brief.get("status") or ("down" if item.shutdown else "up")
-        if status == "administratively down":
-            status = "down"
-        ip_address = item.ip_address or brief.get("ip_address", "")
+        key = live_state.interface_key(item.name)
+        seen_keys.add(key)
+        resolved = _resolve_interface_status(key, bool(item.shutdown), live_observations, config_admin)
+        ip_address = item.ip_address or brief.get("ip_address", "") or resolved["live_ip"]
         subnet_mask = item.subnet_mask or brief.get("subnet_mask", "")
         results.append({
             "name": item.name,
-            "status": status,
-            "protocol": brief.get("protocol", ""),
+            "status": resolved["status"],
+            "status_detail": resolved["status_detail"],
+            "status_source": resolved["status_source"],
+            "protocol": brief.get("protocol", "") or resolved["protocol"],
             "mode": item.mode or "",
             "vlan": vlan if vlan is not None else "",
             "ip_address": _format_ip_with_mask(ip_address, subnet_mask),
@@ -282,19 +614,57 @@ def _build_interfaces(config, interface_brief: dict[str, dict] | None = None) ->
                 str(getattr(config, "source_vendor", "") or ""),
             ),
             "poe_enabled": bool(getattr(item, "poe_enabled", False)),
-            "source": "show/display" if brief else "config",
+            "source": "show/display" if resolved["status_source"] and resolved["status_source"] != "config" else "config",
         })
 
-    # Interfaces that only appear in the runtime brief (e.g. sub-interfaces
-    # or ports with no config block at all) still deserve a row.
-    existing_names = {item["name"].lower() for item in results}
-    for name, brief in interface_brief.items():
-        if name.lower() in existing_names:
+    # Interfaces that only appear in the runtime tables (sub-interfaces, ports
+    # with no config block at all -- an ArubaOS-Switch running-config only
+    # lists ports that differ from the default) still deserve a row.
+    for key, observations in live_observations.items():
+        if key in seen_keys:
             continue
-        status = brief.get("status", "")
+        seen_keys.add(key)
+        display_name = max((o["name"] for o in observations), key=len)
+        if vendor.strip().lower() == "huawei":
+            from features.configuration_studio.converter_engine.parsers.switch.huawei import HuaweiSwitchParser
+            display_name = HuaweiSwitchParser.normalize_interface_name(display_name)
+        resolved = _resolve_interface_status(key, False, live_observations, config_admin)
+        ip_address = resolved["live_ip"] or (interface_brief.get(display_name, {}) or {}).get("ip_address", "")
+        # a table that carries more than the state (AOS-CX `show interface`: description, VLAN mode, VLANs) fills the row
+        extra = {field: next((o[field] for o in observations if o.get(field) not in (None, "")), "") for field in ("description", "vlan_mode", "access_vlan", "native_vlan", "allowed_vlans")}
+        results.append({
+            "name": display_name,
+            "status": resolved["status"],
+            "status_detail": resolved["status_detail"],
+            "status_source": resolved["status_source"],
+            "protocol": resolved["protocol"],
+            "mode": extra["vlan_mode"],
+            "vlan": extra["access_vlan"] if extra["access_vlan"] != "" else extra["native_vlan"],
+            "ip_address": _format_ip_with_mask(ip_address, ""),
+            "description": extra["description"],
+            "port_security": "",
+            "hsrp_vrrp_ip": "",
+            "allowed_vlans": extra["allowed_vlans"],
+            "poe_enabled": False,
+            "source": "show/display",
+        })
+
+    # A few runtime-only rows from the legacy brief parser that the newer
+    # tables did not cover (kept so no previously reported interface vanishes).
+    for name, brief in interface_brief.items():
+        key = live_state.interface_key(name)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        legacy = (brief.get("status") or "").lower()
+        status = live_state.ADMIN_DOWN if legacy == "administratively down" else (
+            legacy if legacy in (live_state.UP, live_state.DOWN) else live_state.UNKNOWN
+        )
         results.append({
             "name": name,
-            "status": "down" if status == "administratively down" else status,
+            "status": status,
+            "status_detail": legacy or "no status",
+            "status_source": "interface brief",
             "protocol": brief.get("protocol", ""),
             "mode": "",
             "vlan": "",
@@ -307,6 +677,8 @@ def _build_interfaces(config, interface_brief: dict[str, dict] | None = None) ->
             "source": "show/display",
         })
 
+    if vendor.strip().lower() == "aruba":
+        results.sort(key=lambda row: _natural_key(row["name"]))
     return results
 
 
@@ -342,6 +714,9 @@ def _port_channel_interface_key(name: str) -> str:
     enrichment (confirmed on a real S5755 live capture, every Eth-Trunk
     row came back blank). Expand it the same way "Po7" is expanded.
     """
+    lag_match = re.match(r"^lag(\d+)$", name or "", re.IGNORECASE)         # ArubaOS-CX aggregate
+    if lag_match:
+        return _canonical_interface_key(f"portchannel{lag_match.group(1)}")
     po_match = _PO_SHORT_NAME_RE.match(name or "")
     if po_match:
         return _canonical_interface_key(f"portchannel{po_match.group(1)}")
@@ -364,21 +739,21 @@ def _enrich_port_channels(port_channels: list[dict[str, Any]], interfaces: list[
     by_key = {_canonical_interface_key(item["name"]): item for item in interfaces}
     for pc in port_channels:
         iface = by_key.get(_port_channel_interface_key(pc.get("name", "")))
-        pc["description"] = iface["description"] if iface else ""
-        pc["mode"] = iface["mode"] if iface else ""
-        pc["vlan"] = iface["vlan"] if iface else ""
+        pc["description"] = iface["description"] if iface else pc.get("description", "")
+        pc["mode"] = iface["mode"] if iface else pc.get("mode", "")
+        pc["vlan"] = iface["vlan"] if iface else pc.get("vlan", "")
         # Trunk-allowed VLANs on the port-channel/Eth-Trunk itself (e.g.
         # "100, 101, 102" or "All") — same already-parsed
         # Interface.allowed_vlans field a physical trunk port uses,
         # cross-referenced the same way Description/Mode/VLAN already are.
-        pc["allowed_vlans"] = iface["allowed_vlans"] if iface else ""
+        pc["allowed_vlans"] = iface["allowed_vlans"] if iface else pc.get("allowed_vlans", "")
         # A Port-Channel/Eth-Trunk can be a routed port (Cisco "no
         # switchport" + "ip address ...", Huawei "undo portswitch" +
         # "ip address ...", both now set Interface.mode = "routed" —
         # see cisco.py/huawei.py) — surface its IP address the same way
         # a routed physical port already does, instead of leaving the
         # user to cross-reference the Interfaces tab by hand.
-        pc["ip_address"] = iface["ip_address"] if iface else ""
+        pc["ip_address"] = iface["ip_address"] if iface else pc.get("ip_address", "")
 
 
 def _apply_vpc_mlag_config_fallback(
@@ -601,22 +976,74 @@ def _apply_poe_config_fallback(poe: list[dict[str, Any]], config) -> list[dict[s
     return fallback
 
 
-def _build_routes(config) -> list[dict[str, Any]]:
-    results = []
+def _build_routes(config, l3_view: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """The static routes, each once.
+
+    Read from the Layer-3 parse (l3.py) because it knows the forms the shared
+    switch parsers do not: the VRF form ("ip route-static vpn-instance X ...",
+    "vrf context" on Nexus), an exit interface instead of a next hop, and a
+    description. A capture that echoes its route lines twice (the full config,
+    then "display current-configuration | include ip route-static") would
+    otherwise count one route three times. If the Layer-3 parse found none, the
+    shared parser's routes are used, de-duplicated."""
+    results: list[dict[str, Any]] = []
+    for row in (l3_view or {}).get("static_routes", []):
+        try:
+            mask = str(ipaddress.IPv4Network(row["cidr"], strict=False).netmask)
+        except ValueError:
+            mask = ""
+        results.append({
+            "destination": row["destination"],
+            "mask": mask,
+            "next_hop": row["next_hop"] or row["interface"],
+            "distance": row["distance"] if row["distance"] is not None else "",
+            # "ip route-static ... track <id>" / "ip route ... track <id>" ties the
+            # route to a track object (see _build_pbr_summary's track_objects).
+            "track_id": int(row["track"]) if str(row["track"]).isdigit() else row["track"],
+            "vrf": row["vrf"],
+            "interface": row["interface"],
+            "description": row["description"],
+        })
+    if results:
+        return results
+    seen: set[tuple] = set()
     for route in getattr(config, "routes", []):
+        key = (route.destination, route.mask, route.next_hop, route.distance, getattr(route, "track_id", None))
+        if key in seen or not IPV4_RE.match(str(route.destination or "")):
+            continue
+        seen.add(key)
         results.append({
             "destination": route.destination,
             "mask": route.mask,
             "next_hop": route.next_hop,
             "distance": route.distance if route.distance is not None else "",
-            # Optional Huawei "ip route-static ... track <id>" clause
-            # (ties this route to a track object in config.track_objects
-            # — see _build_pbr_summary's track_objects table for what
-            # it's tracking). Blank for every route without one, which
-            # is the overwhelming majority in real captures.
             "track_id": route.track_id if getattr(route, "track_id", None) is not None else "",
+            "vrf": "",
+            "interface": "",
+            "description": "",
         })
     return results
+
+
+def _l3_cards(l3_view: dict[str, Any]) -> dict[str, Any]:
+    """The few Layer-3 numbers the Overview cards show."""
+    ospf = l3_view["ospf"]
+    if not ospf["configured"]:
+        ospf_status = "Not configured"
+    elif any(item["code"] != "ospf_all_passive" for item in ospf["findings"]):
+        ospf_status = "Configured, not running"
+    elif ospf["findings"]:
+        ospf_status = "Passive only"
+    else:
+        ospf_status = f"Running on {len(ospf['interfaces'])} interface{'s' if len(ospf['interfaces']) != 1 else ''}"
+    defaults = l3_view["default_routes"]
+    return {
+        "l3_interface_count": len(l3_view["interfaces"]),
+        "default_route": defaults[0]["next_hop"] if defaults else "",
+        "ospf_status": ospf_status,
+        "acl_count": len(l3_view["acls"]["definitions"]),
+        "l3_finding_count": len(l3_view["findings"]),
+    }
 
 
 def _build_dhcp(config, interfaces: list[dict[str, Any]]) -> dict[str, Any]:
@@ -674,11 +1101,174 @@ def _build_dhcp(config, interfaces: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _build_vlans(config) -> list[dict[str, Any]]:
-    results = []
+def _build_vlans(config, runtime_vlans: list[dict[str, Any]] | None = None, vlan_db: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """VLANs from the config, plus those the device's own VLAN database lists ("show vlan" / "show vlan brief").
+
+    A Cisco running-config only carries the VLANs that were created by hand in it; VLANs learned from VTP or kept
+    in vlan.dat exist on the switch but never appear in the config (real captures: 0 of 4 on a 3650, 15 of 18 on a
+    2960). The config entry wins where both exist, except that a VLAN the config declares without a name takes the
+    database's name. ``show vlan`` adds the state, the access ports, the type and the MTU. The built-in VLANs
+    (1 and 1002-1005) are not listed; ``_vlan_summary`` reports how many ports sit in VLAN 1.
+
+    A capture with nothing from the device keeps the plain ``{vlan_id, name}`` rows.
+    """
+    vlan_db = vlan_db or {}
+    by_id: dict[int, dict[str, Any]] = {}
+    in_config: set[int] = set()
+    on_device: set[int] = set()
+
+    def entry(vlan_id: int, name: str) -> dict[str, Any]:
+        item = by_id.get(vlan_id)
+        if item is None:
+            item = {"vlan_id": vlan_id, "name": name}
+            by_id[vlan_id] = item
+        elif not item["name"]:
+            item["name"] = name
+        return item
+
     for vlan in getattr(config, "vlans", []):
-        results.append({"vlan_id": vlan.vlan_id, "name": vlan.name})
-    return results
+        entry(vlan.vlan_id, vlan.name)
+        in_config.add(vlan.vlan_id)
+    for item in runtime_vlans or []:
+        entry(item["vlan_id"], item["name"])
+        on_device.add(item["vlan_id"])
+    details: dict[int, dict[str, Any]] = {}
+    for row in vlan_db.get("rows") or []:
+        if row["builtin"] or row["vlan_id"] == 1:
+            continue
+        entry(row["vlan_id"], row["name"])
+        on_device.add(row["vlan_id"])
+        details[row["vlan_id"]] = row
+    if vlan_db.get("captured") or runtime_vlans:
+        for vlan_id, item in by_id.items():
+            row = details.get(vlan_id) or {}
+            item.update(status=row.get("status", ""), ports=", ".join(row.get("ports", [])), port_count=row.get("port_count"),
+                        type=row.get("type", ""), mtu=row.get("mtu", ""))
+            if vlan_id in in_config and vlan_id in on_device:
+                item["source"] = "config + device"
+            elif vlan_id in in_config:
+                item["source"] = "config only"
+            else:
+                item["source"] = "device only"
+    return [by_id[key] for key in sorted(by_id)]
+
+
+def _vlan_summary(vlan_db: dict[str, Any]) -> dict[str, Any]:
+    """What ``show vlan summary`` counted next to what ``show vlan`` listed."""
+    summary = dict(vlan_db.get("summary") or {})
+    rows = vlan_db.get("rows") or []
+    builtin = [row["vlan_id"] for row in rows if row["builtin"] or row["vlan_id"] == 1]
+    default = next((row for row in rows if row["vlan_id"] == 1), None)
+    return {"captured": bool(vlan_db.get("captured") or summary), "device": summary, "listed": len(rows), "builtin": len(builtin),
+            "default_vlan_ports": default["port_count"] if default else None, "complete": vlan_db.get("complete", True)}
+
+
+def _interface_lookup(rows: list[dict[str, Any]], name_key: str) -> dict[str, dict[str, Any]]:
+    return {live_state.interface_key(row[name_key]): row for row in rows}
+
+
+def _speed_text(mbps: int | None) -> str:
+    if not mbps:
+        return ""
+    return f"{mbps // 1000} Gb/s" if mbps >= 1000 and mbps % 1000 == 0 else f"{mbps} Mb/s"
+
+
+_CLOCK_WORDS = re.compile(r"^(?:[A-Z][a-z]{2}\s+)?(?P<mon>[A-Z][a-z]{2})\s+(?P<day>\d{1,2})\s+(?P<time>\d{2}:\d{2}:\d{2})\s+(?:\S+\s+)?(?P<year>\d{4})$")
+_MONTH_NAMES = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _compact_clock(text: str) -> str:
+    """``Mon Oct 12 18:29:29 WIB 2026`` -> ``2026-10-12 18:29:29`` (the zone is the device's, shown once as Device Time on the Health tab)."""
+    match = _CLOCK_WORDS.match((text or "").strip())
+    if not match or match["mon"] not in _MONTH_NAMES:
+        return text or ""
+    return f"{match['year']}-{_MONTH_NAMES.index(match['mon']) + 1:02d}-{int(match['day']):02d} {match['time']}"
+
+
+def _apply_aoscx_detail(interfaces: list[dict[str, Any]], detail: dict[str, dict[str, Any]]) -> None:
+    """Speed, duplex, link age, link transitions and error / drop counters of ``show interface`` next to each interface row."""
+    by_key = {live_state.interface_key(name): item for name, item in detail.items()}
+    for row in interfaces:
+        item = by_key.get(live_state.interface_key(row["name"]))
+        if not item:
+            continue
+        row["speed"] = _speed_text(item["speed_mbps"]) if item["oper_state"] == "up" else ""
+        row["duplex"] = item["duplex"] if item["oper_state"] == "up" else ""
+        row["port_type"] = item["type"]
+        row["mac_address"] = item["mac"]
+        row["mtu"] = item["mtu"] if item["mtu"] is not None else ""
+        row["link_since"] = _compact_clock(item["link_since"])
+        row["link_for"] = item["link_duration"]
+        row["transitions"] = item["transitions"] if item["transitions"] is not None else ""
+        row["rx_errors"] = item["rx"].get("errors") or 0
+        row["rx_crc"] = item["rx"].get("crc") or 0
+        row["tx_dropped"] = item["tx"].get("dropped") or 0
+        row["rx_packets"] = item["rx"].get("packets") or 0
+        row["tx_packets"] = item["tx"].get("packets") or 0
+        row["util_in"] = item["util_rx"] if item["util_rx"] is not None else ""
+        row["util_out"] = item["util_tx"] if item["util_tx"] is not None else ""
+        if not row["description"] and item["description"]:
+            row["description"] = item["description"]
+        if item["kind"] == "port" and not row["mode"] and item["vlan_mode"]:
+            row["mode"] = item["vlan_mode"]
+        if item["kind"] == "port" and row["vlan"] == "" and (item["access_vlan"] is not None or item["native_vlan"] is not None):
+            row["vlan"] = item["access_vlan"] if item["access_vlan"] is not None else item["native_vlan"]
+        if item["kind"] == "port" and not row["allowed_vlans"] and item["allowed_vlans"]:
+            row["allowed_vlans"] = item["allowed_vlans"]
+
+
+def _apply_runtime_descriptions(interfaces: list[dict[str, Any]], rows: list[dict[str, str]]) -> None:
+    """Fill the description from ``show interface description`` where the configuration gave none (a capture
+    without a running-config, or an interface the config does not list)."""
+    if not rows:
+        return
+    by_key = _interface_lookup(rows, "interface")
+    for item in interfaces:
+        row = by_key.get(live_state.interface_key(item["name"]))
+        if row and row["description"] and not item["description"]:
+            item["description"] = row["description"]
+            item["description_source"] = "show interface description"
+
+
+def _apply_runtime_trunks(interfaces: list[dict[str, Any]], rows: list[dict[str, Any]]) -> None:
+    """``show interface trunk`` is what the port really does: mode and allowed VLANs where the config said nothing."""
+    if not rows:
+        return
+    by_key = _interface_lookup(rows, "port")
+    for item in interfaces:
+        row = by_key.get(live_state.interface_key(item["name"]))
+        if not row:
+            continue
+        if not item["mode"] and row["status"] == "trunking":
+            item["mode"] = "trunk"
+        if not item["allowed_vlans"] and row["allowed"]:
+            item["allowed_vlans"] = row["allowed"]
+
+
+def _attach_device_counts(check: dict[str, Any], parsed: int, device: dict[str, Any], label: str, noun: str) -> None:
+    """Put the device's own count (``show ip arp summary`` / ``show mac address-table count``) next to the table check.
+
+    The count comes from a different command, run seconds apart, so a few entries of difference are normal
+    (entries age out or are learned in between). The note names the gap only when it is large enough to matter."""
+    check["device"] = device or {}
+    check["device_note"] = ""
+    if not device:
+        return
+    total = device.get("total")
+    if total is None:
+        return
+    if label == "ARP":
+        detail = f" ({device.get('incomplete', 0)} incomplete)"
+    else:
+        detail = f" ({device.get('dynamic', 0)} dynamic, {device.get('static', 0)} static)" if "dynamic" in device else ""
+    text = f"The device counts {total} {noun}{detail}; this capture lists {parsed} " + ("host rows (the switch's own CPU rows are not counted)." if label == "MAC" else "rows.")
+    gap = total - parsed
+    check["device_gap"] = gap
+    if gap > max(5, total // 20):
+        text += (f" {gap} entries are not in the table above: the {label} command may have been filtered or cut, or entries were learned between the two commands.")
+    elif -gap > max(5, total // 20):
+        text += f" The table lists {-gap} more rows than the count; entries were learned between the two commands."
+    check["device_note"] = text
 
 
 def _routing_protocol_summary(config) -> dict[str, list[str]]:

@@ -1,0 +1,117 @@
+CGQ-GHFU-ZTOZAG-5626#show lldp neighbors
+Capability codes:
+    (R) Router, (B) Bridge, (T) Telephone, (C) DOCSIS Cable Device
+    (W) WLAN Access Point, (P) Repeater, (S) Station, (O) Other
+
+Device ID           Local Intf     Hold-time  Capability      Port ID
+vksu-j77_80.zhgjwzvtGi1/0/23       120        R               675c.d9e9.6309
+SOX-OCKW-GGQSZP2-233Gi1/1/1        120        B               25
+XIJ-BNZG-ARTXIB8-K36Gi1/1/2        120        B,R             10GE1/0/1
+ILB-IJGQ-MMDBBZ5-971Gi1/0/22       120        B               24
+
+Total entries displayed: 4
+
+CGQ-GHFU-ZTOZAG-5626#
+CGQ-GHFU-ZTOZAG-5626#show lldp neighbors detail
+------------------------------------------------
+Local Intf: Gi1/0/23
+Chassis id: 7054.ca7e.e61f
+Port id: 675c.d9e9.6309
+Port Description: eth14
+System Name: vksu-j77_80.zhgjwzvtkau
+
+System Description:
+AF10.255.0.1 Build20240111
+
+Time remaining: 100 seconds
+System Capabilities: R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 10.255.0.2
+Auto Negotiation - not supported
+Physical media capabilities - not advertised
+Media Attachment Unit type - not advertised
+Vlan ID: - not advertised
+
+------------------------------------------------
+Local Intf: Gi1/1/1
+Chassis id: 8d24.e3fa.00ed
+Port id: 25
+Port Description: 25
+System Name: SOX-OCKW-GGQSZP2-2339
+
+System Description:
+Aruba JL356A 2540-24G-PoE+-4SFP+ Switch, revision YC.16.06.0006, ROM YC.16.01.0001 (/ws/swbuildm/rel_washington_qaoff/code/build/cpm(swbuildm_rel_washington_qaoff_rel_washington))
+
+Time remaining: 99 seconds
+System Capabilities: B,R
+Enabled Capabilities: B
+Management Addresses:
+    IP: 10.255.0.3
+    IPV6: 189a::2098:1e03:ab38:acbb
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseX(FD)
+Media Attachment Unit type: 26
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/1/2
+Chassis id: d8b4.7034.9e37
+Port id: 10GE1/0/1
+Port Description: Uplink to CGQ-GHFU-ZTOZAG-5626
+System Name: XIJ-BNZG-ARTXIB8-K3628
+
+System Description:
+Huawei Switch
+Huawei YunShan OS
+Version 10.255.0.4 (S5700 V600R025C00SPC500)
+Copyright (C) 2021-2025 Huawei Technologies Co., Ltd.
+HUAWEI CloudEngine S5735-L-V2
+
+
+Time remaining: 97 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.255.0.5
+    OID:
+        0.6.15.43.6.1.4.1.2011.5.25.41.1.2.1.1.1.
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    100base-T2(FD)
+    100base-T2(HD)
+    10base-T(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/22
+Chassis id: 1d63.bd09.2a03
+Port id: 24
+Port Description: 24
+System Name: ILB-IJGQ-MMDBBZ5-9714
+
+System Description:
+Aruba JL356A 2540-24G-PoE+-4SFP+ Switch, revision YC.16.06.0006, ROM YC.16.01.0001 (/ws/swbuildm/rel_washington_qaoff/code/build/cpm(swbuildm_rel_washington_qaoff_rel_washington))
+
+Time remaining: 96 seconds
+System Capabilities: B,R
+Enabled Capabilities: B
+Management Addresses:
+    IP: 10.255.0.6
+    IPV6: a06e::2416:9a01:cbac:1f9b
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+    100base-TX(FD)
+    100base-TX(HD)
+    10base-T(FD)
+    10base-T(HD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+
+Total entries displayed: 4
+
+CGQ-GHFU-ZTOZAG-5626#
