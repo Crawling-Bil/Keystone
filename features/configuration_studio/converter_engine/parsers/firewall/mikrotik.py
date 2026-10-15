@@ -144,6 +144,118 @@ _NO_EQUIVALENT_SECTIONS = {
         "these accounts need to be recreated there manually; note passwords "
         "appear in plaintext here, so rotate them as part of the migration."
     ),
+    "/ip hotspot": (
+        "PAN-OS has no built-in captive-portal hotspot feature equivalent to "
+        "RouterOS's /ip hotspot. Captive portal on PAN-OS is configured via "
+        "Authentication Portal under Device > User Identification > Captive "
+        "Portal Settings, and is a fundamentally different architecture."
+    ),
+    "/ip hotspot profile": (
+        "PAN-OS captive portal (Authentication Portal) has no hotspot-profile "
+        "equivalent -- redesign from scratch if captive portal is needed."
+    ),
+    "/ip hotspot user": (
+        "PAN-OS captive portal users live in the Local User Database "
+        "(Device > Local User Database > Users) or an external auth source "
+        "(RADIUS/LDAP/SAML), not a RouterOS-style hotspot user list."
+    ),
+    "/ip upnp": (
+        "UPnP should NOT be enabled on a production firewall. PAN-OS does not "
+        "support UPnP at all. If needed for specific devices, use static NAT "
+        "rules instead."
+    ),
+    "/ip upnp interfaces": (
+        "UPnP should NOT be enabled on a production firewall. PAN-OS does not "
+        "support UPnP -- use static NAT rules instead."
+    ),
+    "/ip firewall connection tracking": (
+        "PAN-OS connection tracking is always on and not user-configurable the "
+        "way RouterOS exposes it. Session timeout settings live under "
+        "Device > Setup > Session > Session Timeouts."
+    ),
+    "/ip firewall raw": (
+        "RouterOS raw table rules have no direct PAN-OS equivalent. The closest "
+        "concept is a DoS Protection Profile (Zone Protection Profile) or "
+        "Decryption Profile rules, depending on what the raw rules accomplish."
+    ),
+    "/ip ipsec identity": (
+        "PAN-OS IPsec identity/authentication is configured as part of the IKE "
+        "Gateway object ('set network ike gateway ...') rather than a separate "
+        "identity object. Review and recreate manually."
+    ),
+    "/interface gre": (
+        "PAN-OS supports GRE tunnels ('set network tunnel gre ...') but the "
+        "configuration structure is different -- each GRE tunnel needs a tunnel "
+        "interface, IP address, and routing entry configured manually."
+    ),
+    "/tool bandwidth-server": (
+        "PAN-OS has no built-in bandwidth test server. Disable this on RouterOS "
+        "in production environments (security risk). No migration action needed."
+    ),
+    "/tool mac-server": (
+        "MAC Telnet server is RouterOS-specific. PAN-OS management uses SSH/HTTPS "
+        "only. No migration action needed -- disable on RouterOS for security."
+    ),
+    "/tool mac-server mac-winbox": (
+        "MAC Winbox is RouterOS-specific. PAN-OS management uses SSH/HTTPS "
+        "only. No migration action needed."
+    ),
+    "/tool mac-server ping": (
+        "MAC Ping is RouterOS-specific. PAN-OS has no equivalent. "
+        "No migration action needed."
+    ),
+    "/routing ospf instance": (
+        "PAN-OS OSPF is configured under Network > Virtual Routers > "
+        "<router> > OSPF tab. The architecture (area/interface assignment "
+        "within a virtual router) differs from RouterOS's flat instance model "
+        "-- redesign the OSPF topology manually."
+    ),
+    "/routing ospf area": (
+        "PAN-OS OSPF areas are configured under Network > Virtual Routers > "
+        "<router> > OSPF > Areas. Review and recreate manually."
+    ),
+    "/routing ospf interface-template": (
+        "PAN-OS OSPF interface settings are configured per-interface under "
+        "the OSPF area's interface list. No template concept exists."
+    ),
+    "/routing ospf network": (
+        "PAN-OS OSPF network statements are replaced by interface assignments "
+        "under each OSPF area. Review and recreate manually."
+    ),
+    "/routing bgp connection": (
+        "PAN-OS BGP is configured under Network > Virtual Routers > "
+        "<router> > BGP tab. The configuration model differs substantially "
+        "from RouterOS -- redesign BGP peering manually."
+    ),
+    "/routing bgp template": (
+        "PAN-OS BGP peer groups are configured under the BGP tab in virtual "
+        "router settings. No direct template equivalent exists."
+    ),
+    "/system scheduler": (
+        "PAN-OS has no built-in task scheduler equivalent. Scheduled "
+        "operations (config backups, reboots) are handled via Panorama or "
+        "external orchestration. No migration action needed."
+    ),
+    "/system script": (
+        "PAN-OS has no scripting engine equivalent to RouterOS scripts. "
+        "Automation is handled via XML API, REST API, or Panorama. "
+        "Review what each script does and implement via API if still needed."
+    ),
+    "/user": (
+        "PAN-OS administrative users are configured under Device > "
+        "Administrators. The permission model (role-based with admin roles) "
+        "differs from RouterOS's group-based model -- recreate users manually "
+        "with appropriate admin roles. Rotate passwords during migration."
+    ),
+    "/system routerboard settings": (
+        "RouterBoard hardware settings (boot device, boot protocol) are "
+        "hardware-specific to MikroTik. No PAN-OS equivalent exists. "
+        "No migration action needed."
+    ),
+    "/system routerboard mode-button": (
+        "RouterBoard mode button is MikroTik hardware-specific. "
+        "No PAN-OS equivalent. No migration action needed."
+    ),
 }
 
 # Matches a "key=value" pair where value is either a double-quoted

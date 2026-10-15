@@ -99,6 +99,12 @@ class CiscoSwitchTranslator:
             output.extend(config.spanning_tree_commands)
             output.append("!")
 
+        # Global BPDU guard default — applies to all portfast
+        # ports (Cisco IOS: "spanning-tree portfast bpduguard default")
+        if config.bpdu_guard_enabled:
+            output.append("spanning-tree portfast bpduguard default")
+            output.append("!")
+
         # -----------------------------------------------------
         # LLDP (global)
         #
@@ -186,6 +192,29 @@ class CiscoSwitchTranslator:
         # -----------------------------------------------------
 
         output.extend(self.translate_acls(config.acl_commands))
+
+        # -----------------------------------------------------
+        # DHCP POOLS
+        #
+        # Cisco IOS syntax:
+        #   ip dhcp pool <name>
+        #    network <network> <mask>
+        #    default-router <gateway>
+        #    dns-server <dns>
+        #    domain-name <domain>
+        #    lease <days> [hours] [minutes]
+        #    option <code> ip <value>
+        # -----------------------------------------------------
+
+        if config.dhcp_pools:
+            output.extend(
+                self.translate_dhcp_pools(config.dhcp_pools)
+            )
+
+        if config.dhcp_commands:
+            for cmd in config.dhcp_commands:
+                output.append(f"! REVIEW-DHCP: {cmd}")
+            output.append("!")
 
         # -----------------------------------------------------
         # INTERFACES
@@ -326,6 +355,13 @@ class CiscoSwitchTranslator:
             if not is_svi:
                 lines.append(" no switchport")
 
+            # VRF must come BEFORE ip address on Cisco IOS — assigning
+            # an address before VRF causes IOS to strip it silently
+            # (Cisco IOS Configuration Guide, "Configuring VRF on
+            # Interface" section: "vrf forwarding" resets the IP config).
+            if interface.vrf_forwarding:
+                lines.append(f" vrf forwarding {interface.vrf_forwarding}")
+
             if interface.subnet_mask:
                 lines.append(
                     f" ip address {interface.ip_address} "
@@ -334,9 +370,6 @@ class CiscoSwitchTranslator:
             else:
                 lines.append(f" ip address {interface.ip_address}")
 
-            if interface.vrf_forwarding:
-                lines.append(f" vrf forwarding {interface.vrf_forwarding}")
-
             for helper in interface.helper_addresses:
                 lines.append(f" ip helper-address {helper}")
 
@@ -344,6 +377,30 @@ class CiscoSwitchTranslator:
                 lines.append(
                     f" ip ospf {interface.ospf_process} "
                     f"area {interface.ospf_area}"
+                )
+
+            # OSPF network type
+            #
+            # Cisco IOS syntax:
+            #   ip ospf network point-to-point
+            #   ip ospf network broadcast
+            #   ip ospf network point-to-multipoint
+            #   ip ospf network non-broadcast
+            if interface.ospf_network_type:
+                net_type = self._translate_ospf_network_type(
+                    interface.ospf_network_type
+                )
+                if net_type:
+                    lines.append(f" ip ospf network {net_type}")
+
+            # PBR / IP policy route-map
+            #
+            # Cisco IOS syntax:
+            #   ip policy route-map <name>
+            if interface.ip_policy_route_map:
+                lines.append(
+                    f" ip policy route-map "
+                    f"{interface.ip_policy_route_map}"
                 )
 
         else:
@@ -489,6 +546,94 @@ class CiscoSwitchTranslator:
 
         if interface.lldp_receive_disabled:
             lines.append(" no lldp receive")
+
+        # -----------------------------------------------------
+        # PoE (Power over Ethernet)
+        #
+        # Cisco IOS syntax:
+        #   power inline auto   (enable PoE — default)
+        #   power inline never  (disable PoE)
+        #
+        # Cisco Catalyst PoE configuration guide.
+        # Only emit when explicitly set, since default is auto.
+        # -----------------------------------------------------
+
+        if interface.poe_enabled is False:
+            lines.append(" power inline never")
+        elif interface.poe_enabled is True:
+            lines.append(" power inline auto")
+
+        # -----------------------------------------------------
+        # ACCESS GROUPS (ACL application)
+        #
+        # Cisco IOS syntax:
+        #   ip access-group <acl-name> in
+        #   ip access-group <acl-name> out
+        # -----------------------------------------------------
+
+        if interface.access_group_in:
+            lines.append(
+                f" ip access-group {interface.access_group_in} in"
+            )
+
+        if interface.access_group_out:
+            lines.append(
+                f" ip access-group {interface.access_group_out} out"
+            )
+
+        # -----------------------------------------------------
+        # HSRP (Hot Standby Router Protocol)
+        #
+        # Cisco IOS syntax:
+        #   standby <group> ip <virtual-ip>
+        #   standby <group> priority <priority>
+        #   standby <group> preempt
+        #   standby <group> timers <hello> <hold>
+        #
+        # Cisco IOS Configuration Guide, "First Hop Redundancy
+        # Protocols Configuration Guide, IOS".
+        # -----------------------------------------------------
+
+        if interface.hsrp_group is not None:
+            lines.extend(
+                self._translate_hsrp(interface)
+            )
+
+        # -----------------------------------------------------
+        # VRRP -> HSRP TRANSLATION
+        #
+        # Huawei VRRP maps to Cisco HSRP on IOS-based platforms.
+        # VRRP VRID -> HSRP group number, preserve virtual IP
+        # and flag for verification.
+        # -----------------------------------------------------
+
+        elif interface.vrrp_vrid is not None:
+            lines.extend(
+                self._translate_vrrp_to_hsrp(interface)
+            )
+
+        # -----------------------------------------------------
+        # TRAFFIC POLICY (Huawei MQC)
+        #
+        # Cisco IOS uses service-policy syntax, not "traffic-
+        # policy". Flag as REVIEW with the Cisco-equivalent hint.
+        # -----------------------------------------------------
+
+        if interface.traffic_policy_inbound:
+            lines.append(
+                " ! REVIEW-QoS: source had traffic-policy "
+                f"{interface.traffic_policy_inbound} inbound — "
+                "Cisco IOS equivalent: service-policy input "
+                f"{interface.traffic_policy_inbound}"
+            )
+
+        if interface.traffic_policy_outbound:
+            lines.append(
+                " ! REVIEW-QoS: source had traffic-policy "
+                f"{interface.traffic_policy_outbound} outbound — "
+                "Cisco IOS equivalent: service-policy output "
+                f"{interface.traffic_policy_outbound}"
+            )
 
         # -----------------------------------------------------
         # PRESERVED UNRECOGNIZED COMMANDS
@@ -1263,3 +1408,166 @@ class CiscoSwitchTranslator:
             return f"! REVIEW-ACL: {line}"
 
         return f"! REVIEW-UNSUPPORTED: {line}"
+
+    # =========================================================
+    # OSPF NETWORK TYPE
+    #
+    # Canonical internal form -> Cisco IOS keyword:
+    #   p2p             -> point-to-point
+    #   point-to-point  -> point-to-point
+    #   broadcast       -> broadcast (default, but explicit is fine)
+    #   p2mp            -> point-to-multipoint
+    #   nbma            -> non-broadcast
+    # =========================================================
+
+    @staticmethod
+    def _translate_ospf_network_type(net_type):
+
+        net_type_lower = (net_type or "").strip().lower()
+
+        mapping = {
+            "p2p": "point-to-point",
+            "point-to-point": "point-to-point",
+            "broadcast": "broadcast",
+            "p2mp": "point-to-multipoint",
+            "point-to-multipoint": "point-to-multipoint",
+            "nbma": "non-broadcast",
+            "non-broadcast": "non-broadcast",
+        }
+
+        return mapping.get(net_type_lower)
+
+    # =========================================================
+    # HSRP (native Cisco)
+    #
+    # Cisco IOS syntax:
+    #   standby <group> ip <virtual-ip>
+    #   standby <group> priority <priority>
+    #   standby <group> preempt
+    #   standby <group> timers <hello> <hold>
+    #
+    # Cisco IOS Configuration Guide, "First Hop Redundancy
+    # Protocols", "Configuring HSRP".
+    # =========================================================
+
+    @staticmethod
+    def _translate_hsrp(interface):
+
+        lines = []
+        group = interface.hsrp_group
+
+        if interface.hsrp_virtual_ip:
+            lines.append(
+                f" standby {group} ip "
+                f"{interface.hsrp_virtual_ip}"
+            )
+
+        if interface.hsrp_priority is not None:
+            lines.append(
+                f" standby {group} priority "
+                f"{interface.hsrp_priority}"
+            )
+
+        if interface.hsrp_preempt:
+            lines.append(f" standby {group} preempt")
+
+        if (
+            interface.hsrp_hello_interval is not None
+            and interface.hsrp_hold_interval is not None
+        ):
+            lines.append(
+                f" standby {group} timers "
+                f"{interface.hsrp_hello_interval} "
+                f"{interface.hsrp_hold_interval}"
+            )
+
+        return lines
+
+    # =========================================================
+    # VRRP -> HSRP TRANSLATION
+    #
+    # Huawei VRRP -> Cisco HSRP mapping:
+    #   VRRP VRID -> HSRP group number
+    #   Virtual IP -> preserved
+    #   Priority -> preserved (VRRP default 100 matches HSRP)
+    #
+    # VRRP defaults to preempt ENABLED; HSRP defaults to
+    # preempt DISABLED. The translator always emits "preempt"
+    # when the source VRRP was active, since omitting it would
+    # silently change failover behavior.
+    # =========================================================
+
+    @staticmethod
+    def _translate_vrrp_to_hsrp(interface):
+
+        lines = []
+        group = interface.vrrp_vrid
+
+        lines.append(
+            " ! REVIEW-VRRP->HSRP: Huawei VRRP VRID "
+            f"{group} mapped to Cisco HSRP group {group} — "
+            "verify timers, tracking, and preempt behavior"
+        )
+
+        if interface.vrrp_virtual_ip:
+            lines.append(
+                f" standby {group} ip "
+                f"{interface.vrrp_virtual_ip}"
+            )
+
+        # VRRP defaults to preempt enabled — must emit it
+        # explicitly on Cisco HSRP to preserve behavior
+        lines.append(f" standby {group} preempt")
+
+        return lines
+
+    # =========================================================
+    # DHCP POOLS
+    #
+    # Cisco IOS syntax:
+    #   ip dhcp pool <name>
+    #    network <network> <mask>
+    #    default-router <gw>
+    #    dns-server <dns1> [dns2] ...
+    #    domain-name <domain>
+    #    lease <days> [hours] [minutes]
+    #    option <code> ip <value>
+    #
+    # Cisco IOS Configuration Guide, "Configuring DHCP".
+    # =========================================================
+
+    @staticmethod
+    def translate_dhcp_pools(pools):
+
+        output = []
+
+        for pool in pools:
+
+            output.append(f"ip dhcp pool {pool.name}")
+
+            if pool.network and pool.mask:
+                output.append(
+                    f" network {pool.network} {pool.mask}"
+                )
+
+            for gw in pool.gateway:
+                output.append(f" default-router {gw}")
+
+            if pool.dns_servers:
+                dns_str = " ".join(pool.dns_servers)
+                output.append(f" dns-server {dns_str}")
+
+            if pool.domain_name:
+                output.append(
+                    f" domain-name {pool.domain_name}"
+                )
+
+            if pool.lease:
+                output.append(f" lease {pool.lease}")
+
+            for opt in pool.options:
+                output.append(f" {opt}")
+
+            output.append("!")
+
+        return output

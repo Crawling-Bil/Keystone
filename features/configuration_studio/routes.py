@@ -8,14 +8,26 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from flask import Blueprint, jsonify, render_template, request, send_from_directory
+from flask import Blueprint, jsonify, redirect, render_template, request, send_from_directory
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from core.database import log_activity
-from .service import available_profiles, available_target_models, convert_file, preview_mapping, supported_platforms
+from .converter_engine.domains import DOMAINS, get_domain
+from .service import (
+    available_profiles,
+    available_target_models,
+    convert_file,
+    domain_overview,
+    ensure_domain_available,
+    preview_mapping,
+    supported_platforms,
+)
 
+# The API and download endpoints stay under /configuration; the pages a person
+# opens live under /convert/<domain> (see pages_bp below).
 bp = Blueprint("configuration", __name__, url_prefix="/configuration")
+pages_bp = Blueprint("convert", __name__, url_prefix="/convert")
 BASE_DIR = Path(__file__).resolve().parents[2]
 UPLOAD_DIR = BASE_DIR / "uploads" / "configuration"
 EXPORT_DIR = BASE_DIR / "exports" / "configuration"
@@ -29,6 +41,24 @@ MAX_BATCH_FILES = 500
 MAX_CONFIG_BYTES = 20 * 1024 * 1024
 MAX_ARCHIVE_TOTAL_BYTES = 250 * 1024 * 1024
 SAFE_IDENTIFIER = re.compile(r"^[a-f0-9]{32}$")
+
+
+def _request_domain() -> str | None:
+    """The Convert page the request came from, or None for the legacy form.
+
+    Raises ValueError for an unknown name and for a domain that has no
+    converter yet, so every endpoint answers both with the same clear 400.
+    """
+    raw = (request.form.get("domain") or "").strip()
+    if not raw:
+        return None
+    key = get_domain(raw.replace("-", "_")).key
+    ensure_domain_available(key)
+    return key
+
+
+def _activity_module(domain: str | None) -> str:
+    return f"Convert \u00b7 {DOMAINS[domain].label}" if domain else "Configuration Studio"
 
 
 def _safe_source_name(value: str, fallback: str) -> str:
@@ -164,28 +194,48 @@ def _collect_batch_sources(uploads: list[FileStorage], temp_dir: Path) -> tuple[
 @bp.get("")
 @bp.get("/")
 def index():
+    """Old single-page address; Convert is now one page per domain."""
+    return redirect("/convert/switch")
+
+
+def _slug(key: str) -> str:
+    return key.replace("_", "-")
+
+
+@pages_bp.get("")
+@pages_bp.get("/")
+def convert_home():
+    return redirect("/convert/switch")
+
+
+@pages_bp.get("/<slug>")
+def convert_page(slug: str):
+    try:
+        key = get_domain(slug.replace("-", "_")).key
+    except ValueError:
+        return jsonify({"ok": False, "error": "Unknown convert page."}), 404
+    entry = next(item for item in domain_overview() if item["key"] == key)
     return render_template(
         "configuration.html",
-        active_page="configuration",
-        platforms=supported_platforms(),
-        profiles=available_profiles(),
-        # Target Vendor defaults to Huawei (see the template's own
-        # "selected" logic). Huawei and Palo Alto both have confirmed
-        # target-model data now, so the "Target Model" dropdown's
-        # options depend on whichever target vendor is currently
-        # selected in the browser -- rendered once here as a lookup by
-        # vendor (see configuration.js's updateTargetModelVisibility)
-        # rather than re-fetched from the server on every vendor
-        # change, since this list is small and static.
+        active_page=f"convert_{key}",
+        domain=entry,
+        platforms=supported_platforms(key) if entry["available"] else {"sources": [], "targets": []},
+        # Standard config profiles (e.g. the TAM Huawei standard) apply to switch conversion only.
+        profiles=available_profiles() if key == "switch" else [],
+        # Target-model lists exist for Huawei (switch) and Palo Alto (firewall) targets.
         target_models_by_vendor={
-            "huawei": available_target_models("Huawei"),
-            "palo alto": available_target_models("Palo Alto"),
+            "huawei": available_target_models("Huawei") if key == "switch" else [],
+            "palo alto": available_target_models("Palo Alto") if key == "firewall" else [],
         },
     )
 
 
 @bp.post("/api/convert")
 def convert():
+    try:
+        domain = _request_domain()
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     uploaded = request.files.get("config_file")
     config_text = request.form.get("config_text", "")
     original_name = secure_filename(uploaded.filename) if uploaded and uploaded.filename else "pasted-config.cfg"
@@ -221,19 +271,20 @@ def convert():
             profile_key=request.form.get("profile_key") or None,
             target_model=request.form.get("target_model") or None,
             mapping=mapping,
+            domain=domain,
         )
         export_id = uuid.uuid4().hex
         export_path = EXPORT_DIR / f"{export_id}.cfg"
         export_path.write_text(result["output_text"], encoding="utf-8")
         result["download_url"] = f"/configuration/download/{export_id}?name={result['download_name']}"
         log_activity(
-            "Configuration Studio",
+            _activity_module(domain),
             "Configuration converted",
             f"{result['hostname']} · {result['source_vendor']} to {result['target_vendor']}",
         )
         return jsonify({"ok": True, "result": result})
     except Exception as exc:
-        log_activity("Configuration Studio", "Conversion failed", f"{type(exc).__name__}: {exc}", "error")
+        log_activity(_activity_module(domain), "Conversion failed", f"{type(exc).__name__}: {exc}", "error")
         return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
     finally:
         try:
@@ -251,6 +302,10 @@ def preview_mapping_route():
     for the UI to show and let the user edit before calling /api/convert
     again with that edited mapping as `interface_mapping` (JSON).
     """
+    try:
+        domain = _request_domain()
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     uploaded = request.files.get("config_file")
     config_text = request.form.get("config_text", "")
     original_name = secure_filename(uploaded.filename) if uploaded and uploaded.filename else "pasted-config.cfg"
@@ -274,6 +329,7 @@ def preview_mapping_route():
             source_vendor=request.form.get("source_vendor", "Auto Detect"),
             source_device_type=request.form.get("source_device_type", "Auto Detect"),
             target_vendor=request.form.get("target_vendor", "Huawei"),
+            domain=domain,
         )
         return jsonify({"ok": True, "result": result})
     except Exception as exc:
@@ -287,6 +343,10 @@ def preview_mapping_route():
 
 @bp.post("/api/batch")
 def batch_convert():
+    try:
+        domain = _request_domain()
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
     uploads = [item for item in request.files.getlist("config_files") if item and item.filename]
     if not uploads:
         return jsonify({"ok": False, "error": "Select configuration files, a folder, or a ZIP archive."}), 400
@@ -321,6 +381,7 @@ def batch_convert():
                             target_device_type=request.form.get("target_device_type") or None,
                             profile_key=request.form.get("profile_key") or None,
                             target_model=request.form.get("target_model") or None,
+                            domain=domain,
                         )
                         output_name = _unique_output_name(result["download_name"], used_names)
                         preview_id = uuid.uuid4().hex
@@ -360,7 +421,7 @@ def batch_convert():
         archive_path.unlink(missing_ok=True)
 
     log_activity(
-        "Configuration Studio",
+        _activity_module(domain),
         "Batch conversion completed",
         f"{len(results)} converted · {len(errors)} failed",
         "success" if results else "error",

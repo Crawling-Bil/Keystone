@@ -1640,6 +1640,8 @@ html[data-theme="dark"] tbody tr:hover { background: rgba(36, 180, 205, .09); }
 .risk-tag { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border: 1px solid var(--border); border-radius: 999px; font: 600 11px/1.5 "Atkinson NES", sans-serif; white-space: nowrap; }
 .risk-tag::before { content: ""; width: 6px; height: 6px; border-radius: 2px; background: currentColor; }
 .risk-offline { color: var(--muted); }
+.risk-planned { color: var(--muted); border-style: dashed; }
+.risk-planned::before { background: transparent; border: 1px solid currentColor; border-radius: 50%; }
 .risk-offline::before { border-radius: 50%; }
 .risk-read { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, var(--border)); }
 .risk-write { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, var(--border)); }

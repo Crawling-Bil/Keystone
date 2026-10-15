@@ -153,7 +153,7 @@
       const uploadName = file.webkitRelativePath || file.name;
       formData.append("config_files", file, uploadName);
     });
-    ["source_vendor", "source_device_type", "target_vendor", "target_device_type", "target_model", "profile_key"].forEach(name => {
+    ["domain", "source_vendor", "source_device_type", "target_vendor", "target_device_type", "target_model", "profile_key"].forEach(name => {
       const field = form.querySelector(`[name="${name}"]`);
       formData.append(name, field?.value || "");
     });
@@ -224,7 +224,7 @@
     download.setAttribute("download", data.download_name);
     empty.classList.add("hidden");
     batchResultPanel.classList.add("hidden");
-    mappingResultPanel.classList.add("hidden");
+    mappingResultPanel?.classList.add("hidden");
     resultPanel.classList.remove("hidden");
     window.NES.toast(`Converted ${data.hostname} successfully.`);
   }
@@ -343,8 +343,8 @@
       empty.classList.add("hidden");
       resultPanel.classList.add("hidden");
       batchResultPanel.classList.add("hidden");
-      mappingResultPanel.classList.remove("hidden");
-      mappingResultPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      mappingResultPanel?.classList.remove("hidden");
+      mappingResultPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
       window.NES.toast(error.message, "error");
     } finally {

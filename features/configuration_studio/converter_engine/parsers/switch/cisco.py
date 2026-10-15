@@ -2074,9 +2074,26 @@ class CiscoSwitchParser:
         if line in ("negotiation auto", "speed auto", "duplex auto"):
             return
 
-        # OSPF network type
-        if line == "ip ospf network point-to-point":
-            interface.ospf_network_type = "p2p"
+        # OSPF network type — all Cisco IOS variants:
+        #   ip ospf network point-to-point
+        #   ip ospf network broadcast
+        #   ip ospf network point-to-multipoint
+        #   ip ospf network non-broadcast
+        ospf_net_match = re.match(
+            r"^ip\s+ospf\s+network\s+(\S+)$",
+            line, re.IGNORECASE,
+        )
+        if ospf_net_match:
+            net_type = ospf_net_match.group(1).lower()
+            type_map = {
+                "point-to-point": "p2p",
+                "broadcast": "broadcast",
+                "point-to-multipoint": "p2mp",
+                "non-broadcast": "nbma",
+            }
+            interface.ospf_network_type = type_map.get(
+                net_type, net_type
+            )
             return
 
         # NetFlow monitor -> Huawei NetStream direction
@@ -2126,6 +2143,17 @@ class CiscoSwitchParser:
             interface.dhcp_snooping_rate_limit_pps = int(
                 dhcp_rate_limit_match.group(1)
             )
+            return
+
+        # PoE — "power inline auto" (default), "power inline static",
+        # "power inline never". Cisco IOS/IOS-XE Interface and
+        # Hardware Configuration Guide, "Configuring PoE", Section
+        # "Configuring a Power Management Mode on a PoE Port".
+        if line.startswith("power inline"):
+            if "never" in line:
+                interface.poe_enabled = False
+            else:
+                interface.poe_enabled = True
             return
 
         # IP Source Guard. Cisco allows an optional trailing keyword

@@ -93,7 +93,7 @@ def run_smoke_tests() -> list[str]:
                     f"Login smoke test failed: /login returned {login_response.status_code}"
                 )
 
-        for path in ("/", "/configuration", "/wireless", "/switch-analyzer", "/lifecycle/", "/api/health"):
+        for path in ("/", "/convert/switch", "/convert/firewall", "/convert/router", "/wireless", "/switch-analyzer", "/lifecycle/", "/api/health"):
             response = client.get(path)
             if response.status_code != 200:
                 errors.append(f"HTTP smoke test failed: {path} returned {response.status_code}")

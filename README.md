@@ -16,7 +16,7 @@ Analyzers (read uploaded files only):
 
 Converter:
 
-- Configuration Studio: convert a config from one vendor to another
+- Convert: one page per device type (wireless, switch, router, firewall, load balancer). Switch and Firewall convert today; the others show what they need first. See `docs/modules/configuration-studio.md`
 
 Device operations:
 

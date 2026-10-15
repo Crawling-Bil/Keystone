@@ -1,9 +1,23 @@
 {% extends "base.html" %}
-{% block title %}Configuration Studio · NES{% endblock %}
-{% block page_title %}Configuration Studio{% endblock %}
-{% block page_subtitle %}Convert multi-vendor configurations without leaving the dashboard.{% endblock %}
+{% block title %}Convert · {{ domain.label }} · NES{% endblock %}
+{% block page_title %}Convert · {{ domain.label }}{% endblock %}
+{% block page_subtitle %}{{ domain.summary }}{% endblock %}
 {% block content %}
-<form id="converter-form" class="workflow-layout" enctype="multipart/form-data">
+{% if not domain.available %}
+<section class="panel convert-unavailable" id="convert-unavailable" data-domain="{{ domain.key }}">
+    <div class="panel-heading"><div><h3>No {{ domain.label|lower }} converter yet</h3><p>Keystone does not convert {{ domain.label|lower }} configuration today, and this page will not pretend to. Nothing you upload here is transformed.</p></div></div>
+    <div class="form-grid two">
+        <div><strong>What you can do now</strong><p>Open <a href="{{ domain.analyzer_href }}">{{ domain.analyzer_name }}</a> to read and audit {{ domain.label|lower }} configuration.</p></div>
+        <div><strong>Best source file</strong><p>{{ domain.capture }}</p></div>
+    </div>
+    {% if domain.needs %}<div><strong>Needed before a converter can be built correctly</strong><ul>{% for item in domain.needs %}<li>{{ item }}</li>{% endfor %}</ul></div>{% endif %}
+</section>
+{% else %}
+{% set default_target = 'palo alto' if domain.key == 'firewall' else 'huawei' %}
+<form id="converter-form" class="workflow-layout" enctype="multipart/form-data" data-domain="{{ domain.key }}">
+    <input type="hidden" name="domain" value="{{ domain.key }}">
+    <input type="hidden" name="source_device_type" id="source-device-type" value="Auto Detect">
+    <input type="hidden" name="target_device_type" id="target-device-type" value="">
     <aside class="workflow-sidebar panel">
         <div class="panel-heading"><div><h3>Conversion Settings</h3><p>Upload or paste the source config.</p></div></div>
         <label class="field-label">Configuration File</label>
@@ -13,15 +27,15 @@
         <textarea name="config_text" id="config-text" class="small-textarea" aria-label="Pasted source configuration" placeholder="Paste running configuration here..."></textarea>
         <div class="form-grid two">
             <label><span>Source Vendor</span><select name="source_vendor" id="source-vendor"><option>Auto Detect</option>{% for item in platforms.sources|map(attribute='vendor')|unique %}<option>{{ item|title }}</option>{% endfor %}</select></label>
-            <label><span>Device Type</span><select name="source_device_type" id="source-device-type"><option>Auto Detect</option>{% for item in platforms.sources|map(attribute='device_type')|unique %}<option>{{ item|title }}</option>{% endfor %}</select></label>
-        </div>
-        <div class="form-grid two">
-            <label><span>Target Vendor</span><select name="target_vendor" id="target-vendor">{% for item in platforms.targets|map(attribute='vendor')|unique %}<option {% if item|lower == 'huawei' %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></label>
-            <label><span>Target Type</span><select name="target_device_type" id="target-device-type"><option value="">Same as source</option>{% for item in platforms.targets|map(attribute='device_type')|unique %}<option value="{{ item }}">{{ item|title }}</option>{% endfor %}</select></label>
+            <label><span>Target Vendor</span><select name="target_vendor" id="target-vendor">{% for item in platforms.targets|map(attribute='vendor')|unique %}<option {% if item|lower == default_target %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></label>
         </div>
         <label id="target-model-field"><span>Target Model <small>(optional — checks real port count)</small></span><select name="target_model" id="target-model"><option value="">Auto / not sure (skip port-count check)</option></select><script type="application/json" id="target-models-by-vendor">{{ target_models_by_vendor | tojson }}</script></label>
+        {% if profiles %}
         <label><span>Standard Config Profile</span><select name="profile_key" id="profile-select"><option value="">None (generic conversion only)</option>{% for p in profiles %}<option value="{{ p.key }}" title="{{ p.description }}">{{ p.name }}</option>{% endfor %}</select></label>
+        {% endif %}
+        {% if domain.key == 'firewall' %}
         <button class="secondary-button full-width hidden" type="button" id="preview-mapping-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Preview Interface Mapping</button>
+        {% endif %}
         <button class="primary-button full" type="submit" id="convert-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Convert Configuration</button>
         <div class="batch-box">
             <div class="field-divider"><span>batch conversion</span></div>
@@ -37,6 +51,7 @@
 
     <section class="workflow-main">
         <div id="converter-empty" class="panel empty-state tall"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#swap"></use></svg></div><h3>Ready to convert</h3><p>Upload a configuration or paste it on the left. Detection, conversion, review markers, and download will appear here.</p></div>
+        {% if domain.key == 'firewall' %}
         <div id="mapping-result" class="hidden">
             <div class="panel">
                 <div class="panel-heading"><div><h3>Interface &amp; Zone Mapping</h3><p id="mapping-hostname-line">Review the auto-detected mapping below, adjust anything, then generate the config.</p></div></div>
@@ -64,6 +79,7 @@
             </div>
             <button class="primary-button full" type="button" id="generate-mapped-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Generate PAN-OS Config</button>
         </div>
+        {% endif %}
         <div id="batch-result" class="hidden">
             <div class="analysis-toolbar panel"><div><strong>Batch Conversion Complete</strong><span id="batch-summary"></span></div><a id="download-batch" class="secondary-button" href="#">Download ZIP</a></div>
             <div class="table-wrap panel"><table id="batch-table"></table></div>
@@ -96,5 +112,6 @@
         </div>
     </section>
 </form>
+{% endif %}
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/configuration.js') }}"></script>{% endblock %}
+{% block scripts %}{% if domain.available %}<script src="{{ url_for('static', filename='js/configuration.js') }}"></script>{% endif %}{% endblock %}

@@ -5,6 +5,7 @@ from features.configuration_studio.converter_engine.models.switch import (
     VLAN,
     Interface,
     StaticRoute,
+    DhcpPool,
     StackMemberConfig,
     TrackObject,
     NqaTestInstance,
@@ -52,6 +53,7 @@ class HuaweiSwitchParser:
 
         current_interface = None
         current_vlan = None
+        current_dhcp_pool = None
 
         # Tracks a named global-view sub-block ("radius-server
         # template <name>", "hwtacacs-server template <name>", "acl
@@ -761,6 +763,227 @@ class HuaweiSwitchParser:
                     config.logging_commands.append(line)
                     continue
 
+                # ---------------------------------------------
+                # LLDP (global) — VRP ships LLDP enabled by
+                # default (same as AOS-CX). "undo lldp enable"
+                # in system-view disables it globally.
+                # V600R025C00 Configuration Guide - Ethernet
+                # Switching, "LLDP Configuration", Section 8.4.
+                # ---------------------------------------------
+
+                if line.lower() == "lldp enable":
+                    config.lldp_enabled = True
+                    continue
+
+                if line.lower() == "undo lldp enable":
+                    # Explicit global disable
+                    continue
+
+                # ---------------------------------------------
+                # CDP DISABLE — some VRP versions support CDP
+                # compatibility. "undo cdp enable" disables it.
+                # ---------------------------------------------
+
+                if line.lower() == "undo cdp enable":
+                    config.cdp_disabled = True
+                    continue
+
+                # ---------------------------------------------
+                # BANNER — VRP uses "header login/shell/motd"
+                # with configurable delimiters (typically %)
+                #
+                #   header login information %
+                #   Welcome to Huawei S5755
+                #   Authorized users only
+                #   %
+                #
+                # V600R025C00 Configuration Guide - Device
+                # Management, Section 3.3.4, "Configuring the
+                # Login Banner".
+                # ---------------------------------------------
+
+                if line.lower().startswith("header "):
+                    config.banner_commands.append(line)
+                    current_named_block = "banner"
+                    # Check for single-line banner (delimiter on same line)
+                    parts = line.split(None, 2)
+                    if len(parts) >= 3:
+                        payload = parts[2]
+                        if len(payload) >= 2 and payload[0] == payload[-1]:
+                            # Single-line banner: header login "text"
+                            current_named_block = None
+                    continue
+
+                if current_named_block == "banner":
+                    config.banner_commands.append(line)
+                    # Check if this line ends the banner (delimiter character)
+                    if len(line) == 1 and not line.isalnum():
+                        current_named_block = None
+                    continue
+
+                # ---------------------------------------------
+                # SSH — VRP uses "stelnet server enable" and
+                # "ssh server ..." commands.
+                #
+                #   stelnet server enable
+                #   ssh server cipher ...
+                #   ssh user admin ...
+                #   ssh authorization-type default aaa
+                #
+                # V600R025C00 Configuration Guide - Security,
+                # "SSH Configuration", Section 2.4.
+                # ---------------------------------------------
+
+                if line.lower().startswith(
+                    (
+                        "stelnet ",
+                        "ssh ",
+                        "rsa local-key-pair create",
+                        "dsa local-key-pair create",
+                    )
+                ):
+                    config.ssh_commands.append(line)
+                    continue
+
+                # ---------------------------------------------
+                # AAA block — "aaa" opens a sub-block with
+                # authentication-scheme, authorization-scheme,
+                # accounting-scheme, domain, local-user and
+                # recording-scheme sub-commands.
+                #
+                #   aaa
+                #    authentication-scheme default
+                #    authorization-scheme default
+                #    local-user admin password cipher ...
+                #    local-user admin service-type terminal ssh
+                #
+                # V600R025C00 User Access and Authentication
+                # Configuration Guide, "AAA Configuration".
+                # ---------------------------------------------
+
+                if line.lower() == "aaa":
+                    current_named_block = "aaa"
+                    config.aaa_commands.append(line)
+                    continue
+
+                if current_named_block == "aaa":
+                    config.aaa_commands.append(line)
+                    continue
+
+                # ---------------------------------------------
+                # LOCAL-USER (standalone, outside aaa block)
+                #
+                #   local-user admin password cipher ...
+                #   local-user admin service-type terminal ssh
+                # ---------------------------------------------
+
+                if line.lower().startswith("local-user "):
+                    config.username_commands.append(line)
+                    continue
+
+                # ---------------------------------------------
+                # USER-INTERFACE VTY — "user-interface vty 0 4"
+                # followed by sub-commands (authentication-mode,
+                # protocol inbound, idle-timeout, etc.)
+                #
+                #   user-interface vty 0 4
+                #    authentication-mode aaa
+                #    protocol inbound ssh
+                #    idle-timeout 15 0
+                #
+                # V600R025C00 Configuration Guide - Device
+                # Management, "Terminal Access Security".
+                # ---------------------------------------------
+
+                if re.match(
+                    r"^user-interface\s+vty\s+\d+(?:\s+\d+)?$",
+                    line,
+                    re.IGNORECASE,
+                ):
+                    current_named_block = "vty"
+                    config.line_vty_commands.append(line)
+                    continue
+
+                if re.match(
+                    r"^user-interface\s+con(?:sole)?\s+\d+$",
+                    line,
+                    re.IGNORECASE,
+                ):
+                    current_named_block = "vty"
+                    config.line_vty_commands.append(line)
+                    continue
+
+                if current_named_block == "vty":
+                    config.line_vty_commands.append(line)
+                    continue
+
+                # ---------------------------------------------
+                # DHCP SERVER POOL (global) — VRP uses "ip pool
+                # <name>" followed by network/gateway/dns/lease
+                # sub-commands.
+                #
+                #   ip pool VLAN10
+                #    gateway-list 10.1.1.1
+                #    network 10.1.1.0 mask 255.255.255.0
+                #    dns-list 8.8.8.8
+                #    lease day 0 hour 8 minute 0
+                #
+                # V600R025C00 IP Addresses and Services
+                # Configuration Guide, "DHCP Server".
+                # ---------------------------------------------
+
+                if re.match(
+                    r"^ip pool\s+\S+",
+                    line,
+                    re.IGNORECASE,
+                ):
+                    current_named_block = "dhcp_pool"
+                    pool_name = line.split(None, 2)[2].strip()
+                    current_dhcp_pool = DhcpPool(name=pool_name)
+                    config.dhcp_pools.append(current_dhcp_pool)
+                    continue
+
+                if current_named_block == "dhcp_pool":
+
+                    if line.lower().startswith("network "):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            current_dhcp_pool.network = parts[1]
+                            if "mask" in parts and len(parts) >= parts.index("mask") + 2:
+                                current_dhcp_pool.mask = parts[parts.index("mask") + 1]
+                            elif len(parts) >= 3:
+                                current_dhcp_pool.mask = parts[2]
+                        continue
+
+                    if line.lower().startswith("gateway-list "):
+                        current_dhcp_pool.gateway.extend(line.split()[1:])
+                        continue
+
+                    if line.lower().startswith("dns-list "):
+                        current_dhcp_pool.dns_servers.extend(line.split()[1:])
+                        continue
+
+                    if line.lower().startswith("lease "):
+                        current_dhcp_pool.lease = line.split(None, 1)[1].strip()
+                        continue
+
+                    if line.lower().startswith("domain-name "):
+                        current_dhcp_pool.domain_name = line.split(None, 1)[1].strip()
+                        continue
+
+                    if line.lower().startswith(
+                        ("excluded-ip-address ", "option ", "static-bind ")
+                    ):
+                        current_dhcp_pool.options.append(line)
+                        continue
+
+                # DHCP global commands (excluded-address, etc.)
+                if line.lower().startswith(
+                    ("dhcp server ", "dhcp enable", "dhcp select ")
+                ):
+                    config.dhcp_commands.append(line)
+                    continue
+
                 config.global_commands.append(line)
                 continue
 
@@ -1125,6 +1348,28 @@ class HuaweiSwitchParser:
                 continue
 
             # =================================================
+            # OSPF NETWORK TYPE (interface-view)
+            #
+            # ospf network-type {broadcast|p2p|p2mp|nbma}
+            #
+            # Sets the OSPF link type for this interface.
+            # V600R025C00 Configuration Guide - IP Unicast
+            # Routing, "OSPF Configuration", Section 3.4
+            # "Configuring OSPF Network Type".
+            # =================================================
+
+            ospf_nettype_match = re.match(
+                r"^ospf\s+network-type\s+(broadcast|p2p|p2mp|nbma)$",
+                line,
+                re.IGNORECASE,
+            )
+            if ospf_nettype_match:
+                current_interface.ospf_network_type = (
+                    ospf_nettype_match.group(1).lower()
+                )
+                continue
+
+            # =================================================
             # TRAFFIC-POLICY APPLICATION (PBR/QoS binding on an
             # interface) -- Huawei's per-interface equivalent of
             # Cisco's "ip policy route-map <name>". Confirmed real
@@ -1146,6 +1391,246 @@ class HuaweiSwitchParser:
                     current_interface.traffic_policy_outbound = policy_name
                 else:
                     current_interface.traffic_policy_inbound = policy_name
+                continue
+
+            # =================================================
+            # LLDP PER-INTERFACE
+            #
+            # undo lldp enable   (disable on this port)
+            # lldp enable        (re-enable, default)
+            #
+            # VRP LLDP is enabled by default on all ports;
+            # "undo lldp enable" under interface-view disables
+            # it per-port. V600R025C00 Configuration Guide -
+            # Ethernet Switching, "LLDP Configuration", 8.4.
+            # =================================================
+
+            if line.lower() == "undo lldp enable":
+                current_interface.lldp_transmit_disabled = True
+                current_interface.lldp_receive_disabled = True
+                continue
+
+            if line.lower() == "lldp enable":
+                current_interface.lldp_transmit_disabled = False
+                current_interface.lldp_receive_disabled = False
+                continue
+
+            if line.lower() == "undo lldp transmit":
+                current_interface.lldp_transmit_disabled = True
+                continue
+
+            if line.lower() == "undo lldp receive":
+                current_interface.lldp_receive_disabled = True
+                continue
+
+            # =================================================
+            # PORT SECURITY
+            #
+            # port-security enable
+            # port-security max-mac-num 5
+            # port-security protect-action restrict
+            #
+            # V600R025C00 Configuration Guide - Security,
+            # "Port Security Configuration", Section 3.4.
+            # =================================================
+
+            if line.lower() == "port-security enable":
+                current_interface.port_security_enabled = True
+                continue
+
+            # =================================================
+            # PORT SECURITY STICKY MAC
+            #
+            # port-security mac-address sticky
+            # port-security mac-address sticky <mac> vlan <id>
+            #
+            # V600R025C00 Configuration Guide - Security,
+            # "Port Security Configuration", Section 3.4
+            # "Configuring Sticky MAC Addresses".
+            # =================================================
+
+            if line.lower() == "port-security mac-address sticky":
+                current_interface.port_security_sticky = True
+                current_interface.port_security_enabled = True
+                continue
+
+            sticky_mac_match = re.match(
+                r"^port-security\s+mac-address\s+sticky\s+"
+                r"([0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4})"
+                r"(?:\s+vlan\s+\d+)?$",
+                line,
+                re.IGNORECASE,
+            )
+            if sticky_mac_match:
+                mac = sticky_mac_match.group(1)
+                current_interface.port_security_sticky_macs.append(mac)
+                current_interface.port_security_sticky = True
+                current_interface.port_security_enabled = True
+                continue
+
+            port_sec_max_match = re.match(
+                r"^port-security max-mac-num\s+(\d+)$",
+                line,
+                re.IGNORECASE,
+            )
+            if port_sec_max_match:
+                current_interface.port_security_max = int(
+                    port_sec_max_match.group(1)
+                )
+                current_interface.port_security_enabled = True
+                continue
+
+            port_sec_action_match = re.match(
+                r"^port-security protect-action\s+(\S+)$",
+                line,
+                re.IGNORECASE,
+            )
+            if port_sec_action_match:
+                current_interface.port_security_violation = (
+                    port_sec_action_match.group(1)
+                )
+                current_interface.port_security_enabled = True
+                continue
+
+            # =================================================
+            # STP BPDU FILTER (interface-view)
+            #
+            # stp bpdu-filter enable
+            # stp bpdu-filter default (inherits global setting)
+            #
+            # V600R025C00 Configuration Guide - Ethernet
+            # Switching, "STP/RSTP/MSTP Configuration".
+            # =================================================
+
+            if line.lower() in (
+                "stp bpdu-filter enable",
+                "stp bpdu-filter default",
+            ):
+                current_interface.bpdufilter = True
+                continue
+
+            # =================================================
+            # STP ROOT PROTECTION (interface-view)
+            #
+            # stp root-protection
+            #
+            # V600R025C00 Configuration Guide - Ethernet
+            # Switching, "STP/RSTP/MSTP Configuration",
+            # "Root Protection".
+            # =================================================
+
+            if line.lower() == "stp root-protection":
+                current_interface.spanning_tree_root_guard = True
+                continue
+
+            # =================================================
+            # STP LOOP PROTECTION (interface-view)
+            #
+            # stp loop-protection
+            #
+            # V600R025C00 Configuration Guide - Ethernet
+            # Switching, "STP/RSTP/MSTP Configuration",
+            # "Loop Protection".
+            # =================================================
+
+            if line.lower() == "stp loop-protection":
+                current_interface.spanning_tree_loop_guard = True
+                continue
+
+            # =================================================
+            # IP SOURCE GUARD (interface-view)
+            #
+            # ip source check user-bind enable
+            #
+            # VRP's equivalent of Cisco's "ip verify source".
+            # V600R025C00 Configuration Guide - Security,
+            # "IP Source Guard Configuration", Section 3.5.
+            # =================================================
+
+            if line.lower() in (
+                "ip source check user-bind enable",
+                "ip source check user-bind alarm enable",
+            ):
+                current_interface.ip_source_guard_enabled = True
+                continue
+
+            # =================================================
+            # VOICE VLAN (interface-view)
+            #
+            # voice-vlan 100 enable
+            # voice-vlan mode auto
+            #
+            # V600R025C00 Configuration Guide - Ethernet
+            # Switching, "Voice VLAN Configuration".
+            # =================================================
+
+            voice_vlan_match = re.match(
+                r"^voice-vlan\s+(\d+)\s+enable$",
+                line,
+                re.IGNORECASE,
+            )
+            if voice_vlan_match:
+                current_interface.voice_vlan_id = int(
+                    voice_vlan_match.group(1)
+                )
+                continue
+
+            # =================================================
+            # NETSTREAM (interface-view) — Huawei's NetFlow
+            # equivalent, per-interface sampling/export.
+            #
+            # ip netstream inbound
+            # ip netstream outbound
+            # ip netstream sampler fix-packets 1000 inbound
+            #
+            # V600R025C00 Configuration Guide - Network
+            # Management, "NetStream Configuration".
+            # =================================================
+
+            if line.lower().startswith("ip netstream "):
+                parts = line.split()
+                if "inbound" in parts:
+                    current_interface.netstream_inbound = True
+                elif "outbound" in parts:
+                    current_interface.netstream_outbound = True
+                continue
+
+            # =================================================
+            # VRF BINDING (interface-view)
+            #
+            # ip binding vpn-instance MGMT
+            #
+            # V600R025C00 Configuration Guide - IP Routing,
+            # "VPN Instance Configuration", Section 3.4.
+            # =================================================
+
+            if line.lower().startswith("ip binding vpn-instance "):
+                current_interface.vrf_forwarding = line.split()[-1]
+                continue
+
+            # =================================================
+            # ACL APPLICATION ON INTERFACE
+            #
+            # traffic-filter inbound acl 3001
+            # traffic-filter outbound acl 3002
+            #
+            # VRP's equivalent of Cisco's "ip access-group".
+            # V600R025C00 Configuration Guide - ACL and QoS,
+            # "ACL Configuration", Section 5.5.
+            # =================================================
+
+            traffic_filter_match = re.match(
+                r"^traffic-filter\s+(inbound|outbound)\s+acl\s+(\S+)$",
+                line,
+                re.IGNORECASE,
+            )
+            if traffic_filter_match:
+                direction = traffic_filter_match.group(1).lower()
+                acl_ref = traffic_filter_match.group(2)
+                if direction == "outbound":
+                    current_interface.access_group_out = acl_ref
+                else:
+                    current_interface.access_group_in = acl_ref
                 continue
 
             # =================================================

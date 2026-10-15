@@ -2,6 +2,18 @@
 
 Newest first. Module versions are listed in `core/modules.py`.
 
+## Unreleased
+
+### Convert
+
+- Convert is split into five pages, one per device type, like Analyze: Wireless, Switch, Router, Firewall, Load Balancer (`/convert/<page>`). `/configuration/` redirects to Switch.
+- The page decides the device type. Auto Detect only picks the vendor within that domain, and a file that clearly belongs to another domain (for example a router backup on the Switch page) is refused with a pointer to the right page instead of going through the wrong parser.
+- Wireless, Router and Load Balancer have no converter yet. Their pages say so, list what is needed, and link to the matching analyzer; the dashboard tags them "Not available yet".
+- New `converter_engine/domains.py` holds the domain registry and `classify()`, which corrects known detector false positives (routers read as Cisco FTD or switch, PAN-OS CLI capture read as an Aruba switch).
+- Interface/zone mapping, IPsec, SD-WAN and Panorama panels appear only on the Firewall page; standard config profiles only on the Switch page.
+- Conversion activity is logged as `Convert · <page>`.
+- Architecture notes and the "add a converter" steps are in `docs/modules/configuration-studio.md`.
+
 ## 1.11.0 (2026-10-15)
 
 ### Suite
