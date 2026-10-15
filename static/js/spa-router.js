@@ -16,7 +16,7 @@
  * alone and behaves like a normal link/request.
  */
 (() => {
-  const ROUTES = ["/", "/configuration", "/wireless", "/switch-analyzer", "/router-analyzer", "/firewall-analyzer", "/load-balancer-analyzer", "/lifecycle/", "/ztp/", "/lifecycle/config-push", "/about"];
+  const ROUTES = ["/", "/wireless", "/switch-analyzer", "/router-analyzer", "/firewall-analyzer", "/load-balancer-analyzer", "/lifecycle/", "/ztp/", "/lifecycle/config-push", "/about"];
 
   const outlet = document.getElementById("spa-outlet");
   if (!outlet) return; // base.html not on this page (shouldn't happen) — fail safe to normal navigation

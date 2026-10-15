@@ -41,6 +41,7 @@ class Tool:
     icon: str
     description: str
     task: str = ""      # "Not sure which tool?" prompt; empty = not listed
+    status: str = ""    # "planned" = the page opens but no converter exists yet
     keywords: tuple[str, ...] = field(default_factory=tuple)
 
     @property
@@ -68,9 +69,23 @@ TOOLS: tuple[Tool, ...] = (
     Tool("lb_analyzer", "Load Balancer Analyzer", "analyze", "offline", "1.0", "/load-balancer-analyzer", "balancer",
          "F5 BIG-IP: virtual server to pool map, monitors, SSL profiles and certificates, persistence, iRules, HA and hardening findings.",
          task="Review a load balancer (F5 virtual servers, pools, SSL, HA)", keywords=("f5", "big-ip", "ucs", "ltm", "gtm")),
-    Tool("configuration", "Configuration Studio", "convert", "offline", "1.8", "/configuration", "configuration",
-         "Multi-vendor configuration conversion with automatic platform detection and mapping preview.",
-         task="Convert a running configuration to another vendor", keywords=("migration", "converter")),
+    # Convert: one page per kind of device, the same five as Analyze. "planned"
+    # must match the converter registries (tests/test_convert_domains.py checks it).
+    Tool("convert_wireless", "Wireless", "convert", "offline", "", "/convert/wireless", "wireless",
+         "Wireless controller configuration (Cisco 9800 / AireOS, Huawei AC, Aruba). No converter yet; Wireless Analyzer reads these files.",
+         keywords=("wlc", "ssid", "ap group", "migration"), status="planned"),
+    Tool("convert_switch", "Switch", "convert", "offline", "1.8", "/convert/switch", "switch",
+         "Cisco, Huawei and Aruba switch configuration to Cisco, Huawei or Aruba, with target models and the TAM standard profile.",
+         task="Convert a switch configuration to another vendor", keywords=("migration", "converter", "vrp", "ios", "aos")),
+    Tool("convert_router", "Router", "convert", "offline", "", "/convert/router", "router",
+         "Router configuration: WAN interfaces, routing protocols, NAT, IPsec and SD-WAN. No converter yet; Router Analyzer reads these files.",
+         keywords=("bgp", "ospf", "nat", "ipsec", "migration"), status="planned"),
+    Tool("convert_firewall", "Firewall", "convert", "offline", "1.8", "/convert/firewall", "firewall",
+         "MikroTik to Palo Alto (Panorama-ready) with interface and zone mapping preview. FortiGate and Palo Alto files are analysed, not converted.",
+         task="Move a MikroTik firewall to Palo Alto", keywords=("mikrotik", "palo alto", "panorama", "migration")),
+    Tool("convert_load_balancer", "Load Balancer", "convert", "offline", "", "/convert/load-balancer", "balancer",
+         "Load balancer virtual servers, pools, monitors and profiles. No converter yet; Load Balancer Analyzer reads F5 BIG-IP files.",
+         keywords=("f5", "big-ip", "ucs", "migration"), status="planned"),
     Tool("lifecycle", "Lifecycle Manager", "operate", "write", "1.4", "/lifecycle/", "lifecycle",
          "Subnet discovery, firmware repository, pre-check and firmware upgrade jobs.",
          task="Stage firmware and upgrade devices", keywords=("upgrade", "firmware", "discovery")),

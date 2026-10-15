@@ -10,7 +10,7 @@ from flask import Flask, jsonify, render_template
 from core import auth
 from core.database import initialize, recent_activity
 from core.modules import TOOLS, grouped_tools, health_modules, task_guide
-from features.configuration_studio.routes import bp as configuration_bp
+from features.configuration_studio.routes import bp as configuration_bp, pages_bp as convert_pages_bp
 from features.lifecycle_manager.routes import app as lifecycle_bp
 from features.wireless_center.routes import bp as wireless_bp
 from features.router_analyzer.routes import bp as router_analyzer_bp
@@ -99,6 +99,7 @@ def create_app() -> Flask:
     _sweep_stale_files()
     auth.register(app)
     app.register_blueprint(configuration_bp)
+    app.register_blueprint(convert_pages_bp)
     app.register_blueprint(wireless_bp)
     app.register_blueprint(switch_analyzer_bp)
     app.register_blueprint(router_analyzer_bp)

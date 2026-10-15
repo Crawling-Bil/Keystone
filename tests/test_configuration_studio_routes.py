@@ -33,8 +33,10 @@ class ConfigurationStudioRoutesTests(unittest.TestCase):
         self.client = nes_app.create_app().test_client()
 
     def test_index_page_loads(self):
+        # The single Configuration Studio page was split into /convert/<domain>; the old URL redirects.
         response = self.client.get("/configuration/")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.client.get("/convert/switch").status_code, 200)
 
     def test_convert_with_no_input_is_a_400(self):
         response = self.client.post("/configuration/api/convert", data={"target_vendor": "Huawei"})

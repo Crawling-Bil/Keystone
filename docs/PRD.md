@@ -69,7 +69,7 @@ Keystone terdiri dari 8 modul dalam tiga kelompok kerja: **Analyze** (baca dan n
 | Router Analyzer | Analyze | Terminal capture atau show tech-support | Findings routing, BGP/OSPF, VPN, NAT, SD-WAN | Health check router dan overlay SD-WAN |
 | Firewall Analyzer | Analyze | Config atau capture firewall | Findings policy, NAT, VPN, profile, Excel | Review policy dan hardening firewall |
 | Load Balancer Analyzer | Analyze | Capture tmsh atau arsip UCS | Findings LTM, GTM, SSL, HA, sertifikat | Review virtual server, pool, dan masa berlaku sertifikat |
-| Configuration Studio | Convert | Running-config sumber + mapping inventory | Config target, preview mapping, batch export | Migrasi antar vendor |
+| Convert (Configuration Studio) | Convert | Running-config sumber + mapping inventory | Config target, preview mapping, batch export | Migrasi antar vendor. Lima halaman per jenis perangkat; saat ini hanya Switch dan Firewall yang punya converter |
 | Lifecycle Manager | Operate | Range IP, credential, firmware image, draft config | Inventaris perangkat, job upgrade, push, backup, Live Logs | Discovery, firmware upgrade massal, config push, config backup |
 | ZTP Provisioning | Operate | Daftar ESN dan parameter manajemen | File intermediate `.ini`, bootstrap config, layanan SFTP/DHCP | Onboarding switch Huawei factory-default tanpa console |
 
@@ -177,6 +177,7 @@ Parser dan driver dianggap tervalidasi setelah dijalankan pada capture atau hard
 **Known limitations**
 
 - Configuration Studio untuk firewall hanya mendukung arah MikroTik ke Palo Alto.
+- Convert Wireless, Router, dan Load Balancer belum punya converter. Halamannya menolak konversi dan menunjuk ke analyzer yang sesuai.
 - Status online hasil discovery adalah snapshot tanpa timestamp. Gunakan Device Reachability untuk status terkini.
 - DHCP bawaan ZTP membutuhkan `dnsmasq` yang diinstal terpisah.
 - Satu instalasi untuk satu engineer. Belum ada sinkronisasi data antar laptop.

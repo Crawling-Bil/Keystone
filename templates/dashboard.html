@@ -44,8 +44,12 @@
                     <small>{{ module.description }}</small>
                 </span>
                 <span class="tool-meta">
+                    {% if module.status == 'planned' %}
+                    <span class="risk-tag risk-planned">Not available yet</span>
+                    {% else %}
                     <span class="risk-tag risk-{{ module.risk }}">{{ module.risk_label }}</span>
                     <span class="tool-version">v{{ module.version }}</span>
+                    {% endif %}
                 </span>
                 <span class="tool-action">Open <svg><use href="/static/icons/nes-icons.svg#arrow-right"></use></svg></span>
             </a>
