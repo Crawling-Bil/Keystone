@@ -9,6 +9,7 @@ from flask import Flask, jsonify, render_template
 
 from core import auth
 from core.database import initialize, recent_activity
+from core.modules import TOOLS, grouped_tools, health_modules, task_guide
 from features.configuration_studio.routes import bp as configuration_bp
 from features.lifecycle_manager.routes import app as lifecycle_bp
 from features.wireless_center.routes import bp as wireless_bp
@@ -19,7 +20,7 @@ from features.switch_analyzer.routes import bp as switch_analyzer_bp
 from features.ztp.routes import bp as ztp_bp
 
 APP_NAME = "Keystone"
-APP_VERSION = "1.10.0"
+APP_VERSION = "1.11.0"
 BASE_DIR = Path(__file__).resolve().parent
 
 # Age (in days) after which generated files in the folders below are
@@ -107,105 +108,18 @@ def create_app() -> Flask:
     app.register_blueprint(ztp_bp)
 
     @app.context_processor
-    def inject_app_version():
-        return {"app_version": APP_VERSION}
+    def inject_suite_context():
+        # every page renders the sidebar, which is built from the module registry
+        return {"app_version": APP_VERSION, "nav_groups": grouped_tools()}
 
     @app.get("/")
     def dashboard():
-        modules = [
-            {
-                "name": "Configuration Studio",
-                "version": "Traditional Converter v1.8",
-                "description": "Multi-vendor configuration conversion with automatic platform detection.",
-                "href": "/configuration",
-                "icon": "configuration",
-                "status": "Ready",
-            },
-            {
-                "name": "Wireless Analyzer",
-                "version": "Wireless Analyzer v1.11.0",
-                "description": "Wireless assessment, AP group mapping, AP role diff, and comprehensive Source-to-Target config delta.",
-                "href": "/wireless",
-                "icon": "wireless",
-                "status": "Ready",
-            },
-            {
-                "name": "Switch Analyzer",
-                "version": "Switch Analyzer v1.2",
-                "description": "Cisco, Huawei and Aruba switch dashboards: inventory, VLANs, spanning tree, port-channels, PoE, LLDP/CDP, compare and sizing.",
-                "href": "/switch-analyzer",
-                "icon": "switch",
-                "status": "Ready",
-            },
-            {
-                "name": "Router Analyzer",
-                "version": "Router Analyzer v1.0",
-                "description": "Cisco IOS, IOS-XE and SD-WAN router captures: interfaces, routing, BGP/OSPF, VPN, hardening findings with Cisco documentation links.",
-                "href": "/router-analyzer",
-                "icon": "router",
-                "status": "Ready",
-            },
-            {
-                "name": "Firewall Analyzer",
-                "version": "Firewall Analyzer v1.0",
-                "description": "FortiGate (native), Palo Alto and MikroTik configurations: policies, NAT, VPN, routing, objects and hardening findings with vendor documentation links.",
-                "href": "/firewall-analyzer",
-                "icon": "firewall",
-                "status": "Ready",
-            },
-            {
-                "name": "Load Balancer Analyzer",
-                "version": "Load Balancer Analyzer v1.0",
-                "description": "F5 BIG-IP configurations: virtual server to pool map, monitors, SSL profiles and certificates, persistence, iRules, HA and hardening findings with F5 documentation links.",
-                "href": "/load-balancer-analyzer",
-                "icon": "balancer",
-                "status": "Ready",
-            },
-            {
-                "name": "Lifecycle Manager",
-                "version": "Switch Upgrade Tool v1.4",
-                "description": "Device discovery, firmware repository, detailed pre-check, and upgrade jobs.",
-                "href": "/lifecycle/",
-                "icon": "lifecycle",
-                "status": "Ready",
-            },
-            {
-                "name": "ZTP Provisioning",
-                "version": "Switch Upgrade Tool v1.4",
-                "description": "Zero-touch bootstrap for factory-default switches — DHCP, SFTP file server, and per-device provisioning.",
-                "href": "/ztp/",
-                "icon": "console",
-                "status": "Ready",
-            },
-            {
-                "name": "Config Push",
-                "version": "Switch Upgrade Tool v1.4",
-                "description": "Push a prepared draft config to an already-discovered device over SSH — no firmware, no reload.",
-                "href": "/lifecycle/config-push",
-                "icon": "upload",
-                "status": "Ready",
-            },
-            {
-                "name": "Config Backup",
-                "version": "Switch Upgrade Tool v1.4",
-                "description": "Capture a full read-only snapshot of an already-configured device -- hardware, config, VLANs, LLDP/STP, licensing -- and download it as a backup bundle.",
-                "href": "/lifecycle/config-backup",
-                "icon": "folder",
-                "status": "Ready",
-            },
-            {
-                "name": "Live Logs",
-                "version": "Switch Upgrade Tool v1.4",
-                "description": "Watch upgrade jobs, config push jobs, and ZTP activity run in real time, across the whole suite.",
-                "href": "/lifecycle/live-logs",
-                "icon": "pulse",
-                "status": "Ready",
-            },
-        ]
         return render_template(
             "dashboard.html",
             active_page="dashboard",
-            modules=modules,
+            groups=grouped_tools(),
+            guide=task_guide(),
+            tool_count=len(TOOLS),
             activities=recent_activity(10),
             app_version=APP_VERSION,
         )
@@ -220,15 +134,7 @@ def create_app() -> Flask:
             "status": "ok",
             "application": APP_NAME,
             "version": APP_VERSION,
-            "modules": {
-                "configuration": "ready",
-                "wireless": "ready",
-                "switch_analyzer": "ready",
-                "router_analyzer": "ready",
-                "firewall_analyzer": "ready",
-                "lb_analyzer": "ready",
-                "lifecycle": "ready",
-            },
+            "modules": health_modules(),
         })
 
     @app.errorhandler(413)

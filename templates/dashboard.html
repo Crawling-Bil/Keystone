@@ -18,30 +18,42 @@
     <div class="workbench-heading">
         <div>
             <h2 id="tools-title">Choose a tool</h2>
-            <p>Four focused workflows, one shared local workspace.</p>
+            <p>{{ tool_count }} tools in three groups. Tools marked <span class="risk-tag risk-write">Writes to devices</span> change live equipment and always run a pre-check first.</p>
         </div>
         <label class="module-search">
             <span class="sr-only">Search tools</span>
             <svg><use href="/static/icons/nes-icons.svg#search"></use></svg>
-            <input id="module-search" type="search" placeholder="Search tools or tasks" autocomplete="off">
+            <input id="module-search" type="search" placeholder="Search tools, vendors or tasks" autocomplete="off">
             <kbd>/</kbd>
         </label>
     </div>
 
     <div class="tool-index" id="module-grid">
-    {% for module in modules %}
-        <a href="{{ module.href }}" class="tool-row {% if loop.first %}tool-row-primary{% endif %}" data-module-name="{{ module.name|lower }} {{ module.description|lower }}">
-            <span class="tool-icon"><svg><use href="/static/icons/nes-icons.svg#{{ module.icon }}"></use></svg></span>
-            <span class="tool-copy">
-                <strong>{{ module.name }}</strong>
-                <small>{{ module.description }}</small>
-            </span>
-            <span class="tool-version">{{ module.version }}</span>
-            <span class="tool-action">Open <svg><use href="/static/icons/nes-icons.svg#arrow-right"></use></svg></span>
-        </a>
+    {% for group in groups %}
+        <div class="tool-group" data-tool-group>
+            <div class="tool-group-heading">
+                <h3>{{ group.name }}</h3>
+                <p>{{ group.description }}</p>
+                <span class="tool-group-count">{{ group.tools|length }}</span>
+            </div>
+            {% for module in group.tools %}
+            <a href="{{ module.href }}" class="tool-row" data-module-name="{{ module.search_text }}">
+                <span class="tool-icon"><svg><use href="/static/icons/nes-icons.svg#{{ module.icon }}"></use></svg></span>
+                <span class="tool-copy">
+                    <strong>{{ module.name }}</strong>
+                    <small>{{ module.description }}</small>
+                </span>
+                <span class="tool-meta">
+                    <span class="risk-tag risk-{{ module.risk }}">{{ module.risk_label }}</span>
+                    <span class="tool-version">v{{ module.version }}</span>
+                </span>
+                <span class="tool-action">Open <svg><use href="/static/icons/nes-icons.svg#arrow-right"></use></svg></span>
+            </a>
+            {% endfor %}
+        </div>
     {% endfor %}
     </div>
-    <div class="module-empty hidden" id="module-empty" role="status">No tool matches that search. Try “config”, “wireless”, “switch”, or “firmware”.</div>
+    <div class="module-empty hidden" id="module-empty" role="status">No tool matches that search. Try a vendor (“huawei”, “fortigate”) or a task (“upgrade”, “backup”).</div>
 </section>
 
 <div class="desk-grid">
@@ -51,13 +63,9 @@
             <span>Quick guide</span>
         </div>
         <dl class="task-guide">
-            <div><dt>Convert a running configuration</dt><dd><a href="/configuration">Configuration Studio</a></dd></div>
-            <div><dt>Check AP or WLC inventory</dt><dd><a href="/wireless">Wireless Analyzer</a></dd></div>
-            <div><dt>Review a switch capture (VLANs, STP, port-channels, PoE)</dt><dd><a href="/switch-analyzer">Switch Analyzer</a></dd></div>
-            <div><dt>Review a router capture (routing, BGP/OSPF, VPN, SD-WAN)</dt><dd><a href="/router-analyzer">Router Analyzer</a></dd></div>
-            <div><dt>Review firewall policies, NAT and VPN</dt><dd><a href="/firewall-analyzer">Firewall Analyzer</a></dd></div>
-            <div><dt>Review a load balancer (F5 virtual servers, pools, SSL, HA)</dt><dd><a href="/load-balancer-analyzer">Load Balancer Analyzer</a></dd></div>
-            <div><dt>Stage firmware and upgrade devices</dt><dd><a href="/lifecycle/">Lifecycle Manager</a></dd></div>
+            {% for tool in guide %}
+            <div><dt>{{ tool.task }}</dt><dd><a href="{{ tool.href }}">{{ tool.name }}</a></dd></div>
+            {% endfor %}
         </dl>
     </section>
 

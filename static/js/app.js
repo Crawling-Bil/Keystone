@@ -97,6 +97,10 @@ window.NES.initDashboardExtras = function initDashboardExtras() {
         card.classList.toggle("hidden", !match);
         if (match) visible += 1;
       });
+      // hide a group heading once none of its tools match
+      document.querySelectorAll("[data-tool-group]").forEach(group => {
+        group.classList.toggle("hidden", !group.querySelector("[data-module-name]:not(.hidden)"));
+      });
       empty?.classList.toggle("hidden", visible !== 0);
     };
     search.addEventListener("input", filter);

@@ -29,18 +29,12 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         </a>
         <nav class="suite-nav" aria-label="Suite modules">
             <a class="suite-nav-item {% if active_page == 'dashboard' %}active{% endif %}" {% if active_page == 'dashboard' %}aria-current="page"{% endif %} href="/"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#dashboard"></use></svg></span>Dashboard</a>
-            <div class="suite-nav-label">Tools</div>
-            <a class="suite-nav-item {% if active_page == 'configuration' %}active{% endif %}" {% if active_page == 'configuration' %}aria-current="page"{% endif %} href="/configuration"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#configuration"></use></svg></span>Configuration Studio</a>
-            <a class="suite-nav-item {% if active_page == 'wireless' %}active{% endif %}" {% if active_page == 'wireless' %}aria-current="page"{% endif %} href="/wireless"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#wireless"></use></svg></span>Wireless Analyzer</a>
-            <a class="suite-nav-item {% if active_page == 'switch_analyzer' %}active{% endif %}" {% if active_page == 'switch_analyzer' %}aria-current="page"{% endif %} href="/switch-analyzer"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></span>Switch Analyzer</a>
-            <a class="suite-nav-item {% if active_page == 'router_analyzer' %}active{% endif %}" {% if active_page == 'router_analyzer' %}aria-current="page"{% endif %} href="/router-analyzer"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#router"></use></svg></span>Router Analyzer</a>
-            <a class="suite-nav-item {% if active_page == 'firewall_analyzer' %}active{% endif %}" {% if active_page == 'firewall_analyzer' %}aria-current="page"{% endif %} href="/firewall-analyzer"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#firewall"></use></svg></span>Firewall Analyzer</a>
-            <a class="suite-nav-item {% if active_page == 'lb_analyzer' %}active{% endif %}" {% if active_page == 'lb_analyzer' %}aria-current="page"{% endif %} href="/load-balancer-analyzer"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#balancer"></use></svg></span>Load Balancer Analyzer</a>
-            <a class="suite-nav-item {% if active_page == 'lifecycle' %}active{% endif %}" {% if active_page == 'lifecycle' %}aria-current="page"{% endif %} href="/lifecycle/"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#lifecycle"></use></svg></span>Lifecycle Manager</a>
-            <a class="suite-nav-item {% if active_page == 'ztp' %}active{% endif %}" {% if active_page == 'ztp' %}aria-current="page"{% endif %} href="/ztp/"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#console"></use></svg></span>ZTP Provisioning</a>
-            <a class="suite-nav-item {% if active_page == 'config_push' %}active{% endif %}" {% if active_page == 'config_push' %}aria-current="page"{% endif %} href="/lifecycle/config-push"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span>Config Push</a>
-            <a class="suite-nav-item {% if active_page == 'config_backup' %}active{% endif %}" {% if active_page == 'config_backup' %}aria-current="page"{% endif %} href="/lifecycle/config-backup"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#folder"></use></svg></span>Config Backup</a>
-            <a class="suite-nav-item {% if active_page == 'live_logs' %}active{% endif %}" {% if active_page == 'live_logs' %}aria-current="page"{% endif %} href="/lifecycle/live-logs"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#pulse"></use></svg></span>Live Logs</a>
+            {% for group in nav_groups or [] %}
+            <div class="suite-nav-label">{{ group.name }}</div>
+            {% for tool in group.tools %}
+            <a class="suite-nav-item {% if active_page == tool.key %}active{% endif %}" {% if active_page == tool.key %}aria-current="page"{% endif %} href="{{ tool.href }}"{% if tool.risk == 'write' %} data-risk="write" title="{{ tool.risk_label }}"{% endif %}><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#{{ tool.icon }}"></use></svg></span>{{ tool.name }}</a>
+            {% endfor %}
+            {% endfor %}
             <div class="suite-nav-label">System</div>
             <a class="suite-nav-item {% if active_page == 'about' %}active{% endif %}" {% if active_page == 'about' %}aria-current="page"{% endif %} href="/about"><span class="nav-svg"><svg><use href="/static/icons/nes-icons.svg#about"></use></svg></span>About</a>
         </nav>

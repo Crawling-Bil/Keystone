@@ -12,7 +12,7 @@ Primary users are network engineers working in staging, assessment, and change a
 
 ## Product Purpose
 
-Keystone (formerly Network Engineer Suite) gives an internal engineering team one local workspace for configuration conversion, wireless assessment, switch analysis, and device lifecycle operations. Success means another engineer can open the application, understand which tool to use, provide the required input, and complete or export a result without the creator explaining the interface.
+Keystone (formerly Network Engineer Suite) gives an internal engineering team one local workspace for assessment (wireless, switch, router, firewall, load balancer), configuration conversion, and device lifecycle operations (discovery, firmware upgrade, config push, config backup, ZTP). Full requirements live in `docs/PRD.md`. Success means another engineer can open the application, understand which tool to use, provide the required input, and complete or export a result without the creator explaining the interface.
 
 ## Positioning
 
@@ -27,12 +27,13 @@ Keystone combines multi-vendor network engineering workflows in one local-first 
 
 ## Capabilities and Constraints
 
-- Preserve Configuration Studio, Wireless Analyzer, Switch Analyzer, Lifecycle Manager, their routes, and their existing business logic.
+- Preserve every module's routes and business logic. The module list, work groups (Analyze, Convert, Operate) and risk classes live in `core/modules.py`.
 - Preserve Cisco, Huawei, and Aruba terminology where applicable.
 - Keep the application local-first and usable without external UI dependencies.
 - Make required input, supported file types, system feedback, and the next action obvious.
 - Use progressive disclosure so advanced detail remains available without overwhelming the first view.
 - Working assumption: the dashboard primarily launches tools; operational status remains visible but secondary.
+- Tools that write to devices are always labelled as such in the dashboard and sidebar.
 
 ## Brand Commitments
 
@@ -42,7 +43,7 @@ Keystone combines multi-vendor network engineering workflows in one local-first 
 
 ## Evidence on Hand
 
-- Existing Flask application and four working modules in this repository.
+- Existing Flask application and eleven tools in this repository (see `core/modules.py`).
 - Existing SVG icon sprite at `static/icons/nes-icons.svg`.
 - Existing activity data and health endpoint.
 - No customer claims, performance benchmarks, testimonials, or external brand assets should be fabricated.
