@@ -91,6 +91,8 @@ show ntp status
 ! Who is logged in, and the log (the log holds flaps, config changes, logins and IPsec events)
 show users
 show logging
+! Lifetime count per message mnemonic: catches messages that already scrolled out of the buffer above
+show logging count
 
 !!! 2. Commands read by the analyzer but not yet seen with a populated answer in a real capture (documented syntax; real routers answered some with headers only or nothing)
 

@@ -39,7 +39,7 @@ def main() -> None:
     url = f"http://{url_host}:{port}"
     if os.environ.get("NES_OPEN_BROWSER", "1") != "0":
         threading.Timer(1.0, open_browser, args=(url,)).start()
-    print(f"Network Engineer Suite v{APP_VERSION} running at {url}")
+    print(f"Keystone v{APP_VERSION} running at {url}")
     print("Press Ctrl+C to stop.")
     serve(app, host=host, port=port, threads=8, channel_timeout=600)
 
