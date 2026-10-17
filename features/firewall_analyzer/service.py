@@ -13,13 +13,13 @@ from collections import Counter
 from datetime import date
 from typing import Any
 
-from ..analyzer_core.findings import severity_counts
+from ..analyzer_core.findings import severity_counts, sort_findings
 from ..analyzer_core.result import card, info_rows, kv_section, new_result, table_section
-from . import forti_extract, forti_rules, forti_runtime, forti_sections, legacy, scope
+from . import forti_extra, forti_extract, forti_rules, forti_runtime, forti_sections, forti_switch, legacy, panos_capture, scope
 from .forti_resolve import Resolver
 from .forti_tree import parse_forti
 
-PLATFORMS = (("auto", "Auto detect"), ("fortigate", "Fortinet FortiGate")) + ((("paloalto", "Palo Alto PAN-OS"), ("mikrotik", "MikroTik RouterOS")) if legacy.available() else ())
+PLATFORMS = (("auto", "Auto detect"), ("fortigate", "Fortinet FortiGate"), ("fortiswitch", "Fortinet FortiSwitch")) + ((("paloalto", "Palo Alto PAN-OS"), ("mikrotik", "MikroTik RouterOS")) if legacy.available() else ())
 
 # parsers written from Fortinet's documented output format but not yet run on a captured FortiGate
 UNVALIDATED = {
@@ -36,9 +36,13 @@ _HUAWEI_HINT = re.compile(r"^(sysname |interface (?:GigabitEthernet|XGigabitEthe
 
 def detect_vendor(text: str) -> str:
     sample = text[:3_000_000]
+    if forti_switch.looks_like_fortiswitch(sample):
+        return "fortiswitch"                                                # speaks FortiOS syntax, so it must be ruled in before the FortiGate patterns are counted
     scores = {"fortigate": len(_FORTI.findall(sample)), "paloalto": len(_PANOS.findall(sample)), "mikrotik": len(_MIKROTIK.findall(sample))}
     if not scores["paloalto"] and legacy.available() and legacy.pan_cli_capture(sample) is not None:
         scores["paloalto"] = 1                                              # 'show config running' (curly-brace view), with or without 'show system info'
+    if not scores["paloalto"] and not scores["fortigate"] and not scores["mikrotik"] and panos_capture.looks_like_runtime(sample):
+        scores["paloalto"] = 1                                              # show/request output only (no configuration): read by panos_capture
     best = max(scores, key=lambda key: scores[key])
     return best if scores[best] else ""
 
@@ -52,15 +56,19 @@ def _wrong_page_hint(text: str) -> str:
 
 
 def analyze(content: str, filename: str = "", platform: str = "auto", today: date | None = None) -> dict[str, Any]:
-    vendor = platform if platform in ("fortigate", "paloalto", "mikrotik") else detect_vendor(content)
+    vendor = platform if platform in ("fortigate", "fortiswitch", "paloalto", "mikrotik") else detect_vendor(content)
     if not vendor:
         raise ValueError(
             ("No FortiGate, Palo Alto or MikroTik configuration was recognised. The Firewall Analyzer reads a FortiOS 'show full-configuration' (config / edit / set / next / end), "
              "a PAN-OS 'set' or XML export, or a RouterOS '/export'." if legacy.available() else
              "No FortiGate configuration was recognised. The Firewall Analyzer reads a FortiOS 'show full-configuration' (config / edit / set / next / end).") + _wrong_page_hint(content)
         )
+    if vendor == "fortiswitch":
+        return forti_switch.analyze(content, filename, today)
     if vendor == "fortigate":
         return _analyze_fortigate(content, filename, today)
+    if vendor == "paloalto" and not _PANOS.search(content) and panos_capture.looks_like_runtime(content) and legacy.pan_cli_capture(content) is None:
+        return panos_capture.analyze(content, filename, today)
     return legacy.analyze(content, filename, "Palo Alto" if vendor == "paloalto" else "Mikrotik")
 
 
@@ -72,8 +80,10 @@ def _analyze_fortigate(content: str, filename: str, today: date | None) -> dict[
     data = forti_extract.extract(tree)
     runtime = forti_runtime.gather(content)
     findings = forti_rules.evaluate(tree, data, today)
+    findings = sort_findings(findings + forti_extra.evaluate(tree, data))
     warnings: list[str] = []
     sections = forti_sections.build_all(tree, data, findings, warnings)
+    sections += forti_extra.sections(tree, data)
     sections += _runtime_sections(runtime)
     scope.apply(sections, "vdom", "VDOM")
     res = Resolver(data)
@@ -117,11 +127,11 @@ def _runtime_sections(runtime: dict[str, Any]) -> list[dict[str, Any]]:
     if bgp is not None:
         rows = [dict(n, _tones={"state": "ok" if n["state"] == "Established" else "bad"}) for n in bgp["neighbors"]]
         out.append(table_section("bgp_live", f"BGP sessions (live) · AS {bgp['local_as']}", [("ip", "Neighbor", "mono"), ("remote_as", "Remote AS", "mono"), ("state", "State", "status"), ("up_down", "Up/Down"), ("prefixes", "Prefixes received", "num")],
-                                 rows, group="Live state", empty="No BGP neighbours."))
+                                 rows, group="Live state", empty="No BGP neighbours.", facets=[{"key": "state", "label": "state"}]))
     ipsec = runtime.get("ipsec")
     if ipsec is not None:
         out.append(table_section("ipsec_live", "IPsec tunnels (live)", [("name", "Tunnel", "mono"), ("remote", "Remote", "mono"), ("selectors", "Selectors", "num"), ("up", "Up", "num"), ("state", "State", "status")],
-                                 [dict(t, _tones={"state": {"up": "ok", "partial": "warn", "down": "bad"}[t["state"]]}) for t in ipsec], group="Live state", empty="No tunnels."))
+                                 [dict(t, _tones={"state": {"up": "ok", "partial": "warn", "down": "bad"}[t["state"]]}) for t in ipsec], group="Live state", empty="No tunnels.", facets=[{"key": "state", "label": "state", "order": ["up", "partial", "down"]}]))
     ha = runtime.get("ha")
     if ha and (ha.get("members") or len(ha) > 1):
         pairs = [(k, v) for k, v in ha.items() if k != "members" and v]
@@ -180,12 +190,12 @@ def _info(data: dict[str, Any], runtime: dict[str, Any], tree: Any) -> list[dict
 
 
 def _coverage(content: str, tree: Any, runtime: dict[str, Any]) -> list[dict[str, Any]]:
-    rows = [{"command": "show full-configuration", "status": "analysed", "lines": tree.lines, "note": "Policies, objects, VPN, routing, admins, HA, logging, SNMP and system settings.", "tone": "ok"}]
+    rows = [{"command": "show full-configuration", "status": "analyzed", "lines": tree.lines, "note": "Policies, objects, VPN, routing, admins, HA, logging, SNMP and system settings.", "tone": "ok"}]
     keys = {"get system status": "status", "get router info routing-table all": "routes", "get router info bgp summary": "bgp", "get vpn ipsec tunnel summary": "ipsec", "get system ha status": "ha"}
     for command, purpose in forti_runtime.COMMANDS:
         key = keys.get(command)
         if key and key in runtime:
-            rows.append({"command": command, "status": "analysed", "lines": 0, "note": "Shown on the Live state tab.", "tone": "ok"})
+            rows.append({"command": command, "status": "analyzed", "lines": 0, "note": "Shown on the Live state tab.", "tone": "ok"})
         elif key or command == "get system performance status":
             rows.append({"command": command, "status": "missing", "lines": 0, "note": "Not in this capture - would add: " + purpose, "tone": "warn"})
     rows.append({"command": "show vs show full-configuration", "status": "covered", "lines": 0,

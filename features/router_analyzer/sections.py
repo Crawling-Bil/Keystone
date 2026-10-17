@@ -139,7 +139,8 @@ def interfaces(ctx: Ctx) -> list[dict[str, Any]]:
             ("link", "Link"), ("in_util", "In %", "num"), ("out_util", "Out %", "num"), ("in_errors", "In errors", "num"), ("crc", "CRC", "num"),
             ("out_drops", "Out drops", "num"), ("bound", "Attached", "list")]
     hint = "Joined from the running-config, 'show ip interface brief', 'show interfaces description' and 'show interfaces'. Counters are since boot or the last 'clear counters'."
-    sections = [table_section("interfaces", "Interfaces", cols, rows, group="Interfaces", hint=hint)]
+    state_facet = [{"key": "state", "label": "state", "order": ["up/up", "up/down", "down/down", "admin down", "—"]}]
+    sections = [table_section("interfaces", "Interfaces", cols, rows, group="Interfaces", hint=hint, facets=state_facet)]
 
     evc = []
     for rec in ctx.interfaces:
@@ -361,7 +362,7 @@ def bgp(ctx: Ctx) -> list[dict[str, Any]]:
                                                                     ("received", "Prefixes rcvd", "num"), ("sent", "Prefixes sent", "num"), ("description", "Description", "wrap"),
                                                                     ("policy_in", "Policy in", "list"), ("policy_out", "Policy out", "list"), ("protection", "Session protection", "list"),
                                                                     ("last_reset", "Last reset", "wrap")], neighbor_rows, group="BGP", empty="No BGP neighbors found.",
-                                  hint="Configuration (policy, protection) joined with live state from 'show ip bgp neighbors' or '… summary'. Admin-shutdown neighbors are grey, not red."))
+                                  hint="Configuration (policy, protection) joined with live state from 'show ip bgp neighbors' or '… summary'. Admin-shutdown neighbors are grey, not red.", facets=[{"key": "state", "label": "state"}]))
     if table:
         stats = summarise_bgp_table(table)
         pairs = [("Table version", table.get("table_version", "")), ("Router ID", table.get("router_id", "")), ("Paths", f"{stats['paths']:,}"), ("Distinct prefixes", f"{stats['prefixes']:,}"),
@@ -406,11 +407,11 @@ def igp(ctx: Ctx) -> list[dict[str, Any]]:
         sections.append(table_section("ospf_networks", "OSPF network statements", [("process", "Process"), ("network", "Network", "mono"), ("area", "Area"), ("matched", "Interfaces it enables", "list")], nets, group="OSPF / EIGRP"))
         sections.append(table_section("ospf_interfaces", "OSPF interfaces (live)", [("interface", "Interface", "mono"), ("process", "PID"), ("area", "Area"), ("address", "IP/mask", "mono"),
                                                                                   ("cost", "Cost"), ("state", "State", "status"), ("neighbors", "Nbrs F/C")], ctx.get("ospf_interfaces", []) or [],
-                                      group="OSPF / EIGRP", empty="'show ip ospf interface brief' was not captured."))
+                                      group="OSPF / EIGRP", empty="'show ip ospf interface brief' was not captured.", facets=[{"key": "state", "label": "state"}]))
         nbr_rows = [dict(n, _tones={"state": "ok" if n["state"].upper().startswith("FULL") else "warn"}) for n in ctx.get("ospf_neighbors", []) or []]
         sections.append(table_section("ospf_neighbors", "OSPF neighbors (live)", [("neighbor_id", "Neighbor ID", "mono"), ("priority", "Pri"), ("state", "State", "status"), ("role", "Role"),
                                                                                 ("dead_time", "Dead time"), ("address", "Address", "mono"), ("interface", "Interface", "mono")], nbr_rows,
-                                      group="OSPF / EIGRP", empty="'show ip ospf neighbor' was not captured."))
+                                      group="OSPF / EIGRP", empty="'show ip ospf neighbor' was not captured.", facets=[{"key": "state", "label": "state"}]))
     eigrp = cfg.get("eigrp", [])
     if eigrp or ctx.has("eigrp_neighbors"):
         rows = [{"process": p["process"], "router_id": p["router_id"], "networks": p["networks"], "passive": p["passive"], "redistribute": p["redistribute"],
@@ -492,7 +493,7 @@ def policy_objects(ctx: Ctx) -> list[dict[str, Any]]:
                          "_tones": {"status": "ok" if used else "warn"}})
     sections = [table_section("objects", "Object cross-reference", [("type", "Type"), ("name", "Name", "mono"), ("entries", "Entries / clauses", "num"), ("used_by", "Referenced by", "list"), ("status", "Status", "status")],
                               rows, group="Policy objects", page_size=100,
-                              hint="'No reference found' means no other line of this configuration mentions the object; policy living outside the router (AAA-downloaded ACLs, SD-WAN controller policy) cannot be seen.")]
+                              hint="'No reference found' means no other line of this configuration mentions the object; policy living outside the router (AAA-downloaded ACLs, SD-WAN controller policy) cannot be seen.", facets=[{"key": "status", "label": "status"}])]
     undefined = [{"type": _KIND_LABEL[u["kind"]], "name": u["name"], "where": u["where"], "effect": u["effect"], "hint": (f"Defined as '{u['near']}' — IOS names are case-sensitive" if u["near"] else "")}
                  for u in ctx.xref["undefined"]]
     sections.append(table_section("undefined_refs", "Referenced but not defined", [("type", "Type"), ("name", "Name", "mono"), ("where", "Referenced by", "wrap"), ("effect", "Used for"), ("hint", "Hint", "wrap")],
@@ -501,9 +502,9 @@ def policy_objects(ctx: Ctx) -> list[dict[str, Any]]:
     rm_rows = [{"name": r["name"], "seq": r["seq"], "action": r["action"], "match": r["match"], "set": r["set"], "matched": (stats.get((r["name"], r["seq"])) or {}).get("packets", ""),
                 "_tones": {"action": "ok" if r["action"] == "permit" else "bad"}} for r in cfg["route_maps"]]
     sections.append(table_section("route_maps", "Route-maps", [("name", "Name", "mono"), ("seq", "Seq"), ("action", "Action", "status"), ("match", "Match", "list"), ("set", "Set", "list"), ("matched", "Matched (packets)", "num")],
-                                  rm_rows, group="Policy objects", empty="No route-maps defined."))
+                                  rm_rows, group="Policy objects", empty="No route-maps defined.", facets=[{"key": "action", "label": "action"}]))
     sections.append(table_section("prefix_lists", "Prefix-lists", [("name", "Name", "mono"), ("seq", "Seq"), ("action", "Action", "status"), ("prefix", "Prefix", "mono"), ("ge", "ge"), ("le", "le")],
-                                  [dict(p, _tones={"action": "ok" if p["action"] == "permit" else "bad"}) for p in cfg["prefix_lists"]], group="Policy objects", empty="No prefix-lists defined."))
+                                  [dict(p, _tones={"action": "ok" if p["action"] == "permit" else "bad"}) for p in cfg["prefix_lists"]], group="Policy objects", empty="No prefix-lists defined.", facets=[{"key": "action", "label": "action"}]))
     lists = [{"type": "AS-path", "name": str(a["name"]), "action": a["action"], "value": a["regex"]} for a in cfg["as_path_lists"]]
     lists += [{"type": "Community", "name": str(c["name"]), "action": c.get("action", ""), "value": c.get("communities", "")} for c in cfg["community_lists"]]
     sections.append(table_section("as_path_lists", "AS-path and community lists", [("type", "Type"), ("name", "Name", "mono"), ("action", "Action", "status"), ("value", "Match", "wrap")], lists, group="Policy objects",
@@ -533,10 +534,10 @@ def acls(ctx: Ctx) -> list[dict[str, Any]]:
     note = "Hit counters come from 'show access-lists' and are matched to entries by position." if hits else "Hit counters need 'show access-lists' in the capture."
     return [
         table_section("acl_summary", "Access lists", [("name", "ACL", "mono"), ("kind", "Type"), ("entries", "Entries", "num"), ("hits", "Total hits", "num"), ("applied", "Referenced by", "list"), ("status", "Status", "status")],
-                      summary, group="ACLs", empty="No access lists defined.", hint=note),
+                      summary, group="ACLs", empty="No access lists defined.", hint=note, facets=[{"key": "status", "label": "status"}]),
         table_section("acl_entries", "ACL entries", [("acl", "ACL", "mono"), ("seq", "Seq"), ("action", "Action", "status"), ("protocol", "Proto"), ("source", "Source", "mono"), ("src_port", "Src port"),
                                                     ("destination", "Destination", "mono"), ("dst_port", "Dst port"), ("options", "Options", "wrap"), ("hits", "Hits", "num")], entries, group="ACLs", page_size=100,
-                      empty="No access list entries."),
+                      empty="No access list entries.", facets=[{"key": "action", "label": "action"}]),
     ]
 
 
@@ -619,7 +620,7 @@ def security(ctx: Ctx) -> list[dict[str, Any]]:
         add("Logging & time", "NTP peers actually reachable", f"{reachable} of {len(assoc)}", "ok" if reachable == len(assoc) else ("bad" if not reachable else "warn"))
     add("Routing", "BGP neighbor protection", _bgp_protection(cfg), "mute" if not cfg["bgp"] else ("ok" if _bgp_protection_ok(cfg) else "warn"))
     sections = [table_section("hardening", "Hardening checklist", [("area", "Area"), ("check", "Check"), ("observed", "Observed", "wrap"), ("result", "Result", "status")], checks, group="Security",
-                              hint="Derived from the running-config only. Absence of a line is judged against the IOS default, which is stated in the finding when it matters.", page_size=100)]
+                              hint="Derived from the running-config only. Absence of a line is judged against the IOS default, which is stated in the finding when it matters.", page_size=100, facets=[{"key": "result", "label": "result", "order": ["Weak", "Review", "Good", "n/a"]}])]
     sections.append(table_section("lines", "Console / VTY lines", [("line", "Line"), ("transport_input", "Transport in"), ("access_class", "Access-class"), ("exec_timeout", "Exec-timeout"), ("login", "Login"),
                                                                  ("authorization", "Authorization"), ("accounting", "Accounting"), ("privilege", "Privilege")], cfg["lines"], group="Security", empty="No line configuration."))
     sections.append(table_section("users", "Local users", [("user", "User"), ("privilege", "Privilege"), ("credential", "Credential"), ("storage", "Storage"), ("strength", "Strength", "status")],
@@ -718,7 +719,7 @@ def vpn(ctx: Ctx) -> list[dict[str, Any]]:
         sessions.append({"interfaces": s.get("interfaces", []), "status": s.get("status", ""), "uptime": s.get("uptime", ""), "peer": s.get("peer", ""), "ike_sas": [f"{i['local']} → {i['remote']} ({i['state']})" for i in s.get("ike_sas", [])],
                          "flows": len(s.get("flows", [])), "active_flows": sum(1 for f in s.get("flows", []) if f.get("active_sas")), "_tones": {"status": "ok" if s.get("status") == "UP-ACTIVE" else "bad"}})
     sections.append(table_section("crypto_sessions", "Crypto sessions (live)", [("interfaces", "Interfaces", "list"), ("status", "Status", "status"), ("uptime", "Uptime"), ("peer", "Peer", "mono"), ("ike_sas", "IKE SAs", "list"),
-                                                                              ("flows", "Flows", "num"), ("active_flows", "Flows with SAs", "num")], sessions, group="VPN & Crypto", empty="'show crypto session' was not captured."))
+                                                                              ("flows", "Flows", "num"), ("active_flows", "Flows with SAs", "num")], sessions, group="VPN & Crypto", empty="'show crypto session' was not captured.", facets=[{"key": "status", "label": "status"}]))
     sas = []
     for sa in ctx.get("ipsec_sa", []) or []:
         sas.append({"interface": sa.get("interface", ""), "crypto_map": sa.get("crypto_map", ""), "local_ident": sa.get("local_ident", ""), "remote_ident": sa.get("remote_ident", ""), "peer": sa.get("peer", ""),
@@ -730,7 +731,7 @@ def vpn(ctx: Ctx) -> list[dict[str, Any]]:
                                   hint="Cisco prints some packet counters as signed 32-bit values; a negative number is shown here as its unsigned equivalent."))
     isakmp = ctx.get("isakmp_sa") or []
     sections.append(table_section("isakmp_sa", "IKE SAs (live)", [("dst", "Destination", "mono"), ("src", "Source", "mono"), ("state", "State", "status"), ("conn_id", "Conn-id"), ("status", "Status")], isakmp, group="VPN & Crypto",
-                                  empty="'show crypto isakmp sa' was not captured."))
+                                  empty="'show crypto isakmp sa' was not captured.", facets=[{"key": "state", "label": "state"}]))
     return sections
 
 
@@ -772,7 +773,7 @@ def sdwan(ctx: Ctx) -> list[dict[str, Any]]:
         control.append(dict(c, _tones={"state": "ok" if c.get("state") == "up" else "bad"}))
     sections.append(table_section("sdwan_control", "Control connections", [("type", "Peer type"), ("system_ip", "Peer system IP", "mono"), ("site_id", "Site"), ("protocol", "Protocol"), ("private_ip", "Private IP", "mono"),
                                                                          ("public_ip", "Public IP", "mono"), ("local_color", "Local color"), ("state", "State", "status"), ("uptime", "Uptime")], control, group="SD-WAN",
-                                  empty="'show sdwan control connections' was not captured."))
+                                  empty="'show sdwan control connections' was not captured.", facets=[{"key": "state", "label": "state"}]))
     history = ctx.get("sdwan_history") or {}
     if history:
         legend = history.get("legend", {})
@@ -788,7 +789,7 @@ def sdwan(ctx: Ctx) -> list[dict[str, Any]]:
     bfd = [dict(b, _tones={"state": "ok" if b.get("state") == "up" else "bad"}) for b in ctx.get("sdwan_bfd") or []]
     sections.append(table_section("sdwan_bfd", "BFD sessions (overlay tunnels)", [("system_ip", "Remote system IP", "mono"), ("site_id", "Site"), ("state", "State", "status"), ("source_color", "Local color"), ("remote_color", "Remote color"),
                                                                                 ("source_ip", "Local IP", "mono"), ("dst_public_ip", "Remote public IP", "mono"), ("encap", "Encap"), ("multiplier", "Mult"), ("interval", "Interval (ms)"),
-                                                                                ("uptime", "Uptime"), ("transitions", "Flaps", "num")], bfd, group="SD-WAN", empty="'show sdwan bfd sessions' was not captured."))
+                                                                                ("uptime", "Uptime"), ("transitions", "Flaps", "num")], bfd, group="SD-WAN", empty="'show sdwan bfd sessions' was not captured.", facets=[{"key": "state", "label": "state"}]))
     tunnels = [{"interface": t["interface"], "color": t["color"], "encapsulation": t["encapsulation"], "allow_services": ["ALL"] if t["allow_all"] else t["allow_services"], "hello": t["hello_interval"], "tolerance": t["hello_tolerance"],
                 "port_hop": _yes(t["port_hop"]), "last_resort": _yes(t["last_resort"]), "_tones": {"allow_services": "bad" if t["allow_all"] else ""}} for t in cfg.get("tunnel_interfaces", [])]
     sections.append(table_section("sdwan_tunnels", "Tunnel interfaces", [("interface", "Interface", "mono"), ("color", "Color"), ("encapsulation", "Encapsulation"), ("allow_services", "Allowed services", "list"), ("hello", "Hello (ms)"),
@@ -889,7 +890,7 @@ def services(ctx: Ctx) -> list[dict[str, Any]]:
                 rows.append({"interface": iface["name"], "protocol": kind, "group": group["group"], "virtual_ip": group["ip"], "priority": group["priority"] or "100 (default)", "preempt": _yes(group["preempt"]),
                              "authentication": _yes(group["auth"]), "track": group["track"], "state": status.get("state", "n/a"), "_tones": {"state": _state_tone(status.get("state", "")) if status else "mute"}})
     sections.append(table_section("fhrp", "First-hop redundancy (HSRP / VRRP)", [("interface", "Interface", "mono"), ("protocol", "Protocol"), ("group", "Group"), ("virtual_ip", "Virtual IP", "list"), ("priority", "Priority"),
-                                                                              ("preempt", "Preempt"), ("authentication", "Auth"), ("track", "Track", "list"), ("state", "Live state", "status")], rows, group="Services", empty="No HSRP or VRRP groups."))
+                                                                              ("preempt", "Preempt"), ("authentication", "Auth"), ("track", "Track", "list"), ("state", "Live state", "status")], rows, group="Services", empty="No HSRP or VRRP groups.", facets=[{"key": "state", "label": "state"}]))
     if not ctx.models.get("nat"):   # with a NAT model the NAT tab replaces this plain list
         nat = cfg.get("nat", {"rules": []})
         nat_ifaces = [{"kind": f"interface {i['nat']}", "detail": i["name"]} for i in cfg.get("interfaces", []) if i["nat"]]

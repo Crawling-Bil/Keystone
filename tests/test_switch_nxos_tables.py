@@ -168,10 +168,10 @@ class NxosServiceTests(unittest.TestCase):
     def test_arp_summary_count_is_attached_to_the_arp_check(self):
         self.assertEqual(self.result["table_checks"]["arp"]["device"]["total"], 180)
 
-    def test_coverage_lists_the_route_and_arp_summary_commands_as_analysed(self):
+    def test_coverage_lists_the_route_and_arp_summary_commands_as_analyzed(self):
         status = {row["command"]: row["status"] for row in self.result["coverage"]["rows"]}
-        self.assertEqual(status["sh ip route"], "analysed")
-        self.assertEqual(status["sh ip arp summary"], "analysed")
+        self.assertEqual(status["sh ip route"], "analyzed")
+        self.assertEqual(status["sh ip arp summary"], "analyzed")
 
     def test_trunks_reach_the_result_and_the_trunk_tab(self):
         self.assertEqual(len(self.synthetic["trunks"]["rows"]), 6)
@@ -183,12 +183,12 @@ class NxosServiceTests(unittest.TestCase):
         self.assertEqual({row["vrf"] for row in self.synthetic["routing_table"]}, {"default", "management", "TENANT-A"})
         self.assertEqual(self.synthetic["l3"]["routing_table"]["gateway_of_last_resort"], "192.0.2.1")   # the default VRF's own default route
 
-    def test_a_table_whose_command_echo_was_lost_is_analysed_not_missing(self):
+    def test_a_table_whose_command_echo_was_lost_is_analyzed_not_missing(self):
         body = fixture(REAL)
         lost = body.replace("LAB-NX9K-A# sh ip route \n", "")
         result = service.analyze(lost, filename="lost.txt", vendor="Cisco")
         row = next(r for r in result["coverage"]["rows"] if r["command"] == "show ip route")
-        self.assertEqual(row["status"], "analysed")
+        self.assertEqual(row["status"], "analyzed")
         self.assertIn("read by its header", row["note"])
         self.assertEqual(len(result["routing_table"]), 19)
 

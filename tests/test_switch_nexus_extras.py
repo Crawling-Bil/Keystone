@@ -172,13 +172,13 @@ class CoverageAndTabsTests(unittest.TestCase):
         self.result = analyze(FIXTURE, filename="nx.txt")
         self.rows = {row["command"]: row for row in self.result["coverage"]["rows"]}
 
-    def test_every_new_command_is_analysed_with_its_tab(self):
+    def test_every_new_command_is_analyzed_with_its_tab(self):
         for command, tab in (("show system resources", "health"), ("show vpc statistics peer-link", "vpcmlag"), ("show vpc statistics peer-keepalive", "vpcmlag"),
                              ("show port-channel load-balance", "portchannels"), ("show port-channel usage", "portchannels"), ("show port-channel traffic", "portchannels"),
                              ("show lacp counters", "portchannels"), ("show lacp port-channel", "portchannels")):
-            self.assertEqual((self.rows[command]["status"], self.rows[command]["tab"]), ("analysed", tab), command)
+            self.assertEqual((self.rows[command]["status"], self.rows[command]["tab"]), ("analyzed", tab), command)
 
-    def test_a_command_with_no_rows_read_is_not_parsed_not_analysed(self):
+    def test_a_command_with_no_rows_read_is_not_parsed_not_analyzed(self):
         text = FIXTURE.replace("Total 5 port-channel numbers used", "Total unknown")
         row = {item["command"]: item for item in analyze(text, filename="nx.txt")["coverage"]["rows"]}["show port-channel usage"]
         self.assertEqual(row["status"], "not parsed")
@@ -265,7 +265,7 @@ class NeighbourAndSpellingTests(unittest.TestCase):
         self.assertEqual([(n["neighbor_id"], n["local_interface"], n["remote_interface"]) for n in neighbors],
                          [("core-sw-long-name.example.invalid", "mgmt0", "Gig3/0/6"), ("HOST-A01", "Eth1/6", "eth2"), ("HOST-A02", "Eth1/8", "eth2")])
         rows = {row["command"]: row for row in analyze(FIXTURE, filename="nx.txt")["coverage"]["rows"]}
-        self.assertEqual(rows["show cdp neighbors"]["status"], "analysed")
+        self.assertEqual(rows["show cdp neighbors"]["status"], "analyzed")
 
     def test_show_standby_is_answered_with_the_nx_os_spelling(self):
         text = FIXTURE.replace("feature lacp\n", "feature lacp\nfeature hsrp\n") + "NXSW1# show standby brief\n                  ^\n% Invalid command at '^' marker.\n\nNXSW1#\n"
@@ -294,7 +294,7 @@ class LogCoverageTests(unittest.TestCase):
         result = analyze(text, filename="s.txt")
         rows = {row["command"]: row for row in result["coverage"]["rows"]}
         self.assertEqual(result["logs"]["message_count"], 2)
-        self.assertEqual(rows["show logging"]["status"], "analysed")
+        self.assertEqual(rows["show logging"]["status"], "analyzed")
         self.assertIn("(2 rows)", rows["show logging"]["note"])
 
 

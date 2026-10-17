@@ -21,6 +21,24 @@ from features.configuration_studio.converter_engine.models.firewall import (
     DnsStaticEntry,
     MssClamp,
     ManagementService,
+    PolicyRouteRule,
+    MangleRule,
+    RawRule,
+    QueueType,
+    QueueSimple,
+    QueueTree,
+    PppProfile,
+    PppSecret,
+    IpsecIdentity,
+    SnmpCommunity,
+    LocalUser,
+    SchedulerEntry,
+    NetwatchEntry,
+    OspfInstance,
+    OspfNetwork,
+    BgpPeer,
+    LoggingRule,
+    VpnServer,
 )
 
 # RouterOS sections that name a real feature with NO equivalent
@@ -258,6 +276,58 @@ _NO_EQUIVALENT_SECTIONS = {
     ),
 }
 
+_NO_EQUIVALENT_SECTIONS.update({
+    "/ip route rule": (
+        "RouterOS '/ip route rule' is source/destination based policy routing into a "
+        "named routing table. PAN-OS equivalent is Policy-Based Forwarding "
+        "(Policies > Policy Based Forwarding) with a nexthop or a separate virtual "
+        "router; it is NOT a line-by-line translation -- design it per flow."
+    ),
+    "/queue tree": (
+        "RouterOS queue trees shape packets that were marked in /ip firewall mangle. "
+        "PAN-OS QoS (Network > Network Profiles > QoS Profile + Policies > QoS) is "
+        "class based (8 classes) and egress-interface based; the PCQ per-address "
+        "fairness has no equivalent -- redesign the classes manually."
+    ),
+    "/queue type": (
+        "RouterOS queue types (PCQ / pfifo / sfq ...) describe per-address fairness "
+        "inside a queue. PAN-OS QoS has no per-address PCQ; use QoS Profile classes "
+        "with guaranteed/maximum bandwidth instead."
+    ),
+    "/interface l2tp-client": (
+        "RouterOS L2TP client (PPP over UDP/1701, usually with IPsec). PAN-OS cannot "
+        "originate an L2TP client session; replace the link with a site-to-site IPsec "
+        "tunnel ('set network tunnel ipsec ...') or GRE-over-IPsec."
+    ),
+    "/interface sstp-client": (
+        "PAN-OS has no SSTP client. Replace with an IPsec site-to-site tunnel."
+    ),
+    "/interface ovpn-client": (
+        "PAN-OS has no OpenVPN client. Replace with an IPsec site-to-site tunnel."
+    ),
+    "/interface pppoe-client": (
+        "PAN-OS supports PPPoE on a layer3 ethernet interface "
+        "('set network interface ethernet ethernet1/N layer3 pppoe ...'); the "
+        "credentials must be re-entered, they are never copied."
+    ),
+    "/tool netwatch": (
+        "Netwatch runs a script when a host goes up/down. PAN-OS equivalent for "
+        "failover is Path Monitoring on the static route / PBF rule (and for alerting, "
+        "a Log Forwarding profile or SNMP trap). The scripts themselves are not "
+        "portable -- review what each one does."
+    ),
+    "/ip ipsec policy group": (
+        "Policy template groups only matter for dynamic (road-warrior) IPsec peers "
+        "(mode-config / generate-policy). PAN-OS equivalent is a GlobalProtect gateway "
+        "or an IKE gateway with 'passive' mode plus a tunnel interface."
+    ),
+    "/ip ipsec mode-config": (
+        "RouterOS IKEv2 mode-config hands an address pool to remote clients. PAN-OS "
+        "equivalent is the GlobalProtect gateway IP pool (or IKEv2 config payload on "
+        "a tunnel interface) -- redesign manually."
+    ),
+})
+
 # Matches a "key=value" pair where value is either a double-quoted
 # string (RouterOS escapes an embedded quote as \") or a single
 # unquoted token. Used on every "add"/"set" line body, after any
@@ -293,11 +363,164 @@ def _split_selector(body):
     if match:
         return _parse_kv(match.group(1)), match.group(2)
 
-    match = re.match(r'^\d+\s*(.*)$', body)
+    match = re.match(r'^(?:\d+|\*[0-9A-Fa-f]+)\s*(.*)$', body)
     if match:
-        return {}, match.group(1)
+        # remember the raw index so callers can recognise "*0" (the default
+        # object in many menus) -- exposed through the special key below.
+        index = body.split(None, 1)[0]
+        return {"__index__": index}, match.group(1)
 
     return {}, body
+
+
+_QUOTED_RE = re.compile(r'"(?:[^"\\]|\\.)*"')
+
+# RouterOS prints a few attributes as bare words with no "=value"
+# ("add blackhole dst-address=...", "add disabled=no ..." is NOT bare).
+_ROUTE_TYPE_FLAGS = ("blackhole", "unreachable", "prohibit")
+
+# Passwords/PSKs/communities are NEVER kept. These helpers only let the
+# parser answer "is it set / is it weak / is it reused" and then forget it.
+_COMMON_WEAK_SECRETS = {
+    "password", "passw0rd", "p@ssw0rd", "admin", "administrator", "123456",
+    "1234567", "12345678", "123456789", "1234567890", "qwerty", "letmein",
+    "welcome", "cisco", "mikrotik", "test", "secret", "changeme", "default",
+    "1234", "12345", "111111", "abc123", "pass", "vpn", "ipsec", "l2tp",
+    "pptp", "public", "private", "root", "user", "guest",
+}
+
+_FILTER_KNOWN = {
+    "chain", "action", "src-address", "dst-address", "src-address-list",
+    "dst-address-list", "protocol", "src-port", "dst-port", "in-interface",
+    "out-interface", "in-interface-list", "out-interface-list", "comment",
+    "disabled", "log", "connection-state", "connection-nat-state",
+    "connection-mark", "packet-mark", "routing-mark", "tcp-flags",
+    "icmp-options", "src-address-type", "dst-address-type", "jump-target",
+    "reject-with",
+}
+_NAT_KNOWN = {
+    "chain", "action", "src-address", "dst-address", "src-address-list",
+    "dst-address-list", "to-addresses", "to-ports", "protocol", "dst-port",
+    "src-port", "in-interface", "out-interface", "in-interface-list",
+    "out-interface-list", "connection-mark", "packet-mark", "routing-mark",
+    "comment", "disabled",
+}
+_MANGLE_KNOWN = {
+    "chain", "action", "new-connection-mark", "new-packet-mark",
+    "new-routing-mark", "new-dscp", "passthrough", "src-address",
+    "dst-address", "src-address-list", "dst-address-list", "protocol",
+    "src-port", "dst-port", "in-interface", "out-interface",
+    "in-interface-list", "out-interface-list", "connection-mark",
+    "packet-mark", "routing-mark", "connection-state", "comment", "disabled",
+    "new-mss",
+}
+_RAW_KNOWN = {
+    "chain", "action", "address-list", "address-list-timeout", "protocol",
+    "tls-host", "src-address", "dst-address", "src-address-list",
+    "dst-address-list", "in-interface", "out-interface", "comment", "disabled",
+}
+_NEGATABLE_MATCH_KEYS = (
+    "src-address", "dst-address", "src-address-list", "dst-address-list",
+    "protocol", "src-port", "dst-port", "in-interface", "out-interface",
+    "in-interface-list", "out-interface-list", "connection-state",
+    "connection-nat-state", "connection-mark", "packet-mark", "routing-mark",
+)
+
+# "/interface <x>" sections that define a virtual/tunnel interface. They are
+# modeled as Interface rows (so counts, IPs and remote endpoints are visible)
+# but are NOT physical ports -- the translator reviews them instead of
+# guessing an ethernetX/Y slot.
+_TUNNEL_INTERFACE_SECTIONS = {
+    "/interface l2tp-client": "l2tp-client",
+    "/interface pptp-client": "pptp-client",
+    "/interface sstp-client": "sstp-client",
+    "/interface ovpn-client": "ovpn-client",
+    "/interface pppoe-client": "pppoe-client",
+    "/interface eoip": "eoip",
+    "/interface gre": "gre",
+    "/interface ipip": "ipip",
+    "/interface wireguard": "wireguard",
+    "/interface bonding": "bonding",
+    "/interface vrrp": "vrrp",
+}
+
+_VPN_SERVER_SECTIONS = {
+    "/interface l2tp-server server": "l2tp",
+    "/interface pptp-server server": "pptp",
+    "/interface sstp-server server": "sstp",
+    "/interface ovpn-server server": "ovpn",
+}
+
+# Sections whose "set k=v" lines are flat tunables. Recorded as
+# config.system_settings["<section> <key>"] so the analyzer can raise a
+# finding (e.g. /ip ssh allow-none-crypto=yes) without a model class each.
+_SETTINGS_SECTIONS = (
+    "/ip ssh", "/ip settings", "/ip proxy", "/ip socks", "/ip upnp",
+    "/ip cloud", "/tool bandwidth-server", "/tool mac-server",
+    "/tool mac-server mac-winbox", "/tool mac-server ping",
+    "/ip neighbor discovery-settings", "/interface bridge settings",
+    "/ip accounting", "/ip accounting web-access", "/system package update",
+    "/tool graphing", "/tool romon", "/ip dns", "/tool e-mail",
+    "/ip firewall connection tracking", "/ip hotspot",
+)
+
+# Hardware/diagnostic menus that only ever carry vendor defaults in an /export
+# ("/interface ethernet switch port set 3 default-vlan-id=0", LED mapping,
+# RoMON, graphing). They change nothing a firewall migration or audit cares
+# about and would otherwise flood the "not interpreted" list.
+_QUIET_SECTIONS = {
+    "/interface ethernet switch port", "/system leds", "/tool romon port",
+    "/tool graphing queue", "/tool graphing interface", "/tool graphing resource",
+}
+
+_PPP_DEFAULT_INDEX_NAMES = {"*0": "default", "*FFFFFFFE": "default-encryption"}
+
+
+def _bare_flags(text):
+    """Bare (no '=') words of an add/set body, outside quoted values."""
+    flat = _QUOTED_RE.sub('""', text)
+    return [token for token in flat.split() if "=" not in token and not token.startswith("[")
+            and token not in ("]", "find")]
+
+
+def _is_weak_secret(value, name=""):
+    secret = str(value or "")
+    if not secret:
+        return False
+    low = secret.lower()
+    if len(secret) < 8:
+        return True
+    if low in _COMMON_WEAK_SECRETS:
+        return True
+    owner = str(name or "").lower()
+    if owner and (low == owner or (owner in low and len(low) <= len(owner) + 4)):
+        return True
+    if secret.isdigit() and len(secret) < 12:
+        return True
+    if len(set(secret)) <= 2:
+        return True
+    return False
+
+
+def _extra_fields(fields, known):
+    """Everything on a rule line the model has no dedicated field for."""
+    extra = {}
+    for key, value in fields.items():
+        if key in known:
+            continue
+        if _SECRETISH_KEY_RE.search(key):
+            continue
+        extra[key] = value
+    return extra
+
+
+_SECRETISH_KEY_RE = re.compile(r"(?i)(secret|password|psk|pre-shared|private-key|key)$")
+
+
+def _negated_keys(fields, keys):
+    """RouterOS prints a negated match as 'key=!value'. The PAN-OS rule has
+    no such per-field negation for most keys, so remember which were negated."""
+    return {f"negated:{key}": fields[key] for key in keys if str(fields.get(key, "")).startswith("!")}
 
 
 def _to_bool(value, default=False):
@@ -343,7 +566,28 @@ class MikrotikFirewallParser:
         with open(path, "r", encoding="utf-8", errors="ignore") as file:
             raw_lines = file.readlines()
 
+        return self.parse_lines(raw_lines, config)
+
+    def parse_text(self, text, source_name="<text>"):
+        """Same as parse_file for an in-memory export (analyzer upload path)."""
+        config = FirewallConfig(
+            source_vendor="Mikrotik",
+            source_device_type="Firewall",
+            source_file=str(source_name),
+        )
+        return self.parse_lines(str(text).splitlines(keepends=True), config)
+
+    def parse_lines(self, raw_lines, config):
+        self._read_header(config, raw_lines)
+
         lines = self._join_continuations(raw_lines)
+
+        # (object, owner-name, secret) triples gathered while reading. The
+        # secret values only live here, are compared once in
+        # _finalize_secrets() and are then dropped -- the model keeps
+        # nothing but set / weak / reused flags.
+        self._secret_pool = {"ppp-secret": [], "ipsec-psk": [], "l2tp-ipsec-secret": [], "snmp-community": []}
+        self._default_objects = {}
 
         current_section = None
         # RouterOS export groups every add/set under the most recently
@@ -359,6 +603,9 @@ class MikrotikFirewallParser:
         # _attach_bridge_ports, which reconciles this against
         # config.interfaces once the whole file has been read).
         bridge_port_membership = {}
+
+        handlers = self._section_handlers()
+        hooks = self._model_hooks()
 
         for line in lines:
             stripped = line.strip()
@@ -377,7 +624,31 @@ class MikrotikFirewallParser:
                 config.review_commands.append(stripped)
                 continue
 
-            handler = self._section_handlers().get(current_section)
+            if current_section in _QUIET_SECTIONS:
+                config.modeled_sections.add(current_section)
+                continue
+
+            hook = hooks.get(current_section)
+            if hook is not None:
+                # Hooks fill the richer model rows (queues, PPP secrets,
+                # SNMP, mangle ...). They never replace the review line
+                # below: the converter keeps its explanation, the analyzer
+                # uses config.modeled_sections to stop listing the section
+                # as "not interpreted".
+                try:
+                    consumed = hook(config, stripped, interfaces_by_name)
+                    if consumed is not False:
+                        config.modeled_sections.add(current_section)
+                        # Only the redacted text is kept: review_commands is
+                        # redacted at the end of the parse, and a clear-text
+                        # secret must not survive anywhere on the model.
+                        config.modeled_lines.add(_redact_secret_values(f"{current_section} {stripped}"))
+                except Exception as error:  # a single odd line must not abort the whole parse
+                    config.review_commands.append(
+                        f"{current_section} {stripped} -- could not be modeled ({type(error).__name__})"
+                    )
+
+            handler = handlers.get(current_section)
             if handler is None:
                 config.review_commands.append(f"{current_section} {stripped}")
                 continue
@@ -385,10 +656,39 @@ class MikrotikFirewallParser:
             handler(config, stripped, interfaces_by_name, bridge_port_membership)
 
         self._attach_bridge_ports(config, bridge_port_membership)
+        self._finalize_secrets(config)
 
         config.review_commands = [_redact_secret_values(item) for item in config.review_commands]
 
         return config
+
+    # ====================================================
+    # EXPORT HEADER ("# sep/11/2026 11:30:07 by RouterOS 6.49.15" ...)
+    # ====================================================
+
+    @staticmethod
+    def _read_header(config, raw_lines):
+        for raw in raw_lines:
+            text = raw.strip()
+            if text.startswith("/"):
+                break
+            if not text.startswith("#"):
+                continue
+            body = text.lstrip("#").strip()
+            match = re.match(r"^(.*?)\s+by RouterOS\s+(\S+)", body)
+            if match:
+                config.export_time = match.group(1).strip()
+                config.routeros_version = match.group(2).strip()
+                continue
+            match = re.match(r"^(software id|model|serial number)\s*=\s*(.*)$", body, re.I)
+            if match:
+                key, value = match.group(1).lower(), match.group(2).strip()
+                if key == "software id":
+                    config.software_id = value
+                elif key == "model":
+                    config.model = value
+                else:
+                    config.serial_number = value
 
     # ====================================================
     # LINE JOINING
@@ -526,6 +826,13 @@ class MikrotikFirewallParser:
             interface.disabled = _to_bool(fields["disabled"])
         if "mtu" in fields:
             interface.mtu = _to_int(fields["mtu"])
+        if fields.get("speed"):
+            # A forced speed (auto-negotiation=no) must survive the move: a
+            # PAN-OS port left on auto against a peer hard-set to 100M/full
+            # comes up half-duplex or not at all.
+            interface.speed = fields["speed"]
+        if "l2mtu" in fields:
+            interface.l2mtu = _to_int(fields["l2mtu"])
 
     def _handle_bridge(self, config, statement, interfaces_by_name, bridge_port_membership):
         if not statement.startswith("add"):
@@ -639,6 +946,12 @@ class MikrotikFirewallParser:
             config.review_commands.append(f"/ip address {statement}")
             return
 
+        # A host address is exported without a prefix length
+        # ("address=103.x.x.x network=103.x.x.x"); it is a /32. Left bare it
+        # would be emitted as an invalid "ip 103.x.x.x" on the target.
+        if re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", address):
+            address = f"{address}/32"
+
         interface = interfaces_by_name.get(interface_name)
         if interface is None:
             # Referenced before its own section defined it (or it's an
@@ -650,13 +963,38 @@ class MikrotikFirewallParser:
             config.interfaces.append(interface)
             interfaces_by_name[interface_name] = interface
 
+        if fields.get("comment"):
+            interface.ip_address_comments[address] = fields["comment"]
+
+        if _to_bool(fields.get("disabled")):
+            # A disabled /ip address is NOT configured on the router. Keeping
+            # it in ip_addresses made the old parser translate dead
+            # addresses into live ones (and raised false duplicate-IP /
+            # "multiple IPs" findings), so it is parked separately.
+            interface.disabled_ip_addresses.append(address)
+            return
+
         interface.ip_addresses.append(address)
 
     def _handle_route(self, config, statement, interfaces_by_name, bridge_port_membership):
         if not statement.startswith("add"):
             config.review_commands.append(f"/ip route {statement}")
             return
-        fields = _parse_kv(statement[len("add"):].strip())
+        body = statement[len("add"):].strip()
+        fields = _parse_kv(body)
+        flags = _bare_flags(body)
+
+        route_type = fields.get("type", "")
+        if not route_type:
+            route_type = next((flag for flag in flags if flag in _ROUTE_TYPE_FLAGS), "")
+
+        # RouterOS 6 calls the policy table "routing-mark", RouterOS 7
+        # "routing-table"; "main" is the ordinary table, anything else is a
+        # PBR table that must NOT be merged into the default routing table.
+        routing_mark = fields.get("routing-mark", "")
+        if not routing_mark and fields.get("routing-table", "main") not in ("", "main"):
+            routing_mark = fields["routing-table"]
+
         config.static_routes.append(
             StaticRoute(
                 dst_address=fields.get("dst-address", "0.0.0.0/0"),
@@ -664,6 +1002,12 @@ class MikrotikFirewallParser:
                 distance=_to_int(fields.get("distance")),
                 comment=fields.get("comment", ""),
                 disabled=_to_bool(fields.get("disabled")),
+                routing_mark=routing_mark,
+                check_gateway=fields.get("check-gateway", ""),
+                pref_src=fields.get("pref-src", ""),
+                scope=_to_int(fields.get("scope")),
+                target_scope=_to_int(fields.get("target-scope")),
+                route_type=route_type,
             )
         )
 
@@ -715,6 +1059,7 @@ class MikrotikFirewallParser:
                 address_pool=fields.get("address-pool", ""),
                 lease_time=fields.get("lease-time", ""),
                 disabled=_to_bool(fields.get("disabled")),
+                authoritative=fields.get("authoritative", ""),
             )
         )
 
@@ -771,7 +1116,14 @@ class MikrotikFirewallParser:
         if not name or not address:
             config.review_commands.append(f"/ip dns static {statement}")
             return
-        config.dns_static_entries.append(DnsStaticEntry(name=name, address=address))
+        config.dns_static_entries.append(
+            DnsStaticEntry(
+                name=name,
+                address=address,
+                disabled=_to_bool(fields.get("disabled")),
+                ttl=fields.get("ttl", ""),
+            )
+        )
 
     # ====================================================
     # MANAGEMENT SERVICES ("/ip service")
@@ -798,6 +1150,7 @@ class MikrotikFirewallParser:
                 name=service_name,
                 disabled=_to_bool(fields.get("disabled")),
                 port=_to_int(fields.get("port")),
+                address=fields.get("address", ""),
             )
         )
 
@@ -851,6 +1204,8 @@ class MikrotikFirewallParser:
             config.review_commands.append(f"/ip firewall filter {statement}")
             return
         fields = _parse_kv(statement[len("add"):].strip())
+        extra = _extra_fields(fields, _FILTER_KNOWN)
+        extra.update(_negated_keys(fields, _NEGATABLE_MATCH_KEYS))
         config.filter_rules.append(
             FirewallFilterRule(
                 chain=fields.get("chain", "forward"),
@@ -869,6 +1224,18 @@ class MikrotikFirewallParser:
                 comment=fields.get("comment", ""),
                 disabled=_to_bool(fields.get("disabled")),
                 log=_to_bool(fields.get("log")),
+                connection_state=fields.get("connection-state", ""),
+                connection_nat_state=fields.get("connection-nat-state", ""),
+                connection_mark=fields.get("connection-mark", ""),
+                packet_mark=fields.get("packet-mark", ""),
+                routing_mark=fields.get("routing-mark", ""),
+                tcp_flags=fields.get("tcp-flags", ""),
+                icmp_options=fields.get("icmp-options", ""),
+                src_address_type=fields.get("src-address-type", ""),
+                dst_address_type=fields.get("dst-address-type", ""),
+                jump_target=fields.get("jump-target", ""),
+                reject_with=fields.get("reject-with", ""),
+                extra=extra,
             )
         )
 
@@ -877,6 +1244,8 @@ class MikrotikFirewallParser:
             config.review_commands.append(f"/ip firewall nat {statement}")
             return
         fields = _parse_kv(statement[len("add"):].strip())
+        extra = _extra_fields(fields, _NAT_KNOWN)
+        extra.update(_negated_keys(fields, _NEGATABLE_MATCH_KEYS))
         config.nat_rules.append(
             NatRule(
                 chain=fields.get("chain", "srcnat"),
@@ -893,10 +1262,61 @@ class MikrotikFirewallParser:
                 out_interface=fields.get("out-interface", ""),
                 comment=fields.get("comment", ""),
                 disabled=_to_bool(fields.get("disabled")),
+                in_interface_list=fields.get("in-interface-list", ""),
+                out_interface_list=fields.get("out-interface-list", ""),
+                src_port=fields.get("src-port", ""),
+                connection_mark=fields.get("connection-mark", ""),
+                packet_mark=fields.get("packet-mark", ""),
+                routing_mark=fields.get("routing-mark", ""),
+                extra=extra,
             )
         )
 
+    def _default_ipsec_proposal(self, config):
+        for proposal in config.ipsec_proposals:
+            if proposal.is_default:
+                return proposal
+        is_v6 = str(config.routeros_version).startswith("6")
+        proposal = IpsecProposal(
+            name="default",
+            auth_algorithms="sha1",
+            enc_algorithms="3des" if is_v6 else "aes-256-cbc,aes-192-cbc,aes-128-cbc",
+            lifetime="30m",
+            pfs_group="modp1024",
+            is_default=True,
+        )
+        config.ipsec_proposals.append(proposal)
+        return proposal
+
     def _handle_ipsec_proposal(self, config, statement, interfaces_by_name, bridge_port_membership):
+        if statement.startswith("set"):
+            # "set [ find default=yes ] enc-algorithms=aes-128-cbc" edits the
+            # built-in proposal named "default" (not listed by /export when
+            # untouched) -- the old parser dropped these edits, so every
+            # policy referring to proposal=default was translated with the
+            # wrong ciphers.
+            selector, body = _split_selector(statement[len("set"):].strip())
+            fields = _parse_kv(body)
+            if selector.get("default") == "yes" or selector.get("name") == "default":
+                proposal = self._default_ipsec_proposal(config)
+            elif selector.get("name"):
+                proposal = next((p for p in config.ipsec_proposals if p.name == selector["name"]), None)
+            else:
+                proposal = None
+            if proposal is None:
+                config.review_commands.append(f"/ip ipsec proposal {statement}")
+                return
+            if "auth-algorithms" in fields:
+                proposal.auth_algorithms = fields["auth-algorithms"]
+            if "enc-algorithms" in fields:
+                proposal.enc_algorithms = fields["enc-algorithms"]
+            if "lifetime" in fields:
+                proposal.lifetime = fields["lifetime"]
+            if "pfs-group" in fields:
+                proposal.pfs_group = fields["pfs-group"]
+            if "disabled" in fields:
+                proposal.disabled = _to_bool(fields["disabled"])
+            return
         if not statement.startswith("add"):
             config.review_commands.append(f"/ip ipsec proposal {statement}")
             return
@@ -908,10 +1328,53 @@ class MikrotikFirewallParser:
                 enc_algorithms=fields.get("enc-algorithms", "aes-256-cbc"),
                 lifetime=fields.get("lifetime", ""),
                 pfs_group=fields.get("pfs-group", "modp1024"),
+                disabled=_to_bool(fields.get("disabled")),
             )
         )
 
+    def _default_ipsec_profile(self, config):
+        for profile in config.ipsec_profiles:
+            if profile.is_default:
+                return profile
+        profile = IpsecProfile(
+            name="default",
+            dh_group="modp1024",
+            enc_algorithm="aes-128",
+            hash_algorithm="sha1",
+            lifetime="1d",
+            nat_traversal=True,
+            dpd_interval="2m",
+            is_default=True,
+        )
+        config.ipsec_profiles.append(profile)
+        return profile
+
     def _handle_ipsec_profile(self, config, statement, interfaces_by_name, bridge_port_membership):
+        if statement.startswith("set"):
+            selector, body = _split_selector(statement[len("set"):].strip())
+            fields = _parse_kv(body)
+            if selector.get("default") == "yes" or selector.get("name") == "default":
+                profile = self._default_ipsec_profile(config)
+            elif selector.get("name"):
+                profile = next((p for p in config.ipsec_profiles if p.name == selector["name"]), None)
+            else:
+                profile = None
+            if profile is None:
+                config.review_commands.append(f"/ip ipsec profile {statement}")
+                return
+            if "dh-group" in fields:
+                profile.dh_group = fields["dh-group"]
+            if "enc-algorithm" in fields:
+                profile.enc_algorithm = fields["enc-algorithm"]
+            if "hash-algorithm" in fields:
+                profile.hash_algorithm = fields["hash-algorithm"]
+            if "lifetime" in fields:
+                profile.lifetime = fields["lifetime"]
+            if "nat-traversal" in fields:
+                profile.nat_traversal = _to_bool(fields["nat-traversal"])
+            if "dpd-interval" in fields:
+                profile.dpd_interval = fields["dpd-interval"]
+            return
         if not statement.startswith("add"):
             config.review_commands.append(f"/ip ipsec profile {statement}")
             return
@@ -923,6 +1386,8 @@ class MikrotikFirewallParser:
                 enc_algorithm=fields.get("enc-algorithm", "aes-256"),
                 hash_algorithm=fields.get("hash-algorithm", "sha1"),
                 lifetime=fields.get("lifetime", "1d"),
+                nat_traversal=_to_bool(fields["nat-traversal"]) if "nat-traversal" in fields else None,
+                dpd_interval=fields.get("dpd-interval", ""),
             )
         )
 
@@ -931,12 +1396,21 @@ class MikrotikFirewallParser:
             config.review_commands.append(f"/ip ipsec peer {statement}")
             return
         fields = _parse_kv(statement[len("add"):].strip())
+        # RouterOS 6 defaults exchange-mode to "main" (IKEv1); 7 to "ike2".
+        # /export omits defaults, so a peer without the key inherits this.
+        default_mode = "main" if str(config.routeros_version).startswith("6") else "ike2"
         config.ipsec_peers.append(
             IpsecPeer(
                 name=fields.get("name", f"peer{len(config.ipsec_peers) + 1}"),
                 address=fields.get("address", ""),
-                exchange_mode=fields.get("exchange-mode", "ike2"),
+                exchange_mode=fields.get("exchange-mode", default_mode),
                 profile_name=fields.get("profile", ""),
+                disabled=_to_bool(fields.get("disabled")),
+                local_address=fields.get("local-address", ""),
+                passive=_to_bool(fields.get("passive")),
+                send_initial_contact=(
+                    _to_bool(fields["send-initial-contact"]) if "send-initial-contact" in fields else None
+                ),
             )
         )
 
@@ -954,8 +1428,582 @@ class MikrotikFirewallParser:
                 tunnel=_to_bool(fields.get("tunnel"), default=True),
                 comment=fields.get("comment", ""),
                 disabled=_to_bool(fields.get("disabled")),
+                action=fields.get("action", ""),
+                level=fields.get("level", ""),
+                ipsec_protocols=fields.get("ipsec-protocols", ""),
+                sa_src_address=fields.get("sa-src-address", ""),
+                sa_dst_address=fields.get("sa-dst-address", ""),
+                template=_to_bool(fields.get("template")),
             )
         )
+
+    # ====================================================
+    # MODEL HOOKS -- richer rows for sections that either had no
+    # model at all (queues, PPP, SNMP, scheduler ...) or whose
+    # review-only handling hid facts the analyzer needs. A hook never
+    # emits review lines itself: the legacy handler/review path in
+    # parse_lines() still runs afterwards, unchanged.
+    # ====================================================
+
+    def _model_hooks(self):
+        hooks = {
+            "/ip route rule": self._hook_route_rule,
+            "/ip firewall mangle": self._hook_mangle,
+            "/ip firewall raw": self._hook_raw,
+            "/queue type": self._hook_queue_type,
+            "/queue simple": self._hook_queue_simple,
+            "/queue tree": self._hook_queue_tree,
+            "/ppp profile": self._hook_ppp_profile,
+            "/ppp secret": self._hook_ppp_secret,
+            "/ip ipsec identity": self._hook_ipsec_identity,
+            "/snmp": self._hook_snmp,
+            "/snmp community": self._hook_snmp_community,
+            "/user": self._hook_user,
+            "/system scheduler": self._hook_scheduler,
+            "/tool netwatch": self._hook_netwatch,
+            "/routing ospf instance": self._hook_ospf_instance,
+            "/routing ospf network": self._hook_ospf_network,
+            "/routing ospf interface-template": self._hook_ospf_template,
+            "/routing bgp peer": self._hook_bgp_peer,
+            "/routing bgp connection": self._hook_bgp_peer,
+            "/system logging": self._hook_logging,
+            "/system logging action": self._hook_logging_action,
+        }
+        for section, kind in _TUNNEL_INTERFACE_SECTIONS.items():
+            hooks[section] = partial(self._hook_tunnel_interface, kind=kind)
+        for section, kind in _VPN_SERVER_SECTIONS.items():
+            hooks[section] = partial(self._hook_vpn_server, kind=kind)
+        for section in _SETTINGS_SECTIONS:
+            hooks[section] = partial(self._hook_settings, section=section)
+        return hooks
+
+    @staticmethod
+    def _add_fields(statement):
+        if not statement.startswith("add"):
+            return None
+        return _parse_kv(statement[len("add"):].strip())
+
+    # -- policy routing / mangle / raw --------------------------------
+
+    def _hook_route_rule(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.policy_routes.append(
+            PolicyRouteRule(
+                src_address=fields.get("src-address", ""),
+                dst_address=fields.get("dst-address", ""),
+                interface=fields.get("interface", ""),
+                table=fields.get("table", ""),
+                action=fields.get("action", "lookup"),
+                comment=fields.get("comment", ""),
+                disabled=_to_bool(fields.get("disabled")),
+            )
+        )
+
+    def _hook_mangle(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.mangle_rules.append(
+            MangleRule(
+                chain=fields.get("chain", ""),
+                action=fields.get("action", ""),
+                new_connection_mark=fields.get("new-connection-mark", ""),
+                new_packet_mark=fields.get("new-packet-mark", ""),
+                new_routing_mark=fields.get("new-routing-mark", ""),
+                new_dscp=fields.get("new-dscp", ""),
+                passthrough=_to_bool(fields["passthrough"]) if "passthrough" in fields else None,
+                src_address=fields.get("src-address", ""),
+                dst_address=fields.get("dst-address", ""),
+                src_address_list=fields.get("src-address-list", ""),
+                dst_address_list=fields.get("dst-address-list", ""),
+                protocol=fields.get("protocol", ""),
+                src_port=fields.get("src-port", ""),
+                dst_port=fields.get("dst-port", ""),
+                in_interface=fields.get("in-interface", ""),
+                out_interface=fields.get("out-interface", ""),
+                in_interface_list=fields.get("in-interface-list", ""),
+                out_interface_list=fields.get("out-interface-list", ""),
+                connection_mark=fields.get("connection-mark", ""),
+                packet_mark=fields.get("packet-mark", ""),
+                routing_mark=fields.get("routing-mark", ""),
+                connection_state=fields.get("connection-state", ""),
+                comment=fields.get("comment", ""),
+                disabled=_to_bool(fields.get("disabled")),
+                extra=_extra_fields(fields, _MANGLE_KNOWN),
+            )
+        )
+
+    def _hook_raw(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.raw_rules.append(
+            RawRule(
+                chain=fields.get("chain", ""),
+                action=fields.get("action", ""),
+                address_list=fields.get("address-list", ""),
+                address_list_timeout=fields.get("address-list-timeout", ""),
+                protocol=fields.get("protocol", ""),
+                tls_host=fields.get("tls-host", ""),
+                src_address=fields.get("src-address", ""),
+                dst_address=fields.get("dst-address", ""),
+                src_address_list=fields.get("src-address-list", ""),
+                dst_address_list=fields.get("dst-address-list", ""),
+                in_interface=fields.get("in-interface", ""),
+                out_interface=fields.get("out-interface", ""),
+                comment=fields.get("comment", ""),
+                disabled=_to_bool(fields.get("disabled")),
+                extra=_extra_fields(fields, _RAW_KNOWN),
+            )
+        )
+
+    # -- queues -------------------------------------------------------
+
+    def _hook_queue_type(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.queue_types.append(
+            QueueType(
+                name=fields.get("name", ""),
+                kind=fields.get("kind", ""),
+                pcq_classifier=fields.get("pcq-classifier", ""),
+                pcq_rate=fields.get("pcq-rate", ""),
+                pcq_limit=fields.get("pcq-limit", ""),
+                pcq_total_limit=fields.get("pcq-total-limit", ""),
+                pcq_burst_rate=fields.get("pcq-burst-rate", ""),
+            )
+        )
+
+    def _hook_queue_simple(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.queue_simple.append(
+            QueueSimple(
+                name=fields.get("name", ""),
+                target=fields.get("target", ""),
+                max_limit=fields.get("max-limit", ""),
+                limit_at=fields.get("limit-at", ""),
+                burst_limit=fields.get("burst-limit", ""),
+                priority=fields.get("priority", ""),
+                queue=fields.get("queue", ""),
+                parent=fields.get("parent", ""),
+                packet_marks=fields.get("packet-marks", ""),
+                comment=fields.get("comment", ""),
+                disabled=_to_bool(fields.get("disabled")),
+            )
+        )
+
+    def _hook_queue_tree(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.queue_tree.append(
+            QueueTree(
+                name=fields.get("name", ""),
+                parent=fields.get("parent", ""),
+                packet_mark=fields.get("packet-mark", ""),
+                queue=fields.get("queue", ""),
+                max_limit=fields.get("max-limit", ""),
+                limit_at=fields.get("limit-at", ""),
+                burst_limit=fields.get("burst-limit", ""),
+                priority=fields.get("priority", ""),
+                comment=fields.get("comment", ""),
+                disabled=_to_bool(fields.get("disabled")),
+            )
+        )
+
+    # -- PPP ----------------------------------------------------------
+
+    def _ppp_default_profile(self, config, name):
+        for profile in config.ppp_profiles:
+            if profile.name == name:
+                return profile
+        profile = PppProfile(name=name)
+        config.ppp_profiles.append(profile)
+        return profile
+
+    def _hook_ppp_profile(self, config, statement, interfaces_by_name):
+        if statement.startswith("set"):
+            selector, body = _split_selector(statement[len("set"):].strip())
+            fields = _parse_kv(body)
+            target = _PPP_DEFAULT_INDEX_NAMES.get(selector.get("__index__", "").upper())
+            if target is None and selector.get("default") == "yes":
+                target = "default"
+            if target is None and selector.get("name"):
+                target = selector["name"]
+            if target is None:
+                return False
+            profile = self._ppp_default_profile(config, target)
+        else:
+            fields = self._add_fields(statement)
+            if fields is None:
+                return False
+            profile = PppProfile(name=fields.get("name", ""))
+            config.ppp_profiles.append(profile)
+        for attr, key in (
+            ("local_address", "local-address"),
+            ("remote_address", "remote-address"),
+            ("dns_server", "dns-server"),
+            ("rate_limit", "rate-limit"),
+            ("use_encryption", "use-encryption"),
+            ("change_tcp_mss", "change-tcp-mss"),
+            ("comment", "comment"),
+        ):
+            if key in fields:
+                setattr(profile, attr, fields[key])
+
+    def _hook_ppp_secret(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        secret = PppSecret(
+            name=fields.get("name", ""),
+            service=fields.get("service", "any"),
+            profile=fields.get("profile", ""),
+            local_address=fields.get("local-address", ""),
+            remote_address=fields.get("remote-address", ""),
+            caller_id=fields.get("caller-id", ""),
+            comment=fields.get("comment", ""),
+            disabled=_to_bool(fields.get("disabled")),
+            password_set=bool(fields.get("password")),
+        )
+        config.ppp_secrets.append(secret)
+        if fields.get("password"):
+            self._secret_pool["ppp-secret"].append(
+                (secret, secret.name, fields["password"], "password_weak", "password_reused")
+            )
+
+    # -- IPsec identity (PSK / certificate) ---------------------------
+
+    def _hook_ipsec_identity(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        method = fields.get("auth-method", "pre-shared-key")
+        identity = IpsecIdentity(
+            peer=fields.get("peer", ""),
+            auth_method=method,
+            secret_set=bool(fields.get("secret")),
+            certificate=fields.get("certificate", ""),
+            mode_config=fields.get("mode-config", ""),
+            policy_template_group=fields.get("policy-template-group", ""),
+            generate_policy=fields.get("generate-policy", ""),
+            my_id=fields.get("my-id", ""),
+            remote_id=fields.get("remote-id", ""),
+            comment=fields.get("comment", ""),
+            disabled=_to_bool(fields.get("disabled")),
+        )
+        config.ipsec_identities.append(identity)
+        if fields.get("secret"):
+            self._secret_pool["ipsec-psk"].append(
+                (identity, identity.peer, fields["secret"], "secret_weak", "secret_reused")
+            )
+
+    # -- SNMP ---------------------------------------------------------
+
+    def _hook_snmp(self, config, statement, interfaces_by_name):
+        if not statement.startswith("set"):
+            return False
+        _selector, body = _split_selector(statement[len("set"):].strip())
+        fields = _parse_kv(body)
+        snmp = config.snmp
+        if "enabled" in fields:
+            snmp.enabled = _to_bool(fields["enabled"])
+        for attr, key in (
+            ("contact", "contact"),
+            ("location", "location"),
+            ("trap_community", "trap-community"),
+            ("trap_target", "trap-target"),
+            ("trap_version", "trap-version"),
+            ("trap_interfaces", "trap-interfaces"),
+        ):
+            if key in fields:
+                setattr(snmp, attr, fields[key])
+
+    def _hook_snmp_community(self, config, statement, interfaces_by_name):
+        if statement.startswith("set"):
+            selector, body = _split_selector(statement[len("set"):].strip())
+            fields = _parse_kv(body)
+            if selector.get("default") == "yes":
+                name = "public"          # the built-in community
+            elif selector.get("name"):
+                name = selector["name"]
+            else:
+                return False
+            community = next((c for c in config.snmp_communities if c.name == name), None)
+            if community is None:
+                community = SnmpCommunity(name=name)
+                config.snmp_communities.append(community)
+        else:
+            fields = self._add_fields(statement)
+            if fields is None:
+                return False
+            community = SnmpCommunity(name=fields.get("name", ""))
+            config.snmp_communities.append(community)
+        if "name" in fields:
+            community.name = fields["name"]
+        if "addresses" in fields:
+            community.addresses = fields["addresses"]
+        if "security" in fields:
+            community.security = fields["security"]
+        if "read-access" in fields:
+            community.read_access = _to_bool(fields["read-access"])
+        if "write-access" in fields:
+            community.write_access = _to_bool(fields["write-access"])
+        if fields.get("authentication-password"):
+            community.authentication_password_set = True
+        if fields.get("encryption-password"):
+            community.encryption_password_set = True
+        if "disabled" in fields:
+            community.disabled = _to_bool(fields["disabled"])
+
+    # -- local users / scheduler / netwatch ---------------------------
+
+    def _hook_user(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.local_users.append(
+            LocalUser(
+                name=fields.get("name", ""),
+                group=fields.get("group", ""),
+                address=fields.get("address", ""),
+                comment=fields.get("comment", ""),
+                disabled=_to_bool(fields.get("disabled")),
+            )
+        )
+
+    def _hook_scheduler(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.scheduler_entries.append(
+            SchedulerEntry(
+                name=fields.get("name", ""),
+                on_event=_redact_secret_values(fields.get("on-event", ""))[:300],
+                interval=fields.get("interval", ""),
+                start_time=fields.get("start-time", ""),
+                disabled=_to_bool(fields.get("disabled")),
+                comment=fields.get("comment", ""),
+            )
+        )
+
+    def _hook_netwatch(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.netwatch_entries.append(
+            NetwatchEntry(
+                host=fields.get("host", ""),
+                interval=fields.get("interval", ""),
+                down_script=_redact_secret_values(fields.get("down-script", ""))[:300],
+                up_script=_redact_secret_values(fields.get("up-script", ""))[:300],
+                comment=fields.get("comment", ""),
+                disabled=_to_bool(fields.get("disabled")),
+            )
+        )
+
+    # -- dynamic routing ----------------------------------------------
+
+    def _hook_ospf_instance(self, config, statement, interfaces_by_name):
+        if statement.startswith("set"):
+            selector, body = _split_selector(statement[len("set"):].strip())
+            fields = _parse_kv(body)
+            name = "default" if selector.get("default") == "yes" else selector.get("name")
+            if not name:
+                return False
+            instance = next((i for i in config.ospf_instances if i.name == name), None)
+            if instance is None:
+                instance = OspfInstance(name=name)
+                config.ospf_instances.append(instance)
+        else:
+            fields = self._add_fields(statement)
+            if fields is None:
+                return False
+            instance = OspfInstance(name=fields.get("name", "default"))
+            config.ospf_instances.append(instance)
+        if "router-id" in fields:
+            instance.router_id = fields["router-id"]
+        redistributed = [k.replace("redistribute-", "") for k, v in fields.items()
+                         if k.startswith("redistribute") and v not in ("no", "")]
+        if redistributed:
+            instance.redistribute = ",".join(redistributed)
+        if "disabled" in fields:
+            instance.disabled = _to_bool(fields["disabled"])
+
+    def _hook_ospf_network(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.ospf_networks.append(
+            OspfNetwork(
+                network=fields.get("network", ""),
+                area=fields.get("area", ""),
+                disabled=_to_bool(fields.get("disabled")),
+                comment=fields.get("comment", ""),
+            )
+        )
+
+    def _hook_ospf_template(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.ospf_networks.append(
+            OspfNetwork(
+                network=fields.get("networks") or fields.get("interfaces", ""),
+                area=fields.get("area", ""),
+                disabled=_to_bool(fields.get("disabled")),
+                comment=fields.get("comment", ""),
+            )
+        )
+
+    def _hook_bgp_peer(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        config.bgp_peers.append(
+            BgpPeer(
+                name=fields.get("name", ""),
+                remote_address=fields.get("remote-address") or fields.get("remote.address", ""),
+                remote_as=fields.get("remote-as") or fields.get("remote.as", ""),
+                local_as=fields.get("local.as") or fields.get("as", ""),
+                instance=fields.get("instance", ""),
+                update_source=fields.get("update-source") or fields.get("local.address", ""),
+                md5_key_set=bool(fields.get("tcp-md5-key")),
+                disabled=_to_bool(fields.get("disabled")),
+                comment=fields.get("comment", ""),
+            )
+        )
+
+    # -- logging ------------------------------------------------------
+
+    def _hook_logging(self, config, statement, interfaces_by_name):
+        if statement.startswith("add"):
+            fields = _parse_kv(statement[len("add"):].strip())
+        elif statement.startswith("set"):
+            _selector, body = _split_selector(statement[len("set"):].strip())
+            fields = _parse_kv(body)
+        else:
+            return False
+        config.logging_rules.append(
+            LoggingRule(
+                topics=fields.get("topics", ""),
+                action=fields.get("action", ""),
+                prefix=fields.get("prefix", ""),
+                disabled=_to_bool(fields.get("disabled")),
+            )
+        )
+
+    def _hook_logging_action(self, config, statement, interfaces_by_name):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        if fields.get("target") == "remote" and fields.get("remote"):
+            key = "/system logging action remote-targets"
+            existing = config.system_settings.get(key, "")
+            config.system_settings[key] = f"{existing},{fields['remote']}".strip(",")
+            return True
+        return False
+
+    # -- tunnels / VPN servers / flat settings -------------------------
+
+    def _hook_tunnel_interface(self, config, statement, interfaces_by_name, kind):
+        fields = self._add_fields(statement)
+        if fields is None:
+            return False
+        name = fields.get("name")
+        if not name:
+            return False
+        interface = interfaces_by_name.get(name)
+        if interface is None:
+            interface = Interface(name=name, interface_type=kind)
+            config.interfaces.append(interface)
+            interfaces_by_name[name] = interface
+        else:
+            interface.interface_type = kind
+        interface.comment = fields.get("comment", interface.comment)
+        interface.disabled = _to_bool(fields.get("disabled"))
+        interface.mtu = _to_int(fields.get("mtu")) if "mtu" in fields else interface.mtu
+        interface.remote_address = fields.get("connect-to") or fields.get("remote-address", "")
+        interface.local_address = fields.get("local-address", "")
+        tunnel_id = fields.get("tunnel-id") or fields.get("vrid")
+        interface.tunnel_id = _to_int(tunnel_id)
+        interface.user = fields.get("user", "")
+        if kind == "bonding":
+            interface.parent_interface = fields.get("slaves", "")
+        elif kind == "vrrp":
+            interface.parent_interface = fields.get("interface", "")
+        if fields.get("password"):
+            counter = f"{kind}-password"
+            config.clear_text_secrets[counter] = config.clear_text_secrets.get(counter, 0) + 1
+
+    def _hook_vpn_server(self, config, statement, interfaces_by_name, kind):
+        if not statement.startswith("set"):
+            return False
+        _selector, body = _split_selector(statement[len("set"):].strip())
+        fields = _parse_kv(body)
+        server = next((s for s in config.vpn_servers if s.kind == kind), None)
+        if server is None:
+            server = VpnServer(kind=kind)
+            config.vpn_servers.append(server)
+        if "enabled" in fields:
+            server.enabled = _to_bool(fields["enabled"])
+        server.authentication = fields.get("authentication", server.authentication)
+        server.default_profile = fields.get("default-profile", server.default_profile)
+        server.use_ipsec = fields.get("use-ipsec", server.use_ipsec)
+        server.keepalive_timeout = fields.get("keepalive-timeout", server.keepalive_timeout)
+        if fields.get("ipsec-secret"):
+            server.ipsec_secret_set = True
+            self._secret_pool["l2tp-ipsec-secret"].append(
+                (server, kind, fields["ipsec-secret"], "ipsec_secret_weak", None)
+            )
+
+    def _hook_settings(self, config, statement, interfaces_by_name, section):
+        if not statement.startswith("set"):
+            return False
+        _selector, body = _split_selector(statement[len("set"):].strip())
+        stored = False
+        for key, value in _parse_kv(body).items():
+            if _SECRETISH_KEY_RE.search(key):
+                continue
+            config.system_settings[f"{section} {key}"] = value[:200]
+            stored = True
+        return stored
+
+    # ====================================================
+    # SECRET POST-PASS
+    # ====================================================
+
+    def _finalize_secrets(self, config):
+        """
+        Flags weak / reused credentials, records how many are stored in
+        clear text and then discards the values. Nothing derived here
+        lets anybody recover a password: only booleans and counts are
+        written to the model.
+        """
+
+        pool = getattr(self, "_secret_pool", {})
+        for kind, entries in pool.items():
+            if not entries:
+                continue
+            seen = {}
+            for _obj, _owner, value, _weak_attr, _reused_attr in entries:
+                seen[value] = seen.get(value, 0) + 1
+            for obj, owner, value, weak_attr, reused_attr in entries:
+                setattr(obj, weak_attr, _is_weak_secret(value, owner))
+                if reused_attr:
+                    setattr(obj, reused_attr, seen[value] > 1)
+            config.clear_text_secrets[kind] = len(entries)
+
+        legacy_snmp = [c for c in config.snmp_communities if c.security in ("", "none")]
+        if legacy_snmp:
+            config.clear_text_secrets["snmp-community"] = len(legacy_snmp)
+
+        self._secret_pool = {}
 
     # ====================================================
     # POST-PASSES

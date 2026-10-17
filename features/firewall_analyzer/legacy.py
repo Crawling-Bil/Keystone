@@ -20,7 +20,7 @@ from typing import Any
 
 from ..analyzer_core.findings import dedupe_findings, finding, severity_counts, sort_findings
 from ..analyzer_core.result import card, info_rows, kv_section, new_result, table_section
-from . import panos_routing, panos_rules, panos_runtime, panos_xml_extra, scope
+from . import panos_routing, panos_rules, panos_runtime, panos_xml_extra, routeros, scope
 from .refs import MIKROTIK, PALO
 
 ALLOW = {"allow", "accept", "permit"}
@@ -112,11 +112,11 @@ def analyze(content: str, filename: str, vendor: str) -> dict[str, Any]:
     result["info"] = _info(dashboard, is_palo)
     unhandled = dashboard.get("unhandled_commands") or []
     result["coverage"] = [
-        {"command": "show config running" if capture else "configuration export", "status": "analysed", "lines": lines, "note": "Interfaces, zones, policies, NAT, routes, VPN, objects and system settings were read.", "tone": "ok"},
-        *([{"command": "PAN-OS XML extras", "status": "analysed", "lines": 0, "note": extra_note, "tone": "ok"}] if extra_note else []),
-        {"command": "lines not interpreted", "status": "not parsed" if unhandled else "analysed", "lines": len(unhandled),
+        {"command": "show config running" if capture else "configuration export", "status": "analyzed", "lines": lines, "note": "Interfaces, zones, policies, NAT, routes, VPN, objects and system settings were read.", "tone": "ok"},
+        *([{"command": "PAN-OS XML extras", "status": "analyzed", "lines": 0, "note": extra_note, "tone": "ok"}] if extra_note else []),
+        {"command": "lines not interpreted", "status": "not parsed" if unhandled else "analyzed", "lines": len(unhandled),
          "note": "See the 'Not interpreted' table on the System tab." if unhandled else "Nothing was skipped.", "tone": "warn" if unhandled else "ok"},
-        *([{"command": "show system info", "status": "analysed", "lines": len(sysinfo), "note": "Model, serial, software, content versions and the advanced-routing flag were read.", "tone": "ok"}] if sysinfo else []),
+        *([{"command": "show system info", "status": "analyzed", "lines": len(sysinfo), "note": "Model, serial, software, content versions and the advanced-routing flag were read.", "tone": "ok"}] if sysinfo else []),
         {"command": "live state (show session, show vpn flow, BGP/OSPF neighbours)", "status": "missing", "lines": 0, "note": "A configuration export has no runtime state: tunnel up/down, session counts and routing adjacencies are not shown.", "tone": "warn"},
     ]
     # dashboard["warnings"] carries parser-level notices from the underlying
@@ -232,6 +232,8 @@ def _findings(d: dict[str, Any], is_palo: bool) -> list[dict[str, Any]]:
             out.append(finding("FW-MGT-005", "medium", "Management", "No drop rule in the input chain", obj="/ip firewall filter chain=input",
                                detail="RouterOS accepts everything in a chain that has no matching rule, so services on the router itself are open to every interface that reaches it.",
                                recommendation="End the input chain with a drop rule for traffic that is not from the LAN, after allowing established/related and the required services.", reference=MIKROTIK["securing"]))
+        if d.get("routeros"):
+            out += routeros.evaluate(d["routeros"], d)
     return sort_findings(dedupe_findings(out))
 
 
@@ -318,8 +320,10 @@ def _sections(d: dict[str, Any], is_palo: bool) -> list[dict[str, Any]]:
     iface_cols = [("name", "Interface", "mono"), ("type", "Type"), ("ip_address", "Address", "mono"), ("zone", "Zone"), ("disabled", "Disabled"), ("comment", "Comment", "wrap")]
     if is_palo:
         iface_cols[4:4] = [("tag", "VLAN tag"), ("management_profile", "Management profile"), ("link_state", "Link")]
-    out.append(table_section("interfaces", "Interfaces", scoped(iface_cols), [dict(i, vsys=i.get("vsys") or "(none)", disabled=_yn(i.get("disabled")), _tone="mute" if i.get("disabled") else "") for i in d.get("interfaces", [])], group="Interfaces",
-                             hint="'(none)' = not imported into any virtual system (management, HA and unused ports)." if multi else ""))
+    else:
+        iface_cols[3:3] = [("ip_addresses", "All addresses", "list"), ("disabled_ip_addresses", "Disabled addresses", "list"), ("speed", "Forced speed"), ("remote", "Remote end", "mono")]
+    out.append(table_section("interfaces", "Interfaces", scoped(iface_cols), [dict(i, vsys=i.get("vsys") or "(none)", disabled=_yn(i.get("disabled")), _tone="mute" if i.get("disabled") else "", _tones={"disabled_ip_addresses": "warn" if i.get("disabled_ip_addresses") else ""}) for i in d.get("interfaces", [])], group="Interfaces",
+                             hint="'(none)' = not imported into any virtual system (management, HA and unused ports)." if multi else "", facets=[{"key": "disabled", "label": "disabled", "order": ["No", "Yes"]}]))
     out.append(table_section("zones", "Zones", scoped([("name", "Zone", "mono"), ("interfaces", "Interfaces", "list")] + ([("zone_protection_profile", "Zone protection profile")] if is_palo else [])),
                              [dict(z, _tones={"zone_protection_profile": "warn" if is_palo and not z.get("zone_protection_profile") and z.get("interfaces") else ""}) for z in d.get("zones", [])], group="Interfaces"))
     out.append(table_section("vlans", "VLANs", [("name", "Name", "mono"), ("vlan_id" if not is_palo else "tag", "VLAN ID"), ("parent_interface" if not is_palo else "vlan_interface", "Parent / interface"), ("interfaces", "Members", "list"), ("comment", "Comment", "wrap")],
@@ -333,8 +337,8 @@ def _sections(d: dict[str, Any], is_palo: bool) -> list[dict[str, Any]]:
         out.append(table_section("static_routes", "Static routes", scoped(route_cols, 8), route_rows, group="Interfaces", empty="No static routes.",
                                  hint="Advanced Routing keeps its routes in logical routers; the old virtual-router section stays in the file but is not used ('Active: no'). With a bare XML export the active engine is 'unknown' when both exist - include 'show system info'."))
     else:
-        out.append(table_section("static_routes", "Static routes", scoped([("destination", "Destination", "mono"), ("nexthop", "Next hop", "mono"), ("metric", "Metric"), ("virtual_router", "Virtual router"), ("disabled", "Disabled")], 4),
-                                 [dict(r, disabled=_yn(r.get("disabled"))) for r in d.get("static_routes", [])], group="Interfaces", empty="No static routes."))
+        out.append(table_section("static_routes", "Static routes", scoped([("destination", "Destination", "mono"), ("nexthop", "Next hop", "mono"), ("metric", "Distance"), ("routing_table", "Routing table"), ("route_type", "Type"), ("check_gateway", "Check gateway"), ("virtual_router", "Virtual router"), ("disabled", "Disabled"), ("comment", "Comment", "wrap")], 4),
+                                 [dict(r, disabled=_yn(r.get("disabled")), _tone="mute" if r.get("disabled") else "", _tones={"routing_table": "warn" if r.get("routing_table") not in ("", "main", None) else ""}) for r in d.get("static_routes", [])], group="Interfaces", empty="No static routes."))
     if is_palo:
         out.append(table_section("routing_protocols", "Virtual routers", scoped([("virtual_router", "Virtual router", "mono"), ("routing_type", "Routing"), ("dynamic_protocols", "Dynamic protocols", "list"), ("static_route_count", "Static routes", "num"),
                                                                            ("bgp_as_number", "BGP AS"), ("bgp_router_id", "BGP router ID", "mono"), ("ospf_router_id", "OSPF router ID", "mono"), ("ospf_area_ids", "OSPF areas", "list"), ("engine", "Engine"), ("active", "Active", "status")]),
@@ -354,7 +358,7 @@ def _sections(d: dict[str, Any], is_palo: bool) -> list[dict[str, Any]]:
             tones["log"] = "warn"
         rows.append(dict(r, profile=_profile_label(r, {g["name"]: g for g in d.get("profile_groups", [])}) if is_palo else [], log=_yn(r.get("log")), disabled=_yn(r.get("disabled")), _tone="mute" if r.get("disabled") else "", _tones=tones))
     out.append(table_section("security_rules", "Security rules" if is_palo else "Firewall filter rules", scoped(rule_cols), rows, group="Policies", page_size=100,
-                             hint="In evaluation order. Allow rules that match everything are shaded red."))
+                             hint="In evaluation order. Allow rules that match everything are shaded red.", facets=[{"key": "action", "label": "action"}]))
     out.append(table_section("address_objects", "Address objects and lists", scoped([("name", "Name", "mono"), ("members", "Members", "list")]), d.get("address_objects", []), group="Policies", empty="No address objects."))
     if is_palo:
         out.append(table_section("service_objects", "Service objects and groups", scoped([("name", "Name", "mono"), ("members", "Members", "list")]), d.get("service_objects", []), group="Policies", empty="No service objects."))
@@ -392,9 +396,11 @@ def _sections(d: dict[str, Any], is_palo: bool) -> list[dict[str, Any]]:
     out.append(table_section("dhcp", "DHCP servers", [("name", "Name", "mono"), ("interface", "Interface"), ("address_pool", "Pool", "mono"), ("gateway", "Gateway", "mono"), ("dns_servers", "DNS", "list"), ("disabled", "Disabled")],
                              [dict(s, disabled=_yn(s.get("disabled"))) for s in dhcp.get("servers", [])], group="System", empty="No DHCP servers."))
     out.append(kv_section("time_dns", "DNS and NTP", [("DNS servers", ", ".join(d.get("dns_servers", [])) or "—"), ("NTP servers", ", ".join(d.get("ntp_servers", [])) or "—", "" if d.get("ntp_servers") else "warn")], group="System"))
+    if not is_palo and d.get("routeros"):
+        out += routeros.sections(d["routeros"])
     unhandled = d.get("unhandled_commands") or []
     out.append(table_section("unhandled", "Not interpreted", [("line", "Configuration line", "wrap")], [{"line": line} for line in unhandled[:300]], group="System", total=len(unhandled),
-                             empty="Every line was understood.", hint="Lines the parser did not map to a table. Review them for features that are not analysed here."))
+                             empty="Every line was understood.", hint="Lines the parser did not map to a table. Review them for features that are not analyzed here."))
     live = {s["group"] for s in out if (s.get("rows") if s["kind"] == "table" else s.get("pairs"))}
     return [s for s in out if s["group"] in live or s["group"] in {"Interfaces", "Policies", "System"}]
 
@@ -422,6 +428,11 @@ def _info(d: dict[str, Any], is_palo: bool) -> list[dict[str, Any]]:
         pairs += [("Model", runtime.get("model")), ("Serial", runtime.get("serial")), ("PAN-OS version", runtime.get("sw-version")), ("Uptime", runtime.get("uptime")),
                   ("Management IP", info.get("mgmt_ip")), ("Domain", info.get("domain")), ("Time zone", info.get("timezone")),
                   ("Panorama", ("template " + d.get("panorama_template_name", "")) if d.get("panorama_template_name") else "server configured" if d.get("panorama_enabled") else "standalone")]
+    ros = d.get("routeros") or {}
+    if not is_palo and ros:
+        header = ros.get("header", {})
+        pairs += [("Model", header.get("model")), ("RouterOS version", header.get("routeros_version")), ("Serial", header.get("serial_number")),
+                  ("Software ID", header.get("software_id")), ("Exported at", header.get("export_time"))]
     counts = Counter(str(r.get("action", "")).lower() for r in d.get("security_rules", []))
     pairs.append(("Rule actions", ", ".join(f"{k}: {v}" for k, v in counts.most_common())))
     return info_rows(pairs)

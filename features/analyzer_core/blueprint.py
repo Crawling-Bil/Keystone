@@ -159,7 +159,7 @@ def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
         payload = request.get_json(silent=True) or {}
         before, after = payload.get("before"), payload.get("after")
         if not isinstance(before, dict) or not isinstance(after, dict):
-            return jsonify({"ok": False, "error": "Choose two analysed devices to compare."}), 400
+            return jsonify({"ok": False, "error": "Choose two analyzed devices to compare."}), 400
         problems = [p for item in (before, after) for p in validate_result(item)]
         if problems:
             return jsonify({"ok": False, "error": "Result is malformed: " + "; ".join(problems[:3])}), 400

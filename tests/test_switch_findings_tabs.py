@@ -195,7 +195,7 @@ class BuildTabsTests(unittest.TestCase):
         self.assertEqual(tab["count"], 4)
 
     def test_coverage_badge_counts_the_missing_commands(self):
-        result = {"coverage": {"rows": [{"status": "missing"}, {"status": "missing"}, {"status": "analysed"}], "present": []}}
+        result = {"coverage": {"rows": [{"status": "missing"}, {"status": "missing"}, {"status": "analyzed"}], "present": []}}
         self.assertEqual(by_key({"tabs": tabs.build_tabs(result)})["coverage"]["count"], 2)
 
     def test_dns_snmp_dhcp_tabs_follow_the_configuration(self):

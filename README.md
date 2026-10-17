@@ -11,7 +11,7 @@ Analyzers (read uploaded files only):
 - Wireless Analyzer: Huawei and Cisco 9800 WLCs
 - Switch Analyzer: Cisco, Huawei, Aruba, Nexus
 - Router Analyzer: Cisco IOS / IOS-XE / SD-WAN
-- Firewall Analyzer: FortiGate, Palo Alto, MikroTik
+- Firewall Analyzer: FortiGate, FortiSwitch, Palo Alto (configuration or runtime-only log), MikroTik RouterOS 6/7
 - Load Balancer Analyzer: F5 BIG-IP
 
 Converter:

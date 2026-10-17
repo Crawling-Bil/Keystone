@@ -86,3 +86,28 @@ def gtm_rules(ctx: LCtx) -> Iterable[dict[str, Any]]:
                            detail="There is no 'gtm listener' and no LTM virtual server with a DNS profile, so the unit cannot receive queries for the wide IPs (a listener can also exist in another partition or in a part of the configuration that was not exported).",
                            recommendation="Create a listener on the DNS address, or enable GTM on a DNS-profile virtual server.", reference=F5["gtm_listener"]))
     return out
+
+
+# ===================================================================== live state ('show gtm ...')
+def gtm_runtime_rules(ctx: LCtx) -> Iterable[dict[str, Any]]:
+    """Findings from live ``show gtm`` output: iQuery peers that are not connected, wide IPs and servers that are offline.  Silent without that output."""
+    rt = ctx.runtime
+    out: list[dict[str, Any]] = []
+    for peer in rt.get("gtm_iquery", []):
+        shown = (peer.get("iquery_state") or "").strip().lower()
+        if shown and shown != "connected":
+            who = peer.get("server") or peer["name"]
+            out.append(finding("LB-GTM-020", "high", "DNS (GTM)", f"iQuery to {who} is {shown}", obj=f"gtm iquery {peer['name']}",
+                               detail=f"The iQuery connection from this DNS device to {who} ({peer['name']}) is '{shown}'. Without it the unit cannot learn that peer's virtual server health, so wide IP answers can point at dead members or drop them wrongly.",
+                               recommendation="Check that TCP 4353 is reachable both ways, that the device certificates were exchanged ('bigip_add' on the DNS device) and that the peer's self IP is reachable.", reference=F5["dns_iquery_troubleshooting"]))
+    for w in rt.get("gtm_wideips", []):
+        if w["state"].lower() == "enabled" and w["availability"].lower() in ("offline", "unavailable"):
+            out.append(finding("LB-GTM-021", "high" if w["availability"].lower() == "offline" else "medium", "DNS (GTM)", f"Wide IP is {w['availability'].lower()}", obj=f"gtm wideip {w['name']}",
+                               detail=f"{w['name']}: {w['reason'] or w['availability']}. Queries for it get no usable answer (or only the fallback / last-resort answer).",
+                               recommendation="Open its pools and members ('show gtm pool a detail'), then the server and virtual server monitors behind them.", reference=F5["gtm_wideip"]))
+    for server in rt.get("gtm_servers", []):
+        if server["state"].lower() == "enabled" and server["availability"].lower() in ("offline", "unavailable"):
+            out.append(finding("LB-GTM-022", "medium", "DNS (GTM)", f"GTM server is {server['availability'].lower()}", obj=f"gtm server {server['name']}",
+                               detail=f"{server['name']}: {server['reason'] or server['availability']}. Every pool member on it is treated as down.",
+                               recommendation="Check the server monitor, iQuery and the network path to it.", reference=F5["gtm_server"]))
+    return out

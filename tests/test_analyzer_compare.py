@@ -98,9 +98,9 @@ class FirewallBackupDrift(unittest.TestCase):
         flask.context_processor(lambda: {"app_version": "t"})
         client = flask.test_client()
         files = [(io.BytesIO(CONFIG.encode()), "a.conf"), (io.BytesIO(CONFIG.replace("monitor-only", "mon-renamed").encode()), "b.conf")]
-        analysed = client.post("/firewall-analyzer/api/analyze", data={"config_files": files}, content_type="multipart/form-data").get_json()
-        self.assertTrue(analysed["ok"])
-        a, b = analysed["results"]
+        analyzed = client.post("/firewall-analyzer/api/analyze", data={"config_files": files}, content_type="multipart/form-data").get_json()
+        self.assertTrue(analyzed["ok"])
+        a, b = analyzed["results"]
         cmp = client.post("/firewall-analyzer/api/compare", json={"before": a, "after": b}).get_json()
         self.assertTrue(cmp["ok"])
         self.assertTrue(cmp["result"]["comparison"])

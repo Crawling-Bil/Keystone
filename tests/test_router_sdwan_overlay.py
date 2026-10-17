@@ -373,10 +373,10 @@ def finding_ids(result: dict) -> list[str]:
     return [f["id"] for f in result["findings"]]
 
 
-def test_every_overlay_command_is_analysed_and_the_tab_exists(result):
+def test_every_overlay_command_is_analyzed_and_the_tab_exists(result):
     rows = {c["command"]: c for c in result["coverage"]}
     for command in ("show sdwan omp peers", "show sdwan omp tlocs", "show sdwan omp routes", "show sdwan control local-properties", "show sdwan app-route stats", "show sdwan policy from-vsmart"):
-        assert rows[command]["status"] == "analysed", command
+        assert rows[command]["status"] == "analyzed", command
     assert not result["warnings"]
     groups = {s["group"] for s in result["sections"]}
     assert "SD-WAN overlay" in groups
@@ -524,14 +524,14 @@ def coverage(text: str) -> dict[str, dict]:
     return {row["command"]: row for row in ctx.coverage}
 
 
-def test_commands_that_answered_with_an_empty_table_are_analysed_not_unparsed():
+def test_commands_that_answered_with_an_empty_table_are_analyzed_not_unparsed():
     rows = coverage(capture(
         ("show clock", "20:21:00.123 WIB Mon Oct 12 2026"), ("show etherchannel summary", ETHERCHANNEL_EMPTY), ("show cdp neighbors", CDP_EMPTY), ("show cdp neighbors detail", "\nTotal cdp entries displayed : 0"),
         ("show ip bgp neighbors", "% BGP not active"), ("show crypto ipsec sa", "No SAs found"), ("show vrrp brief", VRRP_HEADER), ("show crypto isakmp sa", ISAKMP_HEADERS),
     ))
     for command, phrase in (("show etherchannel summary", "no port-channels"), ("show cdp neighbors", "no CDP neighbors"), ("show cdp neighbors detail", "no CDP neighbors"), ("show ip bgp neighbors", "BGP is not running"),
                             ("show crypto ipsec sa", "no IPsec SAs"), ("show vrrp brief", "no VRRP groups"), ("show crypto isakmp sa", "no IKE phase-1 SAs")):
-        assert rows[command]["status"] == "analysed", command
+        assert rows[command]["status"] == "analyzed", command
         assert phrase in rows[command]["note"], (command, rows[command]["note"])
 
 
@@ -570,7 +570,7 @@ def test_fixture_is_read_without_warnings_and_every_command_is_accounted_for(fix
     rows = {row["command"]: row for row in fixture_result["coverage"]}
     for command in ("show sdwan bfd sessions", "show sdwan control local-properties", "show sdwan omp peers", "show sdwan omp tlocs", "show sdwan omp routes", "show sdwan app-route stats",
                     "show sdwan policy from-vsmart", "show ip route vrf 1", "show etherchannel summary", "show cdp neighbors"):
-        assert rows[command]["status"] == "analysed", (command, rows[command])
+        assert rows[command]["status"] == "analyzed", (command, rows[command])
     assert "no port-channels" in rows["show etherchannel summary"]["note"] and "no CDP neighbors" in rows["show cdp neighbors"]["note"]
 
 

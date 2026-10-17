@@ -3,7 +3,7 @@
 Nothing here judges anything; it only normalises names (``/Common/web`` ->
 ``web``), applies the few defaults the TMSH reference documents and keeps
 enough of each object for the cross-reference and the rules.  Raw iRule text
-is analysed here for facts (events, pools, data groups, logging) and is never
+is analyzed here for facts (events, pools, data groups, logging) and is never
 copied into the result.
 """
 
@@ -42,9 +42,12 @@ _BUILTIN_PROFILE_NAMES = {
 }
 
 
+_SYSTEM_SHIPPED_PROFILES = {"do-not-remove-without-replacement", "georedundancy", "websecurity", "default-sip-profile"}   # present on every unit, written back by 'list'
+
+
 def _builtin_profile(name: str) -> bool:
     base = name.rsplit("/", 1)[-1]
-    return name.startswith("/Common/") and (base in _BUILTIN_PROFILE_NAMES or base.lower() in _BUILTIN_PROFILE_NAMES)
+    return name.startswith("/Common/") and (base in _BUILTIN_PROFILE_NAMES or base.lower() in _BUILTIN_PROFILE_NAMES or base in _SYSTEM_SHIPPED_PROFILES)
 
 
 def short(name: str) -> str:
@@ -237,6 +240,18 @@ def profiles(tree: TmshTree) -> list[dict[str, Any]]:
         lists = {c.key: [t for t in (c.names() if c.block else [])] for c in node.children if c.block and c.key}
         out.append({"name": node.name, "short": short(node.name), "kind": kind, "parent": canon(attrs.get("defaults-from", "")), "attrs": attrs, "lists": lists, "node": node, "line": node.line,
                     "builtin": _builtin_profile(node.name)})
+    return out
+
+
+_SECURITY_PROFILE_KINDS = {("bot-defense", "profile"), ("bot-defense", "asm-profile"), ("dos", "profile"), ("protocol-inspection", "profile"), ("ip-intelligence", "policy"), ("firewall", "policy"), ("log", "profile")}
+
+
+def security_profiles(tree: TmshTree) -> list[str]:
+    """Names of 'security ...' objects that a virtual server lists under profiles { } (Bot Defense, DoS, protocol inspection)."""
+    out = []
+    for node in tree.root:
+        if node.block and len(node.tokens) == 4 and node.tokens[0] == "security" and (node.tokens[1], node.tokens[2]) in _SECURITY_PROFILE_KINDS:
+            out.append(node.name)
     return out
 
 
@@ -518,7 +533,7 @@ def extract(tree: TmshTree) -> dict[str, Any]:
     return {
         "info": device_info(tree, devs, sysd),
         "virtuals": virtuals(tree), "virtual_addresses": virtual_addresses(tree), "pools": pools(tree), "nodes": nodes(tree), "default_node_monitor": default_node_monitor(tree), "monitors": monitors(tree),
-        "profiles": profiles(tree), "persistence": persistence_profiles(tree), "irules": irules(tree), "policies": policies(tree), "data_groups": data_groups(tree), **snat_data,
+        "profiles": profiles(tree), "security_profiles": security_profiles(tree), "persistence": persistence_profiles(tree), "irules": irules(tree), "policies": policies(tree), "data_groups": data_groups(tree), **snat_data,
         "vlans": vlans(tree), "selfs": selfs(tree), "routes": routes(tree), "trunks": trunks(tree), "route_domains": route_domains(tree),
         "devices": devs, "device_groups": device_groups(tree), "traffic_groups": traffic_groups(tree),
         "sys": sysd, "auth": auth(tree), "certs": certificates(tree),

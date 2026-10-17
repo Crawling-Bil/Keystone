@@ -10,7 +10,7 @@ Handled specially:
   * ``!`` comment lines (kept only for the two "Last configuration change"
     / "NVRAM config last updated" stamps, which are useful change-audit data)
   * ``banner <type> ^C ... ^C`` multi-line banners (content discarded --
-    banners may contain anything and are not analysed)
+    banners may contain anything and are not analyzed)
   * ``end`` terminating the configuration
   * the ``Building configuration...`` / ``Current configuration : N bytes``
     preamble

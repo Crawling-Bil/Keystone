@@ -314,6 +314,28 @@ def _dedupe(root: list[TNode]) -> list[TNode]:
     return [node for index, node in enumerate(root) if not node.block or not node.tokens or index in keep]
 
 
+_ABSOLUTE_MODULES = {"ltm", "gtm", "net", "cm", "security", "apm", "pem", "wom"}
+_SINGLETON_WORDS = {"general", "load-balancing", "metrics", "metrics-exclusions", "global-settings", "topology"}
+
+
+def _absolutize(root: list[TNode]) -> None:
+    """``show running-config`` prints objects of /Common without the partition ('ltm pool POOL-1'); ``tmsh list`` and bigip.conf print
+    '/Common/POOL-1'.  References are made absolute by the extractor, so give the definitions the same form.  Singletons ('ltm global-settings general',
+    'sys httpd') and one- or two-word statements are left alone."""
+    for node in root:
+        tokens = node.tokens
+        if not node.block or len(tokens) < 3 or tokens[-1].startswith("/"):
+            continue
+        head = tokens[0]
+        if head == "sys" and tokens[1] == "file":
+            pass
+        elif head not in _ABSOLUTE_MODULES:
+            continue
+        if tokens[1].startswith("global-settings") or tokens[1].endswith("-globals") or tokens[-1] in _SINGLETON_WORDS or tokens[1] in _SINGLETON_WORDS or ":" in "".join(tokens[1:-1]):
+            continue
+        tokens[-1] = "/Common/" + tokens[-1]
+
+
 def parse_tmsh(text: str) -> TmshTree:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     tree = TmshTree(lines=text.count("\n") + 1)
@@ -321,5 +343,7 @@ def parse_tmsh(text: str) -> TmshTree:
     if match:
         tree.version = match[1]
     scan = _Scanner(text)
-    tree.root = _dedupe(_parse_items(scan, True, 0, tree))
+    items = _parse_items(scan, True, 0, tree)
+    _absolutize(items)
+    tree.root = _dedupe(items)
     return tree

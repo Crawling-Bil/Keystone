@@ -287,20 +287,20 @@ class ServiceTests(unittest.TestCase):
         self.assertIn("Type inconsistent", item["detail"])
         self.assertTrue(item["reference"].startswith("https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/"))
 
-    def test_every_one_of_the_nine_commands_is_analysed_even_when_typed_short(self):
+    def test_every_one_of_the_nine_commands_is_analyzed_even_when_typed_short(self):
         status = {row["command"]: row["status"] for row in self.result["coverage"]["rows"]}
         for command in ("show vlan", "sh vlan sum", "sh int desc", "sh int tru", "sh ip arp su", "sh span", "sh mac add count"):
-            self.assertEqual(status[command], "analysed", command)
+            self.assertEqual(status[command], "analyzed", command)
 
-    def test_licence_commands_are_analysed_in_coverage(self):
+    def test_licence_commands_are_analyzed_in_coverage(self):
         for name, command in (("cisco_9300x_show_license_all_policy_masked.txt", "show license all"),
                               ("cisco_3650_show_license_all_eval_expired_masked.txt", "show license all"),
                               ("cisco_3560_show_license_all_rtu_masked.txt", "show license all")):
             result = service.analyze(fixture(name), filename="x.txt", vendor="Cisco")
             row = next(r for r in result["coverage"]["rows"] if r["command"] == command)
-            self.assertEqual(row["status"], "analysed", name)
+            self.assertEqual(row["status"], "analyzed", name)
         usage = service.analyze(fixture("cisco_9300x_show_license_all_policy_masked.txt"), filename="x.txt", vendor="Cisco")
-        self.assertEqual(next(r for r in usage["coverage"]["rows"] if r["command"] == "show license usage")["status"], "analysed")
+        self.assertEqual(next(r for r in usage["coverage"]["rows"] if r["command"] == "show license usage")["status"], "analyzed")
 
     def test_a_licence_only_excerpt_is_recognised_as_cisco_without_the_vendor_box(self):
         # no hostname / show version / running-config in these captures: the licence layout is the only evidence

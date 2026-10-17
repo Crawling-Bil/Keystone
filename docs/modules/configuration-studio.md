@@ -7,7 +7,7 @@ Convert has five pages, one per kind of device, the same five as Analyze:
 | Wireless | `/convert/wireless` | none yet |
 | Switch | `/convert/switch` | Cisco / Aruba / Huawei switches (Huawei VRP target, standard config profiles) |
 | Router | `/convert/router` | none yet |
-| Firewall | `/convert/firewall` | MikroTik RouterOS to Palo Alto (interface/zone mapping, IPsec, SD-WAN, Panorama) |
+| Firewall | `/convert/firewall` | MikroTik RouterOS 6/7 to Palo Alto (interface/zone mapping, IPsec, SD-WAN, Panorama) |
 | Load Balancer | `/convert/load-balancer` | none yet |
 
 `/convert/` and `/configuration/` redirect to the Switch page. The JSON API stays under `/configuration/api/*`; the page sends a `domain` field with every request.
@@ -43,11 +43,14 @@ Convert has five pages, one per kind of device, the same five as Analyze:
 
 - Router classification identifies Cisco IOS/IOS-XE and Huawei routers only when there is strong evidence; thin captures stay "unknown".
 - Wireless, Router and Load Balancer have no converter. Each page lists what is needed (a source backup, a mapping decision, and a known-good target for comparison).
-- FortiGate and Palo Alto are analysed, not converted. Palo Alto is a conversion target only.
+- FortiGate and FortiSwitch are analyzed, not converted. Palo Alto is a conversion target only.
+- A Palo Alto source file may be XML, `set` commands, or a terminal capture of `show config running` (curly view). A capture with only operational output (no configuration) gives identity and interfaces but no policy; the Firewall Analyzer reads it for health and lifecycle findings.
+- Terminal logs (PuTTY, SecureCRT) are replayed through `features/analyzer_core/terminal.py` before parsing, so prompt repaints, pager lines and wrapped rows do not reach the parsers.
 
 ## References
 
 - Cisco IOS XE configuration guides: https://www.cisco.com/c/en/us/support/ios-nx-os-software/ios-xe-17/products-installation-and-configuration-guides-list.html
 - Huawei VRP command references are published per product on https://support.huawei.com/enterprise/ (needs a Huawei support account for some documents, so no deep link is pinned here).
 - MikroTik RouterOS export: https://help.mikrotik.com/docs/spaces/ROS/pages/328155/Configuration+Management
+- PAN-OS CLI cheat sheet (operational commands read by the runtime analyzer): https://docs.paloaltonetworks.com/ngfw/pan-os-cli-quick-start/cli-cheat-sheet-networking
 - PAN-OS CLI and config structure: https://docs.paloaltonetworks.com/pan-os

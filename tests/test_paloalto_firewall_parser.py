@@ -207,7 +207,9 @@ class PaloAltoFirewallParserPanoramaRoundTripTests(unittest.TestCase):
         self.assertTrue(gateway.has_preshared_key)
 
         ike_crypto = self.config.ike_crypto_profiles[0]
-        self.assertEqual(ike_crypto.dh_group, "modp1024")
+        # RouterOS "modp1024" is PAN-OS "group2": the translator now emits the
+        # PAN-OS keyword (raw "modp1024" is not a valid dh-group value there).
+        self.assertEqual(ike_crypto.dh_group, "group2")
         self.assertEqual(ike_crypto.encryption, "aes-256")
 
     def test_address_objects_groups_and_service(self):

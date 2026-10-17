@@ -1,0 +1,120 @@
+Synthetic BIG-IP capture in the 'show running-config' layout: objects in /Common are printed WITHOUT the /Common/ prefix.
+Written from the documented tmsh syntax; no real device data.
+[admin@lab-01:Active:Standalone] ~ # tmsh show running-config
+ltm node 10.1.1.11 {
+    address 10.1.1.11
+}
+ltm node 10.1.1.12 {
+    address 10.1.1.12
+}
+ltm pool POOL-WEB {
+    members {
+        10.1.1.11:80 {
+            address 10.1.1.11
+        }
+        10.1.1.12:80 {
+            address 10.1.1.12
+        }
+    }
+    monitor http
+}
+ltm pool POOL-ONE {
+    members {
+        10.1.1.11:8080 {
+            address 10.1.1.11
+        }
+    }
+    monitor tcp
+}
+ltm profile georedundancy georedundancy {
+    app-service none
+}
+ltm profile server-ssl do-not-remove-without-replacement {
+    app-service none
+}
+ltm profile http HTTP-CUSTOM-UNUSED {
+    defaults-from http
+}
+ltm virtual DC-LISTENER-1 {
+    destination 172.16.0.2:domain
+    ip-protocol udp
+    mask 255.255.255.255
+    profiles {
+        dns { }
+        udp_gtm_dns { }
+    }
+    source 0.0.0.0/0
+    translate-address disabled
+}
+ltm virtual VS-WEB {
+    destination 192.0.2.10:http
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool POOL-WEB
+    profiles {
+        ASM_WAF-LAB { }
+        http { }
+        tcp { }
+        websecurity { }
+    }
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+}
+ltm virtual VS-ONE {
+    destination 192.0.2.11:http-alt
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool POOL-ONE
+    profiles {
+        WAF-BOT-LAB { }
+        http { }
+        tcp { }
+    }
+    source 0.0.0.0/0
+}
+security bot-defense asm-profile ASM_WAF-LAB {
+    app-service none
+    flags 0
+}
+security bot-defense profile WAF-BOT-LAB {
+    app-service none
+    mode transparent
+}
+gtm datacenter DC-A {
+    contact none
+}
+gtm server SRV-A {
+    datacenter DC-A
+    devices {
+        lab-01 {
+            addresses {
+                172.16.0.2 { }
+            }
+        }
+    }
+    product bigip
+    virtual-servers {
+        vs-web {
+            destination 192.0.2.10:http
+        }
+    }
+}
+gtm pool a POOL-GTM-WEB {
+    members {
+        SRV-A:vs-web {
+            member-order 0
+        }
+    }
+}
+gtm wideip a web.lab.example {
+    pools {
+        POOL-GTM-WEB {
+            order 0
+        }
+    }
+}
+gtm listener LISTEN-1 {
+    address 172.16.0.2
+}

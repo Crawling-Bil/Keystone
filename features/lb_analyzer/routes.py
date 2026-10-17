@@ -12,12 +12,15 @@ _COMMANDS = (
     ("tmsh list ltm profile client-ssl all-properties", "Effective TLS options and ciphers of client SSL profiles (also server-ssl)."),
     ("tmsh list sys file ssl-cert", "Certificate expiry dates and key sizes."),
     ("cat /config/bigip.conf  and  cat /config/bigip_base.conf", "The saved configuration files; paste both, or upload each as its own file."),
+    ("tmsh list gtm global-settings general", "BIG-IP DNS: synchronization and global defaults that 'tmsh list' leaves out."),
+    ("tmsh list ltm profile dns all-properties", "BIG-IP DNS: GTM, DNS Express, DNSSEC and cache switches of every DNS profile (collected for the next parser iteration)."),
+    ("tmsh list ltm dns zone / nameserver / cache resolver / dnssec key / dnssec zone", "BIG-IP DNS: DNS Express zones, name servers, resolvers and DNSSEC keys (collected for the next parser iteration)."),
 )
 
 
 def _command_reference() -> list[dict[str, str]]:
     rows = [{"command": command, "purpose": purpose} for command, purpose in _COMMANDS]
-    rows += [{"command": command, "purpose": purpose} for command, purpose in bigip_runtime.COMMANDS]
+    rows += [{"command": command, "purpose": purpose} for command, purpose in bigip_runtime.COMMANDS + bigip_runtime.GTM_COMMANDS]
     return rows
 
 
@@ -41,12 +44,14 @@ SPEC = AnalyzerSpec(
         "platforms": list(PLATFORMS),
         "empty_title": "Load Balancer Analyzer is ready",
         "empty_text": (
-            "Upload a BIG-IP UCS archive (the weekly backup, unencrypted), or bigip.conf, bigip_base.conf, the output of 'tmsh list', or a terminal capture that also contains 'show' commands. "
+            "Upload a BIG-IP UCS archive (the weekly backup, unencrypted), or bigip.conf, bigip_base.conf, the output of 'tmsh list', or a terminal capture that also contains 'show' commands (LTM and BIG-IP DNS). "
             "The analyzer maps each virtual server to its pool and members, checks monitors, SSL profiles, persistence, iRules, HA and the management plane, and links every finding to F5 documentation."
         ),
         "capabilities": [
             {"title": "UCS archive", "text": "Reads the .ucs backup directly: certificate validity from the file store, license and subscription dates, last change and failover times, customised sys db values. Private keys and password files are never read."},
             {"title": "Service map", "text": "Every virtual server with its default pool, members, health monitors and member state in one table."},
+            {"title": "Visualization", "text": "A clickable network map like Local Traffic > Network Map: virtual server, pool, pool member and health monitor, coloured by availability and enabled state, with status and type filters and search. BIG-IP DNS units add wide IP, GTM pool and pool member."},
+            {"title": "DNS (GTM)", "text": "Wide IPs, GTM pools, servers, data centers and listeners from the configuration, plus live availability, request counters and iQuery state from 'show gtm' output."},
             {"title": "Health and delivery", "text": "Pools without monitors, web monitors without a receive string, priority-group traps, single-member and empty pools, unused and dangling objects."},
             {"title": "TLS and certificates", "text": "SSLv3 / TLS 1.0 / 1.1 and weak ciphers per SSL profile, default certificate, expiry and key size, unencrypted persistence cookie."},
             {"title": "Security modules", "text": "Advanced WAF (ASM) policies and which virtual servers they protect, DoS and logging profiles, AFM and address lists, APM access policies, iApps and tunnels, plus a count of every other object type."},

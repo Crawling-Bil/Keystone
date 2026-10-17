@@ -4,7 +4,7 @@ The Router Analyzer has a Coverage tab; this is the switch equivalent. It answer
 questions an engineer asks after uploading a capture:
 
 * *Was my command understood?*  Each ``show`` / ``display`` command found in the file gets a
-  status: ``analysed`` (a parser read it), ``covered`` (a second copy, or a partial view of the
+  status: ``analyzed`` (a parser read it), ``covered`` (a second copy, or a partial view of the
   running-config, so another block was used), ``ignored`` (help request, no output, or not
   something this analyzer uses), ``not parsed`` (a recognised command with no parser, or a
   parser that read no rows from a long output) and ``error`` (the device rejected the command).
@@ -31,7 +31,7 @@ from . import aoscx, capture_text, show_tables
 SH = r"sh(?:ow)?"
 DIS = r"dis(?:p(?:l(?:a(?:y)?)?)?)?"
 
-TONE = {"analysed": "ok", "covered": "ok", "ignored": "mute", "not parsed": "warn", "error": "bad", "missing": "warn"}
+TONE = {"analyzed": "ok", "covered": "ok", "ignored": "mute", "not parsed": "warn", "error": "bad", "missing": "warn"}
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ class Spec:
     label: str                       # name shown in the Coverage tab
     patterns: tuple[str, ...]        # fullmatch against the lower-cased, single-spaced command
     tab: str                         # tab of the Single Device page this command fills
-    feeds: str                       # what it fills, for the "analysed" note
+    feeds: str                       # what it fills, for the "analyzed" note
     adds: str                        # what it would add, for the "missing" note
     command: dict[str, str]          # vendor -> command shown when it is missing
     rows: Callable[[dict[str, Any]], int | None] | None = None   # rows the parser produced, None = not checkable
@@ -300,7 +300,7 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
     blocks = command_blocks(clean)
     rows: list[dict[str, Any]] = []
     # The same command run twice: the longest copy is the one a parser reads. Different commands that
-    # fill the same table (show interfaces status, show ip interface brief) are each analysed.
+    # fill the same table (show interfaces status, show ip interface brief) are each analyzed.
     longest: dict[str, int] = {}
     seen_keys: set[str] = set()
     for block in blocks:
@@ -332,7 +332,7 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
                 status, note = "covered", "the same command appears again; the longest copy is the one read"
             else:
                 used_once.add(command)
-                status, note = "analysed", spec.feeds[:1].upper() + spec.feeds[1:]
+                status, note = "analyzed", spec.feeds[:1].upper() + spec.feeds[1:]
                 count = spec.rows(result) if spec.rows else None
                 if count == 0 and (lines > _LONG_OUTPUT or spec.strict):
                     status = "not parsed"
@@ -343,11 +343,11 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
         elif _is_partial_config(command):
             tab = "overview"
             if has_full_config:
-                status, note = "covered", "partial view of the configuration; the full configuration is analysed"
+                status, note = "covered", "partial view of the configuration; the full configuration is analyzed"
             else:
-                status, note = "analysed", "partial configuration only: interfaces and settings outside this view are not seen"
+                status, note = "analyzed", "partial configuration only: interfaces and settings outside this view are not seen"
         elif _match(command, _COVERED_BY_CONFIG):
-            status, note = "covered", "the running-config is analysed instead"
+            status, note = "covered", "the running-config is analyzed instead"
         else:
             for pattern, why in _NOT_USED:
                 if re.fullmatch(pattern, command):
@@ -371,7 +371,7 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
         if found:
             # A terminal can swallow the echo of a command while its output still lands in the file; the parser
             # finds that table by its header. It is read, so it is not "missing" (the rows prove it).
-            rows.append({"command": shown, "status": "analysed", "lines": 0, "tone": "ok", "tab": spec.tab,
+            rows.append({"command": shown, "status": "analyzed", "lines": 0, "tone": "ok", "tab": spec.tab,
                          "note": f"The table is in the capture ({found} rows) but the command line that printed it is not; it was read by its header"})
             seen_keys.add(key)
             continue
@@ -393,12 +393,12 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
     counts: dict[str, int] = {}
     for row in rows + missing:
         counts[row["status"]] = counts.get(row["status"], 0) + 1
-    analysed_tabs = sorted({row["tab"] for row in rows if row["status"] == "analysed" and row["tab"]})
+    analyzed_tabs = sorted({row["tab"] for row in rows if row["status"] == "analyzed" and row["tab"]})
     return {
         "family": family,
         "rows": rows + missing,
         "counts": counts,
         "commands": len(blocks),
-        "analysed_tabs": analysed_tabs,
+        "analyzed_tabs": analyzed_tabs,
         "present": sorted(seen_keys),
     }

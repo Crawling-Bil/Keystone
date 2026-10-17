@@ -1,23 +1,46 @@
-# Keystone collect list - F5 BIG-IP (TMOS 12.1 - 17.x)
+# Keystone collect list - F5 BIG-IP LTM (TMOS 12.1 - 17.x)
 # Log in with a read-only account (the Auditor or Guest role is enough), run the commands from the advanced shell (bash) or from tmsh, save the whole terminal buffer and upload it to the Load Balancer Analyzer.
 # Every command below only reads. 'tmsh list' prints only the values that differ from the default; the all-properties lines add the defaults the analyzer needs to judge inherited SSL options.
+# A command that does not exist on your release prints an error and is skipped; leave it in the buffer. Run the list on every unit of an HA pair (state differs per unit).
+# Before you share the buffer, search it for 'password', 'secret', 'passphrase' and '$M$' (encrypted values) and mask them.
+# A BIG-IP DNS (GTM) unit: also run collect-lb-f5-dns.txt.
 
+# ---- Platform and health.
 tmsh show sys version
 tmsh show sys hardware
+tmsh show sys provision
+tmsh show sys software status
+tmsh show sys failover
+tmsh show sys ha-status
+tmsh show sys mcp-state field-fmt
+tmsh show sys cpu
+tmsh show sys memory
 
-# Whole configuration: LTM, net, sys, auth and cm objects (this one command replaces bigip.conf + bigip_base.conf).
+# ---- Whole configuration: LTM, net, sys, auth and cm objects (this one command replaces bigip.conf + bigip_base.conf).
 tmsh list
 
-# Effective values including defaults for the objects the findings depend on.
+# ---- Effective values including defaults for the objects the findings depend on.
 tmsh list ltm profile client-ssl all-properties
 tmsh list ltm profile server-ssl all-properties
 tmsh list ltm virtual all-properties
+tmsh list ltm virtual-address all-properties
 tmsh list sys file ssl-cert
 tmsh list net self-allow
 
-# Live state.
+# ---- High availability.
 tmsh show cm sync-status
 tmsh show cm failover-status
+tmsh show cm device
+tmsh show cm device-group
+tmsh show cm traffic-group
+
+# ---- Live LTM state: feeds the Visualization tab (green / yellow / red instead of 'configured').
 tmsh show ltm virtual
+tmsh show ltm virtual-address
 tmsh show ltm pool
 tmsh show ltm pool members
+tmsh show ltm node
+
+# ---- Network state.
+tmsh show net interface
+tmsh show net trunk

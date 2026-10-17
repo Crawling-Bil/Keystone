@@ -7,7 +7,7 @@
 * a bare ``show running-config`` export without prompts.
 
 It never raises for a missing command: whatever the capture contains is
-analysed and the Coverage tab lists what was missing and what it would add.
+analyzed and the Coverage tab lists what was missing and what it would add.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ UNVALIDATED = {
     "eigrp_neighbors": "show ip eigrp neighbors", "standby": "show standby brief", "vrrp": "show vrrp brief",
 }
 
-COVERAGE_TONE = {"analysed": "ok", "covered": "info", "ignored": "mute", "not parsed": "warn", "error": "bad", "missing": "warn"}
+COVERAGE_TONE = {"analyzed": "ok", "covered": "info", "ignored": "mute", "not parsed": "warn", "error": "bad", "missing": "warn"}
 
 
 def analyze(content: str, filename: str = "", platform: str = "auto") -> dict[str, Any]:

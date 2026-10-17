@@ -35,7 +35,7 @@ def security_sections(data: dict[str, Any], today: date) -> list[dict[str, Any]]
                          "_tones": {"asm": "" if r["asm"] else ("warn" if r["public"] and r["http"] and r["enabled"] and extra["asm_policies"] else "mute"), "scope": "warn" if r["public"] and not protected and r["enabled"] else "", "state": "ok" if r["enabled"] else "mute"}})
         out.append(table_section("virtual_protection", "Virtual server protection", [("virtual", "Virtual server", "mono"), ("destination", "Destination", "mono"), ("state", "State", "status"), ("scope", "Address"), ("asm", "ASM policy", "list"), ("dos", "DoS profile", "list"),
                                                                                        ("afm", "AFM policy", "mono"), ("log", "Security logging", "list"), ("ip_intel", "IP intelligence")], rows, group=SECURITY, page_size=100,
-                                 hint="Which protections each virtual server actually has. 'public' means the destination is a routable (non-RFC 1918) address."))
+                                 hint="Which protections each virtual server actually has. 'public' means the destination is a routable (non-RFC 1918) address.", facets=[{"key": "state", "label": "state", "order": ["enabled", "disabled"]}]))
     if extra["dos"]:
         out.append(table_section("dos_profiles", "DoS protection profiles", [("name", "Profile", "mono"), ("features", "Protections configured", "list"), ("used_by", "Used by", "list")],
                                  [dict(d, features=d["features"] or ["(none stated)"], used_by=d["used_by"] or ["(unused)"], _tones={"used_by": "" if d["used_by"] else "warn"}) for d in extra["dos"]], group=SECURITY))
@@ -54,5 +54,6 @@ def security_sections(data: dict[str, Any], today: date) -> list[dict[str, Any]]
         out.append(table_section("global_settings", "Global settings", [("object", "Object", "mono"), ("settings", "Settings", "list")], extra["globals"], group=INVENTORY,
                                  hint="Single-instance objects that no other tab covers (software update, state mirroring, sFlow, spanning tree, daemon log levels ...), with their first settings. Values equal to the default are not printed by BIG-IP."))
     out.append(table_section("inventory", "Configuration inventory", [("type", "Object type", "mono"), ("count", "Objects", "num"), ("objects", "Objects (first names)", "list"), ("status", "Handling", "status")], extra["inventory"], group=INVENTORY, page_size=150,
-                             hint="Every top-level object type in the configuration with its count and first names, so nothing is silently skipped. 'Counted only' types (for example the 2,500+ bot-defense signatures that ship with every BIG-IP) are not analysed."))
+                             facets=[{"key": "status", "label": "handling"}],
+                             hint="Every top-level object type in the configuration with its count and first names, so nothing is silently skipped. 'Counted only' types (for example the 2,500+ bot-defense signatures that ship with every BIG-IP) are not analyzed."))
     return out

@@ -263,7 +263,7 @@ class PaloAltoXmlConfigParser:
             if local:
                 config.warnings.append(
                     f"A Panorama server is configured ({servers}), but this export also holds {len(config.security_rules)} security, {len(config.nat_rules)} NAT and {len(config.pbf_rules)} "
-                    "policy-based-forwarding rule(s) defined locally on the device, and they are analysed below. Rules and objects pushed from Panorama (shared or device-group "
+                    "policy-based-forwarding rule(s) defined locally on the device, and they are analyzed below. Rules and objects pushed from Panorama (shared or device-group "
                     "pre/post rulebases) are not part of a device export - review them on Panorama as well."
                 )
             else:

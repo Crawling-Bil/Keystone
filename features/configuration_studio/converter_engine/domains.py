@@ -83,7 +83,7 @@ DOMAINS: dict[str, DomainSpec] = {
     "firewall": DomainSpec(
         "firewall", "Firewall", "firewall", "Firewall Analyzer", "/firewall-analyzer",
         "Firewall policy, NAT, address objects, VPN and routing moved between vendors.",
-        "RouterOS /export (MikroTik). FortiGate and Palo Alto files are analysed, not converted.",
+        "RouterOS /export (MikroTik). FortiGate and Palo Alto files are analyzed, not converted.",
         ("A source export for each additional vendor (FortiGate, Palo Alto, Cisco ASA/FTD)",
          "The zone and interface mapping to the target firewall",
          "A target configuration that is known to be correct, for comparison"),

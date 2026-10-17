@@ -60,10 +60,11 @@ def virtual_servers(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]
     cols = [("name", "Virtual server", "mono"), ("destination", "Destination", "mono"), ("protocol", "Proto"), ("type", "Type"), ("status", "Status", "status"), ("pool", "Default pool", "mono"), ("profiles", "Profiles", "list"),
             ("persistence", "Persistence", "list"), ("rules", "iRules", "list"), ("policies", "Policies", "list"), ("snat", "SNAT"), ("vlans", "VLANs", "list"), ("source", "Source", "mono"), ("description", "Description", "wrap")]
     out = [table_section("virtuals", "Virtual servers", cols, rows, group="Virtual servers", page_size=100,
+                         facets=[{"key": "status", "label": "status", "order": ["enabled", "disabled"]}],
                          hint="One row per ltm virtual. Public destinations are highlighted; 'all VLANs' means no vlans-enabled list (the documented default). A TMSH listing omits default values, so a blank column means the default applies.")]
     va = [dict(a, status="enabled" if a["enabled"] else "disabled", traffic_group=short(a["traffic_group"]) if a["traffic_group"] else "", _tones={"traffic_group": "warn" if "local-only" in a["traffic_group"] and len(data["devices"]) > 1 else ""}) for a in data["virtual_addresses"]]
     out.append(table_section("virtual_addresses", "Virtual addresses", [("short", "Address object", "mono"), ("address", "Address", "mono"), ("mask", "Mask", "mono"), ("traffic_group", "Traffic group"), ("arp", "ARP"), ("icmp_echo", "ICMP echo"), ("route_advertisement", "Route advertisement"), ("status", "Status", "status")],
-                             va, group="Virtual servers", empty="No ltm virtual-address objects in the export (they are created automatically when a virtual server is, so a partial listing may omit them)."))
+                             va, group="Virtual servers", empty="No ltm virtual-address objects in the export (they are created automatically when a virtual server is, so a partial listing may omit them).", facets=[{"key": "status", "label": "status", "order": ["enabled", "disabled"]}]))
     return out
 
 
@@ -87,7 +88,7 @@ def service_map(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
     cols = [("virtual", "Virtual server", "mono"), ("destination", "Destination", "mono"), ("protocol", "Proto"), ("status", "VS state", "status"), ("pool", "Pool", "mono"), ("method", "Method"), ("member", "Member", "mono"), ("port", "Port", "id"),
             ("member_state", "Member state", "status"), ("ratio", "Ratio", "num"), ("priority", "Priority group", "num"), ("monitors", "Health monitors", "list")]
     return [table_section("service_map", "Service map", cols, rows, group="Virtual servers", page_size=150,
-                          hint="Virtual server → pool → member: what a client reaches, one row per member. Pools selected by iRules or policies are not part of this view.", empty="No virtual servers.")]
+                          hint="Virtual server → pool → member: what a client reaches, one row per member. Pools selected by iRules or policies are not part of this view.", empty="No virtual servers.", facets=[{"key": "status", "label": "VS state", "order": ["enabled", "disabled"]}, {"key": "member_state", "label": "member state", "order": ["enabled", "disabled", "forced down"]}])]
 
 
 # ================================================================ pools and nodes
@@ -119,14 +120,16 @@ def pools_and_nodes(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]
             mrows.append({"pool": p["short"], "member": m["short"], "address": m["address"], "port": m["port"] or "any", "ratio": m["ratio"], "priority": m["priority_group"], "session": m["session"], "state": state,
                           "monitors": [short(x) for x in m["monitors"]], "description": m["description"], "_tones": {"state": {"enabled": "ok", "disabled": "warn", "forced down": "bad"}[state]}})
     out.append(table_section("members", "Pool members", [("pool", "Pool", "mono"), ("member", "Member", "mono"), ("address", "Address", "mono"), ("port", "Port", "id"), ("ratio", "Ratio", "num"), ("priority", "Priority group", "num"),
-                                                         ("session", "Session"), ("state", "State", "status"), ("monitors", "Member monitors", "list"), ("description", "Description", "wrap")], mrows, group="Pools & nodes", page_size=150, empty="No pool members."))
+                                                         ("session", "Session"), ("state", "State", "status"), ("monitors", "Member monitors", "list"), ("description", "Description", "wrap")], mrows, group="Pools & nodes", page_size=150, empty="No pool members.",
+                         facets=[{"key": "state", "label": "state", "order": ["enabled", "disabled", "forced down"]}]))
     nrows = []
     for n in data["nodes"]:
         state = "forced down" if n["forced_down"] else ("disabled" if n["disabled"] else "enabled")
         nrows.append({"name": n["short"], "address": n["address"] or n["fqdn"], "monitors": [short(m) for m in n["monitors"]] or (["default node monitor"] if data["default_node_monitor"] else ["none"]),
                       "state": state, "used": _yes(res.is_used("node", n["name"])), "fqdn": n["fqdn"], "description": n["description"],
                       "_tones": {"state": {"enabled": "ok", "disabled": "warn", "forced down": "bad"}[state], "used": "" if res.is_used("node", n["name"]) else "mute"}})
-    out.append(table_section("nodes", "Nodes", [("name", "Node", "mono"), ("address", "Address", "mono"), ("monitors", "Node monitors", "list"), ("state", "State", "status"), ("used", "In a pool"), ("description", "Description", "wrap")], nrows, group="Pools & nodes", page_size=150, empty="No nodes."))
+    out.append(table_section("nodes", "Nodes", [("name", "Node", "mono"), ("address", "Address", "mono"), ("monitors", "Node monitors", "list"), ("state", "State", "status"), ("used", "In a pool"), ("description", "Description", "wrap")], nrows, group="Pools & nodes", page_size=150, empty="No nodes.",
+                         facets=[{"key": "state", "label": "state", "order": ["enabled", "disabled", "forced down"]}]))
     return out
 
 
@@ -239,7 +242,7 @@ def rules_and_policies(data: dict[str, Any], res: Resolver) -> list[dict[str, An
         rows.append({"name": r["short"], "events": r["events"], "lines": r["lines"], "pools": [short(canon(p)) for p in r["pools"]], "classes": [short(canon(c)) for c in r["classes"]], "flags": flags, "logging": logging,
                      "used_by": res.virtuals_using("rule", r["name"]) or ["(unused)"], "_tones": tones})
     out = [table_section("irules", "iRules", [("name", "iRule", "mono"), ("events", "Events", "list"), ("lines", "Lines", "num"), ("pools", "Pools named", "list"), ("classes", "Data groups", "list"), ("flags", "Uses", "list"), ("logging", "Logging", "wrap"), ("used_by", "Used by", "list")],
-                         rows, group="iRules & policies", empty="No iRules.", hint="The iRule source is analysed for events, pool and data-group names and risky logging, and is never copied into this report.")]
+                         rows, group="iRules & policies", empty="No iRules.", hint="The iRule source is analyzed for events, pool and data-group names and risky logging, and is never copied into this report.")]
     prow = [{"name": p["short"], "rules": p["rules"], "strategy": short(p["strategy"]) if p["strategy"] else "", "pools": [short(x) for x in p["pools"]], "redirect": _yes(p["redirects"]), "used_by": [v["short"] for v in data["virtuals"] if p["name"] in v["policies"]] or ["(unused)"], "description": p["description"]} for p in data["policies"]]
     out.append(table_section("policies", "LTM policies", [("name", "Policy", "mono"), ("rules", "Rules", "num"), ("strategy", "Strategy"), ("pools", "Pools named", "list"), ("redirect", "Redirects"), ("used_by", "Used by", "list"), ("description", "Description", "wrap")], prow, group="iRules & policies", empty="No LTM policies."))
     out.append(table_section("data_groups", "Data groups", [("short", "Data group", "mono"), ("storage", "Storage"), ("type", "Type"), ("records", "Records", "num"), ("external", "External file")], data["data_groups"], group="iRules & policies", empty="No custom data groups."))
@@ -272,7 +275,7 @@ def network(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
 # ================================================================ high availability
 def high_availability(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
     out = [table_section("devices", "Devices", [("hostname", "Hostname", "mono"), ("self", "This device"), ("failover_state", "Failover state", "status"), ("marketing_name", "Platform"), ("version", "Version"), ("configsync_ip", "Config-sync IP", "mono"), ("mirror_ip", "Mirror IP", "mono"), ("unicast", "Failover addresses", "list")],
-                         [dict(d, self=_yes(d["self"]), hostname=d["hostname"] or d["short"], _tones={"failover_state": {"active": "ok", "standby": "info"}.get(d["failover_state"], "mute")}) for d in data["devices"]], group="High availability", empty="No cm device objects in the export.")]
+                         [dict(d, self=_yes(d["self"]), hostname=d["hostname"] or d["short"], _tones={"failover_state": {"active": "ok", "standby": "info"}.get(d["failover_state"], "mute")}) for d in data["devices"]], group="High availability", empty="No cm device objects in the export.", facets=[{"key": "failover_state", "label": "failover state"}])]
     out.append(table_section("device_groups", "Device groups", [("short", "Device group", "mono"), ("type", "Type"), ("devices", "Devices", "list"), ("auto_sync", "Auto-sync", "status"), ("network_failover", "Network failover"), ("full_load", "Full load on sync")],
                              [dict(g, _tones={"auto_sync": "ok" if g["auto_sync"] == "enabled" else ("warn" if g["type"] == "sync-failover" and len(g["devices"]) > 1 else "mute")}) for g in data["device_groups"]], group="High availability", empty="No device groups."))
     out.append(table_section("traffic_groups", "Traffic groups", [("short", "Traffic group", "mono"), ("ha_group", "HA group"), ("auto_failback", "Auto-failback"), ("ha_order", "Preferred order", "list"), ("unit_id", "Unit ID")], data["traffic_groups"], group="High availability", empty="No custom traffic groups."))
@@ -357,6 +360,7 @@ def hardening(data: dict[str, Any], res: Resolver, findings: list[dict[str, Any]
         row("Resilience", "Virtual addresses fail over with the traffic group", f"{sum(1 for f in findings if f['id'] == 'LB-HA-005')} pinned", ("LB-HA-005", "LB-HA-006", "LB-HA-007"), na=not ha_known),
     ]
     return [table_section("hardening", "Hardening checklist", [("area", "Area"), ("check", "Check"), ("observed", "Observed", "wrap"), ("result", "Result", "status")], rows, group="Hardening",
+                          facets=[{"key": "result", "label": "result", "order": ["fail", "pass", "n/a"]}],
                           hint="A check fails when the matching finding fired; 'n/a' means the part of the configuration it needs is not in this export. Open the Findings tab for detail and the F5 documentation link.")]
 
 

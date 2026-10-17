@@ -61,17 +61,17 @@ class CommandBlockTests(unittest.TestCase):
 
 
 class RowStatusTests(unittest.TestCase):
-    def test_arp_table_is_analysed_and_counted(self):
+    def test_arp_table_is_analyzed_and_counted(self):
         result = analyse(fixture("cisco_2960s_show_ip_arp.txt"), "Cisco")
         row = row_for(result, "show ip arp")
-        self.assertEqual((row["status"], row["tab"]), ("analysed", "arp"))
+        self.assertEqual((row["status"], row["tab"]), ("analyzed", "arp"))
         self.assertGreater(row["lines"], 5)
 
-    def test_the_same_command_twice_is_analysed_once(self):
+    def test_the_same_command_twice_is_analyzed_once(self):
         text = fixture("cisco_2960s_show_ip_arp.txt")
         result = analyse(text + "\n" + text, "Cisco")
         statuses = sorted(row["status"] for row in result["coverage"]["rows"] if row["command"] == "show ip arp" and row["status"] != "missing")
-        self.assertEqual(statuses, ["analysed", "covered"])
+        self.assertEqual(statuses, ["analyzed", "covered"])
 
     def test_long_output_without_rows_is_not_parsed(self):
         # Forty lines of a layout no reader understands: the tab must not look healthy.
@@ -82,9 +82,9 @@ class RowStatusTests(unittest.TestCase):
         self.assertEqual(result["routing_table"], [])
 
     def test_nxos_route_table_is_read_now(self):
-        # NX-OS prints "10.0.0.0/24, ubest/mbest ..." plus a *via line per next hop; nxos_routes reads it, so the row is analysed.
+        # NX-OS prints "10.0.0.0/24, ubest/mbest ..." plus a *via line per next hop; nxos_routes reads it, so the row is analyzed.
         result = analyse(NXOS_ROUTE, "Cisco")
-        self.assertEqual(row_for(result, "show ip route")["status"], "analysed")
+        self.assertEqual(row_for(result, "show ip route")["status"], "analyzed")
         self.assertEqual(len(result["routing_table"]), 20)
 
     def test_rejected_command_is_an_error(self):
@@ -102,10 +102,10 @@ class RowStatusTests(unittest.TestCase):
         self.assertEqual(row_for(result, "show clock")["status"], "ignored")
         self.assertIn("not used", row_for(result, "show clock")["note"])
 
-    def test_partial_config_without_the_full_config_is_analysed_with_a_warning(self):
+    def test_partial_config_without_the_full_config_is_analyzed_with_a_warning(self):
         result = analyse("SW1#show running-config interface Gi1/0/1\ninterface GigabitEthernet1/0/1\n switchport mode access\n switchport access vlan 10\nend\nSW1#")
         row = row_for(result, "show running-config interface gi1/0/1")
-        self.assertEqual(row["status"], "analysed")
+        self.assertEqual(row["status"], "analyzed")
         self.assertIn("partial", row["note"])
 
     def test_counts_add_up_to_the_rows(self):
@@ -132,7 +132,7 @@ class MissingRowTests(unittest.TestCase):
 
     def test_logs_command_present_is_not_listed_as_missing(self):
         result = analyse(fixture("huawei_s5735_display_logbuffer.txt"), "Huawei")
-        self.assertEqual(row_for(result, "display logbuffer")["status"], "analysed")
+        self.assertEqual(row_for(result, "display logbuffer")["status"], "analyzed")
         self.assertNotIn("logs", [row.get("key") for row in result["coverage"]["rows"] if row["status"] == "missing"])
 
     def test_aruba_missing_list_does_not_ask_for_cisco_only_commands(self):

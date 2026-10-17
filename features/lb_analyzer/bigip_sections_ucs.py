@@ -6,7 +6,7 @@ Everything is read from ``data["ucs"]`` (see ``bigip_enrich``); a plain configur
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from ..analyzer_core.result import kv_section, table_section
@@ -14,6 +14,7 @@ from .bigip_extract import short
 
 GROUP = "UCS archive"
 HISTORY = "Change history"
+WIB = timedelta(hours=7)          # Western Indonesia Time, UTC+7 (no daylight saving)
 LOCAL_ROLES_NOTE = "Role id as stored in /config/bigip/auth/userrolepartitions."
 
 
@@ -148,9 +149,9 @@ def _changes(history: dict[str, Any], data: dict[str, Any], today: date) -> list
     rows = []
     for c in reversed(history["changes"][-600:]):
         events = [f"{e['kind'].replace('-', ' ')}: {short(e['object'])}" + (f" → {short(e['member'])}" if e.get("member") else "") for e in c["events"]]
-        rows.append({"when": f"{c['when']:%Y-%m-%d %H:%M}", "file": c["file"], "revision": c["revision"], "objects": [short(o) if o.count(" ") < 3 else o for o in c["objects"][:12]], "events": events[:8], "added": c["added"], "removed": c["removed"],
+        rows.append({"when": f"{c['when']:%Y-%m-%d %H:%M}", "when_wib": f"{c['when'] + WIB:%Y-%m-%d %H:%M}", "file": c["file"], "revision": c["revision"], "objects": [short(o) if o.count(" ") < 3 else o for o in c["objects"][:12]], "events": events[:8], "added": c["added"], "removed": c["removed"],
                      "sample": "  ·  ".join(" ".join(s.split()) for s in c["sample"][:5])})
-    out.append(table_section("change_log", "Configuration saves (newest first)", [("when", "Saved (UTC)", "mono"), ("file", "File"), ("revision", "Rev", "id"), ("objects", "Objects touched", "list"), ("events", "What happened", "list"), ("added", "Lines added", "num"),
+    out.append(table_section("change_log", "Configuration saves (newest first)", [("when", "Saved (UTC)", "mono"), ("when_wib", "Saved (WIB, UTC+7)", "mono"), ("file", "File"), ("revision", "Rev", "id"), ("objects", "Objects touched", "list"), ("events", "What happened", "list"), ("added", "Lines added", "num"),
                                                                                   ("removed", "Lines removed", "num"), ("sample", "Changed lines (sample)", "wrap")], rows, group=HISTORY, page_size=100,
                              hint="The newest 600 saves. 'What happened' is derived for pool-member state, virtual-server enable/disable and object create/delete; everything else is in the sample lines. Secrets in changed lines are hidden."))
     return out

@@ -28,7 +28,8 @@ def virtual_rules(ctx: LCtx) -> Iterable[dict[str, Any]]:
         forwarding = v["type"].startswith("forwarding") or v["type"] in ("reject", "internal")
         wildcard = v["destination"] in ("0.0.0.0", "::")
         # LB-VS-001 nothing to forward to
-        if v["enabled"] and not forwarding and not v["pool"] and not v["rules"] and not v["policies"]:
+        dns_listener = "dns" in profile_kinds or any(p["name"].rsplit("/", 1)[-1] == "udp_gtm_dns" for p in v["profiles"])     # answers from the GTM engine, a pool is not needed
+        if v["enabled"] and not forwarding and not dns_listener and not v["pool"] and not v["rules"] and not v["policies"]:
             out.append(finding("LB-VS-001", "medium", "Virtual server", "Virtual server has no pool and nothing that can select one", obj=v["short"],
                                detail=f"{v['short']} ({v['destination']}:{v['port_label']}) is enabled but has no default pool, iRule or LTM policy. Connections that reach it have no destination.",
                                recommendation="Assign a default pool, attach the iRule or policy that chooses one, or disable or delete the virtual server.", reference=F5["virtual"]))

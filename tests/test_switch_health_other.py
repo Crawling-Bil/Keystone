@@ -470,17 +470,17 @@ class ServiceLevelTests(unittest.TestCase):
         self.assertEqual(analyze(fixture(HUAWEI), filename="h.txt")["vendor"], "Huawei")
         self.assertEqual(analyze(fixture(ARUBA), filename="a.txt")["vendor"], "Aruba")
 
-    def test_coverage_marks_the_commands_health_reads_as_analysed(self):
+    def test_coverage_marks_the_commands_health_reads_as_analyzed(self):
         result = analyze(fixture(HUAWEI), filename="h.txt")
         rows = {row["command"]: row for row in result["coverage"]["rows"]}
         for command in ("display stp", "display stp brief"):
-            self.assertEqual(rows[command]["status"], "analysed", command)
+            self.assertEqual(rows[command]["status"], "analyzed", command)
             self.assertEqual(rows[command]["tab"], "health")
         nx = {row["command"]: row for row in analyze(fixture(NXOS), filename="n.txt")["coverage"]["rows"]}
         for command in ("sh vpc role", "sh vpc peer-keepalive", "sh vpc consistency-parameters global", "sh license usage", "show environment all"):
-            self.assertEqual(nx[command]["status"], "analysed", command)
+            self.assertEqual(nx[command]["status"], "analyzed", command)
         ar = {row["command"]: row for row in analyze(fixture(ARUBA), filename="a.txt")["coverage"]["rows"]}
-        self.assertEqual(ar["show flash"]["status"], "analysed")
+        self.assertEqual(ar["show flash"]["status"], "analyzed")
         self.assertEqual(coverage.BY_KEY["flash"].tab, "health")
 
 
