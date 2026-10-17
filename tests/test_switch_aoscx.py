@@ -325,18 +325,18 @@ class CoverageTests(unittest.TestCase):
             out.setdefault(row["command"], set()).add(row["status"])
         return out
 
-    def test_commands_the_switch_rejected_are_errors_not_analysed(self):
+    def test_commands_the_switch_rejected_are_errors_not_analyzed(self):
         rows = self.rows(stack_result())
         for command in ("show interface desc", "show interface status", "show power inline", "show run | in route route"):
             self.assertEqual(rows[command], {"error"}, command)
 
-    def test_every_command_the_parsers_read_is_analysed(self):
+    def test_every_command_the_parsers_read_is_analyzed(self):
         rows = self.rows(stack_result())
         for command in ("show version", "show system inventory", "show vsf", "show lag", "show lag brief", "show lacp interface", "show lacp aggregate",
                         "show lacp configuration", "show lldp neighbor-info", "show lldp neighbor-info detail", "show environment fan",
                         "show environment power-supply", "show environment temperature", "show environment power-consumption", "show interface trunk",
                         "show mac-address-table", "show spanning-tree", "show ip route", "show interface transceiver"):
-            self.assertIn("analysed", rows[command], command)
+            self.assertIn("analyzed", rows[command], command)
 
     def test_commands_that_feed_no_tab_are_ignored_with_a_reason(self):
         rows = self.rows(stack_result())

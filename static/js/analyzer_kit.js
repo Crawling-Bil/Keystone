@@ -28,8 +28,9 @@
   const ICONS = "/static/icons/nes-icons.svg";
   const SEVERITIES = ["high", "medium", "low", "info"];
   const SEVERITY_LABEL = { high: "High", medium: "Medium", low: "Low", info: "Info" };
-  const STATUS_LABEL = { analysed: "Analysed", covered: "Covered", ignored: "Ignored", "not parsed": "Not parsed", error: "Rejected", missing: "Missing" };
+  const STATUS_LABEL = { analyzed: "Analyzed", covered: "Covered", ignored: "Ignored", "not parsed": "Not parsed", error: "Rejected", missing: "Missing" };
   const MAX_CHIPS = 6;
+  const MAX_FACET_VALUES = 12;   // a filter column with more distinct values than this is not a category
 
   // ---------------------------------------------------------------- helpers
   function h(tag, attrs, ...children) {
@@ -76,7 +77,7 @@
   function statusTone(text) {
     const t = plain(text).toLowerCase();
     if (!t || t === "—") return "mute";
-    if (/^(up(\/up)?|ok|good|yes|used|in use|established|full|registered|permit|strong|analysed|active)$/.test(t)) return "ok";
+    if (/^(up(\/up)?|ok|good|yes|used|in use|established|full|registered|permit|strong|analyzed|active)$/.test(t)) return "ok";
     if (/admin|shutdown|n\/a|none|disabled|ignored|covered/.test(t)) return "mute";
     if (/down|fail|error|weak|idle|deny|bad|reject|no reference|not registered|missing/.test(t)) return "bad";
     return "warn";
@@ -188,12 +189,22 @@
       repaintScope(state);
     };
 
+    const statusColumns = new Set(columns.filter(col => col.kind === "status").map(col => col.key));
+    function facetTone(value) {
+      const text = plain(value).toLowerCase();
+      if (["pass", "enabled", "enable", "good", "available", "up"].includes(text)) return "ok";
+      if (["fail", "forced down", "weak", "offline"].includes(text)) return "bad";
+      const tone = statusTone(value);
+      return tone === "mute" ? "" : tone;
+    }
+
     function facetValues(def) {
       const found = new Map();
       rows.forEach(row => {
         const value = cellText(row, def.key);
         if (!value) return;
-        const entry = found.get(value) || { count: 0, tone: (row._tones && row._tones[def.key]) || "" };
+        // Chip colour: the row's own tone, else (for a status column) the same colour its pill gets: pass green, fail red
+        const entry = found.get(value) || { count: 0, tone: (row._tones && row._tones[def.key]) || (statusColumns.has(def.key) ? facetTone(value) : "") };
         entry.count += 1;
         found.set(value, entry);
       });
@@ -209,7 +220,8 @@
       if (!facetBox) return;
       facetBox.replaceChildren(...facetDefs.map(def => {
         const values = facetValues(def);
-        if (values.length < 2) { if (!def.shared) delete local.facet[def.key]; return null; }
+        // One value gives nothing to filter by; a dozen-plus (peer names, counters) would be a wall of buttons, so the search box does that job
+        if (values.length < 2 || (values.length > MAX_FACET_VALUES && !def.shared)) { if (!def.shared) delete local.facet[def.key]; return null; }
         const active = activeOf(def);
         const pick = value => () => choose(def, value === active ? "" : value);
         return h("div", { class: `an-sev-chips an-facet${def.shared ? " an-scope" : ""}`, role: "group", "aria-label": `Filter by ${def.label || def.key}` },
@@ -276,6 +288,254 @@
     return wrap;
   }
 
+
+  // ----------------------------------------------------------------- map view
+  // A clickable parent -> child tree (the Load Balancer "Network map": virtual server -> pool -> member -> monitor).
+  // Data is the flat node list of a "map" section (features/analyzer_core/result.py: map_section).
+  const mapHaystacks = new WeakMap();
+
+  function buildMap(section, state) {
+    const nodes = section.nodes || [];
+    if (!nodes.length) return h("p", { class: "an-empty", text: section.empty });
+    const statuses = section.statuses || [], types = section.types || [];
+    const statusDef = new Map(statuses.map(def => [def.key, def]));
+    const typeLabel = new Map(types.map(def => [def.key, def.label]));
+    const byId = new Map(nodes.map(node => [node.id, node]));
+    const kids = new Map();
+    nodes.forEach(node => { const key = node.parent || ""; if (!kids.has(key)) kids.set(key, []); kids.get(key).push(node); });
+    const byRef = new Map();
+    nodes.forEach(node => { if (node.ref) { if (!byRef.has(node.ref)) byRef.set(node.ref, []); byRef.get(node.ref).push(node); } });
+    const parents = nodes.filter(node => (kids.get(node.id) || []).length).map(node => node.id);
+
+    const stateKey = `map:${section.id}`;
+    const local = state.tables[stateKey] || (state.tables[stateKey] = { status: "", type: "", q: "", monitors: true, open: new Set(nodes.length <= 1500 ? parents : []), collapsed: new Set(), selected: "", focus: "" });
+
+    const uniqueCount = pick => { const seen = new Set(); nodes.forEach(node => { if (pick(node)) seen.add(node.ref || node.id); }); return seen.size; };
+    const dot = (status, extra) => {
+      const def = statusDef.get(status);
+      return h("span", { class: `an-map-dot ${def ? `shape-${def.shape} tone-${def.tone}` : "shape-none"}${extra ? ` ${extra}` : ""}`, title: def ? `${def.label}: ${def.description}` : "No status", "aria-hidden": "true" });
+    };
+    const statusLabel = status => (statusDef.get(status) || {}).label || status || "";
+    const typeName = type => typeLabel.get(type) || type;
+    const SOURCE = { live: "live 'show' output", config: "configuration", derived: "derived from its children / configuration" };
+
+    function hay(node) {
+      let value = mapHaystacks.get(node);
+      if (value === undefined) {
+        const parts = [node.name, node.badge, node.status, typeName(node.type)];
+        (node.detail || []).forEach(pair => { if (["Address", "Port", "Destination", "Node", "Description"].includes(pair.label)) parts.push(plain(pair.value)); });
+        value = parts.join(" ").toLowerCase();
+        mapHaystacks.set(node, value);
+      }
+      return value;
+    }
+
+    const wrap = h("div", { class: "an-map" });
+    const notes = (section.notes || []).length ? [h("div", { class: "an-banner info an-map-note", role: "note" }, (section.notes || []).map(text => h("span", { text })))] : [];
+    const search = h("input", { type: "search", class: "an-search", placeholder: "Search name, address or port", "aria-label": "Search the network map", value: local.q });
+    const counter = h("span", { class: "an-map-count", role: "status", "aria-live": "polite" });
+    const statusBox = h("div", { class: "an-sev-chips an-facet", role: "group", "aria-label": "Filter by status" });
+    const typeBox = h("div", { class: "an-sev-chips an-facet", role: "group", "aria-label": "Filter by type" });
+    const monitorToggle = h("input", { type: "checkbox", id: null });
+    monitorToggle.checked = local.monitors;
+    const tree = h("div", { class: "an-map-tree", role: "tree", "aria-label": section.title });
+    const detail = h("aside", { class: "an-map-detail an-box", "aria-label": "Selected object" });
+    const summaryBox = h("details", { class: "an-map-summary" });
+    const rowEls = new Map();
+
+    // ---- what is shown
+    let visible = new Map(), subtree = new Map(), filtering = false, shown = 0;
+    const terms = () => local.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    function matches(node, words) {
+      if (!local.monitors && node.type === "monitor") return false;
+      if (local.status && node.status !== local.status) return false;
+      if (local.type && node.type !== local.type) return false;
+      return words.every(word => hay(node).includes(word));
+    }
+    function compute() {
+      const words = terms();
+      filtering = Boolean(local.status || local.type || words.length);
+      visible = new Map(); subtree = new Map(); shown = 0;
+      const mark = node => {
+        const self = matches(node, words);
+        let below = false;
+        (kids.get(node.id) || []).forEach(child => { if (mark(child)) below = true; });
+        const show = filtering ? (self || below) : (local.monitors || node.type !== "monitor");
+        visible.set(node.id, { show, self, below });
+        if (show && (self || !filtering)) shown += 1;
+        return filtering ? (self || below) : show;
+      };
+      (kids.get("") || []).forEach(mark);
+    }
+    const isOpen = node => {
+      const children = (kids.get(node.id) || []).filter(child => visible.get(child.id) && visible.get(child.id).show);
+      if (!children.length) return false;
+      if (local.collapsed.has(node.id)) return false;
+      return local.open.has(node.id) || (filtering && visible.get(node.id).below);
+    };
+    function toggle(id) {
+      const node = byId.get(id);
+      if (isOpen(node)) { local.open.delete(id); local.collapsed.add(id); }
+      else { local.collapsed.delete(id); local.open.add(id); }
+      local.focus = id;
+      paintTree();
+    }
+    function reveal(id) {
+      for (let node = byId.get(id); node && node.parent; node = byId.get(node.parent)) { local.collapsed.delete(node.parent); local.open.add(node.parent); }
+    }
+    function select(id, focusRow) {
+      local.selected = id;
+      local.focus = id;
+      rowEls.forEach((el, key) => {
+        el.classList.toggle("selected", key === id);
+        el.setAttribute("aria-selected", String(key === id));
+        el.tabIndex = key === id ? 0 : -1;
+      });
+      const node = byId.get(id);
+      rowEls.forEach((el, key) => el.classList.toggle("same", Boolean(node && node.ref && key !== id && byId.get(key).ref === node.ref)));
+      paintDetail();
+      if (focusRow && rowEls.get(id)) rowEls.get(id).focus();
+    }
+
+    // ---- tree
+    function item(node, level) {
+      const info = visible.get(node.id);
+      const children = (kids.get(node.id) || []).filter(child => visible.get(child.id) && visible.get(child.id).show);
+      const open = isOpen(node);
+      const caret = children.length
+        ? h("button", { type: "button", class: "an-map-caret", tabindex: "-1", "aria-label": `${open ? "Collapse" : "Expand"} ${node.name}`, onclick: event => { event.stopPropagation(); toggle(node.id); } }, h("span", { class: `an-map-chevron${open ? " open" : ""}`, "aria-hidden": "true" }))
+        : h("span", { class: "an-map-caret spacer", "aria-hidden": "true" });
+      const row = h("div", {
+        class: `an-map-row type-${node.type}${filtering ? (info.self ? " hit" : " dim") : ""}${node.tone ? ` row-${node.tone}` : ""}`, role: "treeitem", "aria-level": String(level), "aria-selected": String(local.selected === node.id),
+        "aria-expanded": children.length ? String(open) : null, tabindex: (local.selected || local.focus || (kids.get("") || [])[0].id) === node.id ? "0" : "-1", "data-id": node.id,
+        onclick: () => select(node.id), ondblclick: () => { if (children.length) toggle(node.id); },
+      }, caret, dot(node.status), h("span", { class: "an-map-name", text: node.name }), h("span", { class: "an-map-type", text: typeName(node.type) }), node.badge ? h("span", { class: "an-map-badge", text: node.badge }) : null,
+        children.length && !open ? h("span", { class: "an-map-kids", text: `${children.length}` }) : null,
+        node.status ? h("span", { class: `an-pill an-map-status tone-${(statusDef.get(node.status) || {}).tone || "mute"}`, text: statusLabel(node.status) }) : null);
+      row.classList.toggle("selected", local.selected === node.id);
+      rowEls.set(node.id, row);
+      const li = h("li", { role: "none", class: "an-map-item" }, row);
+      if (open && children.length) li.append(h("ul", { role: "group", class: "an-map-level" }, children.map(child => item(child, level + 1))));
+      return li;
+    }
+    function paintTree() {
+      compute();
+      rowEls.clear();
+      const roots = (kids.get("") || []).filter(node => visible.get(node.id) && visible.get(node.id).show);
+      if (!roots.length) tree.replaceChildren(h("p", { class: "an-empty", text: "No object matches the current filters." }));
+      else tree.replaceChildren(h("ul", { class: "an-map-level root", role: "none" }, roots.map(node => item(node, 1))));
+      counter.textContent = filtering ? `${shown.toLocaleString()} matching of ${nodes.length.toLocaleString()} objects` : `${nodes.length.toLocaleString()} objects`;
+      paintFilters();
+      if (local.selected && rowEls.get(local.selected)) { rowEls.get(local.selected).classList.add("selected"); select(local.selected, false); }
+      else paintDetail();
+      if (![...rowEls.values()].some(el => el.tabIndex === 0) && rowEls.size) rowEls.values().next().value.tabIndex = 0;   // keep the tree reachable with Tab
+      if (local.restoreFocus && rowEls.get(local.focus)) { rowEls.get(local.focus).focus(); }
+      local.restoreFocus = false;
+    }
+
+    // ---- filters (Status / Type, as in the BIG-IP GUI) and the summary
+    function chip(label, count, active, tone, onclick, status) {
+      return h("button", { type: "button", class: `an-chip link${tone ? ` tone-${tone}` : ""}${active ? " active" : ""}`, "aria-pressed": String(active), onclick }, status !== undefined ? dot(status) : null, `${label} ${count.toLocaleString()}`);
+    }
+    function paintFilters() {
+      const total = uniqueCount(() => true);
+      const statusChips = statuses.map(def => { const count = uniqueCount(node => node.status === def.key); return count ? chip(def.label, count, local.status === def.key, def.tone === "dark" ? "" : def.tone, () => { local.status = local.status === def.key ? "" : def.key; paintTree(); }, def.key) : null; }).filter(Boolean);
+      const typeChips = types.map(def => { const count = uniqueCount(node => node.type === def.key); return count ? chip(def.label, count, local.type === def.key, "", () => { local.type = local.type === def.key ? "" : def.key; paintTree(); }) : null; }).filter(Boolean);
+      statusBox.replaceChildren(h("span", { class: "an-facet-label", text: "Status" }), chip("All", total, !local.status, "", () => { local.status = ""; paintTree(); }), ...statusChips);
+      typeBox.replaceChildren(h("span", { class: "an-facet-label", text: "Type" }), chip("All", total, !local.type, "", () => { local.type = ""; paintTree(); }), ...typeChips);
+      paintSummary();
+    }
+    function paintSummary() {
+      const wanted = types.filter(def => uniqueCount(node => node.type === def.key && node.status));
+      const cols = statuses.filter(def => uniqueCount(node => node.status === def.key));
+      const wasOpen = summaryBox.open;
+      const head = h("tr", null, h("th", { scope: "col", text: "Object" }), cols.map(def => h("th", { scope: "col" }, dot(def.key), ` ${def.label}`)), h("th", { scope: "col", text: "Total" }));
+      const body = wanted.map(def => h("tr", null, h("th", { scope: "row", text: def.label }),
+        cols.map(col => { const count = uniqueCount(node => node.type === def.key && node.status === col.key); return h("td", { class: "an-num" }, count ? h("button", { type: "button", class: "an-link", onclick: () => { local.type = def.key; local.status = col.key; paintTree(); }, text: count.toLocaleString() }) : "–"); }),
+        h("td", { class: "an-num" }, h("button", { type: "button", class: "an-link", onclick: () => { local.type = def.key; local.status = ""; paintTree(); }, text: uniqueCount(node => node.type === def.key).toLocaleString() }))));
+      summaryBox.replaceChildren(h("summary", { text: "Summary by type and status" }), h("div", { class: "an-map-summary-body" }, h("table", { class: "an-table an-map-summary-table" }, h("thead", null, head), h("tbody", null, body)),
+        h("p", { class: "an-map-fine", text: "A pool used by several virtual servers is counted once." })));
+      summaryBox.open = wasOpen;
+    }
+
+    // ---- detail panel
+    function chain(node) { const out = []; for (let up = node; up; up = byId.get(up.parent)) out.unshift(up); return out; }
+    function paintDetail() {
+      const node = byId.get(local.selected);
+      if (!node) {
+        detail.replaceChildren(h("h3", { text: "Details" }), h("p", { class: "an-empty", text: "Click a virtual server, pool, member or monitor to see its status, the reason, the health monitors that apply and where else it is used." }),
+          h("p", { class: "an-map-fine", text: "Arrow keys move through the tree; Right / Left expand or collapse; Enter selects." }));
+        return;
+      }
+      const def = statusDef.get(node.status);
+      const skip = new Set(["Status", "Source", "Reason"]);
+      const pairs = (node.detail || []).filter(pair => !skip.has(pair.label));
+      const list = h("dl", { class: "an-kv" });
+      pairs.forEach(pair => {
+        const dd = h("dd");
+        if (Array.isArray(pair.value)) pair.value.forEach(entry => dd.append(h("span", { class: "an-chip", text: plain(entry) })));
+        else dd.textContent = plain(pair.value) || "—";
+        list.append(h("dt", { text: pair.label }), dd);
+      });
+      const others = (node.ref && byRef.get(node.ref) || []).filter(other => other.id !== node.id);
+      const trail = chain(node);
+      detail.replaceChildren(...[                      // replaceChildren(null) would write the text "null": drop the empty parts
+        h("div", { class: "an-map-detail-head" }, dot(node.status, "big"), h("div", null, h("h3", { text: node.name }), h("small", { text: typeName(node.type) + (node.badge ? ` · ${node.badge}` : "") }))),
+        node.status ? h("p", { class: "an-map-detail-status" }, h("span", { class: `an-pill tone-${(def || {}).tone || "mute"}`, text: statusLabel(node.status) }), node.source ? h("span", { class: "an-chip", text: `from ${SOURCE[node.source] || node.source}` }) : null) : null,
+        def ? h("p", { class: "an-map-fine", text: def.description }) : null,
+        node.reason ? h("p", { class: "an-map-reason", text: node.reason }) : null,
+        trail.length > 1 ? h("nav", { class: "an-map-trail", "aria-label": "Path" }, trail.map((step, index) => [index ? h("span", { "aria-hidden": "true", text: " › " }) : null, index === trail.length - 1 ? h("strong", { text: step.name }) : h("button", { type: "button", class: "an-link", onclick: () => { reveal(step.id); select(step.id, false); paintTree(); }, text: step.name })])) : null,
+        pairs.length ? list : null,
+        others.length ? h("div", { class: "an-map-also" }, h("h4", { text: `Also appears ${others.length} more time${others.length === 1 ? "" : "s"}` }),
+          h("ul", null, others.slice(0, 12).map(other => { const parent = byId.get(other.parent); return h("li", null, h("button", { type: "button", class: "an-link", onclick: () => { reveal(other.id); local.selected = other.id; paintTree(); rowEls.get(other.id)?.scrollIntoView({ block: "nearest" }); }, text: parent ? `under ${parent.name}` : "at the top" })); })),
+          others.length > 12 ? h("small", { text: `+${others.length - 12} more` }) : null) : null,
+        node.section && state.goto ? h("button", { type: "button", class: "an-btn small", onclick: () => state.goto(node.section) }, "Open in the table") : null].filter(Boolean));
+    }
+
+    // ---- keyboard (tree pattern)
+    tree.addEventListener("keydown", event => {
+      const row = event.target.closest && event.target.closest(".an-map-row");
+      if (!row) return;
+      const rows = [...tree.querySelectorAll(".an-map-row")];
+      const index = rows.indexOf(row);
+      const node = byId.get(row.dataset.id);
+      const move = target => { if (target) { event.preventDefault(); local.focus = target.dataset.id; rows.forEach(r => { r.tabIndex = -1; }); target.tabIndex = 0; target.focus(); } };
+      if (event.key === "ArrowDown") move(rows[index + 1]);
+      else if (event.key === "ArrowUp") move(rows[index - 1]);
+      else if (event.key === "Home") move(rows[0]);
+      else if (event.key === "End") move(rows[rows.length - 1]);
+      else if (event.key === "ArrowRight") {
+        if (row.getAttribute("aria-expanded") === "false") { event.preventDefault(); local.restoreFocus = true; toggle(node.id); }
+        else if (row.getAttribute("aria-expanded") === "true") move(rows[index + 1]);
+      } else if (event.key === "ArrowLeft") {
+        if (row.getAttribute("aria-expanded") === "true") { event.preventDefault(); local.restoreFocus = true; toggle(node.id); }
+        else if (node.parent && rowEls.get(node.parent)) move(rowEls.get(node.parent));
+      } else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(node.id, true); }
+    });
+
+    // ---- controls
+    let timer = 0;
+    search.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { local.q = search.value; paintTree(); }, 120); });
+    monitorToggle.addEventListener("change", () => { local.monitors = monitorToggle.checked; paintTree(); });
+    const expandAll = () => { local.collapsed.clear(); parents.forEach(id => local.open.add(id)); paintTree(); };
+    const collapseAll = () => { local.open.clear(); parents.forEach(id => local.collapsed.add(id)); paintTree(); };
+    const reset = () => { local.status = ""; local.type = ""; local.q = ""; search.value = ""; paintTree(); };
+    const controls = h("div", { class: "an-map-controls" },
+      h("div", { class: "an-table-tools" }, search, h("button", { type: "button", class: "an-btn small", onclick: expandAll, text: "Expand all" }), h("button", { type: "button", class: "an-btn small", onclick: collapseAll, text: "Collapse all" }),
+        h("label", { class: "an-map-check" }, monitorToggle, " Health monitors"), h("button", { type: "button", class: "an-btn small", onclick: reset, text: "Reset" }), counter),
+      statusBox, typeBox);
+
+    const legend = h("div", { class: "an-map-legend", "aria-label": "Legend" }, statuses.map(def => h("span", { class: "an-map-key", title: def.description }, dot(def.key), def.label)));
+    const refs = (section.references || []).length ? h("details", { class: "an-map-refs" }, h("summary", { text: "What the icons mean, and where this comes from" }),
+      h("ul", null, statuses.map(def => h("li", null, dot(def.key), h("strong", { text: ` ${def.label}: ` }), def.description))),
+      h("p", { class: "an-map-fine", text: "Documentation:" }),
+      h("ul", null, section.references.map(ref => h("li", null, h("a", { href: ref.url, target: "_blank", rel: "noopener noreferrer", text: ref.label }))))) : null;
+
+    wrap.append(...[...notes, controls, legend, summaryBox, h("div", { class: "an-map-body" }, tree, detail), refs].filter(Boolean));
+    paintTree();
+    return wrap;
+  }
+
   function buildKv(section) {
     if (!section.pairs.length) return h("p", { class: "an-empty", text: section.empty });
     const list = h("dl", { class: "an-kv" });
@@ -326,7 +586,7 @@
 
   function buildSection(section, state) {
     const header = h("header", { class: "an-section-head" }, h("h3", { text: section.title }), section.hint ? h("p", { text: section.hint }) : null);
-    const body = section.kind === "table" ? buildTable(section, state) : buildKv(section);
+    const body = section.kind === "table" ? buildTable(section, state) : (section.kind === "map" ? buildMap(section, state) : buildKv(section));
     return h("section", { class: "an-section", id: null, "data-section-id": section.id }, header, body);
   }
 
@@ -504,7 +764,7 @@
       this.renderTab();
     }
 
-    // Compare two analysed devices (an older backup against a newer one, or the two units of an HA pair).
+    // Compare two analyzed devices (an older backup against a newer one, or the two units of an HA pair).
     // The answer is a result of its own, added as one more device tab, so every table, filter and the Excel export work on it.
     compareBar() {
       const real = this.state.results.map((item, index) => ({ item, index })).filter(entry => !entry.item.comparison);
@@ -570,7 +830,7 @@
       else {
         const group = key.slice(2);
         const sections = this.result.sections.filter(section => section.group === group);
-        const state = { tables: this.state.tables[this.state.index], painters: {} };
+        const state = { tables: this.state.tables[this.state.index], painters: {}, goto: id => this.focusSection(id) };
         const bar = scopeBar(sections, state);
         this.panel.replaceChildren(h("div", { class: "an-sections" }, bar, sections.length > 3 ? this.sectionNav(sections) : null, sections.map(section => buildSection(section, state))));
       }
@@ -669,7 +929,7 @@
         id: "coverage_table", kind: "table", title: "Commands in this capture", hint: "What was understood, what was ignored and why, and the commands that would add more detail. “Missing” rows are not in the file. Use the buttons to show one status.",
         columns: [{ key: "command", label: "Command", kind: "mono" }, { key: "status", label: "Status", kind: "status" }, { key: "lines", label: "Lines", kind: "num" }, { key: "note", label: "Note", kind: "wrap" }],
         rows: rows.map(row => ({ command: row.command, status: STATUS_LABEL[row.status] || row.status, lines: row.lines, note: row.note, _tones: { status: row.tone || "" } })),
-        facets: [{ key: "status", label: "status", order: ["analysed", "covered", "not parsed", "error", "missing", "ignored"].map(key => STATUS_LABEL[key]) }],
+        facets: [{ key: "status", label: "status", order: ["analyzed", "covered", "not parsed", "error", "missing", "ignored"].map(key => STATUS_LABEL[key]) }],
         total: rows.length, empty: "No commands.", searchable: true, page_size: 200,
       };
       return h("div", { class: "an-sections" }, buildSection(section, { tables: this.state.tables[this.state.index] }));

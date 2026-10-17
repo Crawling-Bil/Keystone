@@ -243,6 +243,19 @@ class DeviceDetector:
         if xml_score and (text.lstrip().startswith("<?xml") or text.lstrip().startswith("<config")):
             score += xml_score + 10
 
+        # A PuTTY/terminal log of an interactive PAN-OS session: "show system info" / "show interface all" / "show routing
+        # route" (runtime state, no configuration) or "show config running" (curly-brace view).  Neither contains a "set "
+        # line or an XML tag, so without this the file was reported as an unknown vendor.
+        try:
+            from features.configuration_studio.converter_engine.parsers.firewall import paloalto_curly, paloalto_operational
+
+            if paloalto_operational.looks_like_paloalto_operational_capture(content):
+                score += 60
+            if paloalto_curly.looks_like_curly(content):
+                score += 60
+        except Exception:
+            pass
+
         candidates.append(
             DetectionResult(
                 vendor="Palo Alto",

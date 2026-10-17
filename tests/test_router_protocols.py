@@ -97,7 +97,7 @@ def test_bgp_neighbor_values_are_assigned_by_the_column_they_are_printed_under()
 def test_a_router_without_a_routing_protocol_answers_with_one_line():
     assert rp.parse_ip_protocols(lines(NO_PROTOCOL)) == []
     rows = {row["command"]: row for row in ctxmod.gather(capture(("show clock", "20:21:00.123 WIB Mon Oct 12 2026"), ("show ip protocols", NO_PROTOCOL)), "x.txt").coverage}
-    assert rows["show ip protocols"]["status"] == "analysed" and "no routing protocol is running" in rows["show ip protocols"]["note"]
+    assert rows["show ip protocols"]["status"] == "analyzed" and "no routing protocol is running" in rows["show ip protocols"]["note"]
 
 
 def test_unknown_text_in_the_block_is_not_called_an_empty_answer():

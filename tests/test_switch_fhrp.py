@@ -174,12 +174,12 @@ class LiveStateTests(unittest.TestCase):
         huawei = next(t for t in analyze(HUAWEI, filename="hw.txt")["extra_tables"] if t["id"] == "fhrp-groups")
         self.assertFalse({"timers", "track", "name", "version"} & {c["key"] for c in huawei["columns"]})
 
-    def test_coverage_marks_display_vrrp_and_cisco_show_standby_brief_analysed(self):
+    def test_coverage_marks_display_vrrp_and_cisco_show_standby_brief_analyzed(self):
         rows = {r["command"]: r for r in analyze(HUAWEI, filename="hw.txt")["coverage"]["rows"]}
-        self.assertEqual((rows["display vrrp"]["status"], rows["display vrrp"]["tab"]), ("analysed", "routing"))
+        self.assertEqual((rows["display vrrp"]["status"], rows["display vrrp"]["tab"]), ("analyzed", "routing"))
         text = IOS + "SW1#show standby brief\nInterface   Grp  Pri P State   Active          Standby         Virtual IP\nVl10        10   110 P Active  local           unknown         192.0.2.1\nSW1#\n"
         row = {r["command"]: r for r in analyze(text, filename="ios.txt")["coverage"]["rows"]}["show standby brief"]
-        self.assertEqual((row["status"], row["tab"]), ("analysed", "routing"))      # fhrp_live reads the brief form since v5
+        self.assertEqual((row["status"], row["tab"]), ("analyzed", "routing"))      # fhrp_live reads the brief form since v5
 
 
 if __name__ == "__main__":

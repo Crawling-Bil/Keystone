@@ -253,8 +253,8 @@ class ServiceTests(unittest.TestCase):
 
     def test_coverage_reads_both_commands(self):
         rows = {r["command"]: r for r in self.a["coverage"]["rows"]}
-        self.assertEqual(rows["show ip ospf interface brief vrf all"]["status"], "analysed")
-        self.assertEqual(rows["show ip ospf database"]["status"], "analysed")
+        self.assertEqual(rows["show ip ospf interface brief vrf all"]["status"], "analyzed")
+        self.assertEqual(rows["show ip ospf database"]["status"], "analyzed")
         self.assertEqual((self.a["extras"]["ospf_intf"], self.a["extras"]["ospf_db"]), (5, 23))
 
     def test_neighbour_without_a_router_lsa_is_found_only_on_a_complete_database(self):

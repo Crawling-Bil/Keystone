@@ -55,6 +55,36 @@ _PALOALTO_MODEL_PORT_COUNTS = {
 }
 
 _ETHERNET_PORT_NUMBER_RE = re.compile(r'\bethernet1/(\d+)\b')
+_IPV4_ADDRESS_RE = re.compile(r'^\d{1,3}(?:\.\d{1,3}){3}$')
+
+# RouterOS virtual interfaces the parser models as Interface rows. They are
+# NOT physical ports, so the translator reviews them instead of guessing an
+# ethernetX/Y slot for them.
+_TUNNEL_INTERFACE_ADVICE = {
+    "eoip": "rebuild as a GRE tunnel ('set network tunnel gre ...') if it carries bridged L2, otherwise a routed IPsec tunnel",
+    "gre": "rebuild as 'set network tunnel gre ...' plus a tunnel.N interface",
+    "ipip": "PAN-OS has no IP-in-IP tunnel; use GRE or IPsec",
+    "l2tp-client": "PAN-OS cannot originate an L2TP client; replace with a site-to-site IPsec tunnel",
+    "pptp-client": "PAN-OS has no PPTP; replace with a site-to-site IPsec tunnel",
+    "sstp-client": "PAN-OS has no SSTP client; replace with a site-to-site IPsec tunnel",
+    "ovpn-client": "PAN-OS has no OpenVPN client; replace with a site-to-site IPsec tunnel",
+    "pppoe-client": "configure PPPoE on the WAN layer3 interface ('set network interface ethernet ethernetX/Y layer3 pppoe ...') and re-enter the credentials",
+    "wireguard": "PAN-OS has no WireGuard; replace with IPsec",
+    "bonding": "rebuild as an aggregate-ethernet interface ('set network interface aggregate-ethernet ae1 ...') with LACP matching the peer switch",
+    "vrrp": "PAN-OS has no VRRP; use an HA pair (active/passive) or a floating address on the upstream device",
+}
+
+_PFS_GROUP_MAP = {
+    "none": "no-pfs",
+    "modp768": "group1",
+    "modp1024": "group2",
+    "modp1536": "group5",
+    "modp2048": "group14",
+    "modp3072": "group15",
+    "modp4096": "group16",
+    "ecp256": "group19",
+    "ecp384": "group20",
+}
 
 
 def resolve_target_ethernet_port_count(target_model):
@@ -331,7 +361,11 @@ class PaloAltoFirewallTranslator:
 
         bridges = [i for i in config.interfaces if i.interface_type == "bridge"]
         vlans = [i for i in config.interfaces if i.interface_type == "vlan"]
-        others = [i for i in config.interfaces if i.interface_type not in ("bridge", "vlan")]
+        tunnels = [i for i in config.interfaces if i.interface_type in _TUNNEL_INTERFACE_ADVICE]
+        others = [
+            i for i in config.interfaces
+            if i.interface_type not in ("bridge", "vlan") and i.interface_type not in _TUNNEL_INTERFACE_ADVICE
+        ]
         bridges_by_name = {bridge.name: bridge for bridge in bridges}
 
         # Interfaces flagged as SD-WAN members in the mapping are fully
@@ -355,7 +389,47 @@ class PaloAltoFirewallTranslator:
                 continue
             output += self._translate_routed_interface(interface, zone_map, review, mapping)
 
+        for tunnel in tunnels:
+            if tunnel.name in consumed:
+                continue
+            self._review_tunnel_interface(tunnel, review)
+
+        # Facts a RouterOS interface carries that no PAN-OS line below
+        # reproduces -- reported once per interface instead of vanishing.
+        for interface in config.interfaces:
+            if interface.disabled_ip_addresses:
+                review.append(
+                    f"interface {interface.name}: {len(interface.disabled_ip_addresses)} DISABLED "
+                    f"address(es) in the source ({', '.join(interface.disabled_ip_addresses)}) were "
+                    "NOT configured on the target -- they were not active on the RouterOS either."
+                )
+            if interface.speed and interface.interface_type not in _TUNNEL_INTERFACE_ADVICE:
+                review.append(
+                    f"interface {interface.name}: source forces speed/duplex '{interface.speed}' -- the "
+                    "PAN-OS port is left on auto-negotiation. Set 'link-speed'/'link-duplex' on the "
+                    "interface if the peer is also hard-set, or both ends must stay on auto."
+                )
+
         return output
+
+    @staticmethod
+    def _review_tunnel_interface(tunnel, review):
+        advice = _TUNNEL_INTERFACE_ADVICE.get(tunnel.interface_type, "rebuild manually")
+        details = []
+        if tunnel.remote_address:
+            details.append(f"remote {tunnel.remote_address}")
+        if tunnel.local_address:
+            details.append(f"local {tunnel.local_address}")
+        if tunnel.tunnel_id is not None:
+            details.append(f"id {tunnel.tunnel_id}")
+        if tunnel.ip_addresses:
+            details.append(f"IP {', '.join(tunnel.ip_addresses)}")
+        if tunnel.disabled:
+            details.append("DISABLED in the source")
+        suffix = f" ({'; '.join(details)})" if details else ""
+        review.append(
+            f"interface {tunnel.name} [{tunnel.interface_type}]{suffix}: not converted automatically -- {advice}."
+        )
 
     def _translate_bridge(self, config, bridge, zone_map, review, consumed, mapping=None):
         output = []
@@ -538,18 +612,94 @@ class PaloAltoFirewallTranslator:
             return output
 
         output.append("")
+        used_names = set()
+        pbr_routes = []
         for index, route in enumerate(active_routes, start=1):
+            if route.routing_mark:
+                # A route in a named routing table is only consulted by
+                # traffic that /ip route rule or a mangle mark steered into
+                # that table. Dropping it into the default virtual router
+                # would create a second, competing default route for ALL
+                # traffic -- exactly the opposite of policy routing.
+                pbr_routes.append(route)
+                continue
+            if route.route_type in ("blackhole", "unreachable", "prohibit"):
+                name = self._unique_name(self.pan_name(route.comment) if route.comment else f"route-{index}", used_names)
+                base = f"set network virtual-router default routing-table ip static-route {name}"
+                output.append(f"{base} destination {route.dst_address}")
+                output.append(f"{base} nexthop discard")
+                if route.distance is not None:
+                    output.append(f"{base} metric {route.distance}")
+                continue
             if not route.gateway:
                 review.append(f"static route to {route.dst_address}: no gateway set -- skipped.")
                 continue
-            name = self.pan_name(route.comment) if route.comment else f"route-{index}"
-            base = f"set network virtual-router default routing-table ip static-route {name}"
-            output.append(f"{base} destination {route.dst_address}")
-            output.append(f"{base} nexthop ip-address {route.gateway}")
-            if route.distance is not None:
-                output.append(f"{base} metric {route.distance}")
+
+            gateways = [g.strip() for g in route.gateway.split(",") if g.strip()]
+            usable = [g for g in gateways if _IPV4_ADDRESS_RE.match(g)]
+            if not usable:
+                review.append(
+                    f"static route to {route.dst_address}: gateway '{route.gateway}' is an interface or "
+                    "recursive name, not an IPv4 next hop -- set the next hop (or exit interface) manually."
+                )
+                continue
+            if len(usable) != len(gateways):
+                review.append(
+                    f"static route to {route.dst_address}: some gateways ({route.gateway}) are not IPv4 "
+                    "next hops and were skipped."
+                )
+
+            base_name = self.pan_name(route.comment) if route.comment else f"route-{index}"
+            for position, gateway in enumerate(usable, start=1):
+                name = self._unique_name(base_name if len(usable) == 1 else f"{base_name}-{position}", used_names)
+                base = f"set network virtual-router default routing-table ip static-route {name}"
+                output.append(f"{base} destination {route.dst_address}")
+                output.append(f"{base} nexthop ip-address {gateway}")
+                if route.distance is not None:
+                    output.append(f"{base} metric {route.distance}")
+            if len(usable) > 1:
+                review.append(
+                    f"static route to {route.dst_address}: {len(usable)} equal next hops "
+                    f"({', '.join(usable)}) emitted as separate routes -- enable ECMP on the virtual router "
+                    "('set network virtual-router default ecmp enable yes') or only the first is used."
+                )
+            if route.check_gateway:
+                review.append(
+                    f"static route to {route.dst_address}: source uses check-gateway={route.check_gateway} "
+                    "(failover on a dead next hop). Add Path Monitoring to this static route "
+                    "('set network virtual-router default routing-table ip static-route <name> path-monitor ...') "
+                    "or a failed link keeps attracting traffic."
+                )
+
+        if pbr_routes:
+            tables = sorted({route.routing_mark for route in pbr_routes})
+            review.append(
+                f"{len(pbr_routes)} static route(s) live in policy-routing table(s) {', '.join(tables)} and were "
+                "NOT added to the default virtual router (that would create competing default routes). "
+                "Rebuild them as Policy-Based Forwarding rules (Policies > Policy Based Forwarding) with the "
+                "matching source/destination, or as a separate virtual router. Next hops: "
+                + "; ".join(
+                    f"{route.routing_mark}: {route.dst_address} via {route.gateway or route.route_type or '?'}"
+                    for route in pbr_routes[:12]
+                )
+                + ("; ..." if len(pbr_routes) > 12 else "")
+            )
 
         return output
+
+    @staticmethod
+    def _unique_name(base, used, limit=63):
+        """PAN-OS rule/route/object names are unique per scope and max 63 chars;
+        two RouterOS rows with the same comment must not overwrite each other."""
+        base = (base or "unnamed")[:limit]
+        candidate = base
+        counter = 2
+        while candidate in used:
+            suffix = f"-{counter}"
+            candidate = base[: limit - len(suffix)] + suffix
+            counter += 1
+        used.add(candidate)
+        return candidate
 
     # ====================================================
     # ADDRESS LISTS
@@ -607,6 +757,17 @@ class PaloAltoFirewallTranslator:
             names.append(base if count == 1 else f"{base}-{count}")
         return names
 
+    @staticmethod
+    def _active_ipsec_policy(policy, disabled_peers):
+        """A policy only becomes a PAN-OS tunnel when it is enabled, an encrypting
+        tunnel-mode policy, not a dynamic responder template, not a bypass rule and
+        its peer is not disabled."""
+        if policy.disabled or not policy.tunnel or getattr(policy, "template", False):
+            return False
+        if getattr(policy, "action", "") in ("none", "discard"):
+            return False
+        return policy.peer_name not in disabled_peers
+
     def translate_ipsec(self, config, review, mapping=None):
         output = []
         if not (config.ipsec_peers or config.ipsec_policies):
@@ -614,9 +775,14 @@ class PaloAltoFirewallTranslator:
 
         output.append("")
 
+        disabled_peers = {peer.name for peer in config.ipsec_peers if peer.disabled}
+
         for profile in config.ipsec_profiles:
             crypto_name = self.pan_name(profile.name)
-            output.append(f"set network ike-crypto-profile {crypto_name} dh-group {profile.dh_group}")
+            output.append(
+                f"set network ike-crypto-profile {crypto_name} dh-group "
+                f"{_PFS_GROUP_MAP.get(str(profile.dh_group).lower(), profile.dh_group)}"
+            )
             output.append(f"set network ike-crypto-profile {crypto_name} hash {profile.hash_algorithm}")
             output.append(f"set network ike-crypto-profile {crypto_name} encryption {profile.enc_algorithm}")
             output.append(
@@ -625,32 +791,70 @@ class PaloAltoFirewallTranslator:
             )
 
         for proposal in config.ipsec_proposals:
+            if proposal.disabled:
+                continue
             crypto_name = self.pan_name(proposal.name)
             output.append(f"set network ipsec-crypto-profile {crypto_name} esp encryption {proposal.enc_algorithms}")
             output.append(f"set network ipsec-crypto-profile {crypto_name} esp authentication {proposal.auth_algorithms}")
-            output.append(f"set network ipsec-crypto-profile {crypto_name} dh-group {proposal.pfs_group}")
+            output.append(
+                f"set network ipsec-crypto-profile {crypto_name} dh-group "
+                f"{_PFS_GROUP_MAP.get(str(proposal.pfs_group).lower(), proposal.pfs_group)}"
+            )
 
         for peer in config.ipsec_peers:
+            if peer.disabled:
+                review.append(
+                    f"ipsec peer {peer.name}: DISABLED in the source -- no ike-gateway was generated for it."
+                )
+                continue
             gateway_name = self.pan_name(peer.name)
             crypto_profile = self.pan_name(peer.profile_name) if peer.profile_name else "default"
+            ikev1 = str(peer.exchange_mode).lower() in ("main", "aggressive", "base", "main-l2tp")
+            protocol = "ikev1" if ikev1 else "ikev2"
             output.append(
-                f"set network ike-gateway {gateway_name} protocol ikev2 ike-crypto-profile {crypto_profile}"
+                f"set network ike-gateway {gateway_name} protocol {protocol} ike-crypto-profile {crypto_profile}"
             )
-            output.append(f"set network ike-gateway {gateway_name} peer-address ip {peer.address}")
+            if peer.address:
+                output.append(f"set network ike-gateway {gateway_name} peer-address ip {peer.address}")
+            else:
+                output.append(f"set network ike-gateway {gateway_name} peer-address dynamic")
+                review.append(
+                    f"ike-gateway {gateway_name}: source peer has no fixed address (responder / road-warrior) -- "
+                    "PAN-OS uses 'peer-address dynamic' plus a peer identification; confirm it."
+                )
+            if peer.local_address:
+                output.append(f"set network ike-gateway {gateway_name} local-address ip {peer.local_address}")
+            if peer.passive:
+                output.append(f"set network ike-gateway {gateway_name} passive-mode yes")
+            if str(peer.exchange_mode).lower() == "aggressive":
+                output.append(f"set network ike-gateway {gateway_name} protocol ikev1 exchange-mode aggressive")
             output.append(f'set network ike-gateway {gateway_name} authentication pre-shared-key key "REPLACE-ME"')
             review.append(
                 f"ike-gateway {gateway_name}: a Mikrotik export never includes the real pre-shared "
                 "key or certificate -- set the actual key manually before using this tunnel."
             )
+            if ikev1:
+                review.append(
+                    f"ike-gateway {gateway_name}: source peer uses exchange-mode={peer.exchange_mode} (IKEv1) -- "
+                    "generated as ikev1; both ends must agree, and IKEv2 is preferable if the peer supports it."
+                )
             if not peer.profile_name:
                 review.append(
                     f"ike-gateway {gateway_name}: source peer referenced no /ip ipsec profile -- "
                     "confirm ike-crypto-profile 'default' is the right one."
                 )
 
+        skipped_templates = [p for p in config.ipsec_policies if getattr(p, "template", False)]
+        if skipped_templates:
+            review.append(
+                f"{len(skipped_templates)} ipsec policy template(s) (dynamic/road-warrior responder) were not turned "
+                "into site-to-site tunnels -- a remote-access design (GlobalProtect or an IKE gateway with "
+                "peer-address dynamic and a tunnel interface) is needed instead."
+            )
+
         tunnel_names = self._tunnel_names(config)
         for index, policy in enumerate(config.ipsec_policies, start=1):
-            if policy.disabled or not policy.tunnel:
+            if not self._active_ipsec_policy(policy, disabled_peers):
                 continue
             tunnel_name = tunnel_names[index - 1]
             gateway_name = self.pan_name(policy.peer_name) if policy.peer_name else ""
@@ -872,6 +1076,8 @@ class PaloAltoFirewallTranslator:
 
         interfaces = []
         for interface in config.interfaces:
+            if interface.interface_type in _TUNNEL_INTERFACE_ADVICE:
+                continue
             is_bridge = interface.name in bridge_names
             row = {
                 "name": interface.name,
@@ -891,8 +1097,9 @@ class PaloAltoFirewallTranslator:
 
         ipsec_tunnels = []
         tunnel_names = self._tunnel_names(config)
+        disabled_peers = {peer.name for peer in config.ipsec_peers if peer.disabled}
         for index, policy in enumerate(config.ipsec_policies, start=1):
-            if policy.disabled or not policy.tunnel:
+            if not self._active_ipsec_policy(policy, disabled_peers):
                 continue
             tunnel_name = tunnel_names[index - 1]
             ipsec_tunnels.append(
@@ -925,10 +1132,26 @@ class PaloAltoFirewallTranslator:
             return output
 
         output.append("")
+        used_names = set()
+        unsafe_names = []
         for index, rule in enumerate(active_rules, start=1):
-            name = self.pan_name(rule.comment) if rule.comment else f"nat-rule-{index}"
-            from_zone = zone_map.get(rule.in_interface, "any") if rule.in_interface else "any"
-            to_zone = zone_map.get(rule.out_interface, "any") if rule.out_interface else "any"
+            name = self._unique_name(self.pan_name(rule.comment) if rule.comment else f"nat-rule-{index}", used_names)
+            if rule.in_interface:
+                from_zone = zone_map.get(rule.in_interface, "any")
+            elif getattr(rule, "in_interface_list", ""):
+                from_zone = self.pan_name(rule.in_interface_list)
+            else:
+                from_zone = "any"
+            if rule.out_interface:
+                to_zone = zone_map.get(rule.out_interface, "any")
+            elif getattr(rule, "out_interface_list", ""):
+                to_zone = self.pan_name(rule.out_interface_list)
+            else:
+                to_zone = "any"
+
+            unexpressed = self._nat_unexpressed(rule)
+            if unexpressed:
+                unsafe_names.append((name, unexpressed))
 
             if rule.action == "accept":
                 # RouterOS "accept" in a NAT chain means "match this
@@ -1036,7 +1259,38 @@ class PaloAltoFirewallTranslator:
                 f"dst={rule.dst_address or 'any'} to-addresses={rule.to_addresses or '-'}"
             )
 
+        for name, reasons in unsafe_names:
+            prefix = f"set rulebase nat rules {name} "
+            if any(line.startswith(prefix) for line in output):
+                output.append(f"set rulebase nat rules {name} disabled yes")
+                review.append(
+                    f"nat rule {name}: source match(es) [{'; '.join(reasons)}] cannot be expressed in a PAN-OS "
+                    "NAT rule, so the translated rule would NAT more traffic than the RouterOS rule -- emitted "
+                    "DISABLED. Add the missing condition (zone, service, address object) before enabling."
+                )
+
         return output
+
+    @staticmethod
+    def _nat_unexpressed(rule):
+        found = []
+        for label, value in (
+            ("connection-mark", getattr(rule, "connection_mark", "")),
+            ("packet-mark", getattr(rule, "packet_mark", "")),
+            ("routing-mark", getattr(rule, "routing_mark", "")),
+            ("src-port", getattr(rule, "src_port", "")),
+        ):
+            if value:
+                found.append(f"{label}={value}")
+        for key, value in (getattr(rule, "extra", None) or {}).items():
+            if key.startswith("negated:"):
+                # negated src/dst address LISTS already get their own review via _nat_match_value
+                if key.split(":", 1)[1] in ("src-address-list", "dst-address-list"):
+                    continue
+                found.append(f"{key.split(':', 1)[1]}={value}")
+            elif key not in ("log-prefix", "place-before", "hairpin-nat"):
+                found.append(f"{key}={value}")
+        return found
 
     @staticmethod
     def _nat_match_value(direct_value, address_list, review, rule_name, field_label):
@@ -1083,6 +1337,53 @@ class PaloAltoFirewallTranslator:
         "passthrough": "allow",
     }
 
+    # Match keys the PAN-OS security rule produced below cannot express. A
+    # rule carrying one of them would match MORE traffic once translated, so
+    # it is emitted disabled and review-flagged instead of live.
+    _BENIGN_EXTRA_KEYS = {"log-prefix", "place-before", "hw-offload", "tls-host-ignore"}
+
+    def _unexpressed_matches(self, rule, handled_negations=("src-address", "dst-address", "src-address-list", "dst-address-list")):
+        found = []
+        for label, value in (
+            ("connection-nat-state", getattr(rule, "connection_nat_state", "")),
+            ("connection-mark", getattr(rule, "connection_mark", "")),
+            ("packet-mark", getattr(rule, "packet_mark", "")),
+            ("routing-mark", getattr(rule, "routing_mark", "")),
+            ("tcp-flags", getattr(rule, "tcp_flags", "")),
+            ("icmp-options", getattr(rule, "icmp_options", "")),
+            ("src-address-type", getattr(rule, "src_address_type", "")),
+            ("dst-address-type", getattr(rule, "dst_address_type", "")),
+        ):
+            if value:
+                found.append(f"{label}={value}")
+        for key, value in (getattr(rule, "extra", None) or {}).items():
+            if key.startswith("negated:"):
+                if key.split(":", 1)[1] in handled_negations:
+                    continue
+                found.append(f"{key.split(':', 1)[1]}={value}")
+            elif key not in self._BENIGN_EXTRA_KEYS:
+                found.append(f"{key}={value}")
+        return found
+
+    @staticmethod
+    def _stateful_only_reason(rule):
+        """
+        RouterOS needs explicit "accept established,related" / "drop invalid"
+        rules because its filter is a packet filter with a connection
+        tracker bolted on. PAN-OS is session based: return traffic is part
+        of the session and invalid packets never match one. Translating
+        these as ordinary rules would produce an ANY->ANY allow (or deny),
+        so they are dropped on purpose and reported.
+        """
+        states = {s.strip() for s in (rule.connection_state or "").split(",") if s.strip()}
+        if not states or (rule.connection_state or "").startswith("!"):
+            return ""
+        if rule.action in ("accept", "passthrough", "log") and states <= {"established", "related"}:
+            return "return-traffic allow (established/related) is implicit in a stateful PAN-OS session"
+        if rule.action in ("drop", "reject") and states == {"invalid"}:
+            return "invalid-packet drop is implicit in PAN-OS session setup (and Zone Protection)"
+        return ""
+
     def translate_filter_rules(self, config, zone_map, review):
         output = []
         active_rules = [rule for rule in config.filter_rules if not rule.disabled]
@@ -1090,8 +1391,21 @@ class PaloAltoFirewallTranslator:
             return output
 
         output.append("")
+        used_names = set()
+        stateful_skipped = 0
+        self_traffic_rules = 0
         for index, rule in enumerate(active_rules, start=1):
-            name = self.pan_name(rule.comment) if rule.comment else f"{rule.chain}-rule-{index}"
+            base_name = self.pan_name(rule.comment) if rule.comment else f"{rule.chain}-rule-{index}"
+            name = self._unique_name(base_name, used_names)
+
+            stateful_reason = self._stateful_only_reason(rule)
+            if stateful_reason:
+                stateful_skipped += 1
+                review.append(
+                    f"filter rule {name} (chain={rule.chain}, action={rule.action}, "
+                    f"connection-state={rule.connection_state}): not translated -- {stateful_reason}."
+                )
+                continue
 
             from_zone = "any"
             if rule.in_interface:
@@ -1105,8 +1419,34 @@ class PaloAltoFirewallTranslator:
             elif rule.out_interface_list:
                 to_zone = self.pan_name(rule.out_interface_list)
 
-            source = rule.src_address or (self.pan_name(rule.src_address_list) if rule.src_address_list else "any")
-            destination = rule.dst_address or (self.pan_name(rule.dst_address_list) if rule.dst_address_list else "any")
+            negate_source = False
+            negate_destination = False
+            if rule.src_address:
+                source = rule.src_address
+                if source.startswith("!"):
+                    negate_source = True
+                    source = source[1:]
+            elif rule.src_address_list:
+                list_name = rule.src_address_list
+                if list_name.startswith("!"):
+                    negate_source = True
+                    list_name = list_name[1:]
+                source = self.pan_name(list_name)
+            else:
+                source = "any"
+            if rule.dst_address:
+                destination = rule.dst_address
+                if destination.startswith("!"):
+                    negate_destination = True
+                    destination = destination[1:]
+            elif rule.dst_address_list:
+                list_name = rule.dst_address_list
+                if list_name.startswith("!"):
+                    negate_destination = True
+                    list_name = list_name[1:]
+                destination = self.pan_name(list_name)
+            else:
+                destination = "any"
 
             action = self._FILTER_ACTION_MAP.get(rule.action)
             if action is None:
@@ -1120,9 +1460,13 @@ class PaloAltoFirewallTranslator:
             output.append(f"set rulebase security rules {name} to [ {to_zone} ]")
             output.append(f"set rulebase security rules {name} source [ {source} ]")
             output.append(f"set rulebase security rules {name} destination [ {destination} ]")
+            if negate_source:
+                output.append(f"set rulebase security rules {name} negate-source yes")
+            if negate_destination:
+                output.append(f"set rulebase security rules {name} negate-destination yes")
 
             if rule.protocol and rule.dst_port:
-                service_name = self.pan_name(f"{name}-svc")
+                service_name = self.pan_name(f"{name}-svc")[:63]
                 output.append(f"set service {service_name} protocol {rule.protocol} port {rule.dst_port}")
                 output.append(f"set rulebase security rules {name} service [ {service_name} ]")
             else:
@@ -1132,6 +1476,16 @@ class PaloAltoFirewallTranslator:
             output.append(f"set rulebase security rules {name} action {action}")
             if rule.log:
                 output.append(f"set rulebase security rules {name} log-end yes")
+
+            unexpressed = self._unexpressed_matches(rule)
+            if unexpressed:
+                output.append(f"set rulebase security rules {name} disabled yes")
+                review.append(
+                    f"filter rule {name}: source match(es) [{'; '.join(unexpressed)}] cannot be expressed in "
+                    "a PAN-OS security rule, so the rule would match MORE traffic than on the RouterOS -- it was "
+                    "emitted DISABLED. Rebuild the missing condition (App-ID, service, schedule, Zone "
+                    "Protection / DoS profile) before enabling it."
+                )
 
             if rule.src_port:
                 review.append(
@@ -1144,6 +1498,23 @@ class PaloAltoFirewallTranslator:
                     f"filter rule {name}: source chain '{rule.chain}' is a custom jump target -- "
                     "confirm it still applies once flattened into one security policy."
                 )
+            if rule.chain in ("input", "output"):
+                self_traffic_rules += 1
+
+        if self_traffic_rules:
+            review.append(
+                f"{self_traffic_rules} filter rule(s) are chain=input/output (traffic to/from the RouterOS "
+                "itself). PAN-OS security rules govern TRANSIT traffic; protecting the firewall's own "
+                "management plane is done with an Interface Management Profile plus permitted IP lists. These "
+                "rules were translated as zone rules to 'any' -- a 'drop all from WAN' input rule will therefore "
+                "also block inbound NAT'd traffic if it sits above the allow rules. Rebuild them as management-"
+                "plane controls and keep only the genuine transit rules."
+            )
+        if stateful_skipped:
+            review.append(
+                f"{stateful_skipped} stateful helper rule(s) (accept established/related, drop invalid) were "
+                "intentionally not translated: PAN-OS inspects by session."
+            )
 
         return output
 

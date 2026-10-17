@@ -19,17 +19,17 @@
     document.getElementById(clearId)?.classList.toggle("hidden", !input.files.length);
   }
   const SWITCH_FILE_FALLBACK = "Cisco, Huawei, or Aruba capture — each file is one device";
-  const SWITCH_FILE_FALLBACK_MORE = "Add more files — the devices already analysed stay";
+  const SWITCH_FILE_FALLBACK_MORE = "Add more files — the devices already analyzed stay";
 
   // ---- The file list ---------------------------------------------------------------------------
   // The list is the source of truth. Picking or dropping files ADDS to it (a file is never listed twice),
-  // a file leaves with its x, and "Analyze Switch" analyses only what is new (or what was analysed with another
+  // a file leaves with its x, and "Analyze Switch" analyses only what is new (or what was analyzed with another
   // vendor choice), so devices that are already done are kept and nothing has to be chosen again.
   let queue = [];      // { id, name, size, file, text, status: "waiting" | "done" | "failed", vendor, result, error }
   let nextEntryId = 1;
   const fileKey = file => `${file.name}|${file.size}|${file.lastModified}`;
   const sizeText = bytes => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : bytes >= 1024 ? `${Math.round(bytes / 1024)} KB` : `${bytes} B`);
-  const STATE_TEXT = { waiting: "waiting", done: "analysed", failed: "failed" };
+  const STATE_TEXT = { waiting: "waiting", done: "analyzed", failed: "failed" };
 
   function renderFileList() {
     const list = document.getElementById("switch-file-list");
@@ -118,7 +118,7 @@
 
   // Tone of a status pill. "admin down" is amber (intentional shutdown) and
   // deliberately not the red of a port that is down by itself.
-  const STATUS_TONE = { "same": "ok", "changed": "warn", "moved": "warn", "only on a": "warn", "only on b": "warn", "applied": "ok", "referenced": "ok", "not applied": "mute", "up": "ok", "down": "bad", "admin down": "warn", "unknown": "mute", "both": "ok", "only here": "warn", "incomplete": "warn", "unresolved": "mute", "system": "mute", "high": "bad", "medium": "warn", "low": "mute", "info": "mute", "healthy": "ok", "not bundled": "bad", "good": "ok", "green": "ok", "normal": "ok", "ok": "ok", "yellow": "warn", "warning": "warn", "red": "bad", "critical": "bad", "bad": "bad", "emergencies": "bad", "alerts": "bad", "errors": "bad", "warnings": "warn", "notifications": "mute", "informational": "mute", "debugging": "mute", "analysed": "ok", "covered": "ok", "ignored": "mute", "not parsed": "warn", "error": "bad", "missing": "warn", "active": "ok", "act/unsup": "mute", "suspended": "warn", "suspend": "warn", "config only": "warn", "device only": "mute", "trunking": "ok", "not-trunking": "warn", "forwarding": "ok", "blocking": "warn", "learning": "warn", "listening": "warn", "broken (inconsistent)": "bad", "this switch": "ok", "root bridge": "ok", "off": "mute", "on": "ok", "faulty": "bad", "deny": "bad", "searching": "warn" };
+  const STATUS_TONE = { "same": "ok", "changed": "warn", "moved": "warn", "only on a": "warn", "only on b": "warn", "applied": "ok", "referenced": "ok", "not applied": "mute", "up": "ok", "down": "bad", "admin down": "warn", "unknown": "mute", "both": "ok", "only here": "warn", "incomplete": "warn", "unresolved": "mute", "system": "mute", "high": "bad", "medium": "warn", "low": "mute", "info": "mute", "healthy": "ok", "not bundled": "bad", "good": "ok", "green": "ok", "normal": "ok", "ok": "ok", "yellow": "warn", "warning": "warn", "red": "bad", "critical": "bad", "bad": "bad", "emergencies": "bad", "alerts": "bad", "errors": "bad", "warnings": "warn", "notifications": "mute", "informational": "mute", "debugging": "mute", "analyzed": "ok", "covered": "ok", "ignored": "mute", "not parsed": "warn", "error": "bad", "missing": "warn", "active": "ok", "act/unsup": "mute", "suspended": "warn", "suspend": "warn", "config only": "warn", "device only": "mute", "trunking": "ok", "not-trunking": "warn", "forwarding": "ok", "blocking": "warn", "learning": "warn", "listening": "warn", "broken (inconsistent)": "bad", "this switch": "ok", "root bridge": "ok", "off": "mute", "on": "ok", "faulty": "bad", "deny": "bad", "searching": "warn" };
   const toneOf = value => STATUS_TONE[String(value ?? "").toLowerCase()] || "";
 
   function rowMarkup(columns, row, statusColumn) {
@@ -1712,7 +1712,7 @@
   }
 
   // ---- Coverage tab ---------------------------------------------------------------------------
-  const COVERAGE_STATUS_ORDER = ["analysed", "covered", "not parsed", "error", "missing", "ignored"];
+  const COVERAGE_STATUS_ORDER = ["analyzed", "covered", "not parsed", "error", "missing", "ignored"];
 
   function renderCoverage(result) {
     const box = byId("switch-coverage-view");
@@ -1720,7 +1720,7 @@
     const rows = coverage.rows || [];
     if (!rows.length) { box.innerHTML = `<div class="empty-state compact">No commands were recognised in this capture.</div>`; return; }
     const labelOf = key => currentTabs.find(tab => tab.key === key)?.label || "";
-    box.innerHTML = `<p class="field-hint">What the analyzer did with every command in this capture. <strong>analysed</strong> fills a tab, <strong>covered</strong> is already contained in another command, <strong>not parsed</strong> was read but its output is not used yet, <strong>missing</strong> is not in the file but would add detail, <strong>ignored</strong> is not relevant (session or clock output).</p>`
+    box.innerHTML = `<p class="field-hint">What the analyzer did with every command in this capture. <strong>analyzed</strong> fills a tab, <strong>covered</strong> is already contained in another command, <strong>not parsed</strong> was read but its output is not used yet, <strong>missing</strong> is not in the file but would add detail, <strong>ignored</strong> is not relevant (session or clock output).</p>`
       + `<p class="field-hint">${coverage.commands || 0} commands found in the file. Use the buttons to show one status.</p>`
       + filterBlock("switch-coverage-table", "Search command or note...", "coverage", true);
     renderFilterable("switch-coverage-table", [
@@ -1742,9 +1742,9 @@
   }
 
   // ---- Several devices at once ----------------------------------------------------------------
-  // Each chosen file is analysed on its own (one /api/analyze call per file) and kept here, so
+  // Each chosen file is analyzed on its own (one /api/analyze call per file) and kept here, so
   // switching between devices needs no new upload and no new analysis.
-  let devices = [];      // the analysed (or failed) entries of the queue, in list order
+  let devices = [];      // the analyzed (or failed) entries of the queue, in list order
   let activeDevice = 0;
   const syncDevices = () => { devices = queue.filter(entry => entry.status !== "waiting"); };
 
@@ -1796,7 +1796,7 @@
       resultPanel.classList.remove("hidden");
       body.classList.add("hidden");
       errorBox.classList.remove("hidden");
-      byId("switch-device-error-title").textContent = `${device.name} could not be analysed`;
+      byId("switch-device-error-title").textContent = `${device.name} could not be analyzed`;
       byId("switch-device-error-detail").textContent = device.error || "Analysis failed.";
       return;
     }
@@ -2242,9 +2242,9 @@
       renderFileList();
     }
     if (!queue.length) { window.NES.toast("Add a switch capture first.", "error"); return; }
-    // New files, files that failed before, and files analysed with another vendor choice.
+    // New files, files that failed before, and files analyzed with another vendor choice.
     const pending = queue.filter(entry => entry.status !== "done" || entry.vendor !== vendor);
-    if (!pending.length) { window.NES.toast("Every file in the list is already analysed. Add a file, remove one, or change the vendor to analyse again."); return; }
+    if (!pending.length) { window.NES.toast("Every file in the list is already analyzed. Add a file, remove one, or change the vendor to analyze again."); return; }
     const before = devices.length;
     window.NES.setLoading(button, true, "Analyzing...");
     try {
@@ -2270,10 +2270,10 @@
       const good = pending.filter(entry => entry.status === "done");
       if (!good.length) throw new Error(pending[0]?.error || "Analysis failed.");
       empty.classList.add("hidden");
-      // Show the first device that was just analysed; devices from earlier runs stay in the bar.
+      // Show the first device that was just analyzed; devices from earlier runs stay in the bar.
       showDevice(Math.max(0, devices.indexOf(good[0])));
       const failed = pending.length - good.length;
-      window.NES.toast(pending.length > 1 || failed ? `${good.length} of ${pending.length} devices analysed${failed ? ` — ${failed} failed, see the device list` : ""}.`
+      window.NES.toast(pending.length > 1 || failed ? `${good.length} of ${pending.length} devices analyzed${failed ? ` — ${failed} failed, see the device list` : ""}.`
         : (good[0].result.device_type === "Firewall" ? "Firewall analysis completed." : "Switch analysis completed."),
         failed ? "error" : "success");
     } catch (error) {

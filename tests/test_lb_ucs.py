@@ -282,7 +282,7 @@ class UcsAnalysisTests(unittest.TestCase):
         types = {r["type"]: r for r in self.sections["inventory"]["rows"]}
         self.assertEqual(types["asm policy"]["count"], 3)
         self.assertEqual(types["asm policy"]["status"], "listed on the Security tab")
-        self.assertEqual(types["ltm virtual"]["status"], "analysed")
+        self.assertEqual(types["ltm virtual"]["status"], "analyzed")
 
     def test_plain_conf_still_works_without_ucs_sections(self):
         result = service.analyze(BIGIP_CONF + BASE_CONF, "bigip.conf", today=TODAY)

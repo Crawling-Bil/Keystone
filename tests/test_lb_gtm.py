@@ -120,7 +120,7 @@ class GtmTest(unittest.TestCase):
 
     def test_inventory_names_typed_objects(self):
         inv = {r["type"]: r for r in self.table("inventory")["rows"]}
-        self.assertEqual(inv["gtm wideip"]["status"], "analysed")
+        self.assertEqual(inv["gtm wideip"]["status"], "analyzed")
         self.assertIn("www.example.com", inv["gtm wideip"]["objects"])
 
 

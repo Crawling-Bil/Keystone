@@ -27,7 +27,7 @@ MAX_PER_RULE = 25
 RULES = (
     bigip_rules_ltm.virtual_rules, bigip_rules_ltm.pool_rules, bigip_rules_ltm.monitor_rules, bigip_rules_ssl.ssl_rules, bigip_rules_ltm.http_rules, bigip_rules_ltm.irule_rules,
     bigip_rules_ltm.reference_rules, bigip_rules_ltm.unused_rules, bigip_rules_mgmt.management_rules, bigip_rules_ssl.certificate_rules, bigip_rules_ha.ha_rules,
-    bigip_rules_mgmt.network_rules, bigip_rules_ha.runtime_rules, bigip_rules_security.security_rules, bigip_rules_ucs.ucs_rules, bigip_rules_gtm.gtm_rules,
+    bigip_rules_mgmt.network_rules, bigip_rules_ha.runtime_rules, bigip_rules_security.security_rules, bigip_rules_ucs.ucs_rules, bigip_rules_gtm.gtm_rules, bigip_rules_gtm.gtm_runtime_rules,
 )
 
 

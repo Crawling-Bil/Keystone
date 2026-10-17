@@ -23,7 +23,7 @@ _BUILTIN_PROFILES = {
     "clientssl": "client-ssl", "clientssl-insecure-compatible": "client-ssl", "clientssl-secure": "client-ssl", "crypto-server-default-clientssl": "client-ssl", "splitsession-default-clientssl": "client-ssl", "wom-default-clientssl": "client-ssl",
     "serverssl": "server-ssl", "serverssl-insecure-compatible": "server-ssl", "serverssl-secure": "server-ssl", "crypto-client-default-serverssl": "server-ssl", "pcoip-default-serverssl": "server-ssl", "wom-default-serverssl": "server-ssl",
     "oneconnect": "one-connect", "request-adapt": "request-adapt", "response-adapt": "response-adapt", "analytics": "analytics", "diameter": "diameter", "sip": "sip", "radiusLB": "radius", "html": "html", "xml": "xml", "json": "json", "rewrite": "rewrite",
-    "ppp": "ppp", "ntlm": "ntlm", "statistics": "statistics", "ssl-persistence": "ssl-persistence", "classification": "classification", "ilx": "ilx",
+    "ppp": "ppp", "ntlm": "ntlm", "websecurity": "websecurity", "statistics": "statistics", "ssl-persistence": "ssl-persistence", "classification": "classification", "ilx": "ilx",
 }
 _BUILTIN_PERSIST = {"cookie", "source_addr", "dest_addr", "hash", "universal", "ssl", "sip_info", "msrdp", "host", "none", "persist-cookie"}
 _BUILTIN_MONITORS = {
@@ -49,6 +49,7 @@ class Resolver:
         self.nodes_by_addr = {n["address"]: n for n in data["nodes"] if n["address"]}
         self.monitors = {m["name"]: m for m in data["monitors"]}
         self.profiles = {p["name"]: p for p in data["profiles"]}
+        self.security_profiles = set(data.get("security_profiles", []))      # security bot-defense / dos / protocol-inspection objects
         self.persist = {p["name"]: p for p in data["persistence"]}
         self.rules = {r["name"]: r for r in data["irules"]}
         self.policies = {p["name"]: p for p in data["policies"]}
@@ -145,7 +146,7 @@ class Resolver:
             if v["pool"]:
                 self._ref("virtual", v["short"], "pool", v["pool"], v["pool"] in self.pools)
             for p in v["profiles"]:
-                known = p["name"] in self.profiles or p["name"] in self.persist or self.is_builtin_profile(p["name"])
+                known = p["name"] in self.profiles or p["name"] in self.persist or p["name"] in self.security_profiles or self.is_builtin_profile(p["name"])
                 self._ref("virtual", v["short"], "profile", p["name"], known)
             for p in v["persist"] + ([v["fallback_persist"]] if v["fallback_persist"] else []):
                 known = p in self.persist or p in self.profiles or self.is_builtin_persist(p)

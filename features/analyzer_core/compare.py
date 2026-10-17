@@ -20,7 +20,7 @@ from collections import Counter
 from typing import Any
 
 from .findings import SEVERITY_RANK, finding as _finding, sort_findings
-from .result import card, new_result, table_section
+from .result import card, map_as_table, new_result, table_section
 
 SCOPE_KEYS = ("vdom", "vsys", "vrf", "partition", "scope")
 MAX_CHANGE_ROWS = 6000
@@ -123,7 +123,15 @@ def _finding_key(item: dict[str, Any]) -> tuple[str, str]:
     return item.get("id", ""), item.get("object", "")
 
 
+def _flat(result: dict[str, Any]) -> dict[str, Any]:
+    """A map (tree) section is compared as the table of its objects."""
+    if not any(section.get("kind") == "map" for section in result.get("sections", [])):
+        return result
+    return dict(result, sections=[map_as_table(section) if section.get("kind") == "map" else section for section in result["sections"]])
+
+
 def compare_results(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    before, after = _flat(before), _flat(after)
     changes: list[dict[str, Any]] = []
     per_section: dict[str, Counter] = {}
     after_sections = {s["id"]: s for s in after.get("sections", [])}

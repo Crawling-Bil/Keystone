@@ -91,7 +91,7 @@ def health(ctx: Ctx) -> list[dict[str, Any]]:
         sections.append(table_section("platform_resources", "Platform resources (device thresholds)",
                                       [("scope", "Scope"), ("resource", "Resource"), ("usage", "Usage"), ("max", "Maximum"), ("warning", "Warning at"), ("critical", "Critical at"), ("state", "State", "status")],
                                       [dict(r, state={"H": "healthy", "W": "warning", "C": "critical"}.get(r["state"], r["state"]), _tones={"state": {"H": "ok", "W": "warn", "C": "bad"}.get(r["state"], "")}) for r in resources],
-                                      group="Health", hint="'show platform resources': the platform's own thresholds, so a warning here is the device's judgement, not Keystone's."))
+                                      group="Health", hint="'show platform resources': the platform's own thresholds, so a warning here is the device's judgement, not Keystone's.", facets=[{"key": "state", "label": "state"}]))
     control = ctx.get("control_processor")
     if control:
         cores = [{"slot": c["slot"], "core": c["cpu"], "user": c["user"], "system": c["system"], "idle": c["idle"], "busy": round(100 - c["idle"], 1), "_tones": {"busy": _pct_tone(100 - c["idle"], 70, 90)}} for c in control.get("cpu", [])]
@@ -135,7 +135,7 @@ def health(ctx: Ctx) -> list[dict[str, Any]]:
         normal = {"normal", "ok", "good", "green", "online"}
         sections.append(table_section("environment", "Environment sensors", [("slot", "Slot"), ("sensor", "Sensor"), ("state", "State", "status"), ("value", "Reading", "num"), ("unit", "Unit")],
                                       [dict(s, _tones={"state": "ok" if s["state"].lower() in normal else "bad" if "crit" in s["state"].lower() else "warn"}) for s in env["sensors"]], group="Health",
-                                      hint=("Alarm counters: " + ", ".join(f"{n} {k}" for k, n in env["alarms"].items())) if env.get("alarms") else ""))
+                                      hint=("Alarm counters: " + ", ".join(f"{n} {k}" for k, n in env["alarms"].items())) if env.get("alarms") else "", facets=[{"key": "state", "label": "state"}]))
     red = ctx.get("redundancy_states")
     if red:
         history_data = ctx.get("redundancy_history") or {}
@@ -160,7 +160,7 @@ def health(ctx: Ctx) -> list[dict[str, Any]]:
             rows.append({"file": image["path"].rsplit("/", 1)[-1], "release": match.group(1) if match else "", "size": _size(image["size"]), "date": image["date"],
                          "status": "running release" if is_running else "other release", "_tones": {"status": "ok" if is_running else "warn"}})
         sections.append(table_section("flash_images", "Software images on bootflash", [("file", "File", "mono"), ("release", "Release"), ("size", "Size"), ("date", "Date"), ("status", "Status", "status")], rows, group="Health",
-                                      hint=("Packages of other releases: " + ", ".join(v for v in flash.get("package_versions", []) if key(v) != key(running)) if flash.get("package_versions") and running else "")))
+                                      hint=("Packages of other releases: " + ", ".join(v for v in flash.get("package_versions", []) if key(v) != key(running)) if flash.get("package_versions") and running else ""), facets=[{"key": "status", "label": "status"}]))
 
     lic = ctx.get("license_all")
     smart_pairs = [(label, lic[k]) for k, label in (("smart_licensing", "Smart Licensing"), ("using_policy", "Using Policy"), ("transport", "Transport"), ("cslu_address", "CSLU address"),
@@ -186,7 +186,7 @@ def health(ctx: Ctx) -> list[dict[str, Any]]:
     usage = ctx.get("license_usage")
     if usage and usage.get("licenses"):
         sections.append(table_section("license_usage", "Licences in use", [("name", "Licence"), ("tag", "Tag", "mono"), ("license_type", "Type"), ("count", "Count", "num"), ("status", "Status", "status"), ("export_status", "Export status"), ("enforcement_type", "Enforcement")],
-                                      [dict(l, _tones={"status": "ok" if l.get("status") == "IN USE" else "mute"}) for l in usage["licenses"]], group="Health"))
+                                      [dict(l, _tones={"status": "ok" if l.get("status") == "IN USE" else "mute"}) for l in usage["licenses"]], group="Health", facets=[{"key": "status", "label": "status"}]))
     return sections
 
 
@@ -246,7 +246,7 @@ def logs(ctx: Ctx) -> list[dict[str, Any]]:
         pairs.append(("Syslog servers", "none", "warn"))
     if log.get("shown_lines"):
         total = (settings.get("buffer") or {}).get("logged", 0)
-        pairs.append(("Lines analysed", f"last {log['shown_lines']:,} lines" + (f" of the {total:,} messages the buffer has logged" if total > log["shown_lines"] else ""), "warn" if total > log["shown_lines"] else ""))
+        pairs.append(("Lines analyzed", f"last {log['shown_lines']:,} lines" + (f" of the {total:,} messages the buffer has logged" if total > log["shown_lines"] else ""), "warn" if total > log["shown_lines"] else ""))
     pairs.append(("Messages by severity", ", ".join(f"{k} {v:,}" for k, v in log["by_severity"].items())))
     sections.append(kv_section("log_summary", "Logging", pairs, group="Logs",
                                hint="Duration is the last time stamp minus the first. A clock that was set while the log was running (NTP after a reload) makes it longer than the period the messages really cover." if window["text"] else ""))
@@ -269,7 +269,7 @@ def logs(ctx: Ctx) -> list[dict[str, Any]]:
     login_rows = [{"source": s, "count": n, "result": "success"} for s, n in logins.get("sources", {}).items()] + [
         {"source": f["source"], "count": f["count"], "result": f"failed as {f['user']}: {f['reason']}", "_tones": {"result": "bad"}} for f in log.get("login_failures", [])]
     sections.append(table_section("log_logins", "Logins in the log", [("source", "Source", "mono"), ("count", "Count", "num"), ("result", "Result", "status")], login_rows, group="Logs",
-                                  empty="No %SEC_LOGIN messages in the buffer ('login on-success log' / 'login on-failure log' not configured)."))
+                                  empty="No %SEC_LOGIN messages in the buffer ('login on-success log' / 'login on-failure log' not configured).", facets=[{"key": "result", "label": "result"}]))
     model = ctx.models.get("ipsec") or {}
     peers = {p for t in model.get("tunnels", []) for p in t.get("peers", [])}
     ipsec_rows = []
@@ -426,7 +426,7 @@ def vpn_inventory(ctx: Ctx) -> list[dict[str, Any]]:
     sections.append(table_section("vpn_tunnels", "IPsec tunnel inventory", [("name", "Tunnel"), ("kind", "Kind"), ("peers", "Peers", "list"), ("ike", "IKE"), ("auth", "Authentication"), ("key", "Key stored as", "status"),
                                                                            ("transform", "Transform set", "list"), ("weak", "Weak algorithms", "list"), ("pfs", "PFS"), ("lifetime", "Lifetime"),
                                                                            ("state", "Live state", "status")], rows, group="VPN & Crypto",
-                                  hint=f"{len(model['tunnels'])} tunnel(s), {model['peer_count']} peer address(es). Pre-shared key values are never displayed."))
+                                  hint=f"{len(model['tunnels'])} tunnel(s), {model['peer_count']} peer address(es). Pre-shared key values are never displayed.", facets=[{"key": "state", "label": "state"}]))
     # What each tunnel protects and where it is applied: a table of its own, because the selector lists are long and would squeeze the inventory.
     traffic = []
     for t in model["tunnels"]:
@@ -464,9 +464,9 @@ def ospf_participation(ctx: Ctx) -> list[dict[str, Any]]:
     sections.append(table_section("ospf_state", "OSPF process state (from configuration)", [("process", "Process"), ("vrf", "VRF"), ("state", "State", "status"), ("interfaces", "Participating interfaces", "num"), ("areas", "Areas", "list")],
                                   [{"process": p["process"], "vrf": p.get("vrf") or "global", "state": state_label[p["state"]], "interfaces": len(p["interfaces"]), "areas": p["areas"],
                                     "_tones": {"state": "ok" if p["state"] == "running" else "bad" if p["state"] == "all_passive" else "warn"}} for p in model["processes"]], group="OSPF / EIGRP",
-                                  hint="An interface joins a process through a matching 'network … area' statement (most specific wins) or 'ip ospf <process> area <n>' on the interface, which takes precedence."))
+                                  hint="An interface joins a process through a matching 'network … area' statement (most specific wins) or 'ip ospf <process> area <n>' on the interface, which takes precedence.", facets=[{"key": "state", "label": "state"}]))
     sections.append(table_section("ospf_participation", "Interfaces running OSPF (from configuration)", [("interface", "Interface", "mono"), ("description", "Description", "wrap"), ("ip", "Address", "mono"), ("process", "Process"), ("area", "Area"), ("how", "Enabled by"), ("passive", "Passive"),
                                                                                                          ("network_type", "Network type"), ("cost", "Cost"), ("auth", "Authentication"), ("bfd", "BFD"), ("state", "Live state", "status"), ("neighbors_listed", "Live neighbours", "list")],
                                   [dict(r, passive=_yes(r["passive"]), bfd=_yes(r["bfd"]), _tones={"passive": "warn" if r["passive"] else "", "state": "ok" if str(r["state"]).upper() in ("DR", "BDR", "DROTHER", "P2P", "P2MP") else ("warn" if r["state"] else "")}) for r in model["interfaces"]],
-                                  group="OSPF / EIGRP", empty="No interface participates in OSPF."))
+                                  group="OSPF / EIGRP", empty="No interface participates in OSPF.", facets=[{"key": "state", "label": "state"}]))
     return sections

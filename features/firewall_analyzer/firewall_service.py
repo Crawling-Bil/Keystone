@@ -114,9 +114,13 @@ def _build_from_mikrotik(config) -> dict[str, Any]:
             "name": iface.name,
             "type": iface.interface_type,
             "ip_address": iface.ip_addresses[0] if iface.ip_addresses else "",
+            "ip_addresses": list(iface.ip_addresses),
+            "disabled_ip_addresses": list(getattr(iface, "disabled_ip_addresses", [])),
             "zone": zone_of.get(iface.name, ""),
             "comment": iface.comment,
             "disabled": iface.disabled,
+            "speed": getattr(iface, "speed", ""),
+            "remote": getattr(iface, "remote_address", ""),
         })
 
     static_routes = [
@@ -125,6 +129,10 @@ def _build_from_mikrotik(config) -> dict[str, Any]:
             "nexthop": route.gateway,
             "metric": route.distance if route.distance is not None else "",
             "disabled": route.disabled,
+            "routing_table": getattr(route, "routing_mark", "") or "main",
+            "route_type": getattr(route, "route_type", ""),
+            "check_gateway": getattr(route, "check_gateway", ""),
+            "comment": route.comment,
         }
         for route in getattr(config, "static_routes", [])
     ]
@@ -238,6 +246,16 @@ def _build_from_mikrotik(config) -> dict[str, Any]:
 
     qos = _mikrotik_qos_from_unhandled(getattr(config, "review_commands", []))
 
+    # Lines the parser turned into model rows (queues, PPP, SNMP, mangle, ...)
+    # are shown in their own tables; only genuinely unread lines stay here.
+    modeled_lines = getattr(config, "modeled_lines", set())
+    unhandled = [
+        line for line in getattr(config, "review_commands", [])
+        if line.split(" -- ", 1)[0] not in modeled_lines
+    ]
+    from . import routeros
+    ros = routeros.extract(config)
+
     return {
         "panorama_enabled": False,
         "panorama_template_name": "",
@@ -255,7 +273,9 @@ def _build_from_mikrotik(config) -> dict[str, Any]:
         "dhcp": dhcp,
         "dns_servers": list(getattr(config, "dns_servers", [])),
         "ntp_servers": list(getattr(config, "ntp_servers", [])),
-        "unhandled_commands": list(getattr(config, "review_commands", [])),
+        "unhandled_commands": unhandled,
+        "routeros": ros,
+        "modeled_line_count": len(getattr(config, "review_commands", [])) - len(unhandled),
     }
 
 

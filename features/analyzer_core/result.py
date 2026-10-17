@@ -13,7 +13,7 @@ Virtual Servers/Pools/Monitors.
       "cards":    [{"label","value","tone","hint","section"}],
       "info":     [{"label","value"}],
       "findings": [ ... see findings.py ... ],
-      "sections": [{"id","title","group","kind":"table"|"kv","hint", ...}],
+      "sections": [{"id","title","group","kind":"table"|"kv"|"map","hint", ...}],
       "coverage": [{"command","status","lines","note"}],
       (table rows may carry "_tone" for the whole row and "_tones" {column: tone}
        for single cells; tones are ok / warn / bad / info / mute)
@@ -127,6 +127,83 @@ def kv_section(
     return {"id": section_id, "title": title, "group": group, "kind": "kv", "hint": hint, "pairs": items, "empty": empty}
 
 
+MAP_NODE_FIELDS = ("id", "parent", "type", "name", "status", "badge", "source", "reason", "ref", "section")
+MAX_MAP_NODES = 30000
+
+
+def map_section(
+    section_id: str,
+    title: str,
+    nodes: Iterable[dict[str, Any]],
+    *,
+    statuses: Sequence[dict[str, Any]],
+    types: Sequence[dict[str, Any]],
+    group: str = "",
+    hint: str = "",
+    empty: str = "Nothing to draw.",
+    notes: Sequence[str] = (),
+    references: Sequence[dict[str, str]] = (),
+    live: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """A clickable parent -> child map (the Load Balancer Analyzer draws virtual server -> pool -> member -> monitor with it).
+
+    ``nodes`` is a flat list; each node carries ``id`` and ``parent`` ("" for a root), a ``type`` from ``types`` and a ``status``
+    from ``statuses`` ("" = none), and optionally ``badge`` (short secondary text), ``reason``, ``source`` (live / config /
+    derived), ``ref`` (an entity key - the same pool under two virtual servers shares it), ``section`` (id of the table that lists
+    the object) and ``detail`` (key/value pairs for the side panel).  Order of the list is the order of the siblings.
+    """
+    cleaned: list[dict[str, Any]] = []
+    for node in nodes:
+        item: dict[str, Any] = {key: clean_value(node.get(key, "")) for key in MAP_NODE_FIELDS}
+        item["detail"] = [{"label": str(pair[0]), "value": clean_value(pair[1])} for pair in node.get("detail", []) if len(pair) > 1 and pair[1] not in (None, "", [])]
+        if node.get("tone"):
+            item["tone"] = node["tone"]
+        cleaned.append(item)
+    truncated = len(cleaned) > MAX_MAP_NODES
+    if truncated:
+        keep = {item["id"] for item in cleaned[:MAX_MAP_NODES]}
+        cleaned = [item for item in cleaned[:MAX_MAP_NODES] if not item["parent"] or item["parent"] in keep]
+    return {
+        "id": section_id, "title": title, "group": group, "kind": "map", "hint": hint, "empty": empty, "nodes": cleaned,
+        "statuses": [dict(status) for status in statuses], "types": [dict(kind) for kind in types],
+        "references": [dict(ref) for ref in references], "live": dict(live or {}),
+        "notes": list(notes) + ([f"The map was cut at {MAX_MAP_NODES:,} objects."] if truncated else []),
+    }
+
+
+def map_depths(section: dict[str, Any]) -> list[tuple[dict[str, Any], int, str]]:
+    """Depth-first walk of a map section: ``(node, depth, path)`` in display order, ``path`` being the names from the root down."""
+    kids: dict[str, list[dict[str, Any]]] = {}
+    for node in section.get("nodes", []):
+        kids.setdefault(node.get("parent", ""), []).append(node)
+    out: list[tuple[dict[str, Any], int, str]] = []
+    seen: set[str] = set()
+
+    def walk(parent: str, depth: int, path: str) -> None:
+        for node in kids.get(parent, []):
+            if node["id"] in seen:
+                continue
+            seen.add(node["id"])
+            here = f"{path} > {node['name']}" if path else node["name"]
+            out.append((node, depth, here))
+            walk(node["id"], depth + 1, here)
+
+    walk("", 0, "")
+    return out
+
+
+def map_as_table(section: dict[str, Any]) -> dict[str, Any]:
+    """A map flattened to a table section (one row per object, path from the root) for the Excel export and the comparison."""
+    type_labels = {kind["key"]: kind.get("label", kind["key"]) for kind in section.get("types", [])}
+    rows = []
+    for node, depth, path in map_depths(section):
+        details = "; ".join(f"{pair['label']}: {', '.join(pair['value']) if isinstance(pair['value'], list) else pair['value']}" for pair in node.get("detail", []))
+        rows.append({"path": path, "level": depth, "type": type_labels.get(node["type"], node["type"]), "name": node["name"], "status": node.get("status", ""), "badge": node.get("badge", ""),
+                     "reason": node.get("reason", ""), "source": node.get("source", ""), "detail": details})
+    return table_section(section["id"], section["title"], [("path", "Path", "wrap"), ("level", "Level", "num"), ("type", "Type"), ("name", "Name", "mono"), ("status", "Status", "status"), ("badge", "Address / note"),
+                                                          ("reason", "Reason", "wrap"), ("source", "Source"), ("detail", "Detail", "wrap")], rows, group=section.get("group", ""), hint=section.get("hint", ""), page_size=300)
+
+
 def card(label: str, value: Any, tone: str = "", hint: str = "", section: str = "") -> dict[str, Any]:
     if tone not in TONES:
         raise ValueError(f"unknown tone {tone!r}")
@@ -196,6 +273,20 @@ def validate_result(result: dict[str, Any]) -> list[str]:
         elif section.get("kind") == "kv":
             if "pairs" not in section:
                 problems.append(f"section {sid}: kv without pairs")
+        elif section.get("kind") == "map":
+            node_ids = [node.get("id") for node in section.get("nodes", [])]
+            if len(set(node_ids)) != len(node_ids):
+                problems.append(f"section {sid}: duplicate map node ids")
+            known = set(node_ids)
+            orphans = [node["id"] for node in section.get("nodes", []) if node.get("parent") and node["parent"] not in known]
+            if orphans:
+                problems.append(f"section {sid}: map nodes with an unknown parent {orphans[:3]}")
+            status_keys = {status["key"] for status in section.get("statuses", [])} | {""}
+            type_keys = {kind["key"] for kind in section.get("types", [])}
+            for node in section.get("nodes", []):
+                if node.get("status") not in status_keys or node.get("type") not in type_keys:
+                    problems.append(f"section {sid}: map node {node.get('id')} uses an undeclared status or type")
+                    break
         else:
             problems.append(f"section {sid}: unknown kind {section.get('kind')!r}")
     for item in result.get("findings", []):

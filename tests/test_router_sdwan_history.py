@@ -199,8 +199,8 @@ def test_controller_managed_mode_switches_the_sdwan_dialect_on_without_status_ou
 # ------------------------------------------------------------------ logging
 def test_show_logging_last_n_is_recognised_and_reports_the_window():
     result = analyze(load(), "x.txt")
-    assert any(row["command"].startswith("show logging last") and row["status"] == "analysed" for row in result["coverage"])
-    assert "Lines analysed" in {p["label"] for p in section_by_id(result, "log_summary")["pairs"]}
+    assert any(row["command"].startswith("show logging last") and row["status"] == "analyzed" for row in result["coverage"])
+    assert "Lines analyzed" in {p["label"] for p in section_by_id(result, "log_summary")["pairs"]}
 
 
 def test_sdwan_daemon_messages_are_parsed_and_omp_flaps_are_counted():

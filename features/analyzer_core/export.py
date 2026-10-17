@@ -21,6 +21,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from .findings import SEVERITY_LABEL, severity_counts
+from .result import map_as_table
 
 HEADER_FILL = PatternFill("solid", fgColor="1F3A4D")
 HEADER_FONT = Font(bold=True, color="FFFFFF")
@@ -34,6 +35,11 @@ SEVERITY_FILL = {
 }
 _BAD_SHEET_CHARS = re.compile(r"[\\/*?:\[\]]")
 MAX_COL_WIDTH = 60
+
+
+def _sections_of(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """The result's sections as tables / key-value blocks: a map (tree) is written as one row per object with its path from the root."""
+    return [map_as_table(section) if section.get("kind") == "map" else section for section in result.get("sections", [])]
 
 
 def safe_cell(value: Any) -> Any:
@@ -151,7 +157,7 @@ def export_results(results: list[dict[str, Any]], path: Path, *, analyzer_label:
     order: list[str] = []
     meta: dict[str, dict[str, Any]] = {}
     for result in results:
-        for section in result.get("sections", []):
+        for section in _sections_of(result):
             if section["id"] not in meta:
                 meta[section["id"]] = section
                 order.append(section["id"])
@@ -161,7 +167,7 @@ def export_results(results: list[dict[str, Any]], path: Path, *, analyzer_label:
             columns = list(first["columns"])
             known = {col["key"] for col in columns}
             for result in results:
-                for section in result.get("sections", []):
+                for section in _sections_of(result):
                     if section["id"] == sid and section["kind"] == "table":
                         for col in section["columns"]:
                             if col["key"] not in known:
@@ -169,7 +175,7 @@ def export_results(results: list[dict[str, Any]], path: Path, *, analyzer_label:
                                 known.add(col["key"])
             rows = []
             for result in results:
-                for section in result.get("sections", []):
+                for section in _sections_of(result):
                     if section["id"] == sid and section["kind"] == "table":
                         for row in section["rows"]:
                             rows.append([result.get("hostname", "")] + [row.get(col["key"], "") for col in columns])
@@ -178,7 +184,7 @@ def export_results(results: list[dict[str, Any]], path: Path, *, analyzer_label:
         else:
             rows = []
             for result in results:
-                for section in result.get("sections", []):
+                for section in _sections_of(result):
                     if section["id"] == sid and section["kind"] == "kv":
                         for pair in section["pairs"]:
                             rows.append([result.get("hostname", ""), pair["label"], pair["value"]])

@@ -20,7 +20,7 @@ from .bigip_extract import short
 from .tmsh_tree import TNode, TmshTree
 
 # object types the main extractor already turns into tables (first two words of the stanza)
-ANALYSED = {
+ANALYZED = {
     ("ltm", "virtual"), ("ltm", "virtual-address"), ("ltm", "pool"), ("ltm", "node"), ("ltm", "monitor"), ("ltm", "profile"), ("ltm", "persistence"), ("ltm", "rule"), ("ltm", "policy"), ("ltm", "data-group"),
     ("ltm", "snat"), ("ltm", "snatpool"), ("ltm", "snat-translation"), ("ltm", "default-node-monitor"), ("ltm", "global-settings"), ("net", "vlan"), ("net", "self"), ("net", "self-allow"), ("net", "route"), ("net", "route-domain"),
     ("net", "trunk"), ("cm", "device"), ("cm", "device-group"), ("cm", "traffic-group"), ("cm", "trust-domain"), ("cm", "cert"), ("cm", "key"), ("sys", "httpd"), ("sys", "sshd"), ("sys", "snmp"), ("sys", "ntp"), ("sys", "dns"),
@@ -163,10 +163,10 @@ def _inventory(tree: TmshTree) -> list[dict[str, Any]]:
             names[key].append(short(label) if label else "(singleton)")
     rows = []
     for key, count in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
-        status = "analysed" if key[:2] in ANALYSED else "listed on the Security tab" if key in SHOWN_HERE else "counted only"
+        status = "analyzed" if key[:2] in ANALYZED else "listed on the Security tab" if key in SHOWN_HERE else "counted only"
         listed = names[key]
         rows.append({"type": " ".join(key), "count": count, "status": status, "objects": listed[:NAMES_PREVIEW] + ([f"… +{count - NAMES_PREVIEW}"] if count > NAMES_PREVIEW else []),
-                     "_tones": {"status": "ok" if status == "analysed" else "info" if status.startswith("listed") else "mute"}})
+                     "_tones": {"status": "ok" if status == "analyzed" else "info" if status.startswith("listed") else "mute"}})
     return rows
 
 
@@ -179,7 +179,7 @@ def _globals(tree: TmshTree) -> list[dict[str, Any]]:
         if not node.block or not node.tokens or node.raw:
             continue
         key = _type_key(node.tokens)
-        if counts[key] != 1 or key[:2] in ANALYSED or key in SHOWN_HERE or node.tokens[0] not in MODULES:
+        if counts[key] != 1 or key[:2] in ANALYZED or key in SHOWN_HERE or node.tokens[0] not in MODULES:
             continue
         pairs = [(c.key, c.value if c.args else ("{ " + " ".join(c.names())[:80] + " }" if c.inline and c.children else "(set)" if not c.block else "{ … }")) for c in node.children]
         if not pairs and not node.children:

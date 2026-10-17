@@ -1,0 +1,334 @@
+Synthetic BIG-IP DNS (GTM) capture. The 'show gtm' layout follows the documented command set; it was not taken from a real device.
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh show sys version
+Sys::Version
+Main Package
+  Product     BIG-IP
+  Version     15.1.8
+  Build       0.0.7
+  Edition     Point Release 4
+  Date        Wed Mar 30 2022
+
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh show sys provision
+-----------------------------------------------------------
+Sys::Provision
+Module  Level     CPU(%)  Memory(MB)
+-----------------------------------------------------------
+gtm     nominal   5       500
+ltm     nominal   5       500
+
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh list
+#TMSH-VERSION: 15.1.8
+sys provision gtm {
+    level nominal
+}
+sys provision ltm {
+    level nominal
+}
+ltm virtual /Common/vs_dns_listener {
+    destination /Common/10.9.9.9:53
+    ip-protocol udp
+    profiles {
+        /Common/dns { }
+        /Common/udp { }
+    }
+}
+gtm datacenter /Common/dc_jkt { }
+gtm datacenter /Common/dc_sby { }
+gtm datacenter /Common/dc_empty { }
+gtm server /Common/bigip_jkt {
+    datacenter /Common/dc_jkt
+    devices {
+        bigip_jkt {
+            addresses {
+                10.1.1.1 { }
+            }
+        }
+    }
+    monitor /Common/bigip
+    product redundant-bigip
+    virtual-servers {
+        vs_web {
+            destination 10.1.1.10:443
+        }
+        vs_api {
+            destination 10.1.1.11:443
+        }
+    }
+}
+gtm server /Common/bigip_sby {
+    datacenter /Common/dc_sby
+    devices {
+        bigip_sby {
+            addresses {
+                10.2.1.1 { }
+            }
+        }
+    }
+    monitor /Common/bigip
+    product bigip
+    virtual-servers {
+        vs_web {
+            destination 10.2.1.10:443
+        }
+    }
+}
+gtm server /Common/srv_off {
+    datacenter /Common/dc_sby
+    disabled
+    product generic-host
+    addresses {
+        10.2.5.5 { }
+    }
+    monitor /Common/gateway_icmp
+    virtual-servers {
+        vs1 {
+            destination 10.2.5.6:80
+        }
+    }
+}
+gtm pool a /Common/pool_web_a {
+    load-balancing-mode topology
+    members {
+        /Common/bigip_jkt:vs_web {
+            member-order 0
+        }
+        /Common/bigip_sby:vs_web {
+            member-order 1
+        }
+    }
+}
+gtm pool a /Common/pool_api_a {
+    members {
+        /Common/bigip_jkt:vs_api {
+            member-order 0
+        }
+        /Common/srv_off:vs1 {
+            member-order 1
+        }
+    }
+    monitor /Common/https
+}
+gtm pool a /Common/pool_empty_a { }
+gtm pool a /Common/pool_unused_a {
+    members {
+        /Common/bigip_sby:vs_web { }
+    }
+}
+gtm wideip a /Common/www.example.com {
+    pool-lb-mode topology
+    pools {
+        /Common/pool_web_a {
+            order 0
+        }
+    }
+    last-resort-pool a /Common/pool_api_a
+}
+gtm wideip a /Common/api.example.com {
+    pools {
+        /Common/pool_api_a {
+            order 0
+        }
+    }
+}
+gtm wideip a /Common/dead.example.com { }
+gtm wideip a /Common/off.example.com {
+    disabled
+    pools {
+        /Common/pool_web_a {
+            order 0
+        }
+    }
+}
+gtm listener /Common/ls_dns {
+    address 10.9.9.9
+    ip-protocol udp
+    port 53
+}
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh list gtm global-settings general
+gtm global-settings general {
+    synchronization yes
+    synchronization-group-name dns-sync
+}
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh list ltm dns zone
+ltm dns zone example.com {
+    dns-express-allow-notify { 10.0.0.53 }
+    dns-express-server /Common/ns_primary
+}
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh list ltm virtual-address all-properties
+ltm virtual-address /Common/10.9.9.9 {
+    address 10.9.9.9
+    arp enabled
+    mask 255.255.255.255
+    route-advertisement disabled
+    traffic-group /Common/traffic-group-1
+}
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh show gtm wideip a detail
+------------------------------------------------------------------
+Gtm::WideIp: www.example.com
+------------------------------------------------------------------
+Status
+  Availability : available
+  State        : enabled
+  Reason       : Available
+
+Requests
+  Total        : 12500
+  Resolved     : 12480
+  Persisted    : 0
+  Dropped      : 20
+
+Load Balancing Decisions
+  Total        : 12480
+  Preferred    : 12000
+  Alternate    : 0
+  Fallback     : 480
+
+------------------------------------------------------------------
+Gtm::WideIp: api.example.com
+------------------------------------------------------------------
+Status
+  Availability : offline
+  State        : enabled
+  Reason       : No enabled pools available
+
+Requests
+  Total        : 310
+  Resolved     : 0
+  Dropped      : 310
+
+------------------------------------------------------------------
+Gtm::WideIp: off.example.com
+------------------------------------------------------------------
+Status
+  Availability : offline
+  State        : disabled
+  Reason       : Disabled
+
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh show gtm pool a detail
+------------------------------------------------------------------
+Gtm::Pool: pool_web_a
+------------------------------------------------------------------
+Status
+  Availability : available
+  State        : enabled
+  Reason       : Available
+
+------------------------------------------------------------------
+Gtm::Pool Member: bigip_jkt:vs_web in pool_web_a
+------------------------------------------------------------------
+Status
+  Availability : available
+  State        : enabled
+  Reason       : Available
+
+------------------------------------------------------------------
+Gtm::Pool Member: bigip_sby:vs_web in pool_web_a
+------------------------------------------------------------------
+Status
+  Availability : offline
+  State        : enabled
+  Reason       : Monitor bigip from 10.1.1.1 failed
+
+------------------------------------------------------------------
+Gtm::Pool: pool_api_a
+------------------------------------------------------------------
+Status
+  Availability : offline
+  State        : enabled
+  Reason       : No enabled pool members available
+
+------------------------------------------------------------------
+Gtm::Pool Member: bigip_jkt:vs_api in pool_api_a
+------------------------------------------------------------------
+Status
+  Availability : offline
+  State        : enabled
+  Reason       : Monitor https from 10.1.1.1 failed
+
+------------------------------------------------------------------
+Gtm::Pool Member: srv_off:vs1 in pool_api_a
+------------------------------------------------------------------
+Status
+  Availability : offline
+  State        : disabled
+  Reason       : Disabled by a parent object
+
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh show gtm server detail
+------------------------------------------------------------------
+Gtm::Server: bigip_jkt
+------------------------------------------------------------------
+Status
+  Availability : available
+  State        : enabled
+  Reason       : Available
+  Data Center  : dc_jkt
+
+------------------------------------------------------------------
+Gtm::Virtual Server: vs_web on bigip_jkt
+------------------------------------------------------------------
+Status
+  Availability : available
+  State        : enabled
+  Reason       : Available
+
+------------------------------------------------------------------
+Gtm::Server: bigip_sby
+------------------------------------------------------------------
+Status
+  Availability : available
+  State        : enabled
+  Reason       : Available
+  Data Center  : dc_sby
+
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh show gtm datacenter
+------------------------------------------------------------------
+Gtm::Datacenter: dc_jkt
+------------------------------------------------------------------
+Status
+  Availability : available
+  State        : enabled
+  Reason       : Available
+
+------------------------------------------------------------------
+Gtm::Datacenter: dc_sby
+------------------------------------------------------------------
+Status
+  Availability : available
+  State        : enabled
+  Reason       : Available
+
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh show gtm iquery
+------------------------------------------------------------------
+Gtm::IQuery: 10.1.1.1
+------------------------------------------------------------------
+  Server                 bigip_jkt
+  Data Center            dc_jkt
+  iQuery State           connected
+  Query Reconnects       0
+  Bytes In               4.3M
+  Bytes Out              2.1M
+  Backlogs               0
+  Bytes Dropped          0
+
+------------------------------------------------------------------
+Gtm::IQuery: 10.2.1.1
+------------------------------------------------------------------
+  Server                 bigip_sby
+  Data Center            dc_sby
+  iQuery State           backlogged
+  Query Reconnects       7
+  Bytes In               1.0M
+  Bytes Out              9.9M
+  Backlogs               41
+  Bytes Dropped          1200
+
+[admin@dns-hq-01:Active:In Sync] ~ # tmsh show gtm listener
+------------------------------------------------------------------
+Gtm::Listener: ls_dns
+------------------------------------------------------------------
+Status
+  Availability : available
+  State        : enabled
+Requests
+  Total        : 12810
+  Dropped      : 330

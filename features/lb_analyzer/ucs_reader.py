@@ -105,7 +105,7 @@ def read_ucs(stream: BinaryIO) -> UcsBundle:
             raise UcsError(_not_ucs_message(exc)) from exc
         bundle.omitted["archive read stopped early (truncated file?)"] = 1
     if not any(n in texts for n in ("config/bigip.conf", "config/bigip_base.conf")):
-        raise UcsError("This archive does not contain config/bigip.conf or config/bigip_base.conf, so there is no BIG-IP configuration to analyse. Check that it was created with 'tmsh save sys ucs'.")
+        raise UcsError("This archive does not contain config/bigip.conf or config/bigip_base.conf, so there is no BIG-IP configuration to analyze. Check that it was created with 'tmsh save sys ucs'.")
     bundle.text = "\n".join(texts[n] for n in CONFIG_FILES if n in texts)
     return bundle
 

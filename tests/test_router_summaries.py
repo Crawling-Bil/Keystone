@@ -53,10 +53,10 @@ def test_ipv6_route_summary(result):
     assert any(row["detail"] == "overlay: 0" for row in section["rows"])
 
 
-def test_the_three_summaries_are_analysed_in_coverage(result):
+def test_the_three_summaries_are_analyzed_in_coverage(result):
     status = {row["command"]: row["status"] for row in result["coverage"]}
     for command in ("show ip route summary", "show ip route vrf 1 summary", "show ipv6 route summary", "show arp summary"):
-        assert status[command] == "analysed", command
+        assert status[command] == "analyzed", command
 
 
 def test_log_duration_is_next_to_the_window():

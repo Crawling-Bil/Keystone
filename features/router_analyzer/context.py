@@ -157,12 +157,12 @@ IGNORED_BY_DESIGN = (
     ("show interfaces switchport", "switch-port detail — use the Switch Analyzer"),
     ("show interfaces trunk", "switch-port detail — use the Switch Analyzer"),
     ("show spanning-tree ...", "spanning tree — use the Switch Analyzer"),
-    ("show cube status", "Cisco Unified Border Element (voice) — not analysed"),
-    ("show memory statistics history ...", "memory trend — the current state is analysed from 'show process memory' and 'show platform resources'"),
+    ("show cube status", "Cisco Unified Border Element (voice) — not analyzed"),
+    ("show memory statistics history ...", "memory trend — the current state is analyzed from 'show process memory' and 'show platform resources'"),
     ("show processes memory platform sorted", "per-process platform memory — the router-level view comes from 'show platform resources'"),
     ("show process memory platform ...", "per-process platform memory — the router-level view comes from 'show platform resources'"),
-    ("show ip ports all", "listening sockets — not analysed"),
-    ("show history ...", "CLI history — not analysed"),
+    ("show ip ports all", "listening sockets — not analyzed"),
+    ("show history ...", "CLI history — not analyzed"),
     ("ssh ...", "session hop through a jump host — not part of the analysis"),
     ("telnet ...", "session hop through a jump host — not part of the analysis"),
 )
@@ -533,7 +533,7 @@ def coverage_rows(ctx: Ctx) -> list[dict[str, Any]]:
     for block in capture.blocks:
         label = ctx.used_blocks.get(block.index)
         if label:
-            status, note = "analysed", label
+            status, note = "analyzed", label
         elif block.error:
             status, note = "error", f"device rejected the command: {block.error}"
         elif block.command.rstrip().endswith("?"):

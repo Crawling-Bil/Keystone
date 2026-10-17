@@ -1,6 +1,11 @@
 import re
 from pathlib import Path
 
+from features.configuration_studio.converter_engine.parsers.firewall import paloalto_curly
+from features.configuration_studio.converter_engine.parsers.firewall.paloalto_operational import (
+    PaloAltoOperationalCaptureParser,
+    looks_like_paloalto_operational_capture,
+)
 from features.configuration_studio.converter_engine.parsers.firewall.paloalto_xml import (
     PaloAltoXmlConfigParser,
     PaloAltoXmlParseError,
@@ -218,8 +223,22 @@ class PaloAltoFirewallParser:
 
     def parse_file(self, filename):
         path = Path(filename)
-        with open(path, "r", encoding="utf-8", errors="ignore") as file:
+        # newline="" keeps a bare "\r" distinct from a line ending: a terminal log uses it for in-place redraws and the
+        # terminal replay needs them as they were (default text mode would turn each into "\n").
+        with open(path, "r", encoding="utf-8", errors="ignore", newline="") as file:
             raw_text = file.read()
+
+        if not self._looks_like_xml(raw_text) and not raw_text.lstrip("\ufeff \t\r\n").startswith("set "):
+            if paloalto_curly.looks_like_curly(raw_text):
+                # "show config running" taken from an interactive session: curly-brace view -> same tree as the XML export
+                capture = paloalto_curly.convert(raw_text)
+                config = PaloAltoXmlConfigParser().parse_text(capture.xml, source_file=str(filename))
+                if capture.system_info:
+                    config.metadata.update({k.replace("-", "_"): v for k, v in capture.system_info.items() if k in ("model", "serial", "sw-version", "uptime", "family")})
+                return config
+            if looks_like_paloalto_operational_capture(raw_text):
+                # show system info / show interface all / show routing route ... : runtime state only
+                return PaloAltoOperationalCaptureParser().parse_text(raw_text, source_file=str(filename))
 
         if self._looks_like_xml(raw_text):
             try:

@@ -61,6 +61,8 @@ F5 = {
     "gtm_server": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_server.html",
     "gtm_datacenter": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_datacenter.html",
     "gtm_listener": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_listener.html",
+    "gtm_iquery": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_iquery.html",
+    "dns_iquery_troubleshooting": "https://techdocs.f5.com/en-us/bigip-17-5-0/big-ip-dns-implementations/how-to-diagnose-network-connection-issues.html",
     "gtm_topology": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_topology.html",
     "dos_apps": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/security/security_dos_profile.html",
     "log_profile": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/security/security_log_profile.html",

@@ -50,17 +50,17 @@ def interfaces(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
         })
     cols = [("name", "Interface", "mono"), ("alias", "Alias"), ("vdom", "VDOM"), ("type", "Type"), ("ip", "Address", "mono"), ("role", "Role"), ("facing", "Facing"), ("status", "Admin", "status"),
             ("parent", "Parent / members"), ("allowaccess", "Management access", "list"), ("description", "Description", "wrap")]
-    out = [table_section("interfaces", "Interfaces", cols, rows, group="Interfaces", hint="Management access is highlighted in red on internet-facing interfaces and wherever Telnet or HTTP is allowed. Live link state is not part of a configuration export.")]
+    out = [table_section("interfaces", "Interfaces", cols, rows, group="Interfaces", hint="Management access is highlighted in red on internet-facing interfaces and wherever Telnet or HTTP is allowed. Live link state is not part of a configuration export.", facets=[{"key": "status", "label": "status"}])]
     out.append(table_section("zones", "Zones", [("name", "Zone", "mono"), ("vdom", "VDOM"), ("interfaces", "Members", "list"), ("intrazone", "Intra-zone traffic"), ("description", "Description", "wrap")],
                              [dict(z, _tones={"intrazone": "warn" if z["intrazone"] == "allow" else ""}) for z in data["zones"]], group="Interfaces", empty="No zones defined."))
     routes = [dict(r, blackhole=_yes(r["blackhole"]), _tone="mute" if r["status"] == "disable" else "") for r in data["routes"]]
     out.append(table_section("static_routes", "Static routes", [("seq", "Seq"), ("vdom", "VDOM"), ("dst", "Destination", "mono"), ("gateway", "Gateway", "mono"), ("device", "Interface", "mono"), ("distance", "Distance", "num"),
                                                                  ("priority", "Priority", "num"), ("blackhole", "Blackhole"), ("status", "Status", "status"), ("comment", "Comment", "wrap")],
-                             routes, group="Interfaces", empty="No static routes."))
+                             routes, group="Interfaces", empty="No static routes.", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     out.append(table_section("policy_routes", "Policy routes", [("seq", "Seq"), ("vdom", "VDOM"), ("input", "Incoming", "list"), ("src", "Source", "mono"), ("dst", "Destination", "mono"), ("protocol", "Proto"),
-                                                                ("gateway", "Gateway", "mono"), ("output", "Out interface"), ("status", "Status", "status")], data["policy_routes"], group="Interfaces", empty="No policy routes."))
+                                                                ("gateway", "Gateway", "mono"), ("output", "Out interface"), ("status", "Status", "status")], data["policy_routes"], group="Interfaces", empty="No policy routes.", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     out.append(table_section("dhcp", "DHCP servers", [("id", "ID"), ("vdom", "VDOM"), ("interface", "Interface", "mono"), ("gateway", "Gateway", "mono"), ("netmask", "Mask", "mono"), ("ranges", "Ranges", "list"),
-                                                      ("dns", "DNS", "list"), ("lease", "Lease (s)", "num"), ("status", "Status", "status")], data["dhcp"], group="Interfaces", empty="No DHCP servers."))
+                                                      ("dns", "DNS", "list"), ("lease", "Lease (s)", "num"), ("status", "Status", "status")], data["dhcp"], group="Interfaces", empty="No DHCP servers.", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     return out
 
 
@@ -90,7 +90,7 @@ def policies(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
     cols = [("id", "ID", "id"), ("name", "Name"), ("vdom", "VDOM"), ("from", "From", "list"), ("to", "To", "list"), ("source", "Source", "list"), ("destination", "Destination", "list"), ("service", "Service", "list"),
             ("schedule", "Schedule"), ("action", "Action", "status"), ("nat", "NAT"), ("log", "Log"), ("profiles", "Security profiles", "list"), ("status", "Status", "status"), ("comments", "Comments", "wrap")]
     out = [table_section("policies", "Firewall policies", cols, rows, group="Policies", page_size=100,
-                         hint="In evaluation order. Rows with a wildcard source, destination or service are shaded; disabled policies are dimmed. The first matching enabled policy wins.")]
+                         hint="In evaluation order. Rows with a wildcard source, destination or service are shaded; disabled policies are dimmed. The first matching enabled policy wins.", facets=[{"key": "action", "label": "action", "order": ["accept", "deny"]}, {"key": "status", "label": "status", "order": ["enable", "disable"]}])]
     by_vdom = getattr(res, "used_by_vdom", {})
     used = res.used
     addr_rows = []
@@ -124,7 +124,7 @@ def traffic_control(data: dict[str, Any]) -> list[dict[str, Any]]:
     if sp:
         out.append(table_section("shaping_policies", "Traffic shaping policies", [("id", "ID", "id"), ("name", "Name"), ("vdom", "VDOM"), ("srcintf", "From", "list"), ("dstintf", "To", "list"), ("src", "Source", "list"), ("dst", "Destination", "list"),
                                                                                   ("service", "Service", "list"), ("schedule", "Schedule"), ("shaper", "Shaper"), ("reverse_shaper", "Reverse shaper"), ("per_ip", "Per-IP shaper"), ("status", "Status", "status")],
-                                 sp, group="Policies"))
+                                 sp, group="Policies", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     if data.get("traffic_shapers"):
         out.append(table_section("traffic_shapers", "Traffic shapers", [("name", "Name", "mono"), ("vdom", "VDOM"), ("max_bw", "Max bandwidth (kbps)", "num"), ("guaranteed_bw", "Guaranteed (kbps)", "num"), ("priority", "Priority"), ("per_policy", "Per policy")],
                                  data["traffic_shapers"], group="Policies"))
@@ -145,12 +145,12 @@ def nat(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
     out.append(table_section("vipgrps", "Virtual IP groups", [("name", "Name", "mono"), ("vdom", "VDOM"), ("members", "Members", "list")], data["vipgrps"], group="NAT & Local-in", empty="No virtual IP groups."))
     out.append(table_section("ippools", "IP pools (source NAT)", [("name", "Name", "mono"), ("vdom", "VDOM"), ("type", "Type"), ("start", "Start", "mono"), ("end", "End", "mono"), ("comment", "Comment", "wrap")], data["ippools"], group="NAT & Local-in", empty="No IP pools."))
     out.append(table_section("central_snat", "Central SNAT map", [("id", "ID"), ("vdom", "VDOM"), ("srcintf", "From", "list"), ("dstintf", "To", "list"), ("orig", "Original source", "list"), ("dst", "Destination", "list"),
-                                                                 ("nat", "NAT"), ("pool", "Pool", "list"), ("status", "Status", "status")], data["central_snat"], group="NAT & Local-in", empty="Central SNAT is not used."))
+                                                                 ("nat", "NAT"), ("pool", "Pool", "list"), ("status", "Status", "status")], data["central_snat"], group="NAT & Local-in", empty="Central SNAT is not used.", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     out.append(table_section("local_in", "Local-in policies", [("id", "ID"), ("vdom", "VDOM"), ("intf", "Interface", "list"), ("srcaddr", "Source", "list"), ("dstaddr", "Destination", "list"), ("service", "Service", "list"),
                                                               ("action", "Action", "status"), ("status", "Status", "status")], [dict(l, _tones={"action": "ok" if l["action"] == "accept" else "bad"}) for l in data["local_in"]], group="NAT & Local-in",
-                             empty="No local-in policies: access to the FortiGate itself is controlled only by each interface's allowaccess list."))
+                             empty="No local-in policies: access to the FortiGate itself is controlled only by each interface's allowaccess list.", facets=[{"key": "action", "label": "action", "order": ["accept", "deny"]}, {"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     out.append(table_section("dos", "DoS policies", [("id", "ID"), ("vdom", "VDOM"), ("interface", "Interface"), ("srcaddr", "Source", "list"), ("dstaddr", "Destination", "list"), ("service", "Service", "list"),
-                                                    ("anomalies", "Anomaly checks", "num"), ("status", "Status", "status")], data["dos"], group="NAT & Local-in", empty="No DoS policies."))
+                                                    ("anomalies", "Anomaly checks", "num"), ("status", "Status", "status")], data["dos"], group="NAT & Local-in", empty="No DoS policies.", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     return out
 
 
@@ -195,7 +195,7 @@ def routing(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
                                                       ("redistribute", "Redistribute", "list"), ("default_info", "Default originate")], ospf_rows, group="Routing", empty="OSPF is not configured."))
     out.append(table_section("ospf_areas", "OSPF areas", [("vdom", "VDOM"), ("id", "Area", "mono"), ("type", "Type"), ("auth", "Authentication")], area_rows, group="Routing", empty="No OSPF areas."))
     out.append(table_section("ospf_interfaces", "OSPF interfaces", [("vdom", "VDOM"), ("name", "Name"), ("interface", "Interface", "mono"), ("auth", "Authentication", "status"), ("network_type", "Network type"), ("cost", "Cost", "num"),
-                                                                    ("hello", "Hello", "num"), ("dead", "Dead", "num"), ("status", "Status", "status")], if_rows, group="Routing", empty="No OSPF interfaces."))
+                                                                    ("hello", "Hello", "num"), ("dead", "Dead", "num"), ("status", "Status", "status")], if_rows, group="Routing", empty="No OSPF interfaces.", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     out.append(table_section("ospf_networks", "OSPF networks", [("vdom", "VDOM"), ("network", "Network / area", "mono")], net_rows, group="Routing"))
     return out
 
@@ -207,7 +207,7 @@ def sdwan(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
     out = [kv_section("sdwan_state", "SD-WAN", [("Status", sd["status"]), ("Load-balance mode", sd["load_balance"] or "default"), ("Zones", ", ".join(sd["zones"]) or "—"), ("VDOM", sd["vdom"]),
                                                 ("Syntax", "system virtual-wan-link (FortiOS 6.x)" if sd.get("legacy_name") else "system sdwan")], group="SD-WAN")]
     out.append(table_section("sdwan_members", "SD-WAN members", [("seq", "Seq"), ("interface", "Interface", "mono"), ("zone", "Zone"), ("gateway", "Gateway", "mono"), ("cost", "Cost", "num"), ("priority", "Priority", "num"), ("status", "Status", "status")],
-                             sd["members"], group="SD-WAN", empty="No members."))
+                             sd["members"], group="SD-WAN", empty="No members.", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     checks = []
     for h in sd["health_checks"]:
         sla = "; ".join(f"#{s['id']}: ≤{s['latency'] or '—'} ms, jitter ≤{s['jitter'] or '—'} ms, loss ≤{s['loss'] or '—'} %" for s in h["slas"]) or "none"
@@ -216,7 +216,7 @@ def sdwan(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
     out.append(table_section("sdwan_health", "Health checks", [("name", "Name", "mono"), ("server", "Probe target", "mono"), ("protocol", "Protocol"), ("members", "Members", "list"), ("interval", "Interval (ms)", "num"),
                                                               ("failtime", "Fail time", "num"), ("recovery", "Recovery", "num"), ("sla", "SLA", "wrap")], checks, group="SD-WAN", empty="No health checks."))
     out.append(table_section("sdwan_rules", "SD-WAN rules", [("id", "ID"), ("name", "Name"), ("mode", "Mode"), ("src", "Source", "list"), ("dst", "Destination", "list"), ("app", "Internet service / app", "list"),
-                                                            ("members", "Priority members", "list"), ("health_check", "Health check", "list"), ("status", "Status", "status")], sd["rules"], group="SD-WAN", empty="No SD-WAN rules."))
+                                                            ("members", "Priority members", "list"), ("health_check", "Health check", "list"), ("status", "Status", "status")], sd["rules"], group="SD-WAN", empty="No SD-WAN rules.", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     return out
 
 
@@ -317,12 +317,12 @@ def system(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
     if data.get("vdom_limits"):
         out.append(table_section("vdom_limits", "VDOM resource limits (customised)", [("vdom", "VDOM", "mono"), ("limits", "Limits", "wrap")], data["vdom_limits"], group="System"))
     if data.get("auto_stitches"):
-        out.append(table_section("auto_stitches", "Automation stitches", [("name", "Stitch", "mono"), ("vdom", "VDOM"), ("trigger", "Trigger"), ("actions", "Actions", "list"), ("status", "Status", "status")], data["auto_stitches"], group="System"))
+        out.append(table_section("auto_stitches", "Automation stitches", [("name", "Stitch", "mono"), ("vdom", "VDOM"), ("trigger", "Trigger"), ("actions", "Actions", "list"), ("status", "Status", "status")], data["auto_stitches"], group="System", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
         out.append(table_section("auto_triggers", "Automation triggers", [("name", "Trigger", "mono"), ("vdom", "VDOM"), ("event", "Event"), ("detail", "Detail", "wrap")], data["auto_triggers"], group="System"))
         out.append(table_section("auto_actions", "Automation actions", [("name", "Action", "mono"), ("vdom", "VDOM"), ("kind", "Type"), ("detail", "Target", "wrap")], data["auto_actions"], group="System"))
     if data.get("link_monitors"):
         out.append(table_section("link_monitors", "Link monitors", [("name", "ID", "mono"), ("vdom", "VDOM"), ("interface", "Interface"), ("server", "Server", "mono"), ("gateway", "Gateway", "mono"), ("protocol", "Protocol"),
-                                                                    ("interval", "Interval (ms)", "num"), ("failtime", "Fail", "num"), ("recovery", "Recovery", "num"), ("status", "Status", "status")], data["link_monitors"], group="Routing"))
+                                                                    ("interval", "Interval (ms)", "num"), ("failtime", "Fail", "num"), ("recovery", "Recovery", "num"), ("status", "Status", "status")], data["link_monitors"], group="Routing", facets=[{"key": "status", "label": "status", "order": ["enable", "disable"]}]))
     if data.get("sniffers"):
         out.append(table_section("sniffers", "Traffic sniffer (one-arm IDS) policies", [("id", "ID", "id"), ("vdom", "VDOM"), ("interface", "Interface"), ("host", "Host filter", "mono"), ("port", "Port filter", "mono"), ("status", "Status", "status")], data["sniffers"], group="Interfaces",
                                  hint="Sniffer policies mirror traffic for inspection only; they do not block anything."))
@@ -371,6 +371,7 @@ def hardening(data: dict[str, Any], res: Resolver, findings: list[dict[str, Any]
         row("Operations", "Firmware is current", f"{data['header'].get('version', '?')} build {data['header'].get('build', '?')}", ("FGT-SYS-001",)),
     ]
     return [table_section("hardening", "Hardening checklist", [("area", "Area"), ("check", "Check"), ("observed", "Observed", "wrap"), ("result", "Result", "status")], rows, group="Hardening",
+                          facets=[{"key": "result", "label": "result", "order": ["fail", "pass", "n/a"]}],
                           hint="A check fails when the matching finding fired; open the Findings tab for the detail and the Fortinet documentation link.")]
 
 

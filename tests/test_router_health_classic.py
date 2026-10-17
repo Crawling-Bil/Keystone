@@ -186,7 +186,7 @@ def test_health_tables_for_a_stack(monkeypatch=None):
     sensors = section(result, "environment")
     assert sensors["total"] == 11 and all(r["_tones"]["state"] == "ok" for r in sensors["rows"])
     rows = {row["command"]: row for row in result["coverage"]}
-    assert rows["show environment all"]["status"] == "analysed" and rows["show platform"]["status"] == "analysed"
+    assert rows["show environment all"]["status"] == "analyzed" and rows["show platform"]["status"] == "analyzed"
 
 
 def test_license_status_under_smart_licensing_feeds_the_same_check_as_license_all():
@@ -198,7 +198,7 @@ def test_license_status_under_smart_licensing_feeds_the_same_check_as_license_al
     assert "'show license status': last ACK none" in finding["detail"] and "Sep 06 15:23:05 2022 GMT" in finding["detail"]
     assert section(result, "licensing")["pairs"], "the Smart Licensing table shows the same fields"
     coverage = {row["command"]: row for row in result["coverage"]}
-    assert coverage["show license status"]["status"] == "analysed"
+    assert coverage["show license status"]["status"] == "analyzed"
 
 
 def test_classic_license_status_is_a_device_credential_not_a_smart_licensing_table():

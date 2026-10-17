@@ -14,7 +14,8 @@ from . import bigip_extract, bigip_runtime
 from .tmsh_tree import TmshTree
 
 # parsers written from the documented 'show' layouts but not yet run on a captured BIG-IP
-UNVALIDATED = {"version": "show sys version", "sync": "show cm sync-status", "failover": "show cm failover-status", "virtuals": "show ltm virtual", "pools": "show ltm pool"}
+UNVALIDATED = {"version": "show sys version", "sync": "show cm sync-status", "failover": "show cm failover-status", "virtuals": "show ltm virtual", "pools": "show ltm pool", "pool_members": "show ltm pool members", "nodes": "show ltm node",
+               "gtm_wideips": "show gtm wideip", "gtm_pools": "show gtm pool", "gtm_servers": "show gtm server", "gtm_datacenters": "show gtm datacenter", "gtm_iquery": "show gtm iquery", "gtm_listeners": "show gtm listener"}
 
 
 def cards(data: dict[str, Any], findings: list[dict[str, Any]], runtime: dict[str, Any], today: date) -> list[dict[str, Any]]:
@@ -98,24 +99,27 @@ def info(data: dict[str, Any], runtime: dict[str, Any], tree: TmshTree) -> list[
 def coverage(data: dict[str, Any], tree: TmshTree, runtime: dict[str, Any]) -> list[dict[str, Any]]:
     sysd = data["sys"]
     counts = f"{len(data['virtuals'])} virtual servers, {len(data['pools'])} pools, {len(data['nodes'])} nodes, {len(data['monitors'])} monitors, {len(data['profiles'])} profiles, {len(data['irules'])} iRules"
-    rows = [{"command": "ltm (tmsh list ltm ... / bigip.conf)", "status": "analysed" if sysd["has_ltm"] else "missing", "lines": tree.lines, "note": counts if sysd["has_ltm"] else "No virtual servers, pools or nodes. Add bigip.conf, or run 'tmsh list ltm virtual', 'ltm pool', 'ltm node', 'ltm monitor', 'ltm profile', 'ltm rule'.", "tone": "ok" if sysd["has_ltm"] else "warn"},
-            {"command": "net / sys / auth (bigip_base.conf)", "status": "analysed" if sysd["has_base"] else "missing", "lines": 0,
+    dns_only = not sysd["has_ltm"] and bool(data.get("gtm"))
+    rows = [{"command": "ltm (tmsh list ltm ... / bigip.conf)", "status": "analyzed" if sysd["has_ltm"] else ("covered" if dns_only else "missing"), "lines": tree.lines, "note": counts if sysd["has_ltm"] else ("No LTM objects: this is a DNS-only unit; see the DNS (GTM) tab." if dns_only else "No virtual servers, pools or nodes. Add bigip.conf, or run 'tmsh list ltm virtual', 'ltm pool', 'ltm node', 'ltm monitor', 'ltm profile', 'ltm rule'."), "tone": "ok" if sysd["has_ltm"] else ("info" if dns_only else "warn")},
+            {"command": "net / sys / auth (bigip_base.conf)", "status": "analyzed" if sysd["has_base"] else "missing", "lines": 0,
              "note": (f"{len(data['vlans'])} VLANs, {len(data['selfs'])} self IPs; management-plane rules were evaluated." if sysd["has_base"] else "Not in this export: management rules (GUI/SSH allow lists, SNMP, NTP, syslog, password policy, self IP port lockdown) were skipped. Add bigip_base.conf, or use 'tmsh list' for the whole configuration."),
              "tone": "ok" if sysd["has_base"] else "warn"},
-            {"command": "sys file ssl-cert", "status": "analysed" if data["certs"] else "missing", "lines": 0, "note": f"{len(data['certs'])} certificate objects; expiry and key size were checked." if data["certs"] else "No certificate objects: expiry dates were not checked. Run 'tmsh list sys file ssl-cert'.", "tone": "ok" if data["certs"] else "warn"},
-            {"command": "cm device / device-group / traffic-group", "status": "analysed" if data["devices"] or data["device_groups"] else "missing", "lines": 0,
+            {"command": "sys file ssl-cert", "status": "analyzed" if data["certs"] else "missing", "lines": 0, "note": f"{len(data['certs'])} certificate objects; expiry and key size were checked." if data["certs"] else "No certificate objects: expiry dates were not checked. Run 'tmsh list sys file ssl-cert'.", "tone": "ok" if data["certs"] else "warn"},
+            {"command": "cm device / device-group / traffic-group", "status": "analyzed" if data["devices"] or data["device_groups"] else "missing", "lines": 0,
              "note": f"{len(data['devices'])} device(s), {len(data['device_groups'])} device group(s)." if data["devices"] or data["device_groups"] else "No HA objects in the export; availability rules were skipped.", "tone": "ok" if data["devices"] or data["device_groups"] else "warn"}]
-    keys = {"show sys version": "version", "show cm sync-status": "sync", "show cm failover-status": "failover", "show ltm virtual": "virtuals", "show ltm pool": "pools"}
-    for command, purpose in bigip_runtime.COMMANDS:
+    keys = {"show sys version": "version", "show cm sync-status": "sync", "show cm failover-status": "failover", "show ltm virtual": "virtuals", "show ltm pool": "pools", "show ltm pool members": "pool_members", "show ltm node": "nodes",
+            "show gtm wideip a detail": "gtm_wideips", "show gtm pool a detail": "gtm_pools", "show gtm server detail": "gtm_servers", "show gtm datacenter": "gtm_datacenters", "show gtm iquery": "gtm_iquery", "show gtm listener": "gtm_listeners"}
+    dns_unit = bool(data.get("gtm")) or any(k.startswith("gtm_") for k in runtime)
+    for command, purpose in bigip_runtime.COMMANDS + (bigip_runtime.GTM_COMMANDS if dns_unit else ()):
         key = keys.get(command)
         if key and key in runtime:
-            rows.append({"command": command, "status": "analysed", "lines": 0, "note": "Shown on the Live state tab.", "tone": "ok"})
+            rows.append({"command": command, "status": "analyzed", "lines": 0, "note": "Shown on the Live state tab.", "tone": "ok"})
         elif key:
             rows.append({"command": command, "status": "missing", "lines": 0, "note": "Not in this capture - would add: " + purpose, "tone": "warn"})
     ucs = data.get("ucs")
     if ucs:
         b = ucs["bundle"]
-        rows.append({"command": "UCS archive (.ucs)", "status": "analysed", "lines": 0, "note": f"{b.members:,} entries streamed; {len(b.files)} configuration files, {len(b.certs)} public certificates, the license, {len(b.db)} customised sys db values, {len(b.history)} saved-configuration patches, accounts and OS access rules were read. Private keys, the master key store, password files and shell histories were skipped.", "tone": "ok"})
+        rows.append({"command": "UCS archive (.ucs)", "status": "analyzed", "lines": 0, "note": f"{b.members:,} entries streamed; {len(b.files)} configuration files, {len(b.certs)} public certificates, the license, {len(b.db)} customised sys db values, {len(b.history)} saved-configuration patches, accounts and OS access rules were read. Private keys, the master key store, password files and shell histories were skipped.", "tone": "ok"})
     else:
         rows.append({"command": "UCS archive (.ucs)", "status": "missing", "lines": 0, "note": "Not uploaded: certificate validity beyond what bigip_base.conf states, license subscription dates, the last change / failover times and customised sys db values are only in the UCS.", "tone": "info"})
     rows.append({"command": "tmsh list / bigip.conf: default values", "status": "covered", "lines": 0,

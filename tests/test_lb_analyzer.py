@@ -517,7 +517,7 @@ class LoadBalancerRouteTests(unittest.TestCase):
     def test_collect_scripts_endpoint_lists_load_balancer_files_only(self):
         body = self.client.get("/load-balancer-analyzer/api/collect-scripts").get_json()
         files = {s["file"] for s in body["scripts"]}
-        self.assertEqual(files, {"collect-lb-f5-bigip.txt"})
+        self.assertEqual(files, {"collect-lb-f5-bigip.txt", "collect-lb-f5-dns.txt"})
 
     def test_other_analyzers_do_not_list_the_load_balancer_collect_file(self):
         for prefix in ("/firewall-analyzer", "/router-analyzer"):

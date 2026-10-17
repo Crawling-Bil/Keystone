@@ -28,6 +28,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from features.analyzer_core.terminal import render as render_terminal
 from features.configuration_studio.converter_engine.models.paloalto_native import (
     PaDeviceInfo,
     PaInterface,
@@ -71,48 +72,33 @@ class PaloAltoOperationalParseError(ValueError):
 
 
 def _clean_putty_capture(raw_text: str) -> str:
-    """Undoes three kinds of terminal-emulation noise a raw PuTTY log
-    of an interactive PAN-OS CLI session is full of, all confirmed on
-    a real capture:
+    """Replays the raw PuTTY log through a terminal model
+    (features.analyzer_core.terminal.render) and returns what was on
+    the screen.  A saved session log is the byte stream the device
+    sent, not text, and a PAN-OS CLI session is full of terminal
+    control sequences, all confirmed on real captures:
 
-    1. ANSI escape sequences (cursor/mode control, e.g. "\\x1b[?1h",
-       "\\x1b[K", the pager's reverse-video "\\x1b[7m...\\x1b[27m") --
-       stripped outright, they carry no data.
+    1. Prompt repaints.  Tab completion and history redraw the whole
+       prompt after every completed word, with or without a leading
+       "\\r" ("show \\x1b[Kuser@fw> show system \\x1b[Kuser@fw> show
+       system info") -- only the last repaint is what the admin saw.
 
-    2. Bare carriage returns used for in-place redraw rather than a
-       line ending -- most visibly, PAN-OS's own tab-completion/typeahead
-       echo, where a single logical command line arrives as multiple
-       "\\r"-separated redraws of an increasingly complete command (e.g.
-       "show \\rshow system \\rshow system info"). Only the text after the
-       LAST "\\r" in a line is what was actually left on screen, so
-       that's the only part kept.
+    2. The "less" pager's status line, written in reverse video wherever
+       the page happened to end -- frequently in the MIDDLE of a table
+       row ("...  A  \\x08\\x1b[7mlines 1-30\\x1b[27m\\x1b[K\\r\\x1b[KS
+       ethernet1/13").  The rest of the row follows the erase, so the
+       status line is cut out and both halves join again.
 
-    3. Backspace bytes (\\x08) embedded mid-field in wrapped table
-       output (confirmed in "show interface all"'s logical-interface
-       table, where a narrow terminal wrapped a long CIDR address and
-       the redraw used a literal backspace instead of reflowing) --
-       resolved the same way a real terminal would: each backspace
-       deletes the character immediately before it. E.g. the raw bytes
-       "103.164.100.2" + " " + "\\x08" + "43/28" reconstruct to the
-       real address "103.164.100.243/28", not visible as such in the
-       raw log without this step.
+    3. Backspace-based wrapping inside tables: a long CIDR in
+       "show interface all" is wrapped as "103.164.100.2" + " " +
+       "\\x08" + "43/28" and reads 103.164.100.243/28 once the
+       backspace has overwritten the padding.
+
+    A plain "keep the text after the last \\r" shortcut gets these
+    mostly right and silently corrupts the rest (a row losing its
+    first half, or two addresses glued together).
     """
-    text = _ANSI_ESCAPE_RE.sub("", raw_text)
-    cleaned_lines: list[str] = []
-    for line in text.split("\n"):
-        if line.endswith("\r"):
-            line = line[:-1]
-        if "\r" in line:
-            line = line.rsplit("\r", 1)[1]
-        buf: list[str] = []
-        for ch in line:
-            if ch == "\x08":
-                if buf:
-                    buf.pop()
-            else:
-                buf.append(ch)
-        cleaned_lines.append("".join(buf))
-    return "\n".join(cleaned_lines)
+    return render_terminal(raw_text.lstrip("\ufeff"))
 
 
 def looks_like_paloalto_operational_capture(raw_text: str) -> bool:

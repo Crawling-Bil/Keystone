@@ -19,7 +19,7 @@ COLLECT_DIR = Path(__file__).resolve().parents[2] / "static" / "collect-scripts"
 _WORDS = {
     "ios": "IOS", "xe": "XE", "xr": "XR", "nxos": "NX-OS", "sdwan": "SD-WAN", "cedge": "cEdge", "asr": "ASR", "isr": "ISR",
     "pa": "PA", "paloalto": "Palo Alto", "panos": "PAN-OS", "fortigate": "FortiGate", "fortios": "FortiOS", "mikrotik": "MikroTik", "routeros": "RouterOS",
-    "bigip": "BIG-IP", "f5": "F5", "tmos": "TMOS", "ltm": "LTM", "gtm": "GTM", "asm": "ASM", "afm": "AFM", "vrp": "VRP",
+    "bigip": "BIG-IP", "f5": "F5", "tmos": "TMOS", "ltm": "LTM", "gtm": "GTM", "dns": "DNS", "asm": "ASM", "afm": "AFM", "vrp": "VRP",
     "cisco": "Cisco", "huawei": "Huawei", "aruba": "Aruba", "juniper": "Juniper", "junos": "Junos",
 }
 

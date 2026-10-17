@@ -76,7 +76,7 @@ def omp(ctx: Ctx) -> list[dict[str, Any]]:
         rows = [dict(p, _tones={"state": "ok" if p["state"] == "up" else "bad"}) for p in peers]
         sections.append(table_section("sdwan_omp_peers", "OMP sessions", [("peer", "Peer", "mono"), ("type", "Type"), ("site_id", "Site"), ("domain_id", "Domain"), ("overlay_id", "Overlay"), ("state", "State", "status"), ("uptime", "Uptime (d:h:m:s)"),
                                                                      ("received", "Routes received", "num"), ("installed", "Installed", "num"), ("sent", "Sent", "num")], rows, group=GROUP,
-                                      hint="Routes received / installed / sent. A second controller usually shows 0 installed because the first one's paths won."))
+                                      hint="Routes received / installed / sent. A second controller usually shows 0 installed because the first one's paths won.", facets=[{"key": "state", "label": "state"}]))
     if routes:
         legend = routes["legend"]
         total = routes["paths"]
@@ -85,7 +85,7 @@ def omp(ctx: Ctx) -> list[dict[str, Any]]:
             flags = set(status.split(","))
             usable = "R" in flags and "Inv" not in flags
             rows.append({"status": status, "meaning": _code_meaning(status, legend), "paths": count, "share": f"{100 * count / total:.1f}%", "_tones": {"status": "ok" if usable else _UNUSABLE_TONE}})
-        sections.append(table_section("sdwan_omp_status", "Overlay paths by status", [("status", "Status", "status"), ("meaning", "Meaning (device legend)", "wrap"), ("paths", "Paths", "num"), ("share", "Share")], rows, group=GROUP, searchable=False))
+        sections.append(table_section("sdwan_omp_status", "Overlay paths by status", [("status", "Status", "status"), ("meaning", "Meaning (device legend)", "wrap"), ("paths", "Paths", "num"), ("share", "Share")], rows, group=GROUP, searchable=False, facets=[{"key": "status", "label": "status"}]))
         mine = local_colors(ctx)
         bfd = ctx.get("sdwan_bfd") or []
         rows = []
@@ -158,7 +158,7 @@ def identity(ctx: Ctx) -> list[dict[str, Any]]:
     sections.append(table_section("sdwan_wan_interfaces", "WAN interfaces (TLOCs of this router)", [("interface", "Interface", "mono"), ("color", "Color"), ("state", "State", "status"), ("public", "Public address", "mono"), ("private", "Private address", "mono"),
                                                                                                ("nat", "NAT type"), ("max", "Max control conns"), ("rcs", "Restrict / control / STUN"), ("lrlb", "Last resort / low bandwidth"),
                                                                                                ("last", "Last control connection (d:h:m:s)"), ("spi", "SPI time remaining (d:h:m:s)")], rows, group=GROUP, searchable=False,
-                                  hint="NAT type, as the device prints it: E endpoint-independent mapping, A address-port dependent mapping, N not learned (it needs at least two vBond peers)."))
+                                  hint="NAT type, as the device prints it: E endpoint-independent mapping, A address-port dependent mapping, N not learned (it needs at least two vBond peers).", facets=[{"key": "state", "label": "state"}]))
     return sections
 
 
