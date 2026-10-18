@@ -1,0 +1,23 @@
+; JL724B Configuration Editor; Created on release #ArubaOS-CX_10.13
+hostname SW-LAB-ARUBA1
+!
+vlan 10
+    name USERS
+!
+interface 1/1/1
+    no shutdown
+    description LAB-PC-1
+    no routing
+    vlan access 10
+interface 1/1/25
+    no shutdown
+    description TO-LAB-CORE-1
+    no routing
+    vlan trunk native 1
+    vlan trunk allowed 10
+interface 2/1/26
+    no shutdown
+    description TO-LAB-CORE-2
+    no routing
+    vlan trunk native 1
+    vlan trunk allowed 10

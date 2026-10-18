@@ -609,6 +609,9 @@
     { label: "Local Interface", key: "local_interface" },
     { label: "Remote Interface", key: "remote_interface" },
     { label: "Platform", key: "platform" },
+    { label: "Management IP", key: "management_address" },
+    { label: "Software", key: "software" },
+    { label: "Native VLAN", key: "native_vlan" },
   ];
 
   // PBR / SLA-Track / NQA — one shared set of columns for both Single

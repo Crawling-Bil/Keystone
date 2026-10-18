@@ -25,6 +25,7 @@ from xml.etree import ElementTree as ET
 
 from ..analyzer_core.findings import finding
 from ..analyzer_core.result import kv_section, table_section
+from . import panos_xml_network
 from .refs import PALO
 
 WEAK_TLS = {"tls1-0": "TLS 1.0", "tls1-1": "TLS 1.1", "sslv3": "SSL 3.0"}
@@ -102,6 +103,10 @@ def extract(content: str) -> dict[str, Any] | None:
         "vsys": _vsys(device), "globalprotect": _globalprotect(root),
     }
     out["log_forwarding"] = _log_forwarding(shared)
+    net = panos_xml_network.extract(root, device)
+    out["network"] = net
+    if out["system"] and net["updates"]:                                    # readable schedule instead of the bare element names
+        out["system"]["update_schedule"] = [f"{u['content']} {u['frequency']} {u['at']}".strip() for u in net["updates"]]
     return out
 
 
@@ -259,7 +264,7 @@ def _syslog(root: ET.Element) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     holders = [root.find("shared")] + root.findall("devices/entry")
     for holder in holders:
-        for entry in _entries(holder, "server-profile/syslog"):
+        for entry in _entries(holder, "server-profile/syslog") + _entries(holder, "log-settings/syslog"):
             for srv in _entries(entry, "server"):
                 out.append({"profile": entry.get("name", ""), "server": _t(srv, "server"), "transport": _t(srv, "transport", "UDP"), "port": _t(srv, "port", "514"), "format": _t(srv, "format", "BSD"), "facility": _t(srv, "facility")})
     return out
@@ -397,6 +402,7 @@ def evaluate(extra: dict[str, Any], today: date | None = None) -> list[dict[str,
         if srv["kind"] == "LDAP" and srv["ssl"] is True and srv["verify_cert"] is False:
             out.append(finding("PAN-AUTH-003", "low", "Management", "LDAP server certificate is not verified", obj=f"ldap {srv['name']}", detail="A rogue server could impersonate the directory.",
                                recommendation="Enable verify-server-certificate and import the CA.", reference=PALO["auth_profile"]))
+    out += panos_xml_network.evaluate(extra.get("network") or {})
     return out
 
 
@@ -465,4 +471,5 @@ def sections(extra: dict[str, Any]) -> list[dict[str, Any]]:
         out.append(table_section("vsys_list", "Virtual systems", [("name", "ID", "mono"), ("display_name", "Display name"), ("zones", "Zones", "num"), ("interfaces", "Imported interfaces", "num")], extra["vsys"], group="System"))
     if extra.get("globalprotect"):
         out.append(table_section("globalprotect", "GlobalProtect / large-scale VPN objects", [("kind", "Kind"), ("name", "Name", "mono"), ("tunnel_interface", "Tunnel interface")], extra["globalprotect"], group="VPN"))
+    out += panos_xml_network.sections(extra.get("network") or {})
     return out

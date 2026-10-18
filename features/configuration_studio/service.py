@@ -5,8 +5,10 @@ from pathlib import Path
 from typing import Any
 
 from .converter_engine.domains import DOMAINS, classify, get_domain
+from .converter_engine.hardware.catalog import catalog_view, target_models as catalog_target_models
 from .converter_engine.engine import MigrationEngine
 from .converter_engine.profiles import PROFILE_REGISTRY
+from .converter_engine.session_capture import prepared as prepared_source
 from .converter_engine.translators.switch.huawei import HUAWEI_TARGET_MODELS
 from .converter_engine.translators.firewall.paloalto import PALOALTO_TARGET_MODELS
 
@@ -36,22 +38,31 @@ def available_profiles() -> list[dict[str, str]]:
 def available_target_models(target_vendor: str = "Huawei") -> list[dict[str, str]]:
     """
     Optional "Target Model" choices for the given target vendor —
-    purely additive, used only to flag a real port-count mismatch on a
-    physical interface (see HuaweiSwitchTranslator's own
-    resolve_target_ge_port_count docstring, and
-    PaloAltoFirewallTranslator.resolve_target_ethernet_port_count's
-    equivalent). An empty selection is always valid; this never blocks
-    a conversion, it only adds an extra safety check when the model is
-    known. Huawei and Palo Alto have confirmed model data; other
-    target vendors return an empty list until this project has
-    equivalent confirmed model data for them too.
+    purely additive. For switches the choice drives the interface map
+    (every source port -> a port that really exists on the chosen model,
+    see converter_engine/hardware/); for Palo Alto it flags a real
+    port-count mismatch (PaloAltoFirewallTranslator.
+    resolve_target_ethernet_port_count). An empty selection is always
+    valid; this never blocks a conversion. Huawei, Cisco (IOS-XE
+    Catalyst, with the uplink module as part of the choice), Aruba CX
+    and Palo Alto have confirmed model data; other vendors return an
+    empty list.
     """
     vendor = str(target_vendor or "").strip().lower()
     if vendor == "huawei":
         return list(HUAWEI_TARGET_MODELS)
     if vendor == "palo alto":
         return list(PALOALTO_TARGET_MODELS)
+    if vendor in ("cisco", "aruba"):
+        return catalog_target_models(vendor)
     return []
+
+
+def hardware_catalog(domain: str) -> list[dict[str, Any]]:
+    """Hardware catalog rows shown on the Convert Switch and Convert Router pages."""
+    if domain not in ("switch", "router"):
+        return []
+    return catalog_view(domain)
 
 
 # PaloAltoFirewallParser (models/paloalto_native.py's PaloAltoNativeConfig)
@@ -221,7 +232,22 @@ def safe_name(value: str, fallback: str = "converted-config") -> str:
     return value or fallback
 
 
-def convert_file(
+def convert_file(source_path: Path, **options: Any) -> dict[str, Any]:
+    """Convert one uploaded file.  A switch file that is a whole terminal session (login banner, ``show version``, ``show running-config``) is
+    reduced to its configuration block first (see ``converter_engine/session_capture.py``); the result says so under ``capture``."""
+    with prepared_source(source_path, options.get("domain")) as (prepared_path, extracted):
+        whole = source_path.read_text(encoding="utf-8", errors="ignore") if extracted is not None and extracted.cut else None
+        result = _convert_prepared(prepared_path, identity_text=whole, **options)
+    if extracted is not None and extracted.cut:
+        result["capture"] = {
+            "command": extracted.command,
+            "total_lines": extracted.total_lines,
+            "config_lines": extracted.kept_lines,
+        }
+    return result
+
+
+def _convert_prepared(
     source_path: Path,
     *,
     source_vendor: str = "Auto Detect",
@@ -232,6 +258,7 @@ def convert_file(
     target_model: str | None = None,
     mapping: dict[str, Any] | None = None,
     domain: str | None = None,
+    identity_text: str | None = None,
 ) -> dict[str, Any]:
     engine = create_engine()
     resolved_vendor, resolved_device_type, detection = _resolve_source(
@@ -250,6 +277,7 @@ def convert_file(
         profile=profile,
         target_model=target_model or None,
         mapping=mapping or None,
+        identity_text=identity_text,
     )
 
     source_text = source_path.read_text(encoding="utf-8", errors="ignore")
@@ -272,6 +300,7 @@ def convert_file(
         "profile": profile.name if profile else None,
         "inventory": inventory,
         "review_count": review_count,
+        "interface_map": (getattr(config, "metadata", None) or {}).get("interface_map"),
         "source_lines": len(source_text.splitlines()),
         "output_lines": len(output_text.splitlines()),
         "download_name": f"{safe_name(hostname)}_{safe_name(target_vendor)}.cfg",

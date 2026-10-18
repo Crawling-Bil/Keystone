@@ -1334,6 +1334,13 @@ class ArubaSwitchParser:
             interface.mode = "routed"
             return
 
+        if line == "no routing":
+
+            # L2 port. The switchport mode comes from "vlan access" /
+            # "vlan trunk ..."; the translators write "no routing" again
+            # for every access and trunk port.
+            return
+
         if line == "no switchport":
 
             interface.mode = "routed"

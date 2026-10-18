@@ -13,6 +13,7 @@ from datetime import date
 from typing import Any
 
 from ..analyzer_core.result import card, new_result
+from ..analyzer_core.vendor_hint import wrong_page_hint
 from . import bigip_enrich, bigip_extract, bigip_map, bigip_overview, bigip_rules, bigip_runtime, bigip_sections, bigip_sections_live, bigip_ucs
 from .tmsh_tree import parse_tmsh
 
@@ -20,19 +21,6 @@ PLATFORMS: tuple[tuple[str, str], ...] = ()          # one vendor so far; the pa
 
 
 _F5 = re.compile(r"^(#TMSH-VERSION:|ltm (?:virtual|pool|node|monitor|profile|rule|data-group|policy)\b|net (?:self|vlan|route|trunk)\b|sys (?:global-settings|httpd|sshd|snmp|ntp|provision)\b|cm (?:device|device-group|traffic-group)\b|gtm (?:wideip|pool|server|datacenter|listener|topology)\b|auth (?:user|ldap|source)\b)", re.M)
-_FORTI = re.compile(r"^(#config-version=FG|config (?:system global|firewall policy|system interface)\b)", re.M)
-_CISCO_HUAWEI = re.compile(r"^(interface (?:GigabitEthernet|TenGigabitEthernet|FastEthernet|Ethernet|Vlan|XGigabitEthernet|Eth-Trunk)|router (?:bgp|ospf|eigrp)|sysname |vlan batch|spanning-tree mode)", re.M)
-_PANOS = re.compile(r"^(set (?:deviceconfig|rulebase|network|zone|vsys)\b|<config\b[^>]*version=)", re.M)
-
-
-def _wrong_page_hint(text: str) -> str:
-    if _FORTI.search(text) or _PANOS.search(text):
-        return " This looks like a firewall configuration - open the Firewall Analyzer."
-    if _CISCO_HUAWEI.search(text):
-        return " This looks like a Cisco or Huawei switch/router configuration - open the Router Analyzer or Switch Analyzer."
-    return ""
-
-
 def looks_like_bigip(text: str) -> bool:
     return bool(_F5.search(text[:3_000_000]))
 
@@ -44,7 +32,7 @@ def analyze(content: str, filename: str = "", platform: str = "auto", today: dat
     if not looks_like_bigip(text):
         raise ValueError(
             "No F5 BIG-IP configuration was recognised. The Load Balancer Analyzer reads the stanza format of bigip.conf / bigip_base.conf, 'tmsh list' and 'tmsh show running-config' "
-            "(for example 'ltm virtual /Common/name { ... }')." + _wrong_page_hint(content)
+            "(for example 'ltm virtual /Common/name { ... }')." + wrong_page_hint(content, "lb")
         )
     tree = parse_tmsh(text)
     if not tree.root:

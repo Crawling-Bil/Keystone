@@ -1,0 +1,81 @@
+SW-LAB-ACC1#show version
+Cisco IOS XE Software, Version 17.09.04
+SW-LAB-ACC1 uptime is 1 week
+SW-LAB-ACC1#show inventory
+NAME: "c93xx Stack", DESCR: "c93xx Stack"
+PID: C9300L-48P-4X     , VID: V01  , SN: FOCSYNTH0001
+
+SW-LAB-ACC1#show running-config
+Building configuration...
+
+version 17.9
+hostname SW-LAB-ACC1
+!
+aaa new-model
+tacacs server TAC1
+ address ipv4 192.0.2.11
+ key 7 0123456789
+tacacs server TAC2
+ address ipv4 192.0.2.12
+ key 7 0123456789
+tacacs server TAC3
+ address ipv4 192.0.2.13
+ key 7 0123456789
+!
+ip dhcp excluded-address 192.0.2.1 192.0.2.10
+ip dhcp pool LAB
+ network 192.0.2.0 255.255.255.0
+ default-router 192.0.2.1
+ dns-server 192.0.2.53
+ lease 0 8
+!
+vlan 10
+ name USERS
+vlan 99
+ name MGMT
+!
+interface GigabitEthernet1/0/1
+ description USER-1
+ switchport access vlan 10
+ switchport mode access
+ authentication event server dead action authorize vlan 10
+ authentication event server alive action reinitialize
+ authentication host-mode multi-domain
+ authentication order dot1x mab
+ authentication priority dot1x mab
+ authentication port-control auto
+ authentication periodic
+ authentication timer reauthenticate 3600
+ mab
+ dot1x pae authenticator
+ dot1x timeout tx-period 7
+ no snmp trap link-status
+ device-tracking
+!
+interface GigabitEthernet1/0/2
+ description USER-2
+ switchport access vlan 10
+ switchport mode access
+ authentication event server dead action authorize vlan 10
+ authentication event server alive action reinitialize
+ authentication host-mode multi-domain
+ authentication order dot1x mab
+ authentication priority dot1x mab
+ authentication port-control auto
+ authentication periodic
+ authentication timer reauthenticate 3600
+ mab
+ dot1x pae authenticator
+ dot1x timeout tx-period 7
+ no snmp trap link-status
+ device-tracking
+!
+interface Vlan99
+ ip address 192.0.2.5 255.255.255.0
+!
+ip default-gateway 192.0.2.1
+snmp-server location Lab Room
+snmp-server contact noc@example.com
+!
+end
+SW-LAB-ACC1#

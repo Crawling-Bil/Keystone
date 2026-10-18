@@ -43,6 +43,7 @@ from features.configuration_studio.converter_engine.models.paloalto_native impor
     PaAdministrator,
     PaApplicationGroup,
     PaDeviceInfo,
+    PaDhcpServerBinding,
     PaIkeCryptoProfile,
     PaIkeGateway,
     PaInterface,
@@ -649,6 +650,28 @@ class PaloAltoXmlConfigParser:
                     tunnel_interface=_text(entry, "tunnel-interface"),
                     proxy_id_local=proxy_local,
                     proxy_id_remote=proxy_remote,
+                    disabled=_is_yes(entry, "disabled"),
+                )
+            )
+
+        # network/dhcp: the server side only (relay and client bindings are on the interface itself)
+        for entry in network.findall("dhcp/interface/entry"):
+            server = entry.find("server")
+            if server is None:
+                continue
+            dns = [x for x in (_text(server, "option/dns/primary"), _text(server, "option/dns/secondary")) if x]
+            mode = _text(server, "mode")
+            config.dhcp_servers.append(
+                PaDhcpServerBinding(
+                    interface=entry.get("name", ""),
+                    ip_pool=", ".join(_members(server, "ip-pool")) or _text(server, "ip-pool"),
+                    gateway=_text(server, "option/gateway"),
+                    dns_servers=dns,
+                    mode=mode,
+                    subnet_mask=_text(server, "option/subnet-mask"),
+                    lease_minutes=_text(server, "option/lease/timeout") or ("unlimited" if server.find("option/lease/unlimited") is not None else ""),
+                    reserved_count=len(server.findall("reserved/entry")),
+                    disabled=mode.lower() == "disabled",
                 )
             )
 

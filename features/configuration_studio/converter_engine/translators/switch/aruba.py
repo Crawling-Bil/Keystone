@@ -1,6 +1,8 @@
 import ipaddress
 import re
 
+from ... import nac
+
 
 class ArubaSwitchTranslator:
     """Renders a parsed switch config into Aruba AOS-CX CLI.
@@ -40,12 +42,19 @@ class ArubaSwitchTranslator:
     # TRANSLATE
     # =========================================================
 
+    # Source port name -> catalog entry; set per conversion in translate().
+    _port_map = {}
+
     def translate(
         self,
         config
     ):
 
         output = []
+
+        self._port_map = (
+            getattr(config, "metadata", None) or {}
+        ).get("port_map") or {}
 
         # =====================================================
         # HEADER
@@ -324,6 +333,8 @@ class ArubaSwitchTranslator:
         # INTERFACES
         # =====================================================
 
+        self._repeated_ports = {}
+
         for interface in config.interfaces:
 
             output.extend(
@@ -331,6 +342,8 @@ class ArubaSwitchTranslator:
                     interface
                 )
             )
+
+        output.extend(self._repeated_port_review())
 
         # =====================================================
         # DEFAULT GATEWAY
@@ -503,6 +516,57 @@ class ArubaSwitchTranslator:
     # SwitchConfig Interface fields for AOS-CX output.
     # =========================================================
 
+    @staticmethod
+    def _is_repeated_port_command(command):
+        """Port commands with no AOS-CX equivalent generated here that
+        repeat on many ports (port authentication, device tracking,
+        link-status traps)."""
+
+        low = command.strip().lower()
+
+        return (
+            nac.is_nac_command(low)
+            or low == "device-tracking"
+            or low == "no snmp trap link-status"
+        )
+
+    def _repeated_port_review(self):
+        """One REVIEW block per distinct command: the ports it was on,
+        compacted (``Gi1/0/1-24``).  Nothing is dropped silently."""
+
+        repeated = getattr(self, "_repeated_ports", {})
+
+        if not repeated:
+            return []
+
+        out = [
+            "! REVIEW-NAC: the commands below were on source access "
+            "ports and are not generated for AOS-CX. Port access "
+            "(802.1X / MAC authentication) is configured on AOS-CX "
+            "under 'aaa authentication port-access' - see the Security "
+            "Guide of the target switch series: "
+            "https://arubanetworking.hpe.com/techdocs/AOS-CX/",
+        ]
+
+        groups = {}
+
+        for command, ports in repeated.items():
+            groups.setdefault(tuple(ports), []).append(command)
+
+        for ports, commands in groups.items():
+
+            out.append(
+                f"! REVIEW-UNSUPPORTED on {len(ports)} "
+                f"port(s) {nac.compact_ports(list(ports))}:"
+            )
+
+            for command in commands:
+                out.append(f"!     {command}")
+
+        out.append("!")
+
+        return out
+
     def translate_interface(
         self,
         interface
@@ -516,9 +580,27 @@ class ArubaSwitchTranslator:
             )
         )
 
+        port_entry = self._port_map.get(interface.name)
+
+        if port_entry and port_entry.get("target"):
+            interface_name = port_entry["target"]
+
         lines.append(
             f"interface {interface_name}"
         )
+
+        if port_entry and (
+            port_entry.get("note")
+            or interface_name != interface.name
+        ):
+            lines.append(
+                f"    ! source port {interface.name}"
+                + (
+                    f" - REVIEW-PORT: {port_entry['note']}"
+                    if port_entry.get("note")
+                    else ""
+                )
+            )
 
         is_svi = (
             interface_name.lower()
@@ -1049,6 +1131,16 @@ class ArubaSwitchTranslator:
 
         for command in interface.commands:
 
+            if self._is_repeated_port_command(command):
+
+                # 802.1X / MAB / device-tracking lines are identical on
+                # most access ports: reported once per port group at the
+                # end of the file instead of once per port.
+                self._repeated_ports.setdefault(
+                    command.strip(), []
+                ).append(interface.name)
+                continue
+
             lines.append(
                 f"    ! REVIEW-UNSUPPORTED: "
                 f"{command}"
@@ -1093,6 +1185,16 @@ class ArubaSwitchTranslator:
     ):
 
         lines = []
+
+        # An AOS-CX physical or LAG interface is routed until "no routing"
+        # makes it a switchport; "vlan access" / "vlan trunk ..." are only
+        # accepted on a switchport (the captured 6200F configurations carry
+        # "no routing" on every access and trunk port).
+        if interface.mode in ("access", "trunk"):
+
+            lines.append(
+                "    no routing"
+            )
 
         if interface.mode == "access":
 
@@ -1954,18 +2056,25 @@ class ArubaSwitchTranslator:
                         f"{pool.mask}"
                     )
 
-            if pool.default_router:
+            if pool.gateway:
 
                 output.append(
                     "        default-router "
-                    f"{pool.default_router}"
+                    f"{pool.gateway[0]}"
                 )
 
-            if pool.dns_server:
+                for extra in pool.gateway[1:]:
+
+                    output.append(
+                        "        ! REVIEW-DHCP: additional "
+                        f"default-router {extra} not emitted"
+                    )
+
+            if pool.dns_servers:
 
                 output.append(
                     "        dns-server "
-                    f"{pool.dns_server}"
+                    + " ".join(pool.dns_servers)
                 )
 
             if pool.domain_name:
@@ -1975,11 +2084,14 @@ class ArubaSwitchTranslator:
                     f"{pool.domain_name}"
                 )
 
-            if pool.lease_days is not None:
+            if pool.lease:
 
+                # The source lease is "<days> [<hours> [<minutes>]]" or
+                # "infinite"; the target time format is not part of the
+                # documentation set the project keeps, so it is reported.
                 output.append(
-                    "        lease "
-                    f"{pool.lease_days}"
+                    "        ! REVIEW-DHCP: source lease "
+                    f"{pool.lease} - set the lease on the target"
                 )
 
             output.append(
@@ -2165,8 +2277,20 @@ class ArubaSwitchTranslator:
 
                 continue
 
-            # Cisco: logging <ip> (already correct)
+            # Cisco: logging <ip> (already correct). Other "logging ..."
+            # lines (buffered, source-interface, synchronous, trap ...)
+            # are not AOS-CX syntax and are reported, once each.
             if lower.startswith("logging "):
+
+                target = line.split()[1]
+
+                try:
+                    ipaddress.ip_address(target)
+                except ValueError:
+                    review = f"! REVIEW-LOGGING: {line}"
+                    if review not in output:
+                        output.append(review)
+                    continue
 
                 output.append(line)
                 continue
@@ -2400,6 +2524,11 @@ class ArubaSwitchTranslator:
                 "! REVIEW-ACL: "
                 + line
             )
+
+        # A comment of the source file ("! Last configuration change ...")
+        # is not a command: it is carried as a plain comment.
+        if line.startswith("!"):
+            return line
 
         # UNKNOWN GLOBAL — preserve as review
         return (

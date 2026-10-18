@@ -523,7 +523,7 @@ def _build_from_paloalto(config) -> dict[str, Any]:
             "esp_authentication": ipsec_crypto.esp_authentication if ipsec_crypto else "",
             "proxy_id_local": tunnel.proxy_id_local,
             "proxy_id_remote": tunnel.proxy_id_remote,
-            "disabled": False,
+            "disabled": bool(getattr(tunnel, "disabled", False)),
         })
 
     dhcp = {
@@ -534,7 +534,11 @@ def _build_from_paloalto(config) -> dict[str, Any]:
                 "address_pool": binding.ip_pool,
                 "gateway": binding.gateway,
                 "dns_servers": list(binding.dns_servers),
-                "disabled": False,
+                "mode": getattr(binding, "mode", ""),
+                "subnet_mask": getattr(binding, "subnet_mask", ""),
+                "lease_minutes": getattr(binding, "lease_minutes", ""),
+                "reserved_count": getattr(binding, "reserved_count", 0),
+                "disabled": bool(getattr(binding, "disabled", False)),
             }
             for binding in getattr(config, "dhcp_servers", [])
         ],
@@ -757,12 +761,14 @@ def _build_findings(dashboard: dict[str, Any], vendor: str) -> list[dict[str, st
                 weak_bits.append(f"weak hash ({hash_alg})")
                 break
         if weak_bits:
+            parked = bool(tunnel.get("disabled"))                       # a disabled tunnel carries no traffic: it is a clean-up item, not an exposure
             findings.append({
-                "severity": "high",
+                "severity": "low" if parked else "high",
                 "category": "weak-ipsec",
-                "title": f"IPsec tunnel '{tunnel.get('name')}' uses {', '.join(weak_bits)}",
-                "detail": "Consider upgrading to DH group 14 or higher, AES-256 (or better) encryption, and "
-                          "SHA-256 or better hashing/authentication.",
+                "title": f"IPsec tunnel '{tunnel.get('name')}' uses {', '.join(weak_bits)}" + (" (tunnel is disabled)" if parked else ""),
+                "detail": ("The tunnel is disabled, so nothing negotiates these algorithms today, but re-enabling it would. Delete it or move it to AES and DH group 14 or higher first. "
+                           if parked else "")
+                          + "Consider upgrading to DH group 14 or higher, AES-256 (or better) encryption, and SHA-256 or better hashing/authentication.",
             })
 
     # 5. (Palo Alto only, where the field exists) allow rules with

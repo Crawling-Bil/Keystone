@@ -1,0 +1,398 @@
+Last login: Mon Jan  5 09:00:00 2026 from 192.0.2.50
+
+
+admin@LAB-FW01> set cli pager off
+
+admin@LAB-FW01> show system info
+
+hostname: LAB-FW01
+ip-address: 192.0.2.10
+netmask: 255.255.255.0
+default-gateway: 192.0.2.1
+mac-address: 00:11:22:33:44:55
+time: Mon Jan  5 09:01:00 2026
+uptime: 12 days, 3:04:05
+family: 500f
+model: PA-520
+serial: 000000000000
+sw-version: 11.1.4
+app-version: 8900-1234
+threat-version: 8900-1234
+multi-vsys: off
+operational-mode: normal
+
+admin@LAB-FW01> show config running
+
+config {
+  mgt-config {
+    users {
+      admin {
+        phash $5$synthetic$NOTAREALHASHDONOTLEAK;
+        permissions {
+          role-based {
+            superuser yes;
+          }
+        }
+      }
+    }
+    password-complexity {
+      enabled yes;
+      minimum-length 8;
+    }
+  }
+  shared {
+    botnet {
+      configuration {
+        http {
+          dynamic-dns {
+            enabled yes;
+            threshold 5;
+          }
+          malware-sites {
+            enabled no;
+            threshold 5;
+          }
+        }
+        other-applications {
+          irc yes;
+        }
+        unknown-applications {
+          unknown-tcp {
+            destinations-per-hour 10;
+            sessions-per-hour 10;
+            session-length {
+              maximum-bytes 100;
+              minimum-bytes 50;
+            }
+          }
+        }
+      }
+      report {
+        topn 100;
+        scheduled yes;
+      }
+    }
+    log-settings {
+      syslog {
+        lab-syslog {
+          server {
+            Lab-Syslog {
+              server 192.0.2.70;
+              transport UDP;
+              port 514;
+              format BSD;
+              facility LOG_USER;
+            }
+          }
+        }
+      }
+      profiles {
+        LFP-LAB {
+          match-list {
+            LM-TRAFFIC {
+              log-type traffic;
+              filter "All Logs";
+              send-to-panorama yes;
+              send-syslog lab-syslog;
+            }
+          }
+        }
+      }
+    }
+  }
+  devices {
+    localhost.localdomain {
+      deviceconfig {
+        system {
+          hostname LAB-FW01;
+          ip-address 192.0.2.10;
+          netmask 255.255.255.0;
+          default-gateway 192.0.2.1;
+          update-schedule {
+            threats {
+              recurring {
+                daily {
+                  at 01:00;
+                  action download-only;
+                }
+              }
+            }
+            wildfire {
+              recurring {
+                every-15-mins {
+                  action download-and-install;
+                }
+              }
+            }
+          }
+        }
+        setting {
+          config {
+            rematch yes;
+          }
+          management {
+            hostname-type-in-syslog FQDN;
+          }
+        }
+      }
+      network {
+        interface {
+          ethernet {
+            ethernet1/1 {
+              layer3 {
+                ip {
+                  192.0.2.2/29;
+                }
+              }
+            }
+            ethernet1/2 {
+              layer3 {
+                ip {
+                  10.10.10.1/24;
+                }
+              }
+            }
+          }
+          tunnel {
+            units {
+              tunnel.10 {
+                ip {
+                  169.254.10.1/30;
+                }
+              }
+              tunnel.11 {
+                ip {
+                  169.254.11.1/30;
+                }
+              }
+            }
+          }
+        }
+        dhcp {
+          interface {
+            ethernet1/2 {
+              server {
+                ip-pool 10.10.10.21-10.10.10.250;
+                mode enabled;
+                option {
+                  lease {
+                    timeout 10;
+                  }
+                  gateway 10.10.10.1;
+                  subnet-mask 255.255.255.0;
+                  dns {
+                    primary 10.10.10.53;
+                    secondary 198.51.100.53;
+                  }
+                }
+                reserved {
+                  10.10.10.30 {
+                    mac aa:bb:cc:00:00:01;
+                  }
+                  10.10.10.31 {
+                    mac aa:bb:cc:00:00:02;
+                    description PRINTER;
+                  }
+                }
+              }
+            }
+          }
+        }
+        ike {
+          crypto-profiles {
+            ike-crypto-profiles {
+              default {
+                encryption [ aes-128-cbc 3des ];
+                hash sha1;
+                dh-group group2;
+                lifetime {
+                  hours 8;
+                }
+              }
+              IKE-LAB {
+                encryption [ aes-256-cbc 3des ];
+                hash sha256;
+                dh-group group14;
+                lifetime {
+                  hours 8;
+                }
+              }
+              IKE-OLD {
+                encryption aes-128-cbc;
+                hash md5;
+                dh-group group5;
+                lifetime {
+                  hours 8;
+                }
+              }
+            }
+            ipsec-crypto-profiles {
+              IPSEC-LAB {
+                esp {
+                  encryption [ aes-256-cbc aes-128-cbc ];
+                  authentication sha256;
+                }
+                dh-group group14;
+                lifetime {
+                  hours 1;
+                }
+              }
+              IPSEC-OLD {
+                esp {
+                  encryption aes-128-cbc;
+                  authentication sha1;
+                }
+                dh-group group2;
+                lifetime {
+                  hours 1;
+                }
+              }
+            }
+          }
+          gateway {
+            GW-HQ {
+              protocol {
+                version ikev2;
+                ikev2 {
+                  ike-crypto-profile IKE-LAB;
+                }
+              }
+              local-address {
+                interface ethernet1/1;
+                ip 192.0.2.2/29;
+              }
+              protocol-common {
+                nat-traversal {
+                  enable yes;
+                }
+              }
+              authentication {
+                pre-shared-key {
+                  key SYNTHETIC-PSK-DO-NOT-LEAK;
+                }
+              }
+              peer-address {
+                ip 203.0.113.10;
+              }
+            }
+            GW-OLD {
+              protocol {
+                version ikev2;
+                ikev2 {
+                  ike-crypto-profile IKE-OLD;
+                  dpd {
+                    enable yes;
+                  }
+                }
+              }
+              local-address {
+                interface ethernet1/1;
+                ip 192.0.2.2/29;
+              }
+              authentication {
+                pre-shared-key {
+                  key SYNTHETIC-PSK-DO-NOT-LEAK-2;
+                }
+              }
+              peer-address {
+                ip 203.0.113.20;
+              }
+            }
+          }
+        }
+        tunnel {
+          ipsec {
+            VPN-HQ {
+              tunnel-interface tunnel.10;
+              auto-key {
+                ike-gateway {
+                  GW-HQ;
+                }
+                ipsec-crypto-profile IPSEC-LAB;
+              }
+              anti-replay yes;
+            }
+            VPN-OLD {
+              tunnel-interface tunnel.11;
+              auto-key {
+                ike-gateway {
+                  GW-OLD;
+                }
+                ipsec-crypto-profile IPSEC-OLD;
+              }
+              anti-replay yes;
+              disabled yes;
+            }
+          }
+        }
+        qos {
+          profile {
+            default {
+              class-bandwidth-type {
+                mbps {
+                  class {
+                    class1 {
+                      priority real-time;
+                    }
+                    class2 {
+                      priority high;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        profiles {
+          monitor-profile {
+            default {
+              interval 3;
+              threshold 5;
+              action wait-recover;
+            }
+          }
+        }
+      }
+      vsys {
+        vsys1 {
+          zone {
+            inside {
+              network {
+                layer3 ethernet1/2;
+              }
+            }
+            outside {
+              network {
+                layer3 ethernet1/1;
+              }
+            }
+          }
+          profiles {
+            custom-url-category {
+              LAB-BLOCK {
+                type "URL List";
+                list [ "*.example.test" "*.example.invalid" ];
+                description "Synthetic block list";
+              }
+            }
+          }
+          rulebase {
+            security {
+              rules {
+                allow-out {
+                  from inside;
+                  to outside;
+                  source any;
+                  destination any;
+                  application any;
+                  service application-default;
+                  action allow;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

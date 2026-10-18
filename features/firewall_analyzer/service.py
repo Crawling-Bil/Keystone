@@ -15,6 +15,7 @@ from typing import Any
 
 from ..analyzer_core.findings import severity_counts, sort_findings
 from ..analyzer_core.result import card, info_rows, kv_section, new_result, table_section
+from ..analyzer_core.vendor_hint import wrong_page_hint
 from . import forti_extra, forti_extract, forti_rules, forti_runtime, forti_sections, forti_switch, legacy, panos_capture, scope
 from .forti_resolve import Resolver
 from .forti_tree import parse_forti
@@ -29,9 +30,6 @@ UNVALIDATED = {
 _FORTI = re.compile(r"^(#config-version=FG|config (?:system global|firewall policy|system interface|vpn ipsec phase1-interface|system admin)\b|config vdom\b)", re.M)
 _PANOS = re.compile(r"^(set (?:deviceconfig|rulebase|network|zone|shared|vsys|device-group|template)\b|<config\b[^>]*version=|<entry name=\"localhost\.localdomain\")", re.M)
 _MIKROTIK = re.compile(r"^(/(?:ip|interface|system|routing|user|queue|tool)\b|# .*by RouterOS)", re.M)
-_CISCO_HINT = re.compile(r"^(interface (?:GigabitEthernet|TenGigabitEthernet|FastEthernet|Ethernet|Vlan)|router (?:bgp|ospf|eigrp)|ip route \d|spanning-tree mode|switchport mode)", re.M)
-_F5_HINT = re.compile(r"^(ltm (?:virtual|pool|node|monitor)\b|net self\b|sys global-settings\b|tmsh |cm device-group\b)", re.M)
-_HUAWEI_HINT = re.compile(r"^(sysname |interface (?:GigabitEthernet|XGigabitEthernet|Eth-Trunk|Vlanif)|vlan batch)", re.M)
 
 
 def detect_vendor(text: str) -> str:
@@ -48,11 +46,7 @@ def detect_vendor(text: str) -> str:
 
 
 def _wrong_page_hint(text: str) -> str:
-    if _F5_HINT.search(text):
-        return " This looks like an F5 BIG-IP configuration - open the Load Balancer Analyzer."
-    if _HUAWEI_HINT.search(text) or _CISCO_HINT.search(text):
-        return " This looks like a Cisco or Huawei switch/router configuration - open the Router Analyzer or Switch Analyzer."
-    return ""
+    return wrong_page_hint(text, "firewall")
 
 
 def analyze(content: str, filename: str = "", platform: str = "auto", today: date | None = None) -> dict[str, Any]:

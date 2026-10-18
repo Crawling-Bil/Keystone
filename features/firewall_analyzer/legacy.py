@@ -379,7 +379,7 @@ def _sections(d: dict[str, Any], is_palo: bool) -> list[dict[str, Any]]:
                              [dict(r, disabled=_yn(r.get("disabled")), _tone="mute" if r.get("disabled") else "") for r in d.get("nat_rules", [])], group="NAT", empty="No NAT rules."))
     out.append(table_section("ipsec_tunnels", "IPsec tunnels", [("name", "Name", "mono"), ("peer_address", "Peer", "mono"), ("dh_group", "DH group"), ("ike_encryption", "IKE encryption"), ("ike_hash", "IKE hash"), ("esp_encryption", "ESP encryption"),
                                                               ("esp_authentication", "ESP authentication"), ("proxy_id_local", "Local proxy ID", "mono"), ("proxy_id_remote", "Remote proxy ID", "mono"), ("disabled", "Disabled")],
-                             [dict(t, disabled=_yn(t.get("disabled")), _tones={"dh_group": "bad" if str(t.get("dh_group", "")).lower() in {"group1", "group2", "group5", "modp768", "modp1024", "modp1536", "1", "2", "5"} else "",
+                             [dict(t, disabled=_yn(t.get("disabled")), _tone="mute" if t.get("disabled") else "", _tones={"dh_group": "bad" if str(t.get("dh_group", "")).lower() in {"group1", "group2", "group5", "modp768", "modp1024", "modp1536", "1", "2", "5"} else "",
                                                                                 "ike_encryption": "bad" if str(t.get("ike_encryption", "")).lower() in {"des", "3des"} else "", "ike_hash": "warn" if str(t.get("ike_hash", "")).lower() == "md5" else ""}) for t in d.get("ipsec_tunnels", [])],
                              group="VPN", empty="No IPsec tunnels."))
     # system
@@ -393,8 +393,8 @@ def _sections(d: dict[str, Any], is_palo: bool) -> list[dict[str, Any]]:
         out.append(table_section("zone_protection", "Zone protection profiles", [("name", "Profile", "mono"), ("protection_types", "Protections", "list")], d.get("zone_protection_profiles", []), group="System", empty="No zone protection profiles."))
         out.append(table_section("management_services", "Management interface services", [("field", "Setting", "mono"), ("disabled", "Disabled")], [dict(s, disabled=_yn(s.get("disabled"))) for s in d.get("management_services", [])], group="System"))
     dhcp = d.get("dhcp") or {}
-    out.append(table_section("dhcp", "DHCP servers", [("name", "Name", "mono"), ("interface", "Interface"), ("address_pool", "Pool", "mono"), ("gateway", "Gateway", "mono"), ("dns_servers", "DNS", "list"), ("disabled", "Disabled")],
-                             [dict(s, disabled=_yn(s.get("disabled"))) for s in dhcp.get("servers", [])], group="System", empty="No DHCP servers."))
+    out.append(table_section("dhcp", "DHCP servers", [("name", "Name", "mono"), ("interface", "Interface"), ("address_pool", "Pool", "mono"), ("gateway", "Gateway", "mono"), ("dns_servers", "DNS", "list"), ("subnet_mask", "Mask", "mono"), ("lease_minutes", "Lease (min)"), ("reserved_count", "Reservations"), ("disabled", "Disabled")],
+                             [dict(s, disabled=_yn(s.get("disabled")), _tone="mute" if s.get("disabled") else "") for s in dhcp.get("servers", [])], group="System", empty="No DHCP servers."))
     out.append(kv_section("time_dns", "DNS and NTP", [("DNS servers", ", ".join(d.get("dns_servers", [])) or "—"), ("NTP servers", ", ".join(d.get("ntp_servers", [])) or "—", "" if d.get("ntp_servers") else "warn")], group="System"))
     if not is_palo and d.get("routeros"):
         out += routeros.sections(d["routeros"])

@@ -294,6 +294,7 @@ class PaIpsecTunnel:
     tunnel_interface: str = ""
     proxy_id_local: str = ""
     proxy_id_remote: str = ""
+    disabled: bool = False
 
 
 @dataclass
@@ -371,6 +372,11 @@ class PaDhcpServerBinding:
     ip_pool: str = ""
     gateway: str = ""
     dns_servers: list[str] = field(default_factory=list)
+    mode: str = ""
+    subnet_mask: str = ""
+    lease_minutes: str = ""
+    reserved_count: int = 0
+    disabled: bool = False
 
 
 @dataclass

@@ -2,12 +2,20 @@
   const form = document.getElementById("converter-form");
   if (!form) return;
 
+  // A whole terminal session is reduced to its show running-config block before conversion; say so next to the line count.
+  function sourceLineLabel(data) {
+    if (data.capture) {
+      return `${data.capture.config_lines} lines (${data.capture.command} cut from a ${data.capture.total_lines}-line session)`;
+    }
+    return `${data.source_lines} lines`;
+  }
+
   const targetVendorSelect = document.getElementById("target-vendor");
   const targetModelField = document.getElementById("target-model-field");
   const targetModelSelect = document.getElementById("target-model");
 
   // Target-model options depend on the currently selected target
-  // vendor (Huawei and Palo Alto each have their own confirmed model
+  // vendor (Huawei, Cisco, Aruba and Palo Alto each have their own confirmed model
   // list -- see PALOALTO_TARGET_MODELS / HUAWEI_TARGET_MODELS
   // server-side); the server embeds both lists once at page load so
   // switching vendors doesn't need a round trip.
@@ -28,7 +36,7 @@
     const optionsHtml = models
       .map(m => `<option value="${window.NES.escape(m.model)}"${m.model === previousValue ? " selected" : ""}>${window.NES.escape(m.label)}</option>`)
       .join("");
-    targetModelSelect.innerHTML = `<option value="">Auto / not sure (skip port-count check)</option>${optionsHtml}`;
+    targetModelSelect.innerHTML = `<option value="">Auto / not sure (skip port check)</option>${optionsHtml}`;
   }
   targetVendorSelect?.addEventListener("change", updateTargetModelVisibility);
   updateTargetModelVisibility();
@@ -125,7 +133,7 @@
       document.getElementById("batch-detected-hostname").textContent = data.hostname;
       document.getElementById("batch-review-count").textContent = data.review_count;
       document.getElementById("batch-output-lines").textContent = data.output_lines;
-      document.getElementById("batch-source-line-count").textContent = `${data.source_lines} lines`;
+      document.getElementById("batch-source-line-count").textContent = sourceLineLabel(data);
       document.getElementById("batch-conversion-path").textContent = `${data.source_vendor} → ${data.target_vendor}`;
       document.getElementById("batch-preview-title").textContent = data.source_name;
       document.getElementById("batch-target-label").textContent = `${data.target_vendor} output`;
@@ -207,12 +215,84 @@
     showBatchPreview(batchConvertedItems[Number(viewButton.dataset.resultIndex)]);
   });
 
+  // ---- Interface map tab (switch converts): every source port -> the port it becomes on the target model. ----
+  const interfaceMapPanel = document.getElementById("interface-map-panel");
+  const configView = document.getElementById("config-view");
+  const resultTabs = document.querySelectorAll(".cv-result-tab");
+  const showUnusedToggle = document.getElementById("interface-map-show-unused");
+  let currentInterfaceMap = null;
+
+  function setResultTab(name) {
+    resultTabs.forEach(tab => {
+      const active = tab.dataset.resultTab === name;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    interfaceMapPanel?.classList.toggle("hidden", name !== "interface-map");
+    configView?.classList.toggle("hidden", name === "interface-map");
+  }
+  resultTabs.forEach(tab => tab.addEventListener("click", () => setResultTab(tab.dataset.resultTab)));
+
+  const IM_STATUS = {
+    ok: ["Mapped", "tone-ok"],
+    review: ["Review", "tone-warn"],
+    missing: ["No equivalent", "tone-bad"],
+    stanza: ["Not a port", "tone-mute"],
+  };
+
+  function renderInterfaceMapTable() {
+    const table = document.getElementById("interface-map-table");
+    if (!table || !currentInterfaceMap) return;
+    const esc = window.NES.escape;
+    const allRows = currentInterfaceMap.rows || [];
+    const anyUsed = allRows.some(row => row.in_use);
+    const rows = showUnusedToggle?.checked || !anyUsed ? allRows : allRows.filter(row => row.in_use);
+    if (!rows.length) {
+      table.innerHTML = '<tbody><tr><td>No physical ports were found in this configuration.</td></tr></tbody>';
+      return;
+    }
+    table.innerHTML = `<thead><tr><th>Source port</th><th>Role</th><th>Speed</th><th>Member</th><th>In use</th><th>&rarr; Target port</th><th>Status</th><th>Note</th></tr></thead><tbody>${rows.map(row => {
+      const [label, tone] = IM_STATUS[row.status] || [row.status, ""];
+      return `<tr class="im-row im-${esc(row.status)}"><td><code>${esc(row.source)}</code></td><td>${esc(row.role || "—")}</td><td>${esc(row.speed || "—")}</td><td>${esc(row.member)}</td><td>${row.in_use ? "yes" : "no"}</td><td><code>${esc(row.target || "—")}</code></td><td><span class="cell-status ${tone}">${esc(label)}</span></td><td>${esc(row.note || "")}</td></tr>`;
+    }).join("")}</tbody>`;
+  }
+
+  function renderInterfaceMap(map) {
+    if (!interfaceMapPanel) return;
+    currentInterfaceMap = map || null;
+    setResultTab("config");
+    const tabCount = document.getElementById("interface-map-tab-count");
+    if (!map) {
+      resultTabs.forEach(tab => { if (tab.dataset.resultTab === "interface-map") tab.classList.add("hidden"); });
+      return;
+    }
+    resultTabs.forEach(tab => tab.classList.remove("hidden"));
+    const esc = window.NES.escape;
+    const used = map.configured_counts || {};
+    const attention = (used.review || 0) + (used.missing || 0);
+    if (tabCount) tabCount.textContent = attention ? String(attention) : "";
+    const source = map.source_model ? `${map.source_model}${(map.source_modules || []).length ? " + " + map.source_modules.join(", ") : ""}` : "source model not recognised (ports read from the names)";
+    const target = map.target_model || "no Target Model chosen (naming rule only)";
+    document.getElementById("interface-map-lead").textContent = `${source} → ${target}`;
+    document.getElementById("interface-map-warnings").innerHTML = (map.warnings || []).map(w => `<p class="im-warning">${esc(w)}</p>`).join("");
+    const chip = (label, count, tone) => `<span class="cell-status ${tone}">${esc(label)} ${esc(count)}</span>`;
+    document.getElementById("interface-map-summary").innerHTML = [
+      chip("Configured ports mapped", used.ok || 0, "tone-ok"),
+      chip("Need review", used.review || 0, "tone-warn"),
+      chip("No equivalent on target", used.missing || 0, "tone-bad"),
+      chip("Config stanzas that are not ports", used.stanza || 0, "tone-mute"),
+      `<span class="im-total">${esc((map.rows || []).length)} ports in the source model</span>`,
+    ].join("");
+    renderInterfaceMapTable();
+  }
+  showUnusedToggle?.addEventListener("change", renderInterfaceMapTable);
+
   function renderConvertResult(data) {
     document.getElementById("detected-platform").textContent = `${data.source_vendor} ${data.source_device_type}`;
     document.getElementById("detected-hostname").textContent = data.hostname;
     document.getElementById("review-count").textContent = data.review_count;
     document.getElementById("output-lines").textContent = data.output_lines;
-    document.getElementById("source-line-count").textContent = `${data.source_lines} lines`;
+    document.getElementById("source-line-count").textContent = sourceLineLabel(data);
     const pathParts = [`${data.source_vendor} → ${data.target_vendor}`];
     if (data.target_model) pathParts.push(data.target_model);
     if (data.profile) pathParts.push(`${data.profile} profile`);
@@ -225,6 +305,7 @@
     empty.classList.add("hidden");
     batchResultPanel.classList.add("hidden");
     mappingResultPanel?.classList.add("hidden");
+    renderInterfaceMap(data.interface_map);
     resultPanel.classList.remove("hidden");
     window.NES.toast(`Converted ${data.hostname} successfully.`);
   }

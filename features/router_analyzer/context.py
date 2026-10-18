@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from ..analyzer_core import capture as cap
+from ..analyzer_core.vendor_hint import wrong_page_hint
 from . import config_extract, config_tree, ipsec as ipsecmod, nat as natmod, ospf as ospfmod, runtime, runtime_health as rh, runtime_logs as rl, runtime_protocols as rpr, runtime_routing as rr, runtime_sdwan as rsd, runtime_vpn as rv, techsupport, xref
 from .ifnames import canon
 
@@ -237,7 +238,7 @@ def gather(content: str, filename: str = "") -> Ctx:
             capture = cap.single_block_capture(text, "show running-config")
         else:
             raise ValueError("No Cisco IOS / IOS-XE prompts or running-config were found in this file. "
-                             "Upload a terminal capture that contains 'show running-config' or other show output.")
+                             "Upload a terminal capture that contains 'show running-config' or other show output." + wrong_page_hint(text, "router"))
     # 'show tech-support' is dozens of show commands in one block: cut it along its banners
     # so each embedded command is read by the same parser that reads a typed one.
     ctx.split = _run(ctx, "show tech-support", lambda: techsupport.expand(capture)) or {}

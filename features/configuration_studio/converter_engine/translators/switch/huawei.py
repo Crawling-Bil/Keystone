@@ -3,6 +3,9 @@ import json
 import ipaddress
 from pathlib import Path
 
+from ... import nac
+from ...hardware.catalog import target_models as _catalog_target_models
+
 
 def _load_unsupported_ignore_list():
     """
@@ -48,32 +51,9 @@ UNSUPPORTED_IGNORE = _load_unsupported_ignore_list()
 # an interface number that doesn't exist on the chosen hardware.
 # Selecting nothing ("Auto / not sure") skips this check entirely —
 # it's an extra safety net, never a requirement to convert.
-HUAWEI_TARGET_MODELS = [
-    {
-        "model": "S5735-L8T4X-QA-V2",
-        "label": "S5735-L8T4X-QA-V2 (8x GE + 4x 10GE)",
-    },
-    {
-        "model": "S5735-S24T4XE-V2",
-        "label": "S5735-S24T4XE-V2 (24x GE + 4x 10GE)",
-    },
-    {
-        "model": "S5735-S24P4XE-V2",
-        "label": "S5735-S24P4XE-V2 (24x GE PoE+ + 4x 10GE)",
-    },
-    {
-        "model": "S5735-S48T4XE-V2",
-        "label": "S5735-S48T4XE-V2 (48x GE + 4x 10GE)",
-    },
-    {
-        "model": "S5755-H24T4Y2CZ",
-        "label": "S5755-H24T4Y2CZ (24x GE + 4x 25GE)",
-    },
-    {
-        "model": "S5755-H48UM4Y2CZ",
-        "label": "S5755-H48UM4Y2CZ (48x GE + 4x 25GE)",
-    },
-]
+# The list itself lives in the hardware catalog (hardware/switches.py, vendor "Huawei"), so the dropdown, the Switch hardware catalog
+# page and the Interface map always agree on which ports each model has.
+HUAWEI_TARGET_MODELS = _catalog_target_models("huawei")
 
 # Huawei CloudEngine model-naming convention: the digits right after
 # the platform-variant letter (S/L/H) in the model name are the
@@ -104,6 +84,9 @@ def resolve_target_ge_port_count(target_model):
 
 
 class HuaweiSwitchTranslator:
+
+    # Source port name -> catalog entry; set per conversion in translate().
+    _port_map = {}
 
     def __init__(self, inventory=None):
         self.inventory = inventory
@@ -137,6 +120,10 @@ class HuaweiSwitchTranslator:
         """
 
         output = []
+
+        self._port_map = (
+            getattr(config, "metadata", None) or {}
+        ).get("port_map") or {}
 
         target_ge_port_count = resolve_target_ge_port_count(
             target_model
@@ -365,6 +352,9 @@ class HuaweiSwitchTranslator:
             self.translate_acl_application(config)
         )
 
+        # 802.1X / MAC authentication bypass: profiles are defined before the interfaces that bind them
+        output.extend(self.plan_nac(config, profile))
+
         for interface in config.interfaces:
 
             translated = self.translate_interface(
@@ -579,12 +569,12 @@ class HuaweiSwitchTranslator:
         ):
 
             has_location = any(
-                command.startswith("snmp-server location ")
+                command.startswith(("snmp-server location ", "snmp-server system-location "))
                 for command in config.snmp_commands
             )
 
             has_contact = any(
-                command.startswith("snmp-server contact ")
+                command.startswith(("snmp-server contact ", "snmp-server system-contact "))
                 for command in config.snmp_commands
             )
 
@@ -651,11 +641,13 @@ class HuaweiSwitchTranslator:
                 )
             )
 
-            output.extend(
-                self.translate_radius(
-                    config.radius_commands
+            if not getattr(self, "_radius_emitted", False):
+
+                output.extend(
+                    self.translate_radius(
+                        config.radius_commands
+                    )
                 )
-            )
 
             output.extend(
                 self.translate_aaa(
@@ -732,9 +724,14 @@ class HuaweiSwitchTranslator:
 
                 output.append("#")
 
+        dhcp_commands, self._dhcp_exclusions = self.split_dhcp_exclusions(
+            config.dhcp_commands,
+            config.dhcp_pools,
+        )
+
         output.extend(
             self.translate_dhcp(
-                config.dhcp_commands
+                dhcp_commands
             )
         )
 
@@ -2515,7 +2512,7 @@ class HuaweiSwitchTranslator:
     # the way the base GE count is (see HUAWEI_TARGET_MODELS' own
     # docstring), so guessing a mismatch there would risk a false
     # alarm rather than a real one.
-    _GE_PORT_NUMBER_RE = re.compile(r"^GE\d+/\d+/(\d+)$")
+    _GE_PORT_NUMBER_RE = re.compile(r"^(?:Multi)?GE\d+/\d+/(\d+)$")
 
     def translate_interface(
         self,
@@ -3035,13 +3032,19 @@ class HuaweiSwitchTranslator:
             output.append(
                 f" voice-vlan {interface.voice_vlan_id} enable"
             )
-            output.append(
-                " # REVIEW-VOICE-VLAN: Huawei does not auto-detect "
-                "phones via CDP like Cisco does — populate the OUI "
-                "table (system-view: voice-vlan mac-address <mac> "
-                "mask <mask>) or switch to LLDP VLAN-ID signaling, or "
-                "voice traffic will not be classified into this VLAN."
-            )
+            if self._repeat_review("voice-vlan"):
+                output.append(
+                    " # REVIEW-VOICE-VLAN: OUI table / LLDP signaling needed "
+                    "(full note on the first voice-vlan port above)"
+                )
+            else:
+                output.append(
+                    " # REVIEW-VOICE-VLAN: Huawei does not auto-detect "
+                    "phones via CDP like Cisco does — populate the OUI "
+                    "table (system-view: voice-vlan mac-address <mac> "
+                    "mask <mask>) or switch to LLDP VLAN-ID signaling, or "
+                    "voice traffic will not be classified into this VLAN."
+                )
 
         # LLDP per-interface transmit/receive (Cisco "no lldp
         # transmit" / "no lldp receive"). Huawei has no independent
@@ -3343,9 +3346,30 @@ class HuaweiSwitchTranslator:
         # UNSUPPORTED INTERFACE COMMANDS
         # -----------------------------------------------------
 
+        interface_commands = interface.commands
+        nac_entry = getattr(self, "_nac_ports", {}).get(interface.name)
+
+        if nac_entry:
+
+            # port authentication is expressed by the shared authentication-profile; its lines are not repeated as review items
+            output.append(
+                f" authentication-profile {nac_entry['name']}"
+            )
+            interface_commands = nac_entry["remaining"]
+
+        if "no snmp trap link-status" in interface_commands:
+
+            # Cisco per-port link trap off -> Huawei interface view "undo enable snmp trap updown"
+            # (V600R025C00 Command Reference, enable snmp trap updown: default on, interface views)
+            output.append(" undo enable snmp trap updown")
+            interface_commands = [
+                command for command in interface_commands
+                if command != "no snmp trap link-status"
+            ]
+
         unsupported = (
             self.filter_interface_review(
-                interface.commands
+                interface_commands
             )
         )
 
@@ -3353,6 +3377,8 @@ class HuaweiSwitchTranslator:
 
             output.append(
                 f" # REVIEW-CISCO: {command}"
+                if not self._repeat_review(command)
+                else f" # REVIEW-CISCO: {command} (same note as the first port above)"
             )
 
         # -----------------------------------------------------
@@ -3544,6 +3570,28 @@ class HuaweiSwitchTranslator:
         principle behind this codebase's other REVIEW-* comments,
         applied to physical interface numbering.
         """
+
+        # Hardware catalog (hardware/interface_map.py): uplink-module ports
+        # are numbered from the source model's real module layout and the
+        # chosen target model, instead of being passed through flagged.
+        entry = self._port_map.get(interface_name)
+        # Multi-GE access ports (S5755-H...UM models) are named MultiGE<m>/0/<n>, not GE: take the catalog name.
+        if (
+            entry
+            and entry.get("role") == "access"
+            and str(entry.get("target") or "").startswith("MultiGE")
+            and entry.get("status") != "missing"
+        ):
+            return (entry["target"], entry.get("note"))
+        if entry and entry.get("role") == "uplink" and entry.get("target"):
+            note = entry.get("note")
+            if int(entry.get("member") or 1) > 2:
+                extra = (
+                    f"stack member {entry['member']} is outside this "
+                    "project's two confirmed stacking templates"
+                )
+                note = f"{note}; {extra}" if note else extra
+            return (entry["target"], note)
 
         # Cisco NX-OS's own "mgmt0" is a literal, non-numeric interface
         # name — Nexus's dedicated out-of-band management port,
@@ -4107,13 +4155,11 @@ class HuaweiSwitchTranslator:
             # -------------------------------------------------
 
             if command.startswith(
-                "snmp-server location "
+                ("snmp-server location ", "snmp-server system-location ")
             ):
 
-                value = command.split(
-                    "snmp-server location ",
-                    1
-                )[1]
+                # Aruba AOS-CX spells it system-location and quotes the text.
+                value = command.split(None, 2)[2].strip().strip('"')
 
                 output.append(
                     "snmp-agent sys-info "
@@ -4127,13 +4173,11 @@ class HuaweiSwitchTranslator:
             # -------------------------------------------------
 
             if command.startswith(
-                "snmp-server contact "
+                ("snmp-server contact ", "snmp-server system-contact ")
             ):
 
-                value = command.split(
-                    "snmp-server contact ",
-                    1
-                )[1]
+                # Aruba AOS-CX spells it system-contact and quotes the text.
+                value = command.split(None, 2)[2].strip().strip('"')
 
                 output.append(
                     "snmp-agent sys-info "
@@ -4233,10 +4277,20 @@ class HuaweiSwitchTranslator:
     # TACACS
     # =========================================================
 
+    HWTACACS_ORDINAL = ("", "secondary", "third", "fourth")
+
     def translate_tacacs(
         self,
         commands
     ):
+        """HWTACACS template from Cisco ``tacacs-server host`` lines and from the IOS-XE named blocks (``tacacs server NAME`` /
+        ``address ipv4 X`` / ``timeout N`` / ``key ...``).
+
+        Huawei keeps the first server of each kind as the primary and takes the next ones only with ``secondary`` / ``third`` / ``fourth``
+        (V600R025C00 Command Reference, ``hwtacacs-server authentication``: "If no secondary ... server is configured, the primary ... is
+        specified"), so servers listed one after another without those keywords would overwrite each other.  The Cisco order is kept:
+        first = primary, then secondary, third, fourth.  ``timeout N`` becomes ``hwtacacs-server timer response-timeout`` (default 5 s).
+        """
 
         if not commands:
             return []
@@ -4245,7 +4299,11 @@ class HuaweiSwitchTranslator:
             "hwtacacs-server template CISCO-MIGRATION"
         ]
 
-        server_index = 1
+        servers = []
+        timeouts = []
+        others = []
+        key_noted = False
+        in_named_block = False
 
         for command in commands:
 
@@ -4253,25 +4311,40 @@ class HuaweiSwitchTranslator:
                 "tacacs-server host "
             ):
 
-                host = command.split()[2]
+                servers.append(command.split()[2])
+                continue
 
-                output.append(
-                    " hwtacacs-server "
-                    f"authentication {host}"
+            if command.startswith("tacacs server "):
+
+                in_named_block = True
+                continue
+
+            if in_named_block and command.startswith("address ipv4 "):
+
+                servers.append(command.split()[2])
+                continue
+
+            if in_named_block and command.startswith("address ipv6 "):
+
+                others.append(
+                    f" # REVIEW-CISCO: {command} -- IPv6 TACACS+ servers: "
+                    f"hwtacacs-server authentication <ipv6-address> is documented, add it by hand with the right primary/secondary order"
                 )
+                continue
 
-                output.append(
-                    " hwtacacs-server "
-                    f"authorization {host}"
-                )
+            if in_named_block and command.startswith("timeout ") and command.split()[-1].isdigit():
 
-                output.append(
-                    " hwtacacs-server "
-                    f"accounting {host}"
-                )
+                timeouts.append(command.split()[-1])
+                continue
 
-                server_index += 1
+            if in_named_block and command.startswith("key "):
 
+                if not key_noted:
+                    others.append(
+                        "# REVIEW-TACACS-KEY: Cisco encrypted key "
+                        "harus dimasukkan ulang."
+                    )
+                    key_noted = True
                 continue
 
             if command.startswith(
@@ -4288,7 +4361,7 @@ class HuaweiSwitchTranslator:
                     )
                 )
 
-                output.append(
+                others.append(
                     " hwtacacs-server "
                     "source-ip "
                     f"# REVIEW-FROM-{interface}"
@@ -4300,17 +4373,53 @@ class HuaweiSwitchTranslator:
                 "tacacs-server key "
             ):
 
-                output.append(
-                    "# REVIEW-TACACS-KEY: "
-                    "Cisco encrypted key "
-                    "harus dimasukkan ulang."
-                )
+                if not key_noted:
+                    others.append(
+                        "# REVIEW-TACACS-KEY: "
+                        "Cisco encrypted key "
+                        "harus dimasukkan ulang."
+                    )
+                    key_noted = True
 
                 continue
 
-            output.append(
+            others.append(
                 f" # REVIEW-CISCO: {command}"
             )
+
+        for index, host in enumerate(servers):
+
+            if index >= len(self.HWTACACS_ORDINAL):
+
+                output.append(
+                    f" # REVIEW-TACACS-SERVERS: {host} is the {index + 1}th TACACS+ server; Huawei takes at most four per template"
+                )
+                continue
+
+            ordinal = self.HWTACACS_ORDINAL[index]
+            suffix = f" {ordinal}" if ordinal else ""
+
+            for kind in ("authentication", "authorization", "accounting"):
+
+                output.append(
+                    f" hwtacacs-server {kind} {host}{suffix}"
+                )
+
+        distinct = sorted({value for value in timeouts}, key=int)
+
+        if distinct and distinct != ["5"]:
+
+            output.append(
+                f" hwtacacs-server timer response-timeout {distinct[0]}"
+            )
+
+            if len(distinct) > 1:
+
+                output.append(
+                    f" # REVIEW-TACACS-TIMEOUT: the source uses {', '.join(distinct)} s on different servers; Huawei has one value per template"
+                )
+
+        output.extend(others)
 
         output.append("#")
 
@@ -4579,6 +4688,10 @@ class HuaweiSwitchTranslator:
 
             if command.startswith("aaa accounting commands "):
                 acct_commands_seen = True
+                continue
+
+            if getattr(self, "_nac_active", False) and command.startswith(self.NAC_AAA_PREFIXES):
+                # carried by the NAC block (domain, schemes and the review notes) emitted before the interfaces
                 continue
 
             leftover.append(command)
@@ -4900,6 +5013,54 @@ class HuaweiSwitchTranslator:
 
         return ranges
 
+    def split_dhcp_exclusions(self, commands, pools):
+        """``ip dhcp excluded-address A [B]`` -> ``excluded-ip-address A [B]`` in the ``ip pool`` whose network holds A.
+
+        (V600R025C00 Command Reference, ``excluded-ip-address``, address pool view; supported on the S5735/S5755/S6700-V2 families listed there.)
+        Returns ``(remaining_commands, {pool_name: [(start, end_or_None), ...]})``; an exclusion no pool contains stays a review item."""
+        remaining = []
+        exclusions = {}
+
+        for command in commands or []:
+
+            parts = command.split()
+
+            if len(parts) in (4, 5) and parts[:3] == ["ip", "dhcp", "excluded-address"]:
+
+                try:
+                    start = ipaddress.ip_address(parts[3])
+                    end = ipaddress.ip_address(parts[4]) if len(parts) == 5 else None
+                except ValueError:
+                    remaining.append(command)
+                    continue
+
+                owner = None
+
+                for pool in pools or []:
+
+                    if not (pool.network and pool.mask):
+                        continue
+
+                    try:
+                        network = ipaddress.ip_network(f"{pool.network}/{pool.mask}", strict=False)
+                    except ValueError:
+                        continue
+
+                    if start in network and (end is None or end in network):
+                        owner = pool.name
+                        break
+
+                if owner is None:
+                    remaining.append(command)
+                    continue
+
+                exclusions.setdefault(owner, []).append((str(start), str(end) if end else None))
+                continue
+
+            remaining.append(command)
+
+        return remaining, exclusions
+
     def translate_dhcp(
         self,
         commands
@@ -4945,6 +5106,11 @@ class HuaweiSwitchTranslator:
 
             for gateway in pool.gateway:
                 output.append(f" gateway-list {gateway}")
+
+            for start, end in getattr(self, "_dhcp_exclusions", {}).get(pool.name, []):
+                output.append(
+                    f" excluded-ip-address {start}" + (f" {end}" if end else "")
+                )
 
             if pool.dns_servers:
                 output.append(
@@ -5077,6 +5243,222 @@ class HuaweiSwitchTranslator:
                 f"# REVIEW-LOGGING: {command}"
             )
 
+        output.append("#")
+
+        return output
+
+    # =========================================================
+    # 802.1X / MAC AUTHENTICATION (Huawei unified NAC mode)
+    # =========================================================
+
+    NAC_DOMAIN = "NAC-RADIUS"
+    NAC_AAA_PREFIXES = (
+        "aaa authentication dot1x ", "aaa authorization network ", "aaa authorization auth-proxy ", "aaa accounting dot1x ",
+        "aaa accounting auth-proxy ", "aaa accounting update ", "aaa group server radius ", "aaa server radius dynamic-author",
+    )
+    NAC_GUIDE = (
+        "https://support.huawei.com/enterprise/en/doc/EDOC1000141870/c5852f72/"
+        "example-for-configuring-mac-address-authentication-to-control-user-access"
+    )
+
+    ONCE_REVIEW = ("device-tracking", "voice-vlan", "no logging event link-status")
+
+    def _repeat_review(self, command):
+        """True from the second port on that carries the same review-only command (``device-tracking`` on 91 ports is one finding)."""
+        seen = self.__dict__.setdefault("_review_seen", set())
+        if command in seen:
+            return True
+        if command in self.ONCE_REVIEW:
+            seen.add(command)
+        return False
+
+    def plan_nac(self, config, profile=None):
+        """Global NAC lines (AAA domain, access profiles and authentication profiles) for the ports that authenticate, emitted before the interfaces.
+
+        Port data is stored on ``self._nac_ports`` (interface name -> profile name and the commands left over), which ``translate_interface`` reads.
+        Every command generated here is documented in the Huawei V600R025C00 NAC Configuration guide / Command Reference (see ``nac.py`` for the
+        table).  What has no verified equivalent is listed once per profile as a review item."""
+        self._nac_active = False
+        self._nac_ports = {}
+        self._radius_emitted = False
+        self._review_seen = set()
+        groups = {}
+        order = []
+
+        for interface in config.interfaces:
+
+            settings, remaining = nac.extract(interface.commands, getattr(interface, "access_vlan", None))
+
+            if not settings or not (settings.dot1x or settings.mab):
+                continue
+
+            if settings.port_control in ("force-authorized", "force-unauthorized"):
+                continue
+
+            if settings.key not in groups:
+                groups[settings.key] = {"settings": settings, "ports": [], "name": f"NAC-P{len(groups) + 1}"}
+                order.append(settings.key)
+
+            groups[settings.key]["ports"].append(interface.name)
+            self._nac_ports[interface.name] = {"name": groups[settings.key]["name"], "remaining": remaining}
+
+        if not groups:
+            return []
+
+        self._nac_active = True
+        total_ports = sum(len(group["ports"]) for group in groups.values())
+        local_only = bool(profile and getattr(profile, "aaa_local_only", False))
+        tx_periods = sorted({
+            nac.extract(interface.commands)[0].tx_period
+            for interface in config.interfaces
+            if interface.name in self._nac_ports and nac.extract(interface.commands)[0].tx_period
+        }, key=int)
+
+        output = [
+            "#",
+            "# ========================================================",
+            "# 802.1X / MAC authentication bypass (Cisco authentication / mab / dot1x -> Huawei NAC)",
+            f"# {total_ports} port(s) in {len(groups)} authentication profile(s).",
+            f"# Every command below is documented in the Huawei V600R025C00 NAC Configuration guide ({self.NAC_GUIDE}).",
+            "# ========================================================",
+        ]
+
+        radius_lines = []
+
+        if config.radius_commands and not local_only:
+
+            radius_lines = self.translate_radius(config.radius_commands)
+            output.extend(radius_lines)
+            self._radius_emitted = True
+
+        accounting = any(
+            command.startswith(("aaa accounting dot1x ", "aaa accounting auth-proxy "))
+            for command in config.aaa_commands
+        )
+
+        output.extend([
+            "aaa",
+            " authentication-scheme NAC-RADIUS",
+            "  authentication-mode radius",
+            " #",
+        ])
+
+        if accounting:
+            output.extend([
+                " accounting-scheme NAC-ACCT",
+                "  accounting-mode radius",
+                " #",
+            ])
+
+        output.append(f" domain {self.NAC_DOMAIN}")
+        output.append("  authentication-scheme NAC-RADIUS")
+
+        if accounting:
+            output.append("  accounting-scheme NAC-ACCT")
+
+        if radius_lines:
+            output.append(f"  radius-server {self.RADIUS_TEMPLATE_NAME}")
+        else:
+            output.append(
+                "  # REVIEW-NAC-RADIUS: no RADIUS server was found in the source (or the profile removes RADIUS) -- "
+                "bind the template here: radius-server <template>"
+            )
+
+        output.extend([" #", "#"])
+
+        if tx_periods:
+            output.append(f"dot1x timer tx-period {tx_periods[0]}")
+            output.append("#")
+
+            if len(tx_periods) > 1:
+                output.append(
+                    f"# REVIEW-NAC-TX-PERIOD: the source uses {', '.join(tx_periods)} s on different ports; "
+                    f"Huawei has one switch-wide value, {tx_periods[0]} s was used."
+                )
+                output.append("#")
+
+        for key in order:
+
+            group = groups[key]
+            settings = group["settings"]
+            n = group["name"].replace("NAC-P", "")
+
+            if settings.dot1x:
+                output.append(f"dot1x-access-profile name NAC-D{n}")
+
+                if settings.periodic:
+                    output.append(" dot1x reauthenticate")
+
+                if settings.reauth_period:
+                    output.append(f" dot1x timer reauthenticate-period {settings.reauth_period}")
+
+                output.append("#")
+
+            if settings.mab:
+                output.append(f"mac-access-profile name NAC-M{n}")
+
+                if settings.periodic:
+                    output.append(" mac-authen reauthenticate")
+
+                output.append("#")
+
+            output.append(f"authentication-profile name {group['name']}")
+
+            if settings.dot1x:
+                output.append(f" dot1x-access-profile NAC-D{n}")
+
+            if settings.mab:
+                output.append(f" mac-access-profile NAC-M{n}")
+
+            output.append(f" access-domain {self.NAC_DOMAIN} force")
+
+            mode = settings.mode()
+
+            if mode == "multi-authen":
+                output.append(" authentication mode multi-authen")
+            elif mode:
+                output.append(f" authentication mode {mode}")
+
+            if settings.mab_fallback and settings.dot1x and settings.mab:
+                output.append(" authentication dot1x-mac-bypass")
+
+            if settings.server_alive:
+                output.append(" authentication event authen-server-up action re-authen")
+
+            if settings.server_dead and settings.access_vlan:
+                output.append(f" authentication event authen-server-down action authorize vlan {settings.access_vlan}")
+
+            output.append("#")
+            output.append(
+                f"# {group['name']}: {len(group['ports'])} port(s) -- {nac.compact_ports(group['ports'])}"
+            )
+
+            methods = " + ".join(
+                name for name, used in (("802.1X", settings.dot1x), ("MAC bypass (MAB)", settings.mab)) if used
+            )
+            output.append(
+                f"# {group['name']}: methods {methods}; source host-mode {settings.host_mode or 'default (single-host)'}"
+            )
+
+            if settings.server_dead and not settings.access_vlan:
+                output.append(
+                    f"# REVIEW-NAC-{group['name']}: source authorizes the port when the RADIUS servers are dead but the port has no access VLAN; "
+                    "add: authentication event authen-server-down action authorize vlan <vlan-id>"
+                )
+
+            if settings.notes:
+                output.append(
+                    f"# REVIEW-NAC-{group['name']}: not generated (no equivalent in the guide, or release-specific): "
+                    + "; ".join(settings.notes)
+                )
+
+            output.append("#")
+
+        output.append(
+            "# REVIEW-NAC: ports whose source host-mode is multi-domain use `authentication mode single-voice-with-data` (one data + one voice user). "
+            "CoA from the policy server (Cisco dynamic-author) needs the RADIUS authorization address and key on the Huawei side; "
+            "the shared keys cannot be recovered from the Cisco type-7 hashes."
+        )
         output.append("#")
 
         return output
