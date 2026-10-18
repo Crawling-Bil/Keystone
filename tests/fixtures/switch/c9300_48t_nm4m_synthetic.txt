@@ -1,0 +1,28 @@
+SW-LAB-EDGE1#show inventory
+NAME: "Switch 1", DESCR: "Cisco Catalyst 9300 48-port data"
+PID: C9300-48T         , VID: V01  , SN: FOCSYNTH1001
+
+NAME: "Switch 1 FRU Uplink Module 1", DESCR: "xMGig Uplink Module"
+PID: C9300-NM-4M       , VID: V02  , SN: FOCSYNTH1002
+
+SW-LAB-EDGE1#show running-config
+version 17.9
+hostname SW-LAB-EDGE1
+!
+vlan 10
+ name USERS
+!
+interface GigabitEthernet1/0/1
+ description LAB-PC-1
+ switchport access vlan 10
+ switchport mode access
+!
+interface GigabitEthernet1/1/2
+ description TO-LAB-CORE-1
+ switchport mode trunk
+!
+interface TenGigabitEthernet1/1/5
+ description NOT-A-PORT-ON-4M
+ switchport mode trunk
+!
+end

@@ -350,6 +350,7 @@ def _parse_cdp_detail(lines: list[str]) -> list[dict]:
 
     results = []
     current: dict = {}
+    in_management = False
     device_id_re = re.compile(r"^Device ID:\s*(.+)$", re.IGNORECASE)
     platform_re = re.compile(r"^Platform:\s*([^,]+),", re.IGNORECASE)
     interface_re = re.compile(
@@ -358,18 +359,24 @@ def _parse_cdp_detail(lines: list[str]) -> list[dict]:
 
     def flush():
         if current.get("neighbor_id"):
-            results.append({
+            row = {
                 "protocol": "CDP",
                 "neighbor_id": current.get("neighbor_id", ""),
                 "local_interface": current.get("local_interface", ""),
                 "remote_interface": current.get("remote_interface", ""),
                 "platform": current.get("platform", ""),
-            })
+            }
+            # fields only the detail view carries; absent keys stay absent so a brief-only capture is unchanged
+            for key in ("management_address", "capabilities", "software", "native_vlan", "duplex", "holdtime"):
+                if current.get(key):
+                    row[key] = current[key]
+            results.append(row)
 
     for line in section:
         if set(line) <= {"-"} and len(line) >= 5:
             flush()
             current = {}
+            in_management = False
             continue
 
         match = device_id_re.match(line)
@@ -388,6 +395,42 @@ def _parse_cdp_detail(lines: list[str]) -> list[dict]:
         if match:
             current["local_interface"] = match.group(1).strip()
             current["remote_interface"] = match.group(2).strip()
+            continue
+
+        # "Management address(es):" is followed by "  IP address: x" (the address the neighbour wants to be managed on);
+        # "Entry address(es):" is the address it sends CDP from. The management address wins when both are present.
+        low = line.lower()
+        if low.startswith("management address"):
+            in_management = True
+            continue
+        if low.startswith("entry address"):
+            in_management = False
+            continue
+        match = re.match(r"^(?:IP(?:v4)? address|IPv6 address):\s*(\S+)", line, re.IGNORECASE)
+        if match:
+            if in_management or not current.get("management_address"):
+                current["management_address"] = match.group(1)
+            continue
+        match = re.match(r"^Platform:.*Capabilities:\s*(.+)$", line, re.IGNORECASE)
+        if match:
+            current["capabilities"] = match.group(1).strip()
+            continue
+        match = re.match(r"^Holdtime\s*:\s*(\d+)", line, re.IGNORECASE)
+        if match:
+            current["holdtime"] = match.group(1)
+            continue
+        match = re.match(r"^Native VLAN:\s*(\d+)", line, re.IGNORECASE)
+        if match:
+            current["native_vlan"] = match.group(1)
+            continue
+        match = re.match(r"^Duplex:\s*(\S+)", line, re.IGNORECASE)
+        if match:
+            current["duplex"] = match.group(1).lower()
+            continue
+        match = re.search(r"\b(IOS[- ]XE|IOS|NX-OS|Nexus)\b.*?\bVersion\s+([0-9][^\s,]*)", line, re.IGNORECASE)
+        if match and not current.get("software"):
+            family = "IOS XE" if re.search(r"IOS[- ]?XE", line, re.IGNORECASE) else match.group(1).replace("IOS-XE", "IOS XE")
+            current["software"] = f"{family} {match.group(2)}"
             continue
 
     flush()

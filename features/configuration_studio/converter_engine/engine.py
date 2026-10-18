@@ -551,8 +551,12 @@ class MigrationEngine:
         target_device_type=None,
         profile=None,
         target_model=None,
-        mapping=None
+        mapping=None,
+        identity_text=None
     ):
+        # identity_text: the whole capture when ``filename`` holds only its
+        # configuration block (session_capture); the hardware catalog reads
+        # the chassis and uplink-module PIDs of "show inventory" from it.
 
         config = self.parse(
             filename=filename,
@@ -568,6 +572,37 @@ class MigrationEngine:
 
             target_device_type = (
                 config.source_device_type
+            )
+
+        # Interface map: which physical port of the source model becomes
+        # which port of the target model (hardware catalog). It must exist
+        # before translate() because the translators read the port map for
+        # the uplink-module ports whose numbering is not derivable from the
+        # name alone. Never allowed to break a conversion.
+        try:
+
+            from .hardware.interface_map import (
+                prepare_port_map
+            )
+
+            with open(
+                filename,
+                "r",
+                encoding="utf-8",
+                errors="ignore"
+            ) as handle:
+
+                prepare_port_map(
+                    config,
+                    identity_text or handle.read(),
+                    target_vendor,
+                    target_model
+                )
+
+        except Exception as exc:
+
+            config.warnings.append(
+                f"Interface map unavailable: {exc}"
             )
 
         output = self.translate(

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from features.configuration_studio.service import create_engine
-from . import aoscx, bundles, capture_text, coverage, finding_context, findings, fingerprint, fhrp, fhrp_live, health, health_aoscx, l3, live_state, logs, nxos_extras, nxos_routes, ospf_db, ospf_live, parts, runtime_parser, serials, show_tables, stp_detail, tabs
+from . import aoscx, bundles, capture_text, coverage, finding_context, findings, fingerprint, fhrp, fhrp_live, health, health_aoscx, l3, live_state, logs, nxos_extras, nxos_routes, ntp, ospf_db, ospf_live, parts, redundancy, runtime_parser, serials, show_tables, stp_detail, stp_inconsistent, tabs
 
 IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 
@@ -83,7 +83,7 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
     detected_vendor = str(getattr(config, "source_vendor", "") or effective_vendor)
     detection_info["vendor_reported"] = detected_vendor
 
-    lines = text.splitlines()
+    lines = capture_text.expand_command_echoes(text.splitlines())
     clean = capture_text.clean_lines(text)
     # Only the Logs tab and Coverage need the device log itself. A 35 MB ArubaOS-CX `show logging` dump (180,000 syslog
     # lines) made every table reader scan all of it; they get the capture without those lines.
@@ -166,6 +166,14 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
     _enrich_port_channels(port_channels, interfaces)
     vpc_mlag = _apply_vpc_mlag_config_fallback(vpc_mlag, config, interfaces)
     inventory = _apply_stack_config_fallback(inventory, config)
+    if not os_version.get("model"):
+        # A backup without `show version` (Nexus / ASR / 3825 captures): the model is still printed by `show inventory` (the chassis row) or recognised from the file
+        chassis = next((m.get("pid") for m in inventory.get("modules") or [] if m.get("pid") and "chassis" in f"{m.get('slot', '')} {m.get('description', '')}".lower()), "")
+        model = chassis or str(detection_info.get("model_hint") or "")
+        if model:
+            os_version = dict(os_version, model=model)
+    if not os_version.get("model") or not os_version.get("os_version"):
+        os_version = _sdwan_identity(clean, os_version)
     poe = _apply_poe_config_fallback(poe, config)
 
     # Transceiver rows only carry install/type data — cross-reference the
@@ -224,6 +232,9 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
     device_host = _device_host(clean, config.hostname)
     fhrp_view = fhrp.analyse(clean, device_host)   # HSRP / VRRP groups from the configuration, the live state from Huawei `display vrrp`, NX-OS `show hsrp`, IOS `show standby brief`
     ospf_state = ospf_live.read(clean, device_host)
+    stp_inc_view = stp_inconsistent.read(clean, device_host)  # `show spanning-tree inconsistentports`
+    ntp_view = ntp.read(clean, device_host)                   # `show ntp status` / `show ntp associations` / `display ntp status` / `display ntp sessions`
+    redundancy_view = redundancy.read(clean, device_host)     # `show redundancy states` / `show redundancy` / `show redundancy history` (IOS XE SSO)
     ospf_dbv = ospf_db.read(clean, device_host)     # `show ip ospf interface brief` and the link-state database summary
     ospf_view = {"neighbors": ospf_state["neighbors"], "summary": ospf_state["summary"],
                  "findings": ospf_live.findings(ospf_state["neighbors"]) + ospf_db.findings(ospf_dbv, ospf_state["neighbors"]),
@@ -268,9 +279,12 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
         "l3": l3_view,
         "health": health_view,
         # Sections a module adds to an existing tab (Nexus CPU / memory, vPC statistics, LACP counters ...): the page appends each to its tab.
-        "extra_tables": list(health_view.get("extra_tables") or []) + fhrp_view["tables"] + _ospf_tables(ospf_state, ospf_dbv),
-        "extras": {**dict(health_view.get("extra_counts") or {}), **fhrp_view["counts"], "ospf_nbr": len(ospf_state["neighbors"]), "ospf_nbr_summary": len(ospf_state["summary"]), **ospf_db.counts(ospf_dbv)},
+        "extra_tables": list(health_view.get("extra_tables") or []) + fhrp_view["tables"] + redundancy.tables(redundancy_view) + ntp.tables(ntp_view) + _ospf_tables(ospf_state, ospf_dbv),
+        "extras": {**dict(health_view.get("extra_counts") or {}), **fhrp_view["counts"], **redundancy.counts(redundancy_view), **ntp.counts(ntp_view), **stp_inconsistent.counts(stp_inc_view), "ospf_nbr": len(ospf_state["neighbors"]), "ospf_nbr_summary": len(ospf_state["summary"]), **ospf_db.counts(ospf_dbv)},
         # Live first-hop redundancy and OSPF state (the Compare Devices pair check and the Findings tab read these)
+        "redundancy": {**redundancy_view, "findings": redundancy.findings(redundancy_view, inventory)},
+        "ntp": {**ntp_view, "findings": ntp.findings(ntp_view)},
+        "stp_inconsistent": {**stp_inc_view, "findings": stp_inconsistent.findings(stp_inc_view)},
         "fhrp": {"groups": fhrp_view["groups"], "summary": fhrp_view["summary"], "findings": fhrp_view["findings"], "config_hsrp": fhrp_view["config_hsrp"]},
         "ospf_live": ospf_view,
         "logs": logs_view,
@@ -877,6 +891,28 @@ def _apply_vpc_mlag_config_fallback(
 
     vpc_mlag["summary"] = summary
     return vpc_mlag
+
+
+def _sdwan_identity(clean: list[str], os_version: dict[str, Any]) -> dict[str, Any]:
+    """Model and software version from `show sdwan system status` (a Catalyst 8000V/8200 in controller mode prints them there instead of in `show version`)."""
+    for index, line in enumerate(clean):
+        parts = capture_text.split_command(line)
+        if not parts or not re.fullmatch(r"show sdwan system status", parts[0]):
+            continue
+        found: dict[str, str] = {}
+        for row in clean[index + 1:index + 80]:
+            if capture_text.split_command(row):
+                break
+            match = re.match(r"^\s*(Version|Model name)\s*:\s*(\S+)", row)
+            if match:
+                found.setdefault(match.group(1), match.group(2))
+        updated = dict(os_version)
+        if not updated.get("model") and found.get("Model name"):
+            updated["model"] = found["Model name"]
+        if not updated.get("os_version") and found.get("Version"):
+            updated["os_version"] = found["Version"]
+        return updated
+    return os_version
 
 
 def _apply_stack_config_fallback(inventory: dict[str, Any], config) -> dict[str, Any]:

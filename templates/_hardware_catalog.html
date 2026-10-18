@@ -1,0 +1,76 @@
+{#
+  Hardware catalog panel for the Convert Switch and Convert Router pages. Server-rendered on purpose: the planned
+  (not-yet-available) router page does not load configuration.js. Data comes from converter_engine/hardware/.
+  Variables: hardware_catalog (list of model dicts), domain.
+#}
+{% if hardware_catalog %}
+<details class="panel hw-catalog" id="hardware-catalog"{% if domain.key == 'router' and not domain.available %} open{% endif %}>
+    <summary>
+        <span class="hw-summary-title">{% if domain.key == 'router' %}Router hardware catalog &amp; interface map reference{% else %}Switch hardware catalog{% endif %}</span>
+        <span class="hw-summary-count">{{ hardware_catalog|length }} models</span>
+    </summary>
+    <p class="hw-intro">
+        {% if domain.key == 'router' %}
+        Every router model found in the sample configurations, with the interface names its onboard ports and expansion slots produce. Routers are modular: the middle number is the slot, so the same <code>GigabitEthernet0/1/0</code> is a different physical port depending on which module sits in that slot.
+        {% else %}
+        Every switch model found in the sample configurations, plus the Huawei CloudEngine models offered as conversion targets (from the Huawei data sheets). Convert uses these port layouts to build the <strong>Interface map</strong> (each source port to a port that exists on the chosen target model) and to number uplink-module ports correctly.
+        {% endif %}
+    </p>
+    {% if domain.key == 'router' %}
+    <label class="hw-picker"><span>Show model</span>
+        <select id="hw-model-picker" aria-label="Show router model">
+            <option value="">All models</option>
+            {% for m in hardware_catalog %}<option value="{{ m.key }}">{{ m.label }}</option>{% endfor %}
+        </select>
+    </label>
+    {% endif %}
+    <div class="hw-list">
+    {% for m in hardware_catalog %}
+        <article class="hw-model" data-model="{{ m.key }}">
+            <header>
+                <div><strong>{{ m.key }}</strong><span>{{ m.platform }} · {{ m.os }}</span></div>
+                <div class="hw-badges">
+                    {% if domain.key == 'switch' %}<span class="cell-status {{ 'tone-ok' if m.target_ok else 'tone-mute' }}">{{ 'Source + target' if m.target_ok else 'Source / reference only' }}</span>{% endif %}
+                    {% if m.max_members and m.max_members > 1 %}<span class="cell-status">stack ≤ {{ m.max_members }}</span>{% endif %}
+                </div>
+            </header>
+            <p>{{ m.summary }}</p>
+            <div class="table-wrap hw-table"><table>
+                <thead><tr><th>Role</th><th>Interface pattern</th><th>Ports</th><th>Speed</th><th>Medium</th><th>Also appears as</th></tr></thead>
+                <tbody>
+                {% for g in m.groups %}
+                    <tr><td>{{ g.role }}</td><td><code>{{ g.pattern }}</code></td><td>{{ g.count }}</td><td>{{ g.speed }}</td><td>{{ g.medium }}{% if g.poe %} · {{ g.poe }}{% endif %}</td><td>{% if g.also_named %}{{ g.also_named|join(', ') }}{% else %}—{% endif %}{% if g.note %}<small class="hw-note">{{ g.note }}</small>{% endif %}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table></div>
+            {% if m.modules %}
+            <p class="hw-modules"><span class="hw-label">Uplink modules (slot 1, <code>&lt;member&gt;/1/&lt;port&gt;</code>)</span>
+                {% for mod in m.modules %}<span class="hw-chip{% if mod.default %} is-seen{% endif %}" title="{{ 'Seen in the samples' if mod.default else 'From the data sheet' }}">{{ mod.key }} · {{ mod.label }}</span>{% endfor %}
+            </p>
+            {% endif %}
+            {% if m.slots %}
+            <div class="table-wrap hw-table"><table>
+                <thead><tr><th>Expansion slot</th><th>Interface naming</th><th>Accepts</th><th>Seen in samples</th></tr></thead>
+                <tbody>{% for s in m.slots %}<tr><td>{{ s.name }}</td><td><code>{{ s.naming }}</code></td><td>{{ s.accepts }}</td><td>{{ s.observed or '—' }}</td></tr>{% endfor %}</tbody>
+            </table></div>
+            {% endif %}
+            {% for note in m.notes %}<p class="hw-note">{{ note }}</p>{% endfor %}
+            <footer>
+                <a href="{{ m.doc_url }}" target="_blank" rel="noopener noreferrer">{{ m.doc_title }}</a>
+            </footer>
+        </article>
+    {% endfor %}
+    </div>
+</details>
+<script>
+(() => {
+  const picker = document.getElementById("hw-model-picker");
+  if (!picker) return;
+  picker.addEventListener("change", () => {
+    document.querySelectorAll("#hardware-catalog .hw-model").forEach(card => {
+      card.classList.toggle("is-hidden", !!picker.value && card.dataset.model !== picker.value);
+    });
+  });
+})();
+</script>
+{% endif %}

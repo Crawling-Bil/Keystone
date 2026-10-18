@@ -17,6 +17,7 @@ from .converter_engine.domains import DOMAINS, get_domain
 from .service import (
     available_profiles,
     available_target_models,
+    hardware_catalog,
     convert_file,
     domain_overview,
     ensure_domain_available,
@@ -222,11 +223,16 @@ def convert_page(slug: str):
         platforms=supported_platforms(key) if entry["available"] else {"sources": [], "targets": []},
         # Standard config profiles (e.g. the TAM Huawei standard) apply to switch conversion only.
         profiles=available_profiles() if key == "switch" else [],
-        # Target-model lists exist for Huawei (switch) and Palo Alto (firewall) targets.
+        # Target-model lists exist for Huawei, Cisco and Aruba (switch) and Palo Alto (firewall) targets.
         target_models_by_vendor={
             "huawei": available_target_models("Huawei") if key == "switch" else [],
+            "cisco": available_target_models("Cisco") if key == "switch" else [],
+            "aruba": available_target_models("Aruba") if key == "switch" else [],
             "palo alto": available_target_models("Palo Alto") if key == "firewall" else [],
         },
+        # Switch and router pages show the hardware catalog (ports per model, modules, data-sheet links).
+        hardware_catalog=hardware_catalog(key),
+        router_models=hardware_catalog("router") if key == "router" else [],
     )
 
 

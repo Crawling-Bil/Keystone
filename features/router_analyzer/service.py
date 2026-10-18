@@ -17,6 +17,7 @@ from typing import Any
 
 from ..analyzer_core.findings import severity_counts
 from ..analyzer_core.result import card, info_rows, new_result
+from ..analyzer_core.vendor_hint import identify, wrong_page_hint
 from . import context as ctxmod
 from . import rules, sections as sec
 from .context import bgp_sessions
@@ -34,12 +35,15 @@ COVERAGE_TONE = {"analyzed": "ok", "covered": "info", "ignored": "mute", "not pa
 
 def analyze(content: str, filename: str = "", platform: str = "auto") -> dict[str, Any]:
     ctx = ctxmod.gather(content, filename)
+    if identify(content)["label"] == "Aruba AOS-CX switch":
+        # The IOS-style readers match AOS-CX lines (spanning-tree, vlan, ntp) and produce "Cisco router" findings for a switch.
+        raise ValueError("This file is an Aruba AOS-CX switch configuration - open the Switch Analyzer instead.")
     if not ctx.used_blocks:
         switchy = ctx.capture is not None and any(b.norm.startswith(("show vlan", "show spanning", "show mac", "show interfaces status", "show etherchannel", "display ")) for b in ctx.capture.blocks)
         raise ValueError(
             ("This looks like a switch capture — open the Switch Analyzer for it. " if switchy else "")
             + "No router configuration or supported router show output was recognised. The Router Analyzer reads 'show running-config', 'show ip route', "
-              "'show ip bgp', 'show interfaces' and the other commands listed on the Collect tab."
+              "'show ip bgp', 'show interfaces' and the other commands listed on the Collect tab." + wrong_page_hint(content, "router")
         )
     findings = rules.evaluate(ctx)
     built = sec.build_all(ctx)

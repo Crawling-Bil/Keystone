@@ -1,6 +1,8 @@
 import ipaddress
 import re
 
+from ... import nac
+
 
 class CiscoSwitchTranslator:
     """
@@ -54,6 +56,9 @@ class CiscoSwitchTranslator:
     handled here directly).
     """
 
+    # Source port name -> catalog entry; set per conversion in translate().
+    _port_map = {}
+
     def __init__(self, inventory=None):
         self.inventory = inventory
 
@@ -64,6 +69,13 @@ class CiscoSwitchTranslator:
     def translate(self, config):
 
         output = []
+
+        self._port_map = (
+            getattr(config, "metadata", None) or {}
+        ).get("port_map") or {}
+
+        # a Cisco source already speaks IOS syntax: its port-authentication lines are valid as they are
+        self._same_vendor = str(getattr(config, "source_vendor", "")).lower() == "cisco"
 
         # -----------------------------------------------------
         # HEADER
@@ -328,7 +340,15 @@ class CiscoSwitchTranslator:
         lines = []
 
         interface_name = self.convert_interface_name(interface.name)
+        port_entry = self._port_map.get(interface.name)
+        if port_entry and port_entry.get("target"):
+            interface_name = port_entry["target"]
         lines.append(f"interface {interface_name}")
+        if port_entry and (port_entry.get("note") or interface_name != interface.name):
+            lines.append(
+                f" ! source port {interface.name}"
+                + (f" - REVIEW-PORT: {port_entry['note']}" if port_entry.get("note") else "")
+            )
 
         # -----------------------------------------------------
         # DESCRIPTION
@@ -643,6 +663,10 @@ class CiscoSwitchTranslator:
         # -----------------------------------------------------
 
         for command in interface.commands:
+            if getattr(self, "_same_vendor", False) and (nac.is_nac_command(command) or command == "device-tracking"):
+                # Cisco -> Cisco (model migration): 802.1X / MAB / device-tracking lines are IOS-XE syntax, kept verbatim
+                lines.append(f" {command}")
+                continue
             lines.append(f" ! REVIEW-UNSUPPORTED: {command}")
 
         # -----------------------------------------------------

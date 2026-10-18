@@ -136,6 +136,18 @@ SPECS: tuple[Spec, ...] = (
          {"cisco": "show vpc brief", "huawei": "display dfs-group m-lag brief"}),
     Spec("stp_summary", "Spanning-tree summary", show_tables.PATTERNS["stp_summary"], "health", "root-bridge VLANs, PortFast / BPDU Guard defaults", "the spanning-tree mode, root-bridge VLANs and PortFast / BPDU Guard defaults",
          {"cisco": "show spanning-tree summary"}),
+    Spec("stp_inconsistent", "STP inconsistent ports", (rf"{SH} spanning-tree inconsistentports",), "stp", "ports blocked by root guard, loop guard or a type mismatch",
+         "the ports that spanning-tree protection has put in an inconsistent state", {"cisco": "show spanning-tree inconsistentports"}, _extra("stp_inconsistent"), True),
+    Spec("ntp_status", "NTP status", (rf"{SH} ntp status", rf"{DIS} ntp status", rf"{DIS} ntp-service status"), "health", "whether the clock is synchronised, its stratum and offset",
+         "whether the clock is synchronised to an NTP server, with stratum and offset", {"cisco": "show ntp status", "aoscx": "show ntp status", "huawei": "display ntp status"}, _extra("ntp_status"), True),
+    Spec("ntp_peers", "NTP servers", (rf"{SH} ntp associations", rf"{SH} ntp peer-status", rf"{DIS} ntp sessions", rf"{DIS} ntp-service sessions"), "health", "the NTP servers, which one is in use and whether each answers",
+         "which NTP server is in use and whether each configured server answers", {"cisco": "show ntp associations", "nxos": "show ntp peer-status", "aoscx": "show ntp associations", "huawei": "display ntp sessions"}, _extra("ntp_peers"), True),
+    Spec("redundancy_states", "Redundancy state", (rf"{SH} redundancy states",), "health", "SSO state of this unit and its peer, mode and communications",
+         "whether the stack / chassis has a hot standby", {"cisco": "show redundancy states"}, _extra("redundancy_states"), True),
+    Spec("redundancy", "Redundancy report", (rf"{SH} redundancy",), "health", "switchover count, standby failures and the last switchover reason",
+         "the number of switchovers, standby failures and the last switchover reason", {"cisco": "show redundancy"}, _extra("redundancy_full"), True),
+    Spec("redundancy_history", "Redundancy history", (rf"{SH} redundancy history",), "health", "state-machine events: standby up, standby lost, switchover",
+         "when the standby came up or went away and whether a switchover happened", {"cisco": "show redundancy history"}, _extra("redundancy_history"), True),
     Spec("lacp", "LACP neighbours", (rf"{SH} lacp (?:\d+ )?neighbors?(?: detail)?", rf"{SH} lacp int(?:erfaces?)?(?: \S+)?"), "health", "LACP partner and state per member", "the LACP partner and state of every member port",
          {"cisco": "show lacp neighbor", "aoscx": "show lacp interface"}),
     Spec("env", "Environment", (rf"{SH} env(?:ironment)?(?: all)?", rf"{SH} environment (?:fan|power-supply|temperature|power-consumption)"), "health", "power supply, fan and temperature state", "power supply, fan and temperature state",
@@ -200,6 +212,7 @@ _NOT_USED = (
     (rf"{SH} (?:users|history|line|terminal|privilege|whoami)", "session information, not used"),
     (rf"{SH} environment (?:led|power-supply input-voltage|power-redundancy)", "read for no tab (the fans, power supplies, temperatures and power draw are read)"),
     (rf"{SH} track", "object tracking, not used"),
+    (rf"{SH} redundancy (?:switchover history|clients|counters|inter-device|config-sync.*)", "redundancy detail read for no tab (the state, the full report and the history are read)"),
     (rf"{SH} port-channel compatibility-parameters", "reference text: what a member port must match to join a bundle. It is not state of this device"),
     (rf"{SH} event manager policy registered", "Embedded Event Manager policies (the system-supplied Mandatory.* scripts are not configuration); not used"),
     (rf"{DIS} (?:users|history-command)", "session information, not used"),
@@ -266,6 +279,18 @@ def command_for(spec: Spec, family: str, nxos: bool = False) -> str:
     return (spec.command.get("nxos") if nxos else None) or spec.command.get(family) or spec.command.get("cisco") or spec.label
 
 
+_INCOMPLETE_HINTS = (
+    (rf"{SH} int(?:erfaces?)? transceiver", ". This platform wants more than the plain form; try `show interfaces transceiver detail` (the CLI help `show interfaces transceiver ?` lists what this release accepts)"),
+)
+
+
+def _incomplete_hint(command: str, error: str) -> str:
+    """``% Incomplete command`` means the device wants one more keyword; name the likely one for commands we know (never a guess for others)."""
+    if "incomplete command" not in error.lower():
+        return ""
+    return next((hint for pattern, hint in _INCOMPLETE_HINTS if re.fullmatch(pattern, command)), "")
+
+
 def _feature_hint(command: str, error: str, clean: list[str], answered: set[str], has_config: bool) -> str:
     """For NX-OS ``% Invalid command at '^' marker``: name the feature the command belongs to and say whether the configuration enables it.
 
@@ -320,7 +345,7 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
         status, note, tab = "not parsed", "recognised command but this analyzer has no parser for it yet", ""
         spec = _spec_for(command)
         if block["error"]:
-            status, note = "error", f"the device rejected the command ({block['error'][:60]}){_feature_hint(command, block['error'], clean, answered, config_text)}"
+            status, note = "error", f"the device rejected the command ({block['error'][:60]}){_feature_hint(command, block['error'], clean, answered, config_text)}{_incomplete_hint(command, block['error'])}"
             tab = spec.tab if spec else ""
         elif command.endswith(_HELP_END):
             status, note = "ignored", "help request"

@@ -80,7 +80,13 @@ def clean_lines(text: str) -> list[str]:
             out.append(line[:glued.start()].rstrip())
             line = line[glued.start():]
         out.append(line)
-    return _drop_typeahead_echo(_fold_pager_help(out))
+    return _drop_typeahead_echo(_fold_pager_help(expand_command_echoes(out)))
+
+
+def expand_command_echoes(lines: list[str]) -> list[str]:
+    """Spell out abbreviated ``show`` commands (``sh inven``, ``show cdp neig detail``); see :mod:`command_names`."""
+    from . import command_names   # command_names imports this module for split_prompt
+    return command_names.expand_lines(lines)
 
 
 _PAGER_HELP_START = re.compile(r"^Most commands optionally preceded by integer argument k\b")

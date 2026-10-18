@@ -3,53 +3,83 @@
 {% block page_title %}Convert · {{ domain.label }}{% endblock %}
 {% block page_subtitle %}{{ domain.summary }}{% endblock %}
 {% block content %}
-{% if not domain.available %}
-<section class="panel convert-unavailable" id="convert-unavailable" data-domain="{{ domain.key }}">
-    <div class="panel-heading"><div><h3>No {{ domain.label|lower }} converter yet</h3><p>Keystone does not convert {{ domain.label|lower }} configuration today, and this page will not pretend to. Nothing you upload here is transformed.</p></div></div>
-    <div class="form-grid two">
-        <div><strong>What you can do now</strong><p>Open <a href="{{ domain.analyzer_href }}">{{ domain.analyzer_name }}</a> to read and audit {{ domain.label|lower }} configuration.</p></div>
-        <div><strong>Best source file</strong><p>{{ domain.capture }}</p></div>
-    </div>
-    {% if domain.needs %}<div><strong>Needed before a converter can be built correctly</strong><ul>{% for item in domain.needs %}<li>{{ item }}</li>{% endfor %}</ul></div>{% endif %}
-</section>
-{% else %}
+{% set off = not domain.available %}
 {% set default_target = 'palo alto' if domain.key == 'firewall' else 'huawei' %}
-<form id="converter-form" class="workflow-layout" enctype="multipart/form-data" data-domain="{{ domain.key }}">
+{#
+  One layout for every Convert page. The settings card is built from the same four groups
+  (Source, Platforms, Actions, Batch) whether or not a converter exists. A domain without a
+  converter renders the same card with every control disabled, so the five pages look alike and
+  a converter that gets registered later only switches the controls on (see domains.py).
+#}
+<form id="converter-form" class="workflow-layout convert-layout{% if off %} is-planned{% endif %}" enctype="multipart/form-data" data-domain="{{ domain.key }}"{% if off %} data-planned="true" onsubmit="return false"{% endif %}>
     <input type="hidden" name="domain" value="{{ domain.key }}">
     <input type="hidden" name="source_device_type" id="source-device-type" value="Auto Detect">
     <input type="hidden" name="target_device_type" id="target-device-type" value="">
-    <aside class="workflow-sidebar panel">
-        <div class="panel-heading"><div><h3>Conversion Settings</h3><p>Upload or paste the source config.</p></div></div>
-        <label class="field-label">Configuration File</label>
-        <label class="drop-zone" id="config-drop-zone"><input type="file" name="config_file" id="config-file" accept=".txt,.cfg,.conf,.config,.log,.rsc"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><strong>Choose config file</strong><small id="config-file-label">TXT, CFG, CONF, LOG or RSC</small></label>
-        <div id="config-file-selection" class="file-selection hidden"><span><strong id="selected-config-name">—</strong><small>Selected configuration file</small></span><button type="button" id="clear-config-file" aria-label="Cancel selected configuration file">Cancel</button></div>
-        <div class="field-divider"><span>or paste config</span></div>
-        <textarea name="config_text" id="config-text" class="small-textarea" aria-label="Pasted source configuration" placeholder="Paste running configuration here..."></textarea>
-        <div class="form-grid two">
-            <label><span>Source Vendor</span><select name="source_vendor" id="source-vendor"><option>Auto Detect</option>{% for item in platforms.sources|map(attribute='vendor')|unique %}<option>{{ item|title }}</option>{% endfor %}</select></label>
-            <label><span>Target Vendor</span><select name="target_vendor" id="target-vendor">{% for item in platforms.targets|map(attribute='vendor')|unique %}<option {% if item|lower == default_target %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></label>
+    <aside class="workflow-sidebar panel convert-panel">
+        <div class="panel-heading cv-heading">
+            <div><h3>Conversion Settings</h3><p>{% if off %}Controls unlock when a {{ domain.label|lower }} converter exists.{% else %}Upload or paste the source config.{% endif %}</p></div>
+            {% if off %}<span class="cv-badge" title="No converter is registered for this device type">Not available yet</span>{% endif %}
         </div>
-        <label id="target-model-field"><span>Target Model <small>(optional — checks real port count)</small></span><select name="target_model" id="target-model"><option value="">Auto / not sure (skip port-count check)</option></select><script type="application/json" id="target-models-by-vendor">{{ target_models_by_vendor | tojson }}</script></label>
-        {% if profiles %}
-        <label><span>Standard Config Profile</span><select name="profile_key" id="profile-select"><option value="">None (generic conversion only)</option>{% for p in profiles %}<option value="{{ p.key }}" title="{{ p.description }}">{{ p.name }}</option>{% endfor %}</select></label>
-        {% endif %}
-        {% if domain.key == 'firewall' %}
-        <button class="secondary-button full-width hidden" type="button" id="preview-mapping-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Preview Interface Mapping</button>
-        {% endif %}
-        <button class="primary-button full" type="submit" id="convert-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Convert Configuration</button>
-        <div class="batch-box">
-            <div class="field-divider"><span>batch conversion</span></div>
-            <div class="batch-source-grid">
-                <label class="drop-zone horizontal compact-drop"><input type="file" id="batch-files" accept=".txt,.cfg,.conf,.config,.log,.rsc,.zip" multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#plus"></use></svg></span><span><strong>Select files or ZIP</strong><small id="batch-file-label">Configs or ZIP archive</small></span></label>
-                <label class="drop-zone horizontal compact-drop"><input type="file" id="batch-folder" webkitdirectory directory multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#folder"></use></svg></span><span><strong>Select config folder</strong><small id="batch-folder-label">Folder and subfolders</small></span></label>
-            </div>
-            <div id="batch-selection" class="file-selection batch-selection hidden"><span><strong id="batch-selection-count">0 files selected</strong><small>TXT, CFG, CONF, CONFIG, LOG, or ZIP</small></span><button type="button" id="clear-batch-files">Clear</button></div>
-            <button class="secondary-button full-width" type="button" id="batch-convert-button">Convert Batch to ZIP</button>
+        <fieldset class="cv-fieldset"{% if off %} disabled{% endif %}>
+        <div class="cv-stack">
+            <section class="cv-group" aria-label="Source configuration">
+                <span class="field-label">Configuration File</span>
+                <label class="drop-zone" id="config-drop-zone"><input type="file" name="config_file" id="config-file" accept=".txt,.cfg,.conf,.config,.log,.rsc"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><strong>Choose config file</strong><small id="config-file-label">TXT, CFG, CONF, LOG or RSC</small></label>
+                <div id="config-file-selection" class="file-selection hidden"><span><strong id="selected-config-name">—</strong><small>Selected configuration file</small></span><button type="button" id="clear-config-file" aria-label="Cancel selected configuration file">Cancel</button></div>
+                <div class="field-divider"><span>or paste config</span></div>
+                <textarea name="config_text" id="config-text" class="small-textarea" aria-label="Pasted source configuration" placeholder="Paste running configuration here..."></textarea>
+            </section>
+
+            <section class="cv-group" aria-label="Platforms">
+                <div class="cv-row">
+                    <label class="cv-field"><span>Source Vendor</span><select name="source_vendor" id="source-vendor"><option>Auto Detect</option>{% for item in platforms.sources|map(attribute='vendor')|unique %}<option>{{ item|title }}</option>{% endfor %}</select></label>
+                    <label class="cv-field"><span>Target Vendor</span><select name="target_vendor" id="target-vendor">{% if off %}<option>None yet</option>{% endif %}{% for item in platforms.targets|map(attribute='vendor')|unique %}<option {% if item|lower == default_target %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></label>
+                </div>
+                <label class="cv-field" id="target-model-field"><span>{% if domain.key == 'router' and router_models %}Router Model <small>(reference only, conversion not available yet)</small>{% else %}Target Model <small>(optional, checks ports against the real model)</small>{% endif %}</span><select name="target_model" id="target-model">{% if domain.key == 'router' and router_models %}{% for m in router_models %}<option value="{{ m.key }}">{{ m.label }}</option>{% endfor %}{% else %}<option value="">Auto / not sure (skip port check)</option>{% endif %}</select><script type="application/json" id="target-models-by-vendor">{{ target_models_by_vendor | tojson }}</script></label>
+                {% if profiles %}
+                <label class="cv-field"><span>Standard Config Profile</span><select name="profile_key" id="profile-select"><option value="">None (generic conversion only)</option>{% for p in profiles %}<option value="{{ p.key }}" title="{{ p.description }}">{{ p.name }}</option>{% endfor %}</select></label>
+                {% endif %}
+            </section>
+
+            <section class="cv-group cv-actions" aria-label="Actions">
+                {% if domain.key == 'firewall' %}
+                <button class="secondary-button full-width hidden" type="button" id="preview-mapping-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Preview Interface Mapping</button>
+                {% endif %}
+                <button class="primary-button full" type="submit" id="convert-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Convert Configuration</button>
+            </section>
+
+            <section class="cv-group batch-box" aria-label="Batch conversion">
+                <div class="field-divider"><span>batch conversion</span></div>
+                <div class="batch-source-grid">
+                    <label class="drop-zone horizontal compact-drop"><input type="file" id="batch-files" accept=".txt,.cfg,.conf,.config,.log,.rsc,.zip" multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#plus"></use></svg></span><span><strong>Select files or ZIP</strong><small id="batch-file-label">Configs or ZIP archive</small></span></label>
+                    <label class="drop-zone horizontal compact-drop"><input type="file" id="batch-folder" webkitdirectory directory multiple><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#folder"></use></svg></span><span><strong>Select config folder</strong><small id="batch-folder-label">Folder and subfolders</small></span></label>
+                </div>
+                <div id="batch-selection" class="file-selection batch-selection hidden"><span><strong id="batch-selection-count">0 files selected</strong><small>TXT, CFG, CONF, CONFIG, LOG, or ZIP</small></span><button type="button" id="clear-batch-files">Clear</button></div>
+                <button class="secondary-button full-width" type="button" id="batch-convert-button">Convert Batch to ZIP</button>
+            </section>
         </div>
+        </fieldset>
         <div class="privacy-note"><strong>Local processing</strong><span>Configuration stays on this Mac and is processed by the local NES server.</span></div>
     </aside>
 
     <section class="workflow-main">
+        {% if off %}
+        <div class="panel cv-status" id="convert-unavailable" data-domain="{{ domain.key }}">
+            <div class="cv-status-head">
+                <span class="cv-status-icon"><svg><use href="/static/icons/nes-icons.svg#{{ domain.icon }}"></use></svg></span>
+                <div><h3>No {{ domain.label|lower }} converter yet</h3><p>Keystone does not convert {{ domain.label|lower }} configuration today, and this page will not pretend to. Nothing you upload here is transformed.</p></div>
+            </div>
+            <div class="cv-status-grid">
+                <article class="cv-card"><span class="cv-card-label">What you can do now</span><p>Open <a href="{{ domain.analyzer_href }}">{{ domain.analyzer_name }}</a> to read and audit {{ domain.label|lower }} configuration.</p><a class="secondary-button" href="{{ domain.analyzer_href }}">Open {{ domain.analyzer_name }}</a></article>
+                <article class="cv-card"><span class="cv-card-label">Best source file</span><p>{{ domain.capture }}</p></article>
+            </div>
+            {% if domain.needs %}
+            <div class="cv-needs"><span class="cv-card-label">Needed before a converter can be built correctly</span><ul class="cv-checklist">{% for item in domain.needs %}<li>{{ item }}</li>{% endfor %}</ul></div>
+            {% endif %}
+            <p class="cv-footnote">A converter is added by registering a parser and a translator; the steps are in <code>docs/modules/configuration-studio.md</code>. This page then switches to the working form.</p>
+        </div>
+        {% include "_hardware_catalog.html" %}
+        {% else %}
         <div id="converter-empty" class="panel empty-state tall"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#swap"></use></svg></div><h3>Ready to convert</h3><p>Upload a configuration or paste it on the left. Detection, conversion, review markers, and download will appear here.</p></div>
         {% if domain.key == 'firewall' %}
         <div id="mapping-result" class="hidden">
@@ -105,13 +135,27 @@
                 <article><span>Output Lines</span><strong id="output-lines">0</strong></article>
             </div>
             <div class="editor-toolbar panel"><div><span class="status-dot-label"><i></i>Conversion complete</span><small id="conversion-path"></small></div><a id="download-config" class="secondary-button" href="#">Download CFG</a></div>
-            <div class="editor-grid">
+            {% if domain.key == 'switch' %}
+            <div class="panel cv-result-tabs" role="tablist" aria-label="Conversion result views">
+                <button type="button" role="tab" class="cv-result-tab active" data-result-tab="config" aria-selected="true">Configuration</button>
+                <button type="button" role="tab" class="cv-result-tab" data-result-tab="interface-map" aria-selected="false">Interface map <span class="cv-tab-count" id="interface-map-tab-count"></span></button>
+            </div>
+            <section id="interface-map-panel" class="panel im-panel hidden" role="tabpanel" aria-label="Interface map">
+                <div class="panel-heading"><div><h3>Interface map</h3><p id="interface-map-lead">Each source port and the port it becomes on the target.</p></div></div>
+                <div id="interface-map-warnings" class="im-warnings"></div>
+                <div class="im-summary" id="interface-map-summary"></div>
+                <label class="im-toggle"><input type="checkbox" id="interface-map-show-unused"> Show ports with no configuration</label>
+                <div class="table-wrap im-table"><table id="interface-map-table"></table></div>
+            </section>
+            {% endif %}
+            <div class="editor-grid" id="config-view">
                 <article class="code-panel"><header><div><strong>Source Configuration</strong><span id="source-line-count"></span></div><button type="button" data-copy="source-editor">Copy</button></header><pre id="source-editor"></pre></article>
                 <article class="code-panel"><header><div><strong>Converted Configuration</strong><span>Converted output</span></div><button type="button" data-copy="output-editor">Copy</button></header><pre id="output-editor"></pre></article>
             </div>
         </div>
+        {% include "_hardware_catalog.html" %}
+        {% endif %}
     </section>
 </form>
-{% endif %}
 {% endblock %}
 {% block scripts %}{% if domain.available %}<script src="{{ url_for('static', filename='js/configuration.js') }}"></script>{% endif %}{% endblock %}

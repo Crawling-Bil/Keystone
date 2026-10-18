@@ -85,6 +85,16 @@ PALO = {
     "profile_group": "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/policy/security-profiles/create-a-security-profile-group",
     "best_practice_profiles": "https://docs.paloaltonetworks.com/best-practices/internet-gateway-best-practices/best-practice-internet-gateway-security-policy/create-best-practice-security-profiles.html",
     "rule_usage": "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/monitoring/view-policy-rule-usage",          # returned by a docs.paloaltonetworks.com search on 2026-10-14
+    # returned by docs.paloaltonetworks.com searches on 2026-10-18
+    "password_requirements": "https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-web-interface-help/device/device-password-profiles/username-and-password-requirements",
+    "password_profiles": "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-help/device/device-password-profiles",
+    "ike_gateway": "https://docs.paloaltonetworks.com/network-security/ipsec-vpn/administration/set-up-site-to-site-vpn/set-up-an-ike-gateway",
+    "ike_crypto_profile": "https://docs.paloaltonetworks.com/network-security/ipsec-vpn/administration/set-up-site-to-site-vpn/define-cryptographic-profiles/define-ike-crypto-profiles",
+    "ipsec_tunnel": "https://docs.paloaltonetworks.com/pan-os/9-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ipsec-tunnel",
+    "ikev2": "https://docs.paloaltonetworks.com/pan-os/10-2/pan-os-admin/vpns/site-to-site-vpn-concepts/ikev2",
+    "dhcp_server": "https://docs.paloaltonetworks.com/ngfw/networking/dhcp/configure-an-interface-as-a-dhcp-server",
+    "qos": "https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/quality-of-service/configure-qos",
+    "botnet": "https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/monitoring/view-and-manage-reports/generate-botnet-reports/configure-a-botnet-report",
     "virtual_systems": "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/virtual-systems/configure-virtual-systems",
     # added with panos_capture (runtime-only captures); every URL below was fetched on 2026-10-17 and its content matched
     "license_expiry": "https://docs.paloaltonetworks.com/pan-os/10-2/pan-os-admin/subscriptions/what-happens-when-licenses-expire",
