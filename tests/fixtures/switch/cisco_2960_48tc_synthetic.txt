@@ -1,0 +1,45 @@
+SW-LAB-2960#show version
+cisco WS-C2960-48TC-L (PowerPC405) processor (revision T0) with 65536K bytes of memory.
+Model number                    : WS-C2960-48TC-L
+
+SW-LAB-2960#show running-config
+Building configuration...
+
+version 15.0
+hostname SW-LAB-2960
+!
+vlan 12
+ name LAB-USERS
+!
+interface Port-channel1
+ description LAB-CORE
+ switchport mode trunk
+!
+interface FastEthernet0/1
+ description LAB-PC-1
+ switchport access vlan 12
+ switchport mode access
+ spanning-tree portfast
+!
+interface FastEthernet0/2
+ description LAB-PC-2
+ switchport access vlan 12
+ switchport mode access
+ spanning-tree portfast
+!
+interface GigabitEthernet0/1
+ description LAB-CORE-A
+ switchport mode trunk
+!
+interface GigabitEthernet0/2
+ description LAB-CORE-B
+ switchport mode trunk
+!
+interface Vlan1
+ no ip address
+ shutdown
+!
+interface Vlan12
+ ip address 192.0.2.10 255.255.255.0
+!
+end

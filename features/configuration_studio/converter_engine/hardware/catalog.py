@@ -12,6 +12,8 @@ ALL_MODELS: tuple[HardwareModel, ...] = SWITCH_MODELS + ROUTER_MODELS
 _BY_KEY = {m.key.upper(): m for m in ALL_MODELS}
 
 _AUTHORITATIVE_PREFIX = re.compile(r"(?:PID:\s*|MODEL NUMBER\s*:\s*|^CISCO\s+|^\*?\s*\d+\s+\d+\s+|;\s*)$")
+# "Platform: cisco WS-C2960X-24TS-L," in `show cdp neighbors detail` names the NEIGHBOUR, never the switch the capture was taken on.
+_NEIGHBOUR_PREFIX = re.compile(r"PLATFORM:\s*(?:CISCO\s+)?$")
 _MODULE_RE = re.compile(r"(?<![A-Z0-9])(C9300X?-NM-[0-9A-Z]+)(?![A-Z0-9])")
 
 
@@ -26,18 +28,21 @@ def _token_regex(token: str) -> re.Pattern[str]:
 _DETECTORS = [(model, [_token_regex(token) for token in model.all_keys()]) for model in ALL_MODELS]
 
 
-def detect_model(text: str, kind: str = "switch") -> tuple[HardwareModel | None, list[HardwareModel]]:
+def detect_model(text: str, kind: str = "switch", vendor: str = "") -> tuple[HardwareModel | None, list[HardwareModel]]:
     """Return ``(best, others)``: the model named most often in ``text`` and any other catalog models seen about as often.
 
     Inventory output (``show inventory``, ``show version``) names the chassis several times per stack member, so a count is a good
     tie-break for a stack built with a spare of another type.  Lines that state the chassis outright (``PID:``, ``Model Number``,
     ``cisco <model> (...) processor``) weigh more than a neighbour table or a description that merely mentions another model.
+    ``vendor`` (when the source vendor is known) limits the search to that vendor's models.
     """
     sample = (text or "")[:6_000_000].upper()
     scored: list[tuple[int, int, HardwareModel]] = []
     for model, patterns in _DETECTORS:
         if model.kind != kind:
             continue
+        if vendor and model.vendor.lower() != vendor.lower():
+            continue          # a Catalyst named in an Aruba file's neighbour table is not the Aruba switch itself
         weight = 0
         first = len(sample) + 1
         for pattern in patterns:
@@ -45,6 +50,8 @@ def detect_model(text: str, kind: str = "switch") -> tuple[HardwareModel | None,
                 first = min(first, found.start())
                 line_start = sample.rfind("\n", 0, found.start()) + 1
                 prefix = sample[line_start:found.start()]
+                if _NEIGHBOUR_PREFIX.search(prefix):
+                    continue
                 authoritative = bool(_AUTHORITATIVE_PREFIX.search(prefix))
                 weight += 5 if authoritative else 1
         if weight:
@@ -138,3 +145,42 @@ def catalog_view(kind: str) -> list[dict[str, object]]:
             }
         )
     return rows
+
+
+# Product lines for the catalog tree: vendor -> product line (+ OS) -> series -> model.  The platform text is "<line> <series>"
+# ("Catalyst 9300X", "Nexus 9300", "CloudEngine S5735-S-V2", "CX 6200F"); "3800 ISR" is the one catalog entry written the other way round.
+_LINE_OVERRIDES = {"3800 ISR": ("ISR", "3800")}
+
+
+def split_platform(platform: str) -> tuple[str, str]:
+    """``'Catalyst 9300X'`` -> ``('Catalyst', '9300X')``; a platform of one word is its own line and series."""
+    text = str(platform or "").strip()
+    if text in _LINE_OVERRIDES:
+        return _LINE_OVERRIDES[text]
+    line, _, series = text.partition(" ")
+    return line, series or line
+
+
+def catalog_tree(kind: str) -> list[dict[str, object]]:
+    """The catalog as a tree for the Convert pages: vendors, their product lines (Catalyst, Nexus, CloudEngine, CX ...) with the
+    operating system of each line, the series inside a line, and the models of a series.  Order of first appearance in the catalog."""
+    vendors: dict[str, dict[str, object]] = {}
+    for row in catalog_view(kind):
+        line_name, series_name = split_platform(str(row["platform"]))
+        vendor = vendors.setdefault(str(row["vendor"]), {"name": row["vendor"], "count": 0, "lines": {}})
+        line = vendor["lines"].setdefault((line_name, row["os"]), {"name": line_name, "os": row["os"], "count": 0, "series": {}})
+        series = line["series"].setdefault(series_name, {"name": row["platform"], "short": series_name, "models": []})
+        series["models"].append(row)
+        line["count"] += 1
+        vendor["count"] += 1
+    return [
+        {
+            "name": v["name"],
+            "count": v["count"],
+            "lines": [
+                {"name": l["name"], "os": l["os"], "count": l["count"], "series": list(l["series"].values())}
+                for l in v["lines"].values()
+            ],
+        }
+        for v in vendors.values()
+    ]

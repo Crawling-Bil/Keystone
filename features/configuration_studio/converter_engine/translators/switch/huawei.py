@@ -4,6 +4,10 @@ import ipaddress
 from pathlib import Path
 
 from ... import nac
+from . import acl_common
+from . import nxos_noise
+from .vpc_common import vpc_role
+from ...hardware.catalog import get_model as _catalog_get_model
 from ...hardware.catalog import target_models as _catalog_target_models
 
 
@@ -87,6 +91,12 @@ class HuaweiSwitchTranslator:
 
     # Source port name -> catalog entry; set per conversion in translate().
     _port_map = {}
+    _stack_member = 1
+    _stack_members = 1
+    _stack_total = 1
+    _target_key = ""
+    _bank_notes_done = set()
+    _hostname = ""
 
     def __init__(self, inventory=None):
         self.inventory = inventory
@@ -125,6 +135,18 @@ class HuaweiSwitchTranslator:
             getattr(config, "metadata", None) or {}
         ).get("port_map") or {}
 
+        stack = (
+            getattr(config, "metadata", None) or {}
+        ).get("stack") or {}
+
+        self._stack_member = int(stack.get("member") or 1)
+        self._stack_members = int(stack.get("members") or 1)
+        meta = getattr(config, "metadata", None) or {}
+        self._stack_total = max(int(meta.get("stack_total") or 1), self._stack_members)
+        self._target_key = str((meta.get("interface_map") or {}).get("target_model") or "")
+        self._bank_notes_done = set()
+        self._hostname = str(getattr(config, "hostname", "") or "")
+
         target_ge_port_count = resolve_target_ge_port_count(
             target_model
         )
@@ -160,6 +182,10 @@ class HuaweiSwitchTranslator:
             self.translate_stacking_hint(
                 config.global_commands
             )
+        )
+
+        output.extend(
+            self.translate_stack_member_note()
         )
 
         # -----------------------------------------------------
@@ -355,7 +381,13 @@ class HuaweiSwitchTranslator:
         # 802.1X / MAC authentication bypass: profiles are defined before the interfaces that bind them
         output.extend(self.plan_nac(config, profile))
 
-        for interface in config.interfaces:
+        loop_interfaces, same_port_notes = (
+            self._collapse_same_port_stanzas(
+                config.interfaces
+            )
+        )
+
+        for interface in loop_interfaces:
 
             translated = self.translate_interface(
                 interface,
@@ -372,6 +404,10 @@ class HuaweiSwitchTranslator:
             )
 
             if translated:
+                translated[1:1] = same_port_notes.get(
+                    interface.name,
+                    [],
+                )
                 output.extend(translated)
 
         # -----------------------------------------------------
@@ -746,7 +782,7 @@ class HuaweiSwitchTranslator:
         # -----------------------------------------------------
 
         if profile and profile.ntp_lines is not None:
-            output.extend(profile.ntp_lines)
+            output.extend(self._resolve_mgmt_placeholders(config, profile.ntp_lines, ("ntp", "ssh", "tacacs", "radius", "snmp", "tftp", "http", "flow")))
         else:
             output.extend(
                 self.translate_ntp(
@@ -759,13 +795,19 @@ class HuaweiSwitchTranslator:
         # -----------------------------------------------------
 
         if profile and profile.syslog_lines is not None:
-            output.extend(profile.syslog_lines)
+            output.extend(self._resolve_mgmt_placeholders(config, profile.syslog_lines, ("logging",)))
         else:
             output.extend(
                 self.translate_logging(
                     config.logging_commands
                 )
             )
+
+        # -----------------------------------------------------
+        # NETSTREAM (Cisco Flexible NetFlow exporter)
+        # -----------------------------------------------------
+
+        output.extend(self.translate_netstream(config))
 
         # -----------------------------------------------------
         # GLOBAL COMMAND REVIEW
@@ -780,6 +822,20 @@ class HuaweiSwitchTranslator:
         review_commands = self.filter_global_review(
             global_commands
         )
+
+        clock_lines = []
+        remaining = []
+
+        for command in review_commands:
+            converted = self.translate_clock_timezone(command)
+
+            if converted:
+                clock_lines.extend(converted)
+            else:
+                remaining.append(command)
+
+        review_commands = remaining
+        output.extend(clock_lines)
 
         if review_commands:
 
@@ -805,6 +861,156 @@ class HuaweiSwitchTranslator:
 
         if profile and profile.netconf_lines:
             output.extend(profile.netconf_lines)
+
+        return output
+
+    @staticmethod
+    def translate_clock_timezone(command):
+        """`clock timezone <name> <hours> [<minutes>]` -> `clock timezone <name> {add|minus} hh:mm:ss`; [] for any other command.
+
+        Cisco writes the offset as signed hours and minutes, Huawei (V600R025C00 `clock timezone`) as `add` or `minus` plus hh:mm:ss.
+        The name is kept as written; the real Depo drafts name it WIB, so a name such as GMT is flagged for a look.
+        """
+
+        found = re.match(r"^clock timezone (\S+) (-?\d{1,2})(?: (\d{1,2}))?$", command.strip())
+
+        if not found:
+            return []
+
+        name, hours, minutes = found.group(1), int(found.group(2)), int(found.group(3) or 0)
+        sign = "minus" if hours < 0 or found.group(2).startswith("-") else "add"
+        line = f"clock timezone {name} {sign} {abs(hours):02d}:{minutes:02d}:00"
+
+        if name.upper() == "GMT":
+            line += " # REVIEW-CLOCK: the source names the zone GMT; the Depo drafts use a regional name (WIB for +07:00), rename if wanted"
+
+        return [line]
+
+    # =========================================================
+    # MANAGEMENT SOURCE / NETSTREAM
+    # =========================================================
+
+    @staticmethod
+    def _svi(config, vlan_text):
+        """The SVI ``Vlan<N>`` of the source config when it exists and carries an address, else None."""
+
+        found = re.match(r"^(?:vlan|vlanif)\s*(\d+)$", str(vlan_text or "").strip(), re.IGNORECASE)
+
+        if not found:
+            return None
+
+        for interface in config.interfaces:
+            if interface.name.lower() == f"vlan{found.group(1)}" and getattr(interface, "ip_address", ""):
+                return interface
+
+        return None
+
+    def _mgmt_vlanif(self, config, services):
+        """``Vlanif<N>`` named by the first of ``services`` whose source interface exists as an addressed SVI in this config.
+
+        Four real Depo cores (GTOPAS Makassar, Manado, Pekanbaru, Semarang) run `ntp server source-interface` and `info-center loghost
+        source` on the SVI their Catalyst named in `ip tacacs` / `ip tftp` / `flow exporter` / `logging source-interface`. A name that has no SVI
+        here (Manado's exporter source Vlan483 does not exist) is skipped, so a stale reference is never carried over.
+        """
+
+        sources = getattr(config, "source_interfaces", None) or {}
+
+        for service in services:
+            interface = self._svi(config, sources.get(service))
+
+            if interface:
+                return f"Vlanif{re.sub(r'(?i)^vlan', '', interface.name)}", service
+
+        return "", ""
+
+    def _resolve_mgmt_placeholders(self, config, lines, services):
+        """Profile lines with ``Vlanif-mgmt`` replaced by the SVI the source names, when there is one."""
+
+        vlanif, service = self._mgmt_vlanif(config, services)
+        result = []
+
+        for line in lines:
+            if vlanif and "Vlanif-mgmt" in line:
+                line = re.sub(r"\s*# REVIEW-CONFIRM:.*$", "", line.replace("Vlanif-mgmt", vlanif))
+                line += f" # REVIEW-SOURCE: {vlanif} comes from the source's {service} source interface"
+
+            result.append(line)
+
+        return result
+
+    # Families the V600R025C00 command reference lists for `netstream export` / `netstream inbound ip` (the S5735 is not among them).
+    _NETSTREAM_FAMILIES = ("S5755", "S6750", "S6730", "S5732-H", "S6780")
+
+    def _netstream_supported(self):
+        """True / False when the chosen target model does / does not take NetStream; None when no model was chosen."""
+
+        if not self._target_key:
+            return None
+
+        return self._target_key.startswith(self._NETSTREAM_FAMILIES)
+
+    def translate_netstream(self, config):
+        """Cisco Flexible NetFlow exporter -> Huawei NetStream global export settings.
+
+        Huawei has one global target: `netstream export ip host <ip> <port> dscp <n>` (dscp is part of the syntax in V600R025C00, the real
+        configs show `dscp 0`) and `netstream export ip source <ip>` (an address, not an interface). The address is the SVI the Catalyst
+        exporter used; when that SVI does not exist in the file the management SVI is used and the line says so. The aging timers are not
+        taken from the Cisco side.
+        """
+
+        exporters = [e for e in (getattr(config, "netflow_exporters", None) or []) if e.get("destination")]
+        monitored = any(i.netstream_inbound or i.netstream_outbound for i in config.interfaces)
+
+        if not exporters and not monitored:
+            return []
+
+        supported = self._netstream_supported()
+
+        if supported is False:
+            return [
+                "# REVIEW-NETSTREAM: the source exports NetFlow, but the V600R025C00 command reference lists NetStream only for the S5755,",
+                f"# S6750, S6730, S5732-H and S6780 families; {self._target_key} is not among them, so no netstream line is written.",
+                "#",
+            ]
+
+        output = []
+
+        if supported is None:
+            output.append("# REVIEW-NETSTREAM: no target model chosen; NetStream exists on the S5755 / S6730 / S6750 families only, not on the S5735.")
+
+        if len(exporters) > 1:
+            output.append(f"# REVIEW-NETSTREAM: {len(exporters)} Flexible NetFlow exporters in the source; Huawei takes one export host, the first is used.")
+
+        if exporters:
+            exporter = exporters[0]
+            output.append(f"netstream export ip host {exporter['destination']} {exporter.get('port') or '2055'} dscp 0")
+
+            if not exporter.get("port"):
+                output.append("# REVIEW-NETSTREAM: the exporter named no UDP port; 2055 (the NetFlow default) is written, confirm the collector's port.")
+
+            svi = self._svi(config, exporter.get("source"))
+            note = ""
+
+            if not svi:
+                vlanif, _ = self._mgmt_vlanif(config, ("ssh", "tacacs", "radius", "snmp", "tftp", "http", "ntp"))
+                svi = self._svi(config, vlanif) if vlanif else None
+                note = (
+                    f" # REVIEW-NETSTREAM: the exporter source {exporter.get('source') or '(none)'} has no addressed SVI in this file; "
+                    "the management SVI is used instead"
+                )
+
+            if svi:
+                output.append(f"netstream export ip source {svi.ip_address}{note}")
+            else:
+                output.append("# REVIEW-NETSTREAM: no addressed SVI found for the export source; add `netstream export ip source <device-ip>`.")
+
+        output.extend([
+            "# REVIEW-NETSTREAM: the interface lines are `netstream inbound ip` / `netstream outbound ip` as the Cisco monitors had them.",
+            "# Aging is not taken from the source. V600R025C00 defaults are active 1800 s and inactive 15 s: `netstream timeout ip active <seconds>`",
+            "# (the unit is seconds; the TAM Depo drafts set `active 1`, which ages an active flow every second) and `netstream timeout ip",
+            "# inactive <seconds>`. Check them before copying a value from another device.",
+            "#",
+        ])
 
         return output
 
@@ -895,35 +1101,38 @@ class HuaweiSwitchTranslator:
 
         output.append(f"dfs-group {config.vpc_domain_id}")
 
-        # Design note (2026-08-30 revision): earlier drafts OMITTED
-        # the "priority" line entirely when the source had no portable
-        # value, on the theory that a REVIEW comment alone was safer
-        # than a guessed command. Reconsidered per direct feedback: an
-        # omitted line is easy to miss entirely when scanning a
-        # multi-thousand-line draft, silently leaving the device on
-        # VRP's bare default with no prompt to even notice. A complete
-        # command with an obviously-placeholder value, tagged
-        # "#variable input" and paired with a REVIEW comment, is much
-        # harder to paste-and-forget. Cisco's vPC "role priority" is a
-        # separate command this converter does not parse, so there is
-        # no real source value to carry over -- 150 here is a
-        # deliberately-chosen placeholder (higher than VRP's default
-        # of 100, so this device would be preferred DFS-group master
-        # if left as-is), NOT a derived or confirmed value.
-        output.append(
-            " priority 150 #variable input -- confirm/adjust against "
-            "your M-LAG peer device's role priority"
-        )
-        output.append(
-            " # REVIEW-MLAG-PRIORITY: source vPC config has no "
-            'directly portable priority value (Cisco\'s vPC "role '
-            'priority" is a separate command this converter does not '
-            "parse) -- the 150 above is a placeholder, not a derived "
-            "value; coordinate the real number with your M-LAG peer "
-            "device's DFS-group role priority (VRP default: 100; "
-            "V600R025C00 High Availability guide, M-LAG Configuration "
-            "chapter)."
-        )
+        # The source's "role priority <n>" decides which side of the pair this device is meant to be (NX-OS: the LOWER
+        # value is the vPC primary; Huawei: the HIGHER DFS-group priority is the master, default 100), so only the
+        # direction is carried over and the number is chosen on the VRP scale: 150 for the intended primary, 100 (the
+        # VRP default) for the secondary.  Without a usable source value the old placeholder stays, clearly marked.
+        role = vpc_role(config.vpc_role_priority)
+        if role == "primary":
+            output.append(" priority 150")
+            output.append(
+                f" # REVIEW-MLAG-PRIORITY: source vPC role priority {config.vpc_role_priority} (lower than the NX-OS "
+                "default 32667) makes this device the preferred vPC primary; M-LAG elects the HIGHER priority as "
+                "master, so the value is inverted onto the VRP scale (150 here). The peer must keep a lower value "
+                "(VRP default 100). Cisco: Understand the vPC Election Process (Cisco, 212589); Huawei: M-LAG "
+                "Configuration, DFS group priority."
+            )
+        elif role == "secondary":
+            output.append(" priority 100")
+            output.append(
+                f" # REVIEW-MLAG-PRIORITY: source vPC role priority {config.vpc_role_priority} (higher than the NX-OS "
+                "default 32667) makes this device the vPC secondary; the VRP default 100 is used so that the peer, "
+                "which must be configured above it, becomes the DFS-group master."
+            )
+        else:
+            output.append(
+                " priority 150 #variable input -- confirm/adjust against "
+                "your M-LAG peer device's role priority"
+            )
+            output.append(
+                " # REVIEW-MLAG-PRIORITY: the source vPC domain has no \"role priority\" (or left it at the NX-OS "
+                "default), so no primary/secondary intent can be derived -- the 150 above is a placeholder, not a "
+                "derived value; the DFS-group priority of the two M-LAG peers must differ (VRP default: 100; "
+                "V600R025C00 High Availability guide, M-LAG Configuration chapter)."
+            )
 
         if (
             config.vpc_peer_keepalive_source_ip
@@ -1684,6 +1893,143 @@ class HuaweiSwitchTranslator:
 
         return output, applied_acl_names
 
+    _PORT_TYPE_RE = re.compile(r"^(\d*[A-Za-z]+)(\d.*)$")
+
+    def _stack_model(self):
+        """The catalog entry of the chosen target model (None when no model was chosen)."""
+
+        return _catalog_get_model(self._target_key) if self._target_key else None
+
+    def _stack_port_arguments(self, member, model):
+        """``25GE 1/0/3``-style member-port arguments for the two Stack-Ports of ``member``; placeholders when the model's stack ports are not confirmed."""
+
+        names = [template.format(m=member) for template in model.stack_ports] if model and model.stack_ports else []
+
+        if len(names) != 2:
+            return ["<port-for-stack-port-%d/1>" % member, "<port-for-stack-port-%d/2>" % member], False
+
+        arguments = []
+
+        for name in names:
+            found = self._PORT_TYPE_RE.match(name)
+            arguments.append(f"{found.group(1)} {found.group(2)}" if found else name)
+
+        return arguments, True
+
+    def _stack_member_commands(self, member, model):
+        """Commented VRP commands that build member ``member`` of a stack.
+
+        The sequence is the project's own working template (``stacking template A/B`` in the TAM files) and the V600R025C00 Stack Configuration
+        guide (2.8.2 setting up a stack with ordinary cables): renumber and priority first, save and reboot, then bind the member ports with
+        ``port member-group interface`` (the ``port interface ... enable`` form of older releases is not in V600R025C00), save and reboot again.
+        Priority 200 for member 1 and 100 for the others is what every real TAM stack runs with.
+        """
+
+        priority = 200 if member == 1 else 100
+        arguments, known = self._stack_port_arguments(member, model)
+
+        return [
+            f"# Member {member} (run on that unit alone, before the stack cables go in):",
+            "#   stack",
+            f"#    stack member 1 renumber {member}",
+            f"#    stack member 1 priority {priority}",
+            "#   quit",
+            "#   save",
+            "#   reboot            (the unit is member 1 until this reboot)",
+            f"#   interface stack-port {member}/1",
+            f"#    port member-group interface {arguments[0]}",
+            f"#   interface stack-port {member}/2",
+            f"#    port member-group interface {arguments[1]}",
+            "#   quit",
+            "#   save",
+            "#   reboot",
+        ], known
+
+    def _stack_evidence_lines(self, model, known):
+        label = model.key if model else "the target"
+
+        if known:
+            lines = [
+                f"# Stack ports of {label}: " + ", ".join(model.stack_ports).replace("{m}", "<m>") + " (Stack-Port<m>/1 and <m>/2), as read from",
+                "# a real `display stack configuration` of that model.",
+            ]
+
+            if model.stack_transceiver:
+                lines.append(
+                    f"# The deployed stacks run these ports on 10G copper cables and carry `device transceiver {model.stack_transceiver}` on each; the"
+                )
+                lines.append("# interface blocks below write that line. Confirm the cable type against the BOM first.")
+
+            return lines
+
+        return [
+            f"# The stack ports of {label} are not confirmed from a real capture, so none is named: take the two ports from the BOM",
+            "# and `display stack port auto-cable-info`, and put them in place of the <port-for-stack-port> markers.",
+        ]
+
+    _STACK_DAD_LINES = [
+        "# Dual-active detection: none of the deployed TAM stacks has it (`display dual-active` prints --). The V600R025C00 guide advises it on",
+        "# every stack: `dual-active detect mode relay` on an Eth-Trunk (with `dual-active proxy` on the relay device) for a core, or",
+        "# `dual-active detect mode direct` on a spare port of each member for a small access stack.",
+    ]
+
+    def translate_stack_member_note(self):
+        """Header for a file converted as one unit of a stack (two standalone switches merged into one Huawei stack).
+
+        The reference is the real Lexus merge (two Catalyst 2960 into one S5735-S24T4XE-V2 stack): member 1 became GE1/0/x and member 2
+        GE2/0/x, the link between the two old switches disappeared, and ``display stack configuration`` binds GE<m>/0/21 and GE<m>/0/22 to
+        Stack-Port<m>/1 and <m>/2. The ports named in the commands come from the catalog entry of the chosen model, never from a guess.
+        """
+
+        members = self._stack_members
+        member = self._stack_member
+
+        if members < 2:
+            return []
+
+        model = self._stack_model()
+        commands, known = self._stack_member_commands(member, model)
+
+        return [
+            "# REVIEW-STACK-MEMBER",
+            f"# Converted as member {member} of a {members}-member stack: its",
+            f"# ports are numbered GE{member}/0/<n> (and 10GE{member}/0/<n>).",
+            "# Take the global settings (VLANs, AAA, SNMP, NTP, banner,",
+            "# management IP) once, from member 1's file; from the other",
+            "# members' files take only the interface blocks.",
+            "# The link between the old switches (Port-channel or trunk",
+            "# towards the other member) is replaced by the stack cables;",
+            "# interfaces whose description names a sibling switch carry a",
+            "# review line.",
+            "# The stack links use the member ports below; they are kept",
+            "# free of data configuration.",
+            *self._stack_evidence_lines(model, known),
+            *commands,
+            "# Confirm the cabling and the dual-active detection port",
+            "# against the BOM before saving and reloading.",
+            *self._STACK_DAD_LINES,
+            "#",
+        ]
+
+    _STACK_PEER_RE = re.compile(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+){2,}")
+
+    def _stack_peer_name(self, description):
+        """A host name in the description that shares the first two dash segments with this switch (site and role), as in ``LXS-SWAC-02-C2960``."""
+
+        host = self._hostname.upper().split("-")
+
+        if self._stack_members < 2 or len(host) < 3:
+            return ""
+
+        for token in self._STACK_PEER_RE.findall(str(description or "")):
+
+            parts = token.upper().split("-")
+
+            if token.upper() != self._hostname.upper() and parts[:2] == host[:2]:
+                return token
+
+        return ""
+
     def translate_stacking_hint(self, global_commands):
         """
         Detect Cisco StackWise / StackWise Virtual markers in the
@@ -1741,62 +2087,42 @@ class HuaweiSwitchTranslator:
 
         highest_member = max(member_numbers) if member_numbers else 0
 
-        if not has_strong_marker and highest_member < 2:
+        if self._stack_members >= 2:
             return []
 
-        # Drive the "repeat on member N" instructions dynamically off
-        # the highest member number actually seen, instead of a
-        # hardcoded "member 2" — falls back to 2 as the minimum
-        # meaningful case when only a strong marker (no numbered one)
-        # matched, since a real stack always has at least 2 members.
-        second_member = highest_member if highest_member >= 2 else 2
+        if not has_strong_marker and highest_member < 2 and self._stack_total < 2:
+            return []
 
-        return [
+        # The member count comes from what the source shows: the highest `switch <N> provision`, the highest member number in its port
+        # names, or 2 for a marker that is stacking-specific by itself (a real stack has at least two members).
+        members = max(highest_member, self._stack_total, 2)
+        model = self._stack_model()
+
+        output = [
             "# REVIEW-STACKING",
-            "# Source config shows StackWise / StackWise Virtual",
-            "# markers. Stack-port binding is never visible in a",
-            "# running-config capture (only \"display stack\" shows",
-            "# it once configured) so it cannot be auto-converted.",
-            "# Confirm the physical stack cable/ports against the",
-            "# BOM, then apply ONE of the two templates below.",
-            "#",
-            "# --- Template A: proprietary stack cable (SFP+/DAC) ---",
-            "# stack",
-            "# stack member 1 renumber 1",
-            "# stack member 1 priority 200",
-            "# save",
-            "# reload",
-            "# interface stack-port 1/1",
-            "#  port interface 10GE1/0/3 enable",
-            "# interface stack-port 1/2",
-            "#  port interface 10GE1/0/4 enable",
-            "# save",
-            "# reload",
-            f"# (repeat on member {second_member} with renumber "
-            f"{second_member} / priority 100 /",
-            f"#  10GE{second_member}/0/3, 10GE{second_member}/0/4)",
-            "#",
-            "# --- Template B: regular UTP cable (\"virtual stack\") ---",
-            "# stack",
-            "# stack member 1 renumber 1",
-            "# stack member 1 priority 200",
-            "# save",
-            "# reload",
-            "# interface stack-port 1/1",
-            "#  port interface GE1/0/21 enable",
-            "# interface stack-port 1/2",
-            "#  port interface GE1/0/22 enable",
-            "# save",
-            "# reload",
-            f"# (repeat on member {second_member} with renumber "
-            f"{second_member} / priority 100 /",
-            f"#  GE{second_member}/0/21, GE{second_member}/0/22)",
-            "#",
-            "# NOTE: ports bound into a Stack-Port carry no shutdown /",
-            "# undo shutdown line once absorbed — the stack function",
-            "# governs their admin state.",
-            "#",
+            f"# The source is a {members}-member stack (StackWise markers or ports of",
+            f"# member 2{'+' if members > 2 else ''} in the same file). Stack-port binding is never visible",
+            "# in a running-config capture (only `display stack` shows it",
+            "# once configured), so it is not read from the source. The",
+            "# Huawei stack is built member by member with the commands below;",
+            "# every data port of member <m> keeps the number GE<m>/0/<n>.",
         ]
+
+        known = False
+
+        for member in range(1, members + 1):
+            commands, known = self._stack_member_commands(member, model)
+            output.extend(commands)
+
+        output.extend(self._stack_evidence_lines(model, known))
+        output.extend([
+            "# Stack-link ports carry no data configuration: the stack function",
+            "# governs their admin state (no shutdown / undo shutdown line).",
+            *self._STACK_DAD_LINES,
+            "#",
+        ])
+
+        return output
 
     # =========================================================
     # BANNER / USERNAME / STP / SSH / VTY
@@ -1855,12 +2181,24 @@ class HuaweiSwitchTranslator:
             ])
         return output
 
+    # NX-OS built-in RBAC roles -> VRP user level (0 Visit, 1 Monitor, 2 Configure, 3 Management; V600R025C00 Configuration Guide, "Configuring Local User Management").
+    # network-admin has full read-write access; network-operator is read-only, which is the VRP Monitor level.  Any other role name is a
+    # custom rule set on the Nexus and is left for a person to place.
+    NXOS_ROLE_LEVEL = {"network-admin": 3, "network-operator": 1}
+
     def translate_usernames(self, commands):
         if not commands:
             return []
 
         output = ["aaa"]
         for command in commands:
+            # NX-OS appends the RBAC role to the password: "username X password 5 <hash>  role network-admin".
+            role = None
+            role_match = re.search(r"\s+role\s+(\S+)\s*$", command)
+            if role_match:
+                role = role_match.group(1)
+                command = command[:role_match.start()].rstrip()
+
             match = re.match(
                 r"^username\s+(\S+)(?:\s+privilege\s+(\d+))?"
                 r"\s+(password|secret)\s+(\d+)\s+(.+)$",
@@ -1872,6 +2210,16 @@ class HuaweiSwitchTranslator:
 
             username, privilege, password_kind, enc_type, password = match.groups()
             level = int(privilege or 0)
+            if role in self.NXOS_ROLE_LEVEL:
+                # Mapped from the NX-OS role, so no privilege-level review item is raised for it (see NXOS_ROLE_LEVEL).
+                level = None
+                huawei_level = self.NXOS_ROLE_LEVEL[role]
+                output.append(f" local-user {username} privilege level {huawei_level}")
+            elif role:
+                # Fail-safe: lowest level until a person decides (a wrong guess upward would over-privilege the account).
+                level = None
+                output.append(f" local-user {username} privilege level 0")
+                output.append(f" # REVIEW-USER-ROLE: {username} has NX-OS role '{role}' (not a built-in role); VRP has only privilege levels 0-3, provisionally 0 -- choose the level for this account")
 
             # VRP CloudEngine's "local-user ... privilege level" ONLY
             # accepts 0-3 (Visit / Monitor / Configure / Management) --
@@ -1893,7 +2241,9 @@ class HuaweiSwitchTranslator:
             # other than 15 for a human decision instead of guessing,
             # and default to a fail-safe (low-privilege) placeholder
             # rather than a fail-open one.
-            if level >= 15:
+            if level is None:
+                pass
+            elif level >= 15:
                 huawei_level = 3
                 output.append(
                     f" local-user {username} privilege level {huawei_level}"
@@ -1983,7 +2333,10 @@ class HuaweiSwitchTranslator:
                 if not stp_enabled:
                     output.append("stp enable")
                     output.append("stp mode rstp")
-                    output.append("# REVIEW-STP: Cisco Rapid-PVST is per-VLAN; Huawei RSTP is global. Consider MSTP.")
+                    output.append(
+                        "# REVIEW-STP: Cisco Rapid-PVST is per-VLAN; Huawei RSTP is global. Huawei VBST (\"stp mode vbst\") is the per-VLAN mode "
+                        "that interworks with Cisco PVST switches (EDOC1000114005); choose the mode for the whole domain."
+                    )
                     stp_enabled = True
                 # else: a profile already set the target STP mode
                 # explicitly (e.g. VBST) — the source's own rapid-pvst
@@ -1994,7 +2347,12 @@ class HuaweiSwitchTranslator:
             if command == "spanning-tree mode pvst":
                 if not stp_enabled:
                     output.append("stp enable")
-                    output.append("# REVIEW-STP: Cisco PVST has no direct Huawei equivalent. Consider MSTP.")
+                    output.append(
+                        "# REVIEW-STP: Cisco PVST is per-VLAN. Huawei VBST (\"stp mode vbst\") interworks with Cisco PVST switches "
+                        "(Huawei Interoperation and Replacement Guide, \"Huawei Switches Use VBST to Interwork with Cisco PVST Switches\": "
+                        "https://support.huawei.com/enterprise/en/doc/EDOC1000114005); the real TAM migrations of PVST switches ran VBST. "
+                        "Choose the mode for the whole domain (VBST next to PVST neighbours, MSTP only if every switch moves to it)."
+                    )
                     stp_enabled = True
                 continue
 
@@ -2067,6 +2425,14 @@ class HuaweiSwitchTranslator:
         current_range = None
 
         for command in commands:
+            console = re.match(r"^line\s+con(?:sole)?\s+(\d+)$", command)
+            if console:
+                # Cisco "line con 0" -> user-interface con 0 (Command Reference V600R025C00, user-interface).  Only the
+                # settings a console line has on both platforms are carried; transport / access-class do not apply to it.
+                current_range = ("con", console.group(1))
+                output.append(f"user-interface con {console.group(1)}")
+                continue
+
             match = re.match(r"^line\s+vty\s+(\d+)(?:\s+(\d+))?$", command)
             if match:
                 start = match.group(1)
@@ -2085,6 +2451,19 @@ class HuaweiSwitchTranslator:
 
             if command == "login":
                 output.append(" authentication-mode password")
+                continue
+
+            privilege = re.match(r"^privilege\s+level\s+(\d+)$", command)
+            if privilege:
+                # Cisco gives the line a default privilege; with AAA the user's own privilege level (local-user ... privilege level) decides on VRP.
+                output.append(
+                    f" # REVIEW-LINE-PRIVILEGE: {command} -- the privilege of a login comes from its AAA user (local-user ... privilege level 0-3); "
+                    "no line command is written"
+                )
+                continue
+
+            if current_range[0] == "con" and command.startswith(("transport ", "access-class ")):
+                output.append(f" # REVIEW-CONSOLE: {command}  (not applicable to the console user interface)")
                 continue
 
             if command.startswith("transport input "):
@@ -2124,7 +2503,16 @@ class HuaweiSwitchTranslator:
                 continue
 
             if command.startswith("access-class "):
-                output.append(f" # REVIEW-VTY-ACL: {command}")
+                # access-class <acl> in|out [vrf-also]  ->  acl <name> inbound|outbound (VTY-type user interface view,
+                # Command Reference V600R025C00: acl { acl4name | acl4num } { inbound | outbound }).  A numbered Cisco ACL
+                # was given the name ACL-<n> by the parser, so that is the name the converted ACL carries.
+                acl_match = re.match(r"^access-class\s+(\S+)\s+(in|out)(?:\s+vrf-also)?$", command)
+                if acl_match:
+                    acl_ref = acl_match.group(1)
+                    acl_name = f"ACL-{acl_ref}" if acl_ref.isdigit() else acl_ref
+                    output.append(f" acl {acl_name} {'inbound' if acl_match.group(2) == 'in' else 'outbound'}")
+                else:
+                    output.append(f" # REVIEW-VTY-ACL: {command}")
                 continue
 
             if command.startswith("password "):
@@ -2570,6 +2958,60 @@ class HuaweiSwitchTranslator:
         if interface_review_note:
             output.append(
                 f" # REVIEW-INTERFACE-MAPPING: {interface_review_note}"
+            )
+
+        port_entry = self._port_map.get(interface.name)
+
+        if port_entry and port_entry.get("stack_reserved"):
+
+            held = [
+                text
+                for text in (
+                    f'description "{interface.description}"'
+                    if interface.description
+                    else "",
+                    f"access VLAN {interface.access_vlan}"
+                    if interface.access_vlan
+                    else "",
+                    f"mode {interface.mode}" if interface.mode else "",
+                )
+                if text
+            ]
+
+            model = self._stack_model()
+            bound = (
+                ", ".join(model.stack_ports).replace("{m}", "<m>")
+                if model and model.stack_ports
+                else "the ports named in the stack header"
+            )
+
+            output.append(
+                f" # REVIEW-STACK-PORT: {huawei_name} carries a stack "
+                f"link of the {max(self._stack_members, self._stack_total)}-member stack "
+                f"(the model binds {bound}). Source "
+                f"port {interface.name} "
+                + (
+                    f"is configured ({'; '.join(held)}) but its "
+                    "configuration is not applied: move it to a free port."
+                    if held
+                    else "is unused here; no data configuration is written."
+                )
+            )
+            if model and model.stack_transceiver:
+                output.append(f" device transceiver {model.stack_transceiver}")
+
+            output.append("#")
+
+            return output
+
+        peer = self._stack_peer_name(interface.description)
+
+        if peer:
+            output.append(
+                f" # REVIEW-STACK-LINK: the description names {peer}, "
+                "a switch of the same site and role. If that is the "
+                "other unit of this stack the link becomes a stack "
+                "cable and this interface is not needed."
             )
 
         # -----------------------------------------------------
@@ -3217,9 +3659,37 @@ class HuaweiSwitchTranslator:
 
         if interface.vrf_forwarding:
 
-            output.append(
-                f" ip binding vpn-instance {interface.vrf_forwarding}"
-            )
+            if huawei_name == "MEth0/0/0":
+
+                # The management Ethernet port lives in the VPN instance
+                # that VRP creates itself: real S5755 captures show
+                # "interface MEth0/0/0 / ip binding vpn-instance
+                # management" and "ip route-static vpn-instance
+                # management ...". The source VRF (Mgmt-vrf) is never
+                # created on the Huawei switch, so binding to its name
+                # would reference an instance that does not exist.
+                output.append(
+                    " ip binding vpn-instance management"
+                )
+                output.append(
+                    " # REVIEW-MGMT-VRF: source VRF "
+                    f"{interface.vrf_forwarding} is bound to the "
+                    "built-in VPN instance \"management\" of the "
+                    "management Ethernet port; routes of that VRF "
+                    "need \"ip route-static vpn-instance management\"."
+                )
+
+            else:
+
+                output.append(
+                    f" ip binding vpn-instance {interface.vrf_forwarding}"
+                )
+                output.append(
+                    " # REVIEW-VPN-INSTANCE: VPN instance "
+                    f"{interface.vrf_forwarding} is not created by this "
+                    "conversion; define it (ip vpn-instance) before "
+                    "this binding or the address will not apply."
+                )
 
         # -----------------------------------------------------
         # OSPF NETWORK TYPE
@@ -3233,11 +3703,13 @@ class HuaweiSwitchTranslator:
         # NETSTREAM (Cisco NetFlow equivalent)
         # -----------------------------------------------------
 
-        if interface.netstream_inbound:
-            output.append(" netstream inbound")
+        if self._netstream_supported() is not False:
 
-        if interface.netstream_outbound:
-            output.append(" netstream outbound")
+            if interface.netstream_inbound:
+                output.append(" netstream inbound ip")
+
+            if interface.netstream_outbound:
+                output.append(" netstream outbound ip")
 
         # -----------------------------------------------------
         # PBR (Cisco "ip policy route-map <name>" -> Huawei
@@ -3382,6 +3854,17 @@ class HuaweiSwitchTranslator:
             )
 
         # -----------------------------------------------------
+        # OPTIC TYPE / PORT RATE (1G optic in a 10GE / 25GE cage)
+        # -----------------------------------------------------
+
+        output.extend(
+            self._cage_optic_lines(
+                interface,
+                huawei_name,
+            )
+        )
+
+        # -----------------------------------------------------
         # ADMIN STATUS
         # -----------------------------------------------------
 
@@ -3391,7 +3874,10 @@ class HuaweiSwitchTranslator:
                 " shutdown"
             )
 
-            if poe_capable:
+            if poe_capable and self._is_poe_port_name(
+                huawei_name,
+                interface.name,
+            ):
 
                 # On VRP, "shutdown" does NOT cut PoE power the way it
                 # does on Cisco IOS — the port keeps supplying power
@@ -3412,6 +3898,200 @@ class HuaweiSwitchTranslator:
         output.append("#")
 
         return output
+
+    _LOGICAL_NAME_RE = re.compile(
+        r"^(?:vlan|port-channel|loopback|tunnel|mgmt|eth-trunk|nve)",
+        re.IGNORECASE,
+    )
+
+    def _collapse_same_port_stanzas(self, interfaces):
+        """One ``interface`` block per Huawei port.
+
+        A multi-speed cage appears in a Cisco configuration once per speed keyword (Catalyst 3560-X: ``GigabitEthernet1/1`` and
+        ``TenGigabitEthernet1/1`` are the same module cage). Both map to one Huawei port, and two ``interface`` blocks of the same
+        port are applied one after the other, the later one overriding or merging into the first. The stanza that carries the
+        configuration is written; the other is named in a review line with what it held.
+        """
+
+        by_target = {}
+
+        for interface in interfaces:
+
+            if self._LOGICAL_NAME_RE.match(interface.name):
+                continue
+
+            mapped, _note = self.map_interface_name_with_review(
+                interface.name
+            )
+
+            by_target.setdefault(mapped, []).append(interface)
+
+        def weight(interface):
+            return (
+                sum(
+                    bool(value)
+                    for value in (
+                        interface.description,
+                        interface.mode,
+                        interface.access_vlan,
+                        interface.allowed_vlans,
+                        interface.channel_group,
+                        interface.ip_address,
+                    )
+                )
+                + len(interface.commands or [])
+                + (0 if interface.shutdown else 1)
+            )
+
+        dropped = set()
+        notes = {}
+
+        for mapped, group in by_target.items():
+
+            if len(group) < 2:
+                continue
+
+            keep = max(group, key=weight)
+
+            others = [i for i in group if i is not keep]
+
+            dropped.update(id(i) for i in others)
+
+            held = "; ".join(
+                f"{i.name}: "
+                + (
+                    ", ".join(
+                        part
+                        for part in (
+                            "shutdown" if i.shutdown else "",
+                            f"description {i.description}" if i.description else "",
+                            f"mode {i.mode}" if i.mode else "",
+                        )
+                        if part
+                    )
+                    or "no settings"
+                )
+                for i in others
+            )
+
+            notes[keep.name] = [
+                " # REVIEW-PORT-PERSONALITY: "
+                + ", ".join(i.name for i in group)
+                + f" are the same physical port ({mapped}) seen under "
+                "different speed keywords in the source. Only "
+                f"{keep.name} is written; the other stanza held "
+                f"{held}. Confirm nothing in it is needed."
+            ]
+
+        return (
+            [i for i in interfaces if id(i) not in dropped],
+            notes,
+        )
+
+    _POE_PORT_NAME_RE = re.compile(r"^(?:Multi)?GE\d+/0/\d+$")
+
+    def _is_poe_port_name(self, huawei_name, source_name):
+        """``undo poe enable`` belongs on a copper access port only.
+
+        Real S5735-S24P4XE captures hold it under ``GE1/0/n`` and nowhere else: a Vlanif, an Eth-Trunk, a loopback or an SFP+ / SFP28 uplink
+        cage has no PoE function, so the command there is an error on the device.
+        """
+
+        if not self._POE_PORT_NAME_RE.match(str(huawei_name)):
+            return False
+
+        entry = self._port_map.get(source_name)
+
+        return not (entry and entry.get("role") == "uplink")
+
+    def _bank_has_stack_ports(self, huawei_name):
+        """True when a stack link of the stacked target sits in the same rate bank (the four 25GE cages of the S5755-H) as ``huawei_name``."""
+
+        model = self._stack_model()
+        members = max(self._stack_members, self._stack_total)
+
+        if not model or not model.stack_ports or not model.stack_shares_bank or members < 2:
+            return False
+
+        found = re.match(r"^(\d*[A-Za-z]+)(\d+)/", str(huawei_name))
+
+        if not found:
+            return False
+
+        return any(
+            re.match(r"^(\d*[A-Za-z]+)(\d+)/", template.format(m=found.group(2))).group(1) == found.group(1)
+            for template in model.stack_ports
+        )
+
+    def _cage_optic_lines(self, interface, huawei_name):
+        """Optic type (and port rate) for a 1G SFP port that lands in a faster Huawei cage.
+
+        Staging evidence (TTC cutover, 2 Oct 2026, and the 10GE1/0/1 and 10GE1/0/4 uplinks of a live S5735-S24P4XE): a 1000BASE-SX optic in a
+        10GE SFP+ cage needs ``device transceiver 1000BASE-X``; in a 25GE SFP28 cage that is not enough (the port stays DOWN with
+        "Transceiver type mismatch" at 25000) and ``port mode GE`` is needed as well, which converts the whole four-port bank.
+        Written only for a port that is configured (not a spare), whose source cage is SFP-only 1G and whose target is a 10G / 25G cage.
+        """
+
+        entry = self._port_map.get(interface.name)
+
+        if not entry or entry.get("role") != "uplink" or entry.get("status") == "missing":
+            return []
+
+        medium = str(entry.get("source_medium") or "")
+
+        if (
+            entry.get("source_speed") != "1G"
+            or "SFP" not in medium
+            or "RJ45" in medium
+            or entry.get("target_speed") not in ("10G", "25G")
+            or not entry.get("in_use")
+        ):
+            return []
+
+        lines = [" device transceiver 1000BASE-X"]
+
+        if entry.get("target_speed") == "25G" and self._bank_has_stack_ports(huawei_name):
+
+            # One note per bank is enough: the command acts on the whole bank whichever port it is typed under.
+            bank = re.match(r"^(\d*[A-Za-z]+\d+)/", str(huawei_name))
+            bank_key = bank.group(1) if bank else str(huawei_name)
+
+            if bank_key in self._bank_notes_done:
+                return lines
+
+            self._bank_notes_done.add(bank_key)
+
+            # The four 25GE cages are one rate bank, and the stack links sit in it at 10G (four real core stacks). `port mode GE` needs every
+            # port of the bank down and moves the whole bank to GE, which would take the stack links with it; `port mode 10GE-GE` (auto-sensing
+            # 10G or GE per medium, documented for the S5755-H 25GE ports) is the documented mode for a bank holding both. Not live-tested here, so
+            # it is written as a comment for a person to decide.
+            lines.append(" # port mode 10GE-GE")
+            lines.append(
+                " # REVIEW-PORT-MODE-BANK: the four 25GE ports are one rate "
+                "bank and this device's stack links (25GE<m>/0/3 and /4) are "
+                "10G members of it. `port mode GE` (needs the whole bank down) "
+                "would put those stack links into GE mode too. The command "
+                "reference documents `port mode 10GE-GE` (10G or GE per "
+                "installed medium) for the S5755-H 25GE bank; it is shown "
+                "above as a comment because it was not run on a real stack. "
+                "Apply it before the stack cables are connected and set the "
+                "same rate on the peer. The four deployed TAM stacks carry "
+                "no `port mode` line at all."
+            )
+
+        elif entry.get("target_speed") == "25G":
+
+            lines.append(" port mode GE")
+            lines.append(
+                " # REVIEW-PORT-MODE: "
+                "`port mode GE` converts the WHOLE 25GE bank "
+                "(the device asks to convert e.g. 25GE1/0/1 to "
+                "25GE1/0/4) and says to set the same speed mode on "
+                "the peer. Confirm no other port of the bank needs "
+                "10G/25G before deploying (confirmed on a live S5755)."
+            )
+
+        return lines
 
     # =========================================================
     # SWITCHPORT
@@ -3576,13 +4256,20 @@ class HuaweiSwitchTranslator:
         # chosen target model, instead of being passed through flagged.
         entry = self._port_map.get(interface_name)
         # Multi-GE access ports (S5755-H...UM models) are named MultiGE<m>/0/<n>, not GE: take the catalog name.
+        # Same for any access port whose catalog name is not plain GE (25GE on a 25G aggregation model).
         if (
             entry
             and entry.get("role") == "access"
-            and str(entry.get("target") or "").startswith("MultiGE")
+            and str(entry.get("target") or "").startswith(("MultiGE", "25GE", "10GE"))
             and entry.get("status") != "missing"
         ):
             return (entry["target"], entry.get("note"))
+        # The catalog proved this port has no counterpart on the chosen model (e.g. a 25G SFP28 access port on a
+        # target that only offers GE copper).  The name stays a placeholder, but the review note must be the catalog's own
+        # explanation (speed/medium mismatch), not the generic "unconfirmed prefix" text, which would hide that the link
+        # class changes (25G fibre -> 1G copper).
+        if entry and entry.get("status") == "missing" and entry.get("role") == "access" and entry.get("note"):
+            return (entry.get("target") or interface_name, entry["note"])
         if entry and entry.get("role") == "uplink" and entry.get("target"):
             note = entry.get("note")
             if int(entry.get("member") or 1) > 2:
@@ -3721,7 +4408,7 @@ class HuaweiSwitchTranslator:
                 )
 
             return (
-                f"{target_prefix}1/0/{part2}",
+                f"{target_prefix}{self._stack_member}/0/{part2}",
                 None,
             )
 
@@ -3808,7 +4495,8 @@ class HuaweiSwitchTranslator:
 
             command = (
                 "ip route-static "
-                f"{route.destination} "
+                + (f"vpn-instance {route.vrf} " if getattr(route, "vrf", "") else "")
+                + f"{route.destination} "
                 f"{route.mask} "
                 f"{route.next_hop}"
             )
@@ -3828,6 +4516,9 @@ class HuaweiSwitchTranslator:
             output.append("#")
 
         return output
+
+    # IANA names Cisco accepts after eq/gt/lt/range, written as numbers so the output never depends on a Huawei keyword table.
+    ACL_PORT_NAMES = acl_common.PORT_NAMES
 
     def translate_acl_rule_line(self, rule_id, command):
         """Translate common Cisco extended ACL syntax to Huawei advanced ACL."""
@@ -3850,25 +4541,35 @@ class HuaweiSwitchTranslator:
                 return f"{label} {tokens[0]} {tokens[1]}", tokens[2:]
             return None, tokens
 
+        # Source port (before the destination address) is rare but real: "permit udp any eq 123 any".
+        def port_clause(tokens, label):
+            if not tokens or tokens[0] not in ("eq", "neq", "gt", "lt", "range"):
+                return None, tokens
+            op = tokens[0]
+            need = 3 if op == "range" else 2
+            if len(tokens) < need:
+                return None, tokens
+            values = [self.ACL_PORT_NAMES.get(t, t) for t in tokens[1:need]]
+            return f"{label} {op} {' '.join(values)}", tokens[need:]
+
         src, tokens = endpoint(tokens, "source")
         if src: parts.append(src)
+        sport, tokens = port_clause(tokens, "source-port") if protocol in ("tcp", "udp") else (None, tokens)
+        if sport: parts.append(sport)
         dst, tokens = endpoint(tokens, "destination")
         if dst: parts.append(dst)
+        dport, tokens = port_clause(tokens, "destination-port") if protocol in ("tcp", "udp") else (None, tokens)
+        if dport: parts.append(dport)
 
-        port_names = {
-            "ftp-data": "20", "ftp": "21", "ssh": "22",
-            "smtp": "25", "domain": "53", "http": "80",
-            "pop3": "110", "imap": "143", "https": "443",
-            "smtps": "465", "imaps": "993", "pop3s": "995",
-        }
-        if tokens and tokens[0] == "eq" and len(tokens) >= 2:
-            port = port_names.get(tokens[1], tokens[1])
-            parts.append(f"destination-port eq {port}")
-        elif tokens and tokens[0] == "range" and len(tokens) >= 3:
-            a = port_names.get(tokens[1], tokens[1])
-            b = port_names.get(tokens[2], tokens[2])
-            parts.append(f"destination-port range {a} {b}")
-        elif tokens:
+        # "log": the rule itself is converted so the filtering stays exact; the logging option is not carried because its
+        # keyword is not confirmed for this platform -- the review line says so instead of the whole rule being dropped.
+        if tokens == ["log"]:
+            return (
+                " ".join(parts)
+                + f"\n # REVIEW-ACL-LOG: rule {rule_id} logged matches in the source (\"log\"); enable ACL logging for it on the target"
+            )
+
+        if tokens:
             return f" rule {rule_id} # REVIEW: {command}"
 
         return " ".join(parts)
@@ -4881,6 +5582,13 @@ class HuaweiSwitchTranslator:
 
                 continue
 
+            if current_acl and command.startswith("remark "):
+
+                # A remark is documentation, not a conversion problem.
+                output.append(f"# {command}")
+
+                continue
+
             output.append(
                 f"# REVIEW-ACL: {command}"
             )
@@ -5479,10 +6187,16 @@ class HuaweiSwitchTranslator:
             "carrier-delay ",
         ) + UNSUPPORTED_IGNORE
 
+        # Exact matches only: a bare "switchport" just turns on Layer-2 mode (VRP ports are Layer-2 until "undo portswitch"),
+        # and "hsrp version 2" is HSRP's own message format -- the group itself is converted to VRRP.  Longer commands that
+        # merely start with the same word must still reach the review list.
+        ignored_exact = ("switchport", "hsrp version 2")
+
         return [
             command
             for command in commands
-            if not command.startswith(
+            if command not in ignored_exact
+            and not command.startswith(
                 ignored
             )
         ]
@@ -5518,6 +6232,11 @@ class HuaweiSwitchTranslator:
             if command in ignored_exact:
                 continue
 
+            # NX-OS: show-running-config banner, VDC carve-up and feature enablers whose function is converted on its own
+            # ("feature netflow" is covered by the NetStream conversion).
+            if nxos_noise.is_noise(command, ("feature netflow",)):
+                continue
+
             if command.startswith(
                 ignored_prefixes
             ):
@@ -5527,4 +6246,4 @@ class HuaweiSwitchTranslator:
                 command
             )
 
-        return output
+        return output

@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from . import capture_text, licence_detail, nxos_extras, show_tables
+from . import capture_text, huawei_live, licence_detail, nxos_extras, nxos_state, show_tables
 from .finding_context import vlan_phrase
 from .health import DOCS as _HEALTH_DOCS
 from .health import (LACP_STATE_BITS, MEMBER_FLAGS, SEVERITY_ORDER, _config_blocks, _finding, _running_config,
@@ -42,6 +42,10 @@ DOCS: dict[str, tuple[str, str]] = {
                     "https://support.huawei.com/enterprise/en/doc/EDOC1100306151/cb34a757/eth-trunk-in-lacp-mode"),
     "huawei_stp": ("Huawei - Checking Whether the Loop Prevention Protocol Flaps",
                    "https://info.support.huawei.com/network/ptmngsys/Web/tsrev_s/en/content/s/13_edesk_ping_packet_loss/edesk_ping_packet_loss_edesk002.html"),
+    "huawei_baseline": ("Huawei CloudEngine S3700, S5700 and S6700 V600R025C00 Configuration Guide (every command of the Baseline Check Items for Security Configuration of Campus Switches is documented here)",
+                        "https://support.huawei.com/enterprise/en/doc/EDOC1100333463"),
+    "huawei_stack": ("Huawei CloudEngine S5700 and S6700 V600R024C10 Configuration Guide - Virtualization (S5735-S-V2 stack support)",
+                     "https://support.huawei.cn/enterprise/en/doc/EDOC1100458710/ca59e588/s5735i-s-v2-stack-support"),
     "aruba_harden": ("HPE Aruba Networking - Protect your infrastructure by securing your switches using the ArubaOS-Switch Hardening Guide",
                      "https://community.networking.hpe.com/discussion/protect-your-infrastructure-by-securing-your-switches-using-the-arubaos-switch-hardening-guide"),
 }
@@ -517,9 +521,10 @@ def build_nxos(clean: list[str], *, interfaces: list[dict[str, Any]], port_chann
     for item in licence_detail.licence_findings(detail, report_doc="smart_slp_nxos"):
         _add(findings, item["code"], item["severity"], item["title"], item["text"], where=item["where"], doc=item["doc"])
     extras = nxos_extras.analyse(clean)
-    findings += extras["findings"]
-    health["extra_tables"] = extras["tables"]
-    health["extra_counts"] = extras["counts"]
+    state = nxos_state.analyse(clean)
+    findings += extras["findings"] + state["findings"]
+    health["extra_tables"] = extras["tables"] + state["tables"]
+    health["extra_counts"] = {**extras["counts"], **state["counts"]}
 
     missing = []
     for label, found, adds in (("show version", version_lines, "uptime, the reason for the last reset"), ("show environment all", env_lines, "fan, power supply and temperature state"),
@@ -711,7 +716,7 @@ def _huawei_lacp_rows(trunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _huawei_rules(findings: list[dict[str, Any]], *, version: dict[str, Any], devices: list[dict[str, Any]], stp: dict[str, Any], trunks: list[dict[str, Any]],
-                  top: list[str], config: bool, config_edged: int, link_state: dict[str, str]) -> None:
+                  top: list[str], config: bool, config_edged: int, link_state: dict[str, str], config_lines: list[str] | None = None) -> None:
     members = version.get("members") or []
     _uptime_finding(findings, version.get("uptime", ""), max([version.get("uptime_days") or 0] + [m["uptime_days"] for m in members]),
                     f"started {members[0]['startup']}" if members and members[0].get("startup") else "", "Huawei")
@@ -765,9 +770,9 @@ def _huawei_rules(findings: list[dict[str, Any]], *, version: dict[str, Any], de
                      where=member["port"], doc="huawei_lacp")
 
     if config:
-        if any(re.match(r"^telnet server enable\b", line) for line in top):
+        if any(re.match(r"^telnet(?: ipv6)? server enable\b", line) for line in top):
             _add(findings, "SW-TEL-001", "high", "Telnet server is enabled", "`telnet server enable` sends logins and commands in clear text. Use `stelnet server enable` (SSH) and `undo telnet server enable`.")
-        if any(re.match(r"^ftp server enable\b", line) for line in top):
+        if any(re.match(r"^ftp(?: ipv6)? server enable\b", line) for line in top):
             _add(findings, "SW-FTP-001", "medium", "FTP server is enabled", "`ftp server enable` sends credentials and files in clear text. Use `sftp server enable`.")
         if any(re.match(r"^http server enable\b", line) for line in top):
             _add(findings, "SW-HTTP-001", "medium", "Plain HTTP management server is enabled", "`http server enable` serves the web UI without encryption. Use `http secure-server enable` only.")
@@ -788,6 +793,173 @@ def _huawei_rules(findings: list[dict[str, Any]], *, version: dict[str, Any], de
             _add(findings, "SW-NTP-001", "medium", "No NTP server", "Log timestamps and certificates depend on the clock. Add at least two `ntp unicast-server` lines.")
         elif len(ntp) == 1:
             _add(findings, "SW-NTP-001", "low", "Only one NTP server", "One source cannot be cross-checked; configure at least two.")
+        _huawei_baseline(findings, config_lines or [], top)
+        _huawei_flow_and_source(findings, config_lines or [])
+
+
+def _huawei_sections(config: list[str]) -> list[tuple[str, list[str]]]:
+    """``display current-configuration`` as (top-level line, indented lines); ``#`` separators close a section."""
+    sections: list[tuple[str, list[str]]] = []
+    for raw in config:
+        if not raw.strip() or raw.strip() == "#":
+            sections.append(("", []))
+            continue
+        if raw[0].isspace():
+            if sections:
+                sections[-1][1].append(raw.strip())
+        else:
+            sections.append((raw.strip(), []))
+    return [s for s in sections if s[0]]
+
+
+def _huawei_flow_and_source(findings: list[dict[str, Any]], config: list[str]) -> None:
+    """NetStream export and management source-interface checks on a Huawei ``display current-configuration``.
+
+    Written from four real S5755-H24T4Y2CZ core stacks (Depo Makassar, Manado, Pekanbaru, Semarang). Commands are from the Huawei CloudEngine
+    S300, S500, S2700, S5700 and S6700 V600R025C00 command reference: `netstream export ip source <ip>` (an address, not an interface),
+    `netstream timeout ip active <seconds>` (default 1800), `ntp server source-interface <interface>` and `info-center loghost source <interface>`.
+    """
+    lines = [raw.strip() for raw in config if raw.strip()]
+    addresses: set[str] = set()
+    addressed_vlanifs: set[str] = set()
+    current = ""
+    for raw in config:
+        if raw and not raw[0].isspace():
+            current = raw.strip()
+            continue
+        found = re.match(r"^\s+ip address (\d+\.\d+\.\d+\.\d+)\s+\S+", raw)
+        if found:
+            addresses.add(found.group(1))
+            vlanif = re.match(r"^interface (Vlanif\d+)$", current)
+            if vlanif:
+                addressed_vlanifs.add(vlanif.group(1).lower())
+
+    for line in lines:
+        found = re.match(r"^netstream export ip source (\d+\.\d+\.\d+\.\d+)\s*$", line)
+        if found and addresses and found.group(1) not in addresses:
+            _add(findings, "SW-NSF-001", "medium", "NetStream export source is not an address of this switch",
+                 f"`{line}`: no interface of this configuration carries {found.group(1)}, so the collector receives records from a source address the switch does not own "
+                 "(the usual cause is a Catalyst `source Vlan<N>` copied without its SVI). Set `netstream export ip source` to the management SVI address. "
+                 "Source: V600R025C00 command reference, NetStream commands.", where=line)
+        found = re.match(r"^netstream timeout ip active (\d+)\s*$", line)
+        if found and int(found.group(1)) < 60:
+            _add(findings, "SW-NSF-002", "low", f"NetStream active flow timeout is {found.group(1)} second(s)",
+                 f"`{line}`: the unit is seconds (default 1800, V600R025C00 command reference), so every long flow is exported every {found.group(1)} s. "
+                 "That multiplies the records the collector must take; use 60 s or more unless the collector needs one-second resolution.", where=line)
+    for pattern, label in ((r"^ntp server source-interface (Vlanif\d+)\s*$", "NTP"), (r"^info-center loghost source (Vlanif\d+)\s*$", "syslog")):
+        for line in lines:
+            found = re.match(pattern, line)
+            if found and any(re.match(r"^interface Vlanif\d+$", item) for item in lines) and found.group(1).lower() not in addressed_vlanifs:
+                _add(findings, "SW-SRC-001", "medium", f"The {label} source interface {found.group(1)} has no IP address on this switch",
+                     f"`{line}`: {found.group(1)} is missing or has no `ip address`, so {label} packets leave with another source address (or are not sent) and an ACL on the server side drops them. "
+                     "Point the source at an addressed management Vlanif.", where=line)
+
+
+def _huawei_baseline(findings: list[dict[str, Any]], config: list[str], top: list[str]) -> None:
+    """Checks from Huawei's "Baseline Check Items for Security Configuration of Campus Switches" (V600R025C00, Mandatory and Optional workbooks).
+
+    Only what the saved configuration can prove is reported: ``display current-configuration`` omits default values, so a setting whose default
+    is already the recommended one is judged by an explicit ``undo`` / ``disable`` line, and a setting that needs an explicit command (VTY
+    ``protocol inbound ssh``, an SNMP ACL) is judged by its absence.  Passwords and community strings are never printed.
+    """
+    sections = _huawei_sections(config)
+    vty = [(head, body) for head, body in sections if re.match(r"^user-interface\s+vty\b", head)]
+    console = [(head, body) for head, body in sections if re.match(r"^user-interface\s+(?:con|console)\b", head)]
+    anywhere = [raw.strip() for raw in config if raw.strip()]
+    telnet_on = any(re.match(r"^telnet(?: ipv6)? server enable\b", line) for line in top)
+
+    def has(pattern: str) -> bool:
+        return any(re.match(pattern, line) for line in anywhere)
+
+    def doc() -> str:
+        return "huawei_baseline"
+
+    # --- VTY (mandatory: protocol inbound, idle timeout, authentication mode; optional: ACL)
+    for head, body in vty:
+        inbound = [line for line in body if line.startswith("protocol inbound")]
+        mode = inbound[-1].split()[-1] if inbound else "all"
+        if mode in ("telnet", "all"):
+            sev = "high" if (inbound or telnet_on) else "low"
+            _add(findings, "SW-VTY-001", sev, f"VTY lines accept {'Telnet' if mode == 'telnet' else 'any inbound protocol'}",
+                 f"`{head}`: " + (f"`{inbound[-1]}`" if inbound else "no `protocol inbound` line, so the default (`all`) applies")
+                 + ". Baseline check item \"Protocol used by VTY\" (Mandatory, risk Very high) recommends `protocol inbound ssh`.", where=head, doc=doc())
+        timeouts = [line for line in body if line.startswith("idle-timeout")]
+        if timeouts and re.match(r"^idle-timeout\s+0(?:\s+0)?$", timeouts[-1]):
+            _add(findings, "SW-VTY-002", "medium", "VTY sessions never time out",
+                 f"`{head}`: `{timeouts[-1]}` disables the idle timeout. Baseline check item \"Idle timeout period of VTY sessions\" (Mandatory, risk Very high) asks for a non-zero value (default 10 minutes).", where=head, doc=doc())
+        auth = [line for line in body if line.startswith("authentication-mode")]
+        if auth and auth[-1].split()[-1] != "aaa":
+            _add(findings, "SW-VTY-003", "high", f"VTY login uses `{auth[-1]}` instead of AAA",
+                 f"`{head}`: a shared line password (or no password) gives every administrator the same identity and no accounting. Baseline check item \"Authentication mode of VTY service\" (Mandatory, risk Very high) recommends `authentication-mode aaa`.", where=head, doc=doc())
+    if vty and not any(line.startswith("acl") and "inbound" in line for _head, body in vty for line in body) and not has(r"^ssh server acl\b"):
+        _add(findings, "SW-VTY-004", "medium", "Management access is not restricted by an ACL",
+             "No `acl <n> inbound` under `user-interface vty` and no `ssh server acl`: any reachable address may attempt a login. Baseline check items \"SSH ACL configuration\" (Mandatory) and \"VTY acl configuration\" (Optional, risk High).", doc=doc())
+    for head, body in console:
+        auth = [line for line in body if line.startswith("authentication-mode")]
+        if auth and auth[-1].split()[-1] != "aaa":
+            _add(findings, "SW-CON-001", "medium", f"Console login uses `{auth[-1]}`", f"`{head}`: baseline check item \"Authentication configuration on CONSOLE port\" (Optional, risk Very high) recommends `authentication-mode aaa`.", where=head, doc=doc())
+
+    # --- SSH / Telnet / FTP service switches
+    if has(r"^ssh server compatible-ssh1x enable\b"):
+        _add(findings, "SW-SSH-002", "high", "SSH protocol version 1 compatibility is enabled",
+             "`ssh server compatible-ssh1x enable` lets SSHv1 clients connect; SSHv1 has known weaknesses. Remove it (baseline check item \"SSHv1 compatibility status\", Mandatory).", doc=doc())
+    for pattern, label, code, item in (
+        (r"^ssh server ip-block disable\b", "SSH", "SW-SSH-003", "IP block feature for SSH server"),
+        (r"^telnet server ip-block disable\b", "Telnet", "SW-TEL-002", "Telnet IP block feature"),
+        (r"^ftp server ip-block disable\b", "FTP", "SW-FTP-002", "FTP IP block feature"),
+        (r"^http server ip-block disable\b", "HTTP", "SW-HTTP-002", "HTTP IP block feature"),
+    ):
+        if has(pattern):
+            _add(findings, code, "medium", f"{label} server does not lock out repeated failed logins",
+                 f"`{pattern[1:].split(chr(92))[0].strip()}` turns off the lock on a client IP address after repeated authentication failures. Baseline check item \"{item}\".", doc=doc())
+    for pattern, label in ((r"^telnet(?: ipv6)? server-source all-interface\b", "Telnet"), (r"^ftp(?: ipv6)? server source all-interface\b", "FTP"),
+                           (r"^ssh(?: ipv6)? server-source all-interface\b", "SSH"), (r"^snmp-agent(?: proxy)? protocol source-status(?: ipv6)? all-interface\b", "SNMP")):
+        if has(pattern):
+            _add(findings, "SW-MGT-001", "medium", f"{label} server listens on every interface",
+                 f"The `all-interface` source setting opens the {label} service on every address of the switch, not only the management one. Bind it to a management interface instead (baseline check items \"All-interface listening on ...\", Optional, risk Very high / High).", doc=doc())
+    if has(r"^ntp(?: ipv6)? server source-interface all enable\b"):
+        _add(findings, "SW-NTP-003", "medium", "NTP server listens on all interfaces",
+             "`ntp server source-interface all enable` lets any interface answer NTP requests. Baseline check item \"The NTP IPv4 server enable to listen to all interfaces\" (Optional, risk Very high) recommends `disable`.", doc=doc())
+
+    # --- SNMP
+    snmp_in_use = [line for line in top if re.match(r"^snmp-agent (?:community|usm-user|target-host|sys-info version)\b", line)]
+    if snmp_in_use and not has(r"^snmp-agent acl\b") and not any(re.match(r"^snmp-agent (?:community|usm-user)\b", line) and re.search(r"\bacl\b", line) for line in anywhere):
+        _add(findings, "SW-SNMP-005", "medium", "SNMP is not restricted by an ACL",
+             "No `snmp-agent acl` and no `acl` option on any community or SNMPv3 user: any address that knows a community or user can query the switch. Baseline check item \"Snmp acl configuration\" (Mandatory, risk Very high).", doc=doc())
+    for pattern, title, item in (
+        (r"^snmp-agent blacklist user-block disable\b", "SNMP user blacklist is disabled", "SNMP user blacklist"),
+        (r"^snmp-agent blacklist ip-block disable\b", "SNMP IP blacklist is disabled", "SNMP IP blacklist"),
+        (r"^snmp-agent usm-user password complexity-check disable\b", "SNMPv3 user password complexity check is disabled", "SNMP usm-user password complexity check"),
+    ):
+        if has(pattern):
+            _add(findings, "SW-SNMP-006", "medium", title, f"`{pattern[1:].split(chr(92))[0]}` weakens the SNMP login protection. Baseline check item \"{item}\" (Mandatory, risk High).", doc=doc())
+
+    # --- AAA and local accounts
+    if has(r"^undo local-aaa-user wrong-password\b"):
+        _add(findings, "SW-AAA-101", "high", "Local account locking is disabled",
+             "`undo local-aaa-user wrong-password` turns off the lock after repeated wrong passwords, so a local account can be guessed without limit. Baseline check item \"Local account locking function\" (Mandatory, risk Very high); default `retry-interval 5 retry-time 3 block-time 5`.", doc=doc())
+    if has(r"^undo administrator remote authen-fail\b"):
+        _add(findings, "SW-AAA-102", "high", "Account locking for administrators that fail remote authentication is disabled",
+             "`undo administrator remote authen-fail` turns off the lock. Baseline check item \"Account locking function for administrators who fail remote authentication\" (Mandatory, risk Very high).", doc=doc())
+    weak = [line for line in anywhere if re.match(r"^password complexity (?:two-of-kinds|three-of-kinds)\b", line)]
+    if weak:
+        _add(findings, "SW-AAA-103", "medium", "Local password complexity is lowered",
+             f"`{weak[0]}`: the default and the recommendation are `four-of-kinds` (baseline check item \"Local account security enhancement function\", Mandatory, risk Very high).", doc=doc())
+    if has(r"^undo password alert original\b"):
+        _add(findings, "SW-AAA-104", "medium", "Users are not prompted to change the initial password",
+             "`undo password alert original` removes the prompt (baseline check item \"Prompting users to change initial passwords\", Mandatory, risk Very high).", doc=doc())
+    if has(r"^local-user .* password-force-change disable\b"):
+        _add(findings, "SW-AAA-105", "medium", "Forced password change is disabled for a local user",
+             "A `local-user ... password-force-change disable` line lets an account keep its initial password (Optional baseline item \"password-force-change function\", risk Very high).", doc=doc())
+    risky = []
+    for line in anywhere:
+        match = re.match(r"^local-user\s+(\S+)\s+service-type\s+(.+)$", line)
+        if match and re.search(r"\b(?:telnet|ftp)\b", match.group(2)):
+            risky.append(f"{match.group(1)} ({match.group(2).strip()})")
+    if risky:
+        _add(findings, "SW-AAA-106", "medium", f"{len(risky)} local user(s) may log in over Telnet or FTP",
+             "Service types: " + "; ".join(risky[:8]) + (f" and {len(risky) - 8} more" if len(risky) > 8 else "")
+             + ". Baseline check item \"AAA Local User Service Type\" (Mandatory, risk Very high) recommends `terminal ssh http`.", doc=doc())
 
 
 def _huawei_config(clean: list[str]) -> list[str]:
@@ -821,13 +993,40 @@ def build_huawei(clean: list[str], *, interfaces: list[dict[str, Any]], port_cha
         elif re.match(r"^\s+stp edged-port enable\b", raw):
             config_edged += 1
 
+    live_commands = (
+        ("stack", rf"{_d} stack", (r"^\s*MemberID\s+Role\s+MAC",), huawei_live.parse_stack),
+        ("topology", rf"{_d} stack topology", (r"^\s*Stack Topology Type:",), huawei_live.parse_stack_topology),
+        ("stack_configuration", rf"{_d} stack configuration", (r"^\s*Attribute Configuration:",), huawei_live.parse_stack_configuration),
+        ("dual_active", rf"{_d} dual-active", (r"^\s*Stack domainID:",), huawei_live.parse_dual_active),
+        ("stack_history", rf"{_d} stack troubleshooting history", (), huawei_live.parse_stack_history),
+        ("stack_port_down", rf"{_d} stack-port link-state last-down-reason", (r"^\s*Stack-Port\s*:",), huawei_live.parse_stack_port_down),
+        ("vlan_summary", rf"{_d} vlan summary", (r"^\s*Number of static VLAN",), huawei_live.parse_vlan_summary),
+        ("vlan_table", rf"{_d} vlan", (r"^\s*The total number of vlans is",), huawei_live.parse_vlan_table),
+        ("port_vlan", rf"{_d} port vlan", (r"^\s*Port\s+Link Type\s+PVID",), huawei_live.parse_port_vlan),
+        ("lacp_brief", rf"{_d} lacp brief", (), huawei_live.parse_lacp_brief),
+        ("arp_statistics", rf"{_d} arp statistics", (), huawei_live.parse_arp_statistics),
+        ("licence", rf"{_d} license(?: verbose)?", (r"^\s*MainBoard:",), huawei_live.parse_license),
+        ("stp_region", rf"{_d} stp region-configuration", (r"^\s*Operating configuration",), huawei_live.parse_stp_region),
+    )
+    live: dict[str, Any] = {}
+    for key, pattern, headers, parser in live_commands:
+        value = parser(_run(clean, pattern, headers) or [])
+        if value:
+            live[key] = value
+
     findings: list[dict[str, Any]] = []
     link_state = {str(item.get("name", "")).lower(): str(item.get("status", "")) for item in interfaces if item.get("status")}
-    _huawei_rules(findings, version=version, devices=devices, stp=stp, trunks=trunks, top=top, config=bool(config), config_edged=config_edged, link_state=link_state)
+    for code, severity, title, text, where, doc_key in huawei_live.rules(live) + huawei_live.trunk_rules(live, port_channels):
+        _add(findings, code, severity, title, text, where=where, doc=doc_key)
+    _huawei_rules(findings, version=version, devices=devices, stp=stp, trunks=trunks, top=top, config=bool(config), config_edged=config_edged, link_state=link_state,
+                  config_lines=config)
 
     health["environment"]["rows"] = [{k: v for k, v in row.items() if k != "absent"} for row in devices]
     health["environment"]["problems"] = sum(1 for row in devices if row["problem"])
     health["lacp"] = _huawei_lacp_rows(trunks)
+    health["live"] = live
+    health["stack"] = {"display": huawei_live.stack_summary(live), "members": live.get("stack", []),
+                       "ports": (live.get("topology") or {}).get("links", [])}
     if stp:
         ports = stp.get("ports", [])
         root = "this bridge (root)" if stp.get("is_root") else stp.get("root", "—")

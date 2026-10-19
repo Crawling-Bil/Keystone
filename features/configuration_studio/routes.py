@@ -18,6 +18,7 @@ from .service import (
     available_profiles,
     available_target_models,
     hardware_catalog,
+    hardware_tree,
     convert_file,
     domain_overview,
     ensure_domain_available,
@@ -232,6 +233,7 @@ def convert_page(slug: str):
         },
         # Switch and router pages show the hardware catalog (ports per model, modules, data-sheet links).
         hardware_catalog=hardware_catalog(key),
+        hardware_tree=hardware_tree(key),
         router_models=hardware_catalog("router") if key == "router" else [],
     )
 
@@ -278,6 +280,8 @@ def convert():
             target_model=request.form.get("target_model") or None,
             mapping=mapping,
             domain=domain,
+            stack_member=request.form.get("stack_member"),
+            stack_members=request.form.get("stack_members"),
         )
         export_id = uuid.uuid4().hex
         export_path = EXPORT_DIR / f"{export_id}.cfg"

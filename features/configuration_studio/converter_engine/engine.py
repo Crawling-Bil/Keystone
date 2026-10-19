@@ -1,3 +1,4 @@
+import re
 from importlib import import_module
 
 from features.configuration_studio.converter_engine.detector import DeviceDetector
@@ -538,6 +539,54 @@ class MigrationEngine:
             config
         )
 
+    def _inventory_target_model(
+        self,
+        config,
+        target_vendor
+    ):
+        # No Target Model was chosen on the page: use the model the
+        # project inventory assigns to this hostname (the Huawei
+        # translator already takes the new host name from it) when the
+        # hardware catalog knows it, so the port map checks real port
+        # counts instead of falling back to a naming rule.
+        if str(target_vendor).strip().lower() != "huawei":
+            return None
+
+        try:
+
+            from .hardware.catalog import (
+                get_model
+            )
+
+            assigned = (
+                self.inventory.get_target_model(
+                    getattr(config, "hostname", "")
+                )
+                or ""
+            )
+
+            key = re.sub(
+                r"^\s*CloudEngine\s+",
+                "",
+                str(assigned),
+                flags=re.IGNORECASE
+            ).strip()
+
+            model = get_model(key)
+
+            if (
+                model
+                and model.vendor == "Huawei"
+                and model.kind == "switch"
+            ):
+                return model.key
+
+        except Exception:
+
+            return None
+
+        return None
+
     # ========================================================
     # FULL CONVERSION
     # ========================================================
@@ -552,8 +601,13 @@ class MigrationEngine:
         profile=None,
         target_model=None,
         mapping=None,
-        identity_text=None
+        identity_text=None,
+        stack_member=1,
+        stack_members=1
     ):
+        # stack_member / stack_members: this file is the Nth unit of a stack
+        # of M (two standalone switches merged into one Huawei stack). The
+        # port names take member N and the stack-link ports are kept free.
         # identity_text: the whole capture when ``filename`` holds only its
         # configuration block (session_capture); the hardware catalog reads
         # the chassis and uplink-module PIDs of "show inventory" from it.
@@ -573,6 +627,18 @@ class MigrationEngine:
             target_device_type = (
                 config.source_device_type
             )
+
+        member = max(1, min(int(stack_member or 1), 9))
+        members = max(member, min(int(stack_members or 1), 9))
+
+        if members > 1 and isinstance(
+            getattr(config, "metadata", None), dict
+        ):
+
+            config.metadata["stack"] = {
+                "member": member,
+                "members": members
+            }
 
         # Interface map: which physical port of the source model becomes
         # which port of the target model (hardware catalog). It must exist
@@ -596,7 +662,10 @@ class MigrationEngine:
                     config,
                     identity_text or handle.read(),
                     target_vendor,
-                    target_model
+                    target_model or self._inventory_target_model(
+                        config,
+                        target_vendor
+                    )
                 )
 
         except Exception as exc:

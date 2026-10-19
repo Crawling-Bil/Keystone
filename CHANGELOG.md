@@ -4,6 +4,125 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ## Unreleased
 
+### Convert Switch: target-fit check, pre-flight tab, vPC to VSX, derived M-LAG priority, post-conversion checks
+
+Target fit
+- `hardware/interface_map.py` `target_fit()`: counts the ports the source really uses by role and speed class and compares them with the chosen target. Verdict `fits`, `partial`, `does-not-fit` or `unknown` (no model chosen); `alternatives` lists catalog models of the same vendor on which no used port would be missing. Shown as a banner in the Interface map tab.
+- Catalog: Huawei S6730-H48Y6C-V2 (48x 25GE SFP28 + 6x 100GE QSFP28, e.huawei.com S6730-H-V2 25G page), the like-for-like target of a Nexus N9K-C93180YC. The S6730-H28Y4C is not added: its port layout is only documented for V200R020C00. Ports are written `25GE1/0/n` / `100GE1/0/n`, not `GE1/0/n`.
+
+Pre-flight
+- New Pre-flight tab (`preflight.py`): converted lines, REVIEW lines split into "needs a decision" and "not converted", counts by REVIEW code, structural checks, target fit, and one readiness line (ready / decisions needed / target does not fit).
+- New `postcheck.py` runs on the converted text of Huawei, AOS-CX and Cisco targets: CHK-ACL-DUPLICATE (a rule repeated after object-group expansion; AGG1 had 12 repeats in one ACL), CHK-ACL-PERMIT-ALL (rules below an unconditional permit can never match), CHK-ACL-NO-DENY, CHK-LAG-EMPTY (an Eth-Trunk / lag / Port-channel with no member).
+
+vPC and HSRP
+- Aruba: a `vpc domain` becomes a `vsx` block (`inter-switch-link lag N` from the `vpc peer-link` port-channel, `role primary|secondary`, `keepalive peer ... source ... [vrf]`, `linkup-delay-timer` from `delay restore`); a vPC member port-channel is `interface lag N multi-chassis`. Before, the whole vPC domain was dropped. `system-mac`, `peer-switch` and other domain commands stay REVIEW-VSX-*.
+- The NX-OS `management` VRF is the AOS-CX built-in `mgmt` VRF (`vrf attach`, `ip route ... vrf`, `vsx keepalive`); `vrf context management` is no longer an unsupported command.
+- vPC `role priority` is parsed (`SwitchConfig.vpc_role_priority`). NX-OS elects the LOWER value as primary, Huawei M-LAG the HIGHER DFS-group priority as master, so only the direction is derived: primary becomes `priority 150`, secondary `priority 100` (the VRP default); no role keeps the marked placeholder. Same direction gives `role primary` / `role secondary` on VSX (`translators/switch/vpc_common.py`).
+- Aruba HSRP to VRRP: the REVIEW line carries the source hello/hold timers and the preempt setting.
+
+Not done, on purpose
+- AOS-CX VRRP timer and preempt commands, and the `virtual-address` keyword the existing VRRP output uses, could not be checked against an HPE document in this pass (HPE pages refused the fetch); they stay REVIEW.
+- Huawei ACL `log` keyword is still unconfirmed (REVIEW-ACL-LOG).
+- `show ip interface` in the captures is only a `?` help session; `show ip interface brief` was already read.
+
+Tests: `tests/test_target_fit.py`, `tests/test_preflight.py`; VSX / mgmt VRF / M-LAG priority cases in `tests/test_convert_nxos_acl.py` (fixture extended with a peer-link, role priority, delay restore and HSRP timers).
+
+### Convert Switch and Switch Analyzer: Nexus 9000 (NX-OS) source, six DRC captures
+
+Read the six DRC captures (two N9K-C93180YC-FX3 vPC aggregation switches, four N9K-C93108TC-FX top-of-rack switches, NX-OS 10.4(5) and 10.5(4)) and converted each to Huawei and Aruba.
+
+Convert Switch
+- NX-OS ACLs were silently emptied (`acl name X advanced` with no rules; 1,500 REVIEW lines on Aruba). `parsers/switch/nxos_acl.py` reads sequence numbers, CIDR, `remark`, service names and `object-group ip address|port` (`addrgroup` / `portgroup`, expanded and capped at 512 rules per entry). AGG1: about 2,900 real rules on Huawei and on Aruba, two review items left (both damaged capture lines).
+- Huawei ACL rules: source ports, `neq`/`gt`/`lt`/`range`, service names as port numbers; `log` keeps the rule and adds REVIEW-ACL-LOG; a `remark` is a comment, not a review item.
+- Aruba ACLs are translated for every source (IOS and NX-OS): `access-list ip NAME`, numbered `permit|deny` entries with `A.B.C.D/len` prefixes, `eq|gt|lt|range`, `established`, `log`, remarks as `seq comment` (AOS-CX 10.13 ACLs guide). `neq` and non-contiguous wildcard masks stay REVIEW-ACL.
+- NX-OS `username ... password 5 <hash>  role <role>`: the role is no longer glued to the hash. network-admin is Huawei level 3, network-operator level 1, any other role level 0 with REVIEW-USER-ROLE. `passphrase lifetime 99999` (factory default) is dropped.
+- Bug: a route written under `vrf context management` was converted as a global route. `StaticRoute.vrf` now carries it: `ip route-static vpn-instance NAME`, AOS-CX `ip route ... vrf NAME`, IOS `ip route vrf NAME`.
+- `vlan 1-15,18-19,...` creates every VLAN of the list (VLANs without a name have no block of their own); VLAN 1 is not created.
+- AOS-CX: a trunk without an allowed list becomes `vlan trunk allowed all`.
+- A port the catalog cannot place on the chosen target keeps its source name and the catalog's reason (for example 25G SFP28 ports on a GE-copper model), instead of a guessed `GE1/0/n` with an unrelated review note.
+- Review noise removed: `!Command:` banner, `vdc`, `limit-resource`, `version`, `feature interface-vlan|lacp|vpc|hsrp` (and `feature netflow` on Huawei), bare `switchport`, `hsrp version 2`.
+- Catalog: N9K-C93180YC-EX, -FX and -FX3 (48x 1/10/25G SFP28 + 6x 40/100G QSFP28).
+
+Switch Analyzer
+- New `nxos_state.py`: show feature, module, boot, system reset-reason, cores, processes log, interface switchport, interface counters errors (the three NX-OS tables merged per port), interface transceiver details (DOM), port-channel database, vpc orphan-ports, spanning-tree root, vrf, vrf interface, logging server and ip route summary, each with a table and findings (SW-NX-* codes) and a link to the Cisco document.
+- Paste-ahead captures: the look-ahead for a type-ahead echo is 400 commands instead of 60; with 60 the DRC captures lost `show version`, the platform and filed the running-config under the wrong command.
+- Coverage: a `?` help session or a command glued to other text is "ignored", not "answered".
+- SW-NX-CAP-001: ACL lines of the running-config with a typed-ahead command or a corrupted address inside.
+
+Tests: `tests/test_convert_nxos_acl.py`, `tests/test_switch_nxos_state.py`, fixture `tests/fixtures/switch/nxos_acl_synthetic.txt`; the catalog tests list the three new models.
+
+### Convert Switch and Switch Analyzer: Catalyst 3650 stacks to S5755-H24T4Y2CZ stacks (Depo Makassar, Manado, Pekanbaru, Semarang)
+
+Read the backup, draft and staging captures of the four Depo sites: four Catalyst 3650 stacks (two members each) replaced by four S5755-H24T4Y2CZ two-member ring stacks (V600R025C00, Master priority 200, Standby 100). The captures are customer data and stay outside the repository; the tests use the synthetic fixture `cisco_3650_stack_netflow_synthetic.txt`.
+
+Convert Switch
+- Catalog: the S5755-H24T4Y2CZ stack ports are `25GE<m>/0/3` and `25GE<m>/0/4` at 10G (`Stack-Port<m>/1` and `<m>/2`), each with `device transceiver 10GBASE-COPPER`; `stack_transceiver` and `stack_shares_bank` are new model fields. The `display stack port auto-cable-info` candidates (25GE m/0/1-2, 100GE m/0/1) are not used because the deployed stacks bind 25GE m/0/3-4.
+- A source stack is detected from the highest member number in the interface names and from `switch N provision`; the stack ports of every member are reserved (no data configuration, REVIEW-STACK-PORT) and the uplink module ports `Gi<m>/1/3-4` that land on them stay empty.
+- The stack template follows V600R025C00: `interface stack-port <m>/1` + `port member-group interface 25GE <m>/0/3` (the older `port interface X enable` is not in this release); no dual-active detection exists on the deployed stacks, so the header explains relay (cores) and direct (small access stacks).
+- A 25GE bank that holds the 10G stack links is not set to `port mode GE`; the converter writes a commented `port mode 10GE-GE` plus one REVIEW-PORT-MODE-BANK per bank (documented, not yet run on a real stack).
+- Flexible NetFlow exporters are parsed and written as `netstream export ip host <ip> <port> dscp 0` and `netstream export ip source <SVI address>`; interfaces get `netstream inbound ip` / `outbound ip`. Only for the S5755 / S6730 / S6750 / S5732-H / S6780 families: for the S5735 a REVIEW-NETSTREAM explains why nothing is written. When the exporter source SVI does not exist in the file the management SVI is used and the line says so. Aging timers are not carried over.
+- The management SVI named by `tacacs` / `tftp` / `flow` / `ssh` source-interface replaces `Vlanif-mgmt` in the NTP lines, and `logging source-interface` does the same for `info-center loghost source`; a source that has no addressed SVI in the file is skipped.
+- `clock timezone <name> <h> [<m>]` becomes `clock timezone <name> add|minus hh:mm:ss`.
+
+Switch Analyzer
+- SW-NSF-001: `netstream export ip source` is not an address of the switch (three of the four real stacks exported from the Pekanbaru address). SW-NSF-002: `netstream timeout ip active` below 60 s (the real stacks use 1). SW-SRC-001: `ntp server source-interface` or `info-center loghost source` names a Vlanif without an address.
+
+Tests: `tests/test_convert_s5755_stack_depo.py`, `tests/test_convert_port_mapping_tam.py` (stack template syntax).
+
+### Convert Switch and Switch Analyzer: two standalone Catalyst 2960 merged into one Huawei stack (Lexus)
+
+Read the Lexus captures (backup, draft, fix, staging, "migration before" and the two "migration after" captures of the stack that replaced LXS-SWAC-ISP01 and ISP02, plus the OT and CODI switches). The captures are customer data and stay outside the repository; the tests use synthetic fixtures.
+
+Convert Switch
+- New "Stack member" and "Units in the stack" fields on the Convert Switch page (API fields `stack_member`, `stack_members`). A file converted as unit N of a stack gets `GE<N>/0/<n>` / `10GE<N>/0/<n>` names, a REVIEW-STACK-MEMBER header with the template B stack commands of the project for that member (priority 200 for member 1, 100 for the others, as in the real stack), and keeps the stack-link ports free: on the S5735-S24T4XE-V2 `GE<m>/0/21` and `GE<m>/0/22` are written as an empty block with REVIEW-STACK-PORT (a real `display stack configuration` binds them to Stack-Port<m>/1 and <m>/2; `10GE<m>/0/5-6` are the alternative media). Other models claim nothing until a capture shows their stack ports.
+- Interfaces whose description names a sibling switch of the same site and role (`LXS-SWAC-02-C2960`), and the Port-channel to it, carry REVIEW-STACK-LINK: the link between the old switches becomes a stack cable.
+- Catalog: WS-C2960-24TC-L (Cisco 2960 LAN Base data sheet, Table 8) and WS-C2960+24TC-L (2960-Plus data sheet, Table 14): 24 FastEthernet ports and 2 uplinks GigabitEthernet0/1-2. Without them the Gi0/1 and Gi0/2 uplinks (the firewall links) were read as access ports 1 and 2 and merged into Fa0/1 and Fa0/2, so their configuration was lost. The same fault is closed for any unknown FastEthernet model: the faster range of two fixed-port keywords is the uplink pair, and `Gi1/1` style names are module ports.
+- A model named only on a `Platform:` line (the CDP neighbour table) is no longer taken for the source switch: a 3750 capture was read as the 2960-X next to it.
+- Line blocks: an indented line such as `privilege level 15` no longer ends `line con 0`, so `login authentication CONSOLE` becomes `authentication-mode aaa` instead of a passthrough comment; the privilege is explained in a review line.
+- A self-signed certificate chain (about 25 hex lines) is one passthrough line.
+- PVST and Rapid-PVST review lines now say that Huawei VBST (`stp mode vbst`) interworks with Cisco PVST (Huawei Interoperation and Replacement Guide, EDOC1000114005) instead of "no Huawei equivalent, consider MSTP".
+
+Switch Analyzer
+- A capture without `display dual-active` is no longer reported as "no dual-active detection" (SW-STK-003); only a real `Dual-active detect mode: --` is.
+- SW-STK-005 reads the records of `display stack troubleshooting history` (the device wraps them at 80 columns, even inside a word) and says how many are stack-port-down, member-port-down, one-link-left or alarm-threshold events and the time span.
+- New SW-STK-007: an Eth-Trunk of a stack whose member ports are all on one stack member.
+
+Tests: `tests/test_convert_port_mapping_tam.py`, `tests/test_switch_huawei_live.py`, `tests/test_hardware_catalog.py`; fixtures `cisco_2960_24tc_synthetic.txt`, `cisco_2960plus_24tc_synthetic.txt`, `cisco_fe_gi_unknown_model_synthetic.txt`, `huawei_stack_history_synthetic.txt`.
+
+### Switch Analyzer and Convert Switch: confirmed against real Huawei and Cisco TAM captures
+
+Read the TAM switch captures (Huawei S5735-S-V2 / S5755-H CLI output, Cisco 2960, 2960-X, 3560-X, 3650 and Aruba 2540 "before" files with their Huawei "after" configurations). The captures themselves are customer data and are not in the repository; the tests use synthetic fixtures that copy only the shape of the output.
+
+Switch Analyzer (Huawei live state)
+- New readers for `display stack`, `display stack topology`, `display stack configuration`, `display dual-active` (older software calls it `display mad`), `display stack troubleshooting history`, `display vlan summary`, `display arp statistics`, `display license` and `display stp region-configuration`; the Health tab has a "Stack and device state" card (members, roles, MAC, priority, ring or chain, stack ports).
+- New findings: SW-STK-001 (no standby member), SW-STK-002 (chain or single stack link), SW-STK-003 (dual-active detection not configured), SW-STK-004 (dual-active status), SW-STK-005 (stack troubleshooting records), SW-STK-006 (recorded stack port link-down), SW-ARP-001 (incomplete ARP entries), SW-CAP-101 (VLAN list shorter than the VLAN count). Documentation link: Huawei Virtualization guide, stack support (EDOC1100458710).
+- Coverage: twelve new capture checks. A command that ran and printed nothing (`display eth-trunk` with no Eth-Trunk) is reported as "ran, empty", not as a missing capture. `display stack peers` is rejected by the device and is not requested.
+
+Convert Switch
+- Hardware catalog: Cisco Catalyst 2960-48TC-L, 2960X-24TS-L, 3560-X (standalone, network module), 3650-24TS and Aruba Switch 2540 (the port counts follow the data sheets named in each entry; stack limits are stated only where the sheet states them).
+- Port mapping: the target model is taken from the migration inventory when the file names one; two source ports can no longer land on the same Huawei port (the converter used to emit duplicate `interface` blocks); a generic uplink naming is used when the target has no module table; 100 Mb copper to a gigabit port needs no review.
+- Optics: a 1G optic in a 10GE SFP+ cage gets `device transceiver 1000BASE-X`, and in a 25GE SFP28 cage also `port mode GE` (it converts the four-port bank).
+- `undo poe enable` is written for copper PoE access ports only; a multi-speed Cisco cage that appears under two keywords (Gi1/1 and Te1/1) is one stanza.
+- Management port: a source VRF bound to the management interface becomes `ip binding vpn-instance management` on `MEth0/0/0`, the instance VRP creates itself; any other VRF binding keeps its name with a REVIEW line that the instance must be created.
+- Tests: `tests/test_switch_huawei_live.py`, `tests/test_convert_port_mapping_tam.py` (new), `tests/test_switch_coverage.py`, `tests/test_hardware_catalog.py`; five synthetic fixtures under `tests/fixtures/switch/`.
+
+### Convert Switch: Aruba port access, catalog tree, Huawei VTY/console; Switch Analyzer: Huawei security baseline
+
+Convert Switch
+- Aruba CX target: Cisco 802.1X / MAB is now generated as AOS-CX port access instead of a review block, using the syntax of the AOS-CX 10.11 Security Guide (6200, 6300, 6400): global `aaa authentication port-access dot1x authenticator enable` and `mac-auth` / `enable`; per port `auth-precedence`, `auth-mode multi-domain|device-mode` or `client-limit`, `critical-role CRITICAL-VLAN<n>` (with a `port-access role` that holds `vlan access <n>`), and the `dot1x authenticator` and `mac-auth` contexts with `eapol-timeout`, `reauth`, `reauth-period`, `enable`. `authentication order mab dot1x` is honoured (`auth-precedence mac-auth dot1x`). What has no AOS-CX equivalent in the guide (`event server alive`, open authentication, violation, `mab eap`) is listed once per port group, and the RADIUS server-group binding is given as an instruction. Table in `nac.py`.
+- Aruba CX management port: `interface mgmt` with `ip static <ip>/<prefix>` (no `routing`, no `vrf attach`); JL724B gets a management port and the VSF limit of 8 members from the VSF Guide for 6200/6300 (the old "limit not stated" note is gone). `no poe-enable` is no longer written under VLAN, LAG, loopback and mgmt interfaces.
+- Catalog page: the model list is a collapsible tree, vendor > product line with its OS (Catalyst IOS-XE, Nexus NX-OS, CX AOS-CX, CloudEngine VRP) > series > model, with Expand all / Collapse all; the router page keeps its model picker, which now opens the branch of the chosen model.
+- Huawei target: Cisco `access-class <acl> in|out` on a VTY line becomes `acl <acl> inbound|outbound` (Command Reference V600R025C00: `acl { acl4name | acl4num } { inbound | outbound }`); `line con 0` becomes `user-interface con 0` with `authentication-mode aaa` and `idle-timeout`. Both were review lines or dropped before.
+
+Firewall Analyzer
+- The MikroTik "Not interpreted" table shows the configuration line only; it used to carry the converter's PAN-OS migration note ("Palo Alto firewalls are not WiFi access points ...").
+
+Switch Analyzer
+- Huawei security baseline from Huawei's "Baseline Check Items for Security Configuration of Campus Switches" (V600R025C00, Mandatory and Optional workbooks): new findings SW-VTY-001 to 004, SW-CON-001, SW-SSH-002/003, SW-TEL-002, SW-FTP-002, SW-HTTP-002, SW-MGT-001, SW-SNMP-005/006, SW-NTP-003 and SW-AAA-101 to 106, each naming the baseline item. `display current-configuration` omits default values, so defaults are judged by an explicit `undo` / `disable` line and missing commands by their absence. Telnet and FTP over IPv6 are recognised like the IPv4 services.
+
+Tests and docs
+- `tests/test_convert_nac_and_session.py` (AOS-CX port access), `tests/test_hardware_catalog.py` (catalog tree, JL724B mgmt port and VSF limit), `tests/test_switch_huawei_baseline.py` (new, synthetic fixture `tests/fixtures/switch/huawei_s5735_baseline_synthetic.txt`), `tests/test_firewall_analyzer.py`. `docs/modules/configuration-studio.md` has the AOS-CX mapping, the baseline checks and the step-by-step "adding a model".
+
 ### Convert Switch: Huawei device catalog
 
 - The six Huawei CloudEngine targets are now proper entries of the Switch hardware catalog (S5735-L8T4X-QA-V2, S5735-S24T4XE-V2, S5735-S24P4XE-V2, S5735-S48T4XE-V2, S5755-H24T4Y2CZ, S5755-H48UM4Y2CZ) with port groups, speeds, PoE, stack limit (9 where the data sheet states it) and a link to the Huawei product/data-sheet page. The catalog page lists them; the Target Model dropdown and the Interface map read the same data, replacing the hard-coded list and the label-parsing rule.

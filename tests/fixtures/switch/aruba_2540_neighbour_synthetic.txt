@@ -1,0 +1,28 @@
+SW-LAB-2540# show system
+ Aruba JL356A 2540-24G-PoE+-4SFP+ Switch, revision YC.16.06.0006, ROM YC.16.01.0001
+
+SW-LAB-2540# show cdp neighbors detail
+ Device ID  : SW-LAB-3650
+ Platform   : cisco WS-C3650-24TS
+ Platform   : cisco WS-C3650-24TS
+ Platform   : cisco WS-C3650-24TS
+ Platform   : cisco WS-C3650-24TS
+ Platform   : cisco WS-C3650-24TS
+ Platform   : cisco WS-C3650-24TS
+ Platform   : cisco WS-C3650-24TS
+ Platform   : cisco WS-C3650-24TS
+ Platform   : cisco WS-C3650-24TS
+
+SW-LAB-2540# show running-config
+
+; JL356A Configuration Editor; Created on release #YC.16.06.0006
+hostname "SW-LAB-2540"
+vlan 1
+   name "DEFAULT_VLAN"
+   untagged 1-24
+   ip address dhcp-bootp
+   exit
+vlan 213
+   name "LAB-VOICE"
+   tagged 25
+   exit

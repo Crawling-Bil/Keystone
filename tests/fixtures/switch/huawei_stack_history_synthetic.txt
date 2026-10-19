@@ -1,0 +1,42 @@
+<SW-LAB-RING>display stack
+--------------------------------------------------------------------------------
+MemberID Role     MAC              Priority   DeviceType              Description
+--------------------------------------------------------------------------------
+1        Master   0200-5e00-0020   200        S5735-S24T4XE-V2
+2        Standby  0200-5e00-0021   100        S5735-S24T4XE-V2
+--------------------------------------------------------------------------------
+<SW-LAB-RING>display stack troubleshooting history
+Total :4
+--------------------------------------------------------------------------------
+Seq  Time                     Event Description
+--------------------------------------------------------------------------------
+1    2026-01-05 09:01:10.100+ The interface Stack-Port is down. (StackPortName =
+     07:00                     Stack-Port1/1)
+2    2026-01-05 09:01:09.900+ The physical status of member port GE2/0/22 in Sta
+     07:00                    ck-Port 2/2 is down.
+3    2026-01-05 08:30:00.000+ A Stack-Port in a link-topo CSS or stack has only
+     07:00                    one available member link. (StackPortName = Stack-
+                              Port1/2)
+4    2026-01-05 08:29:59.000+ The number of STACK links has reached the alarm th
+     07:00                    reshold. (StackPortName = Stack-Port2/1)
+--------------------------------------------------------------------------------
+<SW-LAB-RING>display eth-trunk
+Eth-Trunk1's state information is:
+Local:
+LAG ID: 1                       Working Mode: Static
+Operating Status: up            Number Of Up Ports In Trunk: 2
+------------------------------------------------------------------------------------
+ActorPortName              Status   PortType PortPri PortNo PortKey PortState Weight
+GE1/0/4(r)                 Selected 1GE      32768   1      305     10111100  1
+GE1/0/5                    Selected 1GE      32768   2      305     10111100  1
+
+Eth-Trunk2's state information is:
+Local:
+LAG ID: 2                       Working Mode: Static
+Operating Status: up            Number Of Up Ports In Trunk: 2
+------------------------------------------------------------------------------------
+ActorPortName              Status   PortType PortPri PortNo PortKey PortState Weight
+GE1/0/6(r)                 Selected 1GE      32768   1      306     10111100  1
+GE2/0/6                    Selected 1GE      32768   2      306     10111100  1
+
+<SW-LAB-RING>

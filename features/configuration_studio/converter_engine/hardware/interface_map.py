@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
-from .catalog import detect_model, detect_modules, get_model, split_target_key
+from .catalog import detect_model, detect_modules, get_model, split_target_key, target_models
 from .models import KEYWORD_ABBREVIATIONS, SPEED_BY_KEYWORD, SPEED_ORDER, HardwareModel, PortGroup, UplinkModule
 from .switches import UPLINK_MODULES
 
@@ -144,10 +144,31 @@ def classify_by_name(parsed: dict) -> SourcePort | None:
     if speed and nums == (0, 0):
         return SourcePort(name, "mgmt", speed, 1, 1, "RJ45", True, "management", modelled=False)
     if speed and len(nums) == 2:
+        # <slot>/<port> on a standalone box: slot 0 is the fixed ports, a higher slot is a network module (Gi1/1 on a 3560-X).
+        if nums[0] >= 1:
+            return SourcePort(name, "uplink", speed, 1, nums[1], "", True, f"slot {nums[0]}", modelled=False)
         return SourcePort(name, "access", speed, 1, nums[1], "", True, "standalone", modelled=False)
     if not keyword and len(nums) == 3:
         return SourcePort(name, "access", "1G", nums[0], nums[2], "", True, f"slot {nums[1]}", modelled=False)
     return None
+
+
+def _split_fixed_uplinks(classified: dict[str, SourcePort]) -> None:
+    """Unknown source model, two speed keywords on the fixed ports (FastEthernet0/1-24 and GigabitEthernet0/1-2).
+
+    Cisco numbers the two ranges separately, so ``Fa0/1`` and ``Gi0/1`` are different ports; read by name alone they would both be access
+    port 1 and land on the same target port. The faster range is the uplink pair of a Fast Ethernet box, so it becomes the uplink role
+    (checked on the 2960 and 2960-Plus 24TC captures, where the model was unknown to the catalog).
+    """
+    fixed = [port for port in classified.values() if port.group == "standalone"]
+    speeds = {port.speed for port in fixed}
+    if len(speeds) < 2:
+        return
+    fastest = max(speeds, key=SPEED_ORDER.index)
+    for port in fixed:
+        if port.speed == fastest:
+            port.role = "uplink"
+            port.group = "standalone uplink"
 
 
 # --------------------------------------------------------------------------------------------------------------------------
@@ -173,6 +194,7 @@ class TargetLayout:
     mgmt: Callable[[int], str] | None
     max_members: int | None = None
     generic: Callable[[str, str, int, int], str | None] | None = None  # used when no model was chosen
+    stack_ports: tuple[str, ...] = ()
 
     def pool(self, role: str, speed: str) -> list[TargetPort]:
         return sorted((p for p in self.ports if p.role == role and p.speed == speed), key=lambda p: p.ordinal)
@@ -210,8 +232,15 @@ def _mgmt_from_groups(groups: list[PortGroup]) -> Callable[[int], str] | None:
     return None
 
 
+# Without a chosen target model a Huawei uplink cage is named by its speed class, but a cage that carries a 1G (or 100M) optic is a 10GE
+# SFP+ cage on the S5735 / S5755 families (10GE1/0/1-4 in the real S5735-S-V2 captures), never a GE access port: giving it the GE prefix
+# made Gi0/1 land on the same name as Fa0/1 (two ``interface GE1/0/1`` blocks, the second turning an access port into a trunk).
+_HUAWEI_UPLINK_PREFIX = {"100M": "10GE", "1G": "10GE", "mGig": "10GE", "10G": "10GE", "25G": "25GE", "40G": "40GE", "100G": "100GE"}
+
+
 def _generic_huawei(role: str, speed: str, ordinal: int, member: int) -> str | None:
-    return f"{_HUAWEI_PREFIX.get(speed, 'GE')}{member}/0/{ordinal}"
+    prefix = (_HUAWEI_UPLINK_PREFIX if role == "uplink" else _HUAWEI_PREFIX).get(speed, "GE")
+    return f"{prefix}{member}/0/{ordinal}"
 
 
 def _generic_cisco(role: str, speed: str, ordinal: int, member: int) -> str | None:
@@ -237,7 +266,7 @@ def build_target_layout(vendor: str, model_value: str | None) -> TargetLayout:
         module = UPLINK_MODULES.get(module_key) if module_key else (UPLINK_MODULES.get(model.default_module) if model.modules else None)
         groups = model_groups(model, [module] if module else [])
         label = model.key + (f" + {module.key}" if module else "")
-        return TargetLayout(model.vendor, label, model.label, _ports_from_groups(groups), _mgmt_from_groups(groups), model.max_members, None)
+        return TargetLayout(model.vendor, label, model.label, _ports_from_groups(groups), _mgmt_from_groups(groups), model.max_members, None, model.stack_ports)
     return TargetLayout(vendor, "", "", [], mgmt_generic, None, generic)
 
 
@@ -267,7 +296,9 @@ def _resolve(layout: TargetLayout, port: SourcePort) -> tuple[TargetPort | None,
         status = "ok"
         # A Multi-GE copper port (100M/1G/2.5G/5G/10G BASE-T) carries a 100M/1G copper link unchanged.
         multi_speed_copper = speed == "mGig" and port.speed in ("100M", "1G") and "RJ45" in target.medium and "RJ45" in (port.medium or "RJ45")
-        if speed != port.speed and not multi_speed_copper:
+        # 100M copper on a GE copper port: the link simply negotiates 100M, nothing to review.
+        copper_to_gigabit = speed in ("1G", "mGig") and port.speed == "100M" and "RJ45" in target.medium and "RJ45" in (port.medium or "RJ45")
+        if speed != port.speed and not (multi_speed_copper or copper_to_gigabit):
             status = "review"
             notes.append(f"speed class changes {port.speed} -> {speed}")
         if "RJ45" in port.medium and "RJ45" not in target.medium:
@@ -285,8 +316,10 @@ def _resolve(layout: TargetLayout, port: SourcePort) -> tuple[TargetPort | None,
     return None, "missing", f"{layout.label} has no {port.role} port at {port.speed} or faster (it offers: {layout.counts(port.role)})."
 
 
-def _map_one(layout: TargetLayout, port: SourcePort, same_names: bool) -> dict:
-    member = port.member
+def _map_one(layout: TargetLayout, port: SourcePort, same_names: bool, stack: tuple[int, int] = (1, 1)) -> dict:
+    # A standalone source (one unit) that becomes member N of a stack: its ports take member N of the target.
+    member = stack[0] if stack[0] > 1 and port.member == 1 else port.member
+    stacked = max(stack) > 1
     target_name = ""
     target_speed = ""
     status = "ok"
@@ -320,6 +353,10 @@ def _map_one(layout: TargetLayout, port: SourcePort, same_names: bool) -> dict:
                 note = f"Target Model not chosen: {port.speed} access port is numbered by speed class; check the target actually has it."
     if not target_name and status != "missing":
         status = "missing"
+    reserved = bool(stacked and target_name and target_name in {t.format(m=member) for t in layout.stack_ports})
+    if reserved:
+        status = "review"
+        note = f"{target_name} carries a stack link in a stacked {layout.label}: it cannot be a data port." + (f" {note}" if note else "")
     return {
         "source": port.name,
         "role": port.role,
@@ -332,6 +369,7 @@ def _map_one(layout: TargetLayout, port: SourcePort, same_names: bool) -> dict:
         "target_speed": target_speed,
         "status": status,
         "note": note,
+        "stack_reserved": reserved,
     }
 
 
@@ -344,12 +382,17 @@ def build_interface_map(
     target_model: str | None = None,
     source_model: HardwareModel | None = None,
     source_modules: list[UplinkModule] | None = None,
+    stack_member: int = 1,
+    stack_members: int = 1,
 ) -> dict:
     """Build the full map.  ``interfaces`` is ``[(name, in_use), ...]`` as found in the parsed config."""
     warnings: list[str] = []
     others: list[HardwareModel] = []
     if source_model is None and source_text:
-        source_model, others = detect_model(source_text, "switch")
+        known_vendor = str(source_vendor or "").strip()
+        if known_vendor.lower() in ("", "auto detect", "unknown"):
+            known_vendor = ""
+        source_model, others = detect_model(source_text, "switch", known_vendor)
     modules = list(source_modules or [])
     if source_model is not None and source_model.modules and not modules:
         modules = detect_modules(source_text, source_model)
@@ -405,6 +448,17 @@ def build_interface_map(
                 port.in_use = in_use
                 classified[name] = port
 
+    if source_model is None:
+        _split_fixed_uplinks(classified)
+
+    # A source file that is itself a stack (Gi1/0/x and Gi2/0/x in one config, `switch 2 provision`) is a stack of that many members:
+    # the target's stack-link ports are reserved for every member even though the user never typed a member count.
+    detected = max([p.member for p in classified.values()] + [1])
+    if source_text:
+        provisioned = [int(n) for n in re.findall(r"(?m)^\s*switch\s+(\d+)\s+provision\b", source_text)]
+        detected = max([detected] + provisioned)
+    stack_members = max(int(stack_members or 1), min(detected, 9))
+
     # Full expansion of the source box so unused ports are in the map too.
     if source_model is not None:
         members = members or {1}
@@ -423,12 +477,12 @@ def build_interface_map(
                     seen.add(port.name)
                     for k in keyword_hits:
                         seen.add(k)
-                    rows.append(_map_one(layout, port, same_names))
+                    rows.append(_map_one(layout, port, same_names, (stack_member, stack_members)))
     for name, port in classified.items():
         if name in seen:
             continue
         seen.add(name)
-        rows.append(_map_one(layout, port, same_names))
+        rows.append(_map_one(layout, port, same_names, (stack_member, stack_members)))
 
     for parsed, in_use in stanzas:
         if parsed["name"] in seen:
@@ -462,6 +516,7 @@ def build_interface_map(
         "target_model": layout.key,
         "target_label": layout.label,
         "members": sorted(members) if members else [],
+        "stack_members": stack_members,
         "rows": rows,
         "counts": counts,
         "configured_counts": used,
@@ -491,6 +546,56 @@ def _interface_in_use(interface) -> bool:
     )
 
 
+def _used_ports(result: dict) -> list[dict]:
+    return [row for row in result["rows"] if row["in_use"] and row["role"] in ("access", "uplink")]
+
+
+def target_fit(result: dict, interfaces, *, source_text: str, source_vendor: str, target_vendor: str, target_model: str | None,
+               stack: tuple[int, int] = (1, 1), limit: int = 6) -> dict:
+    """Does the chosen target have a port for every port the source really uses?
+
+    ``needs`` counts the used access / uplink ports by role and speed class; ``verdict`` is ``fits`` (every used port has a counterpart),
+    ``partial``, ``does-not-fit`` or ``unknown`` (no model chosen, so there is no port list to compare with).  ``alternatives`` are the other
+    catalog targets of the same vendor on which no used port would be missing, so a person can see a model that fits before converting.
+    """
+    used = _used_ports(result)
+    needs: dict[str, int] = {}
+    for row in used:
+        key = f"{row['role']} {row['speed'] or '?'}"
+        needs[key] = needs.get(key, 0) + 1
+    missing = [row for row in used if row["status"] == "missing"]
+    if not result.get("port_check"):
+        verdict = "unknown"
+    elif not missing:
+        verdict = "fits"
+    elif len(missing) < len(used):
+        verdict = "partial"
+    else:
+        verdict = "does-not-fit"
+    alternatives: list[dict] = []
+    if used and verdict in ("partial", "does-not-fit"):
+        for candidate in target_models(target_vendor):
+            if candidate["model"] == (target_model or ""):
+                continue
+            trial = build_interface_map(
+                interfaces, source_text=source_text, source_vendor=source_vendor, target_vendor=target_vendor, target_model=candidate["model"],
+                stack_member=stack[0], stack_members=stack[1],
+            )
+            if not any(row["status"] == "missing" for row in _used_ports(trial)):
+                alternatives.append({"model": candidate["model"], "label": candidate["label"]})
+            if len(alternatives) >= limit:
+                break
+    return {
+        "verdict": verdict,
+        "used": len(used),
+        "mapped": len(used) - len(missing),
+        "missing": len(missing),
+        "needs": needs,
+        "missing_ports": [{"source": row["source"], "note": row["note"]} for row in missing[:12]],
+        "alternatives": alternatives,
+    }
+
+
 def prepare_port_map(config, source_text: str, target_vendor: str, target_model: str | None) -> dict | None:
     """Attach ``config.metadata['interface_map']`` and ``['port_map']`` (source name -> {target, note, status, role, member}).
 
@@ -500,12 +605,24 @@ def prepare_port_map(config, source_text: str, target_vendor: str, target_model:
     if getattr(config, "source_device_type", "").lower() != "switch" or not hasattr(config, "interfaces"):
         return None
     interfaces = [(i.name, _interface_in_use(i)) for i in config.interfaces]
+    stack = (getattr(config, "metadata", None) or {}).get("stack") or {}
     result = build_interface_map(
         interfaces,
         source_text=source_text,
         source_vendor=getattr(config, "source_vendor", ""),
         target_vendor=target_vendor,
         target_model=target_model,
+        stack_member=int(stack.get("member") or 1),
+        stack_members=int(stack.get("members") or 1),
+    )
+    result["fit"] = target_fit(
+        result,
+        interfaces,
+        source_text=source_text,
+        source_vendor=getattr(config, "source_vendor", ""),
+        target_vendor=target_vendor,
+        target_model=target_model,
+        stack=(int(stack.get("member") or 1), int(stack.get("members") or 1)),
     )
     port_map: dict[str, dict] = {}
     layout = build_target_layout(target_vendor, target_model)
@@ -525,8 +642,14 @@ def prepare_port_map(config, source_text: str, target_vendor: str, target_model:
             "status": row["status"],
             "role": row["role"],
             "member": row["member"],
+            "source_speed": row["speed"],
+            "source_medium": row["medium"],
+            "target_speed": row["target_speed"],
+            "in_use": row["in_use"],
+            "stack_reserved": bool(row.get("stack_reserved")),
         }
     config.source_model = result["source_model"]
+    config.metadata["stack_total"] = int(result.get("stack_members") or 1)
     config.metadata["interface_map"] = result
     config.metadata["port_map"] = port_map
     return result

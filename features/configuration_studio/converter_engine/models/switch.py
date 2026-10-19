@@ -420,6 +420,10 @@ class StaticRoute:
     # dropped. TAM memory-keystone.md Section 1ac.
     track_id: Optional[int] = None
 
+    # VRF the route belongs to, "" for the default routing table.  NX-OS writes a VRF's routes indented under
+    # "vrf context <name>", so the same "ip route" line means something else there than at the top level.
+    vrf: str = ""
+
 
 @dataclass
 class DhcpPool:
@@ -520,6 +524,11 @@ class SwitchConfig(BaseConfig):
     # (memory-keystone.md Section 1cc finding B — a real correction to
     # this project's own earlier claim that no equivalent existed).
     vpc_delay_restore_seconds: Optional[int] = None
+
+    # Cisco vPC "role priority <n>" (under "vpc domain <id>"): the LOWER value is the preferred vPC primary (Cisco
+    # "Understand the vPC Election Process"; default 32667).  Kept as a number so the translators can derive which
+    # side of the pair this device is meant to be; ``None`` when the source never set it.
+    vpc_role_priority: Optional[int] = None
 
     vpc_domain_commands: list[str] = field(
         default_factory=list
@@ -732,4 +741,21 @@ class SwitchConfig(BaseConfig):
 
     global_commands: list[str] = field(
         default_factory=list
+    )
+
+    # Cisco Flexible NetFlow exporters ({"name", "destination", "port", "source"}) and which exporter each flow monitor uses. Huawei
+    # NetStream has one global export target: `netstream export ip host <ip> <port> dscp <n>` and `netstream export ip source <ip>`
+    # (V600R025C00 command reference, NetStream commands; supported on the S5755 family, not on the S5735).
+    netflow_exporters: list[dict] = field(
+        default_factory=list
+    )
+
+    netflow_monitors: dict = field(
+        default_factory=dict
+    )
+
+    # "source-interface" references of management services as the source file states them ("ntp", "logging", "tacacs", "tftp", "ssh",
+    # "radius", "snmp", "flow"): the value is the interface name as written (Vlan489).
+    source_interfaces: dict = field(
+        default_factory=dict
     )

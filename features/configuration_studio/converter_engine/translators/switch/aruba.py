@@ -2,6 +2,9 @@ import ipaddress
 import re
 
 from ... import nac
+from . import acl_common
+from . import nxos_noise
+from .vpc_common import vpc_role
 
 
 class ArubaSwitchTranslator:
@@ -330,10 +333,24 @@ class ArubaSwitchTranslator:
             output.append("!")
 
         # =====================================================
+        # VSX (from the source vPC domain)
+        # =====================================================
+
+        vsx_lines = self.translate_vsx(config)
+
+        if vsx_lines:
+
+            output.extend(vsx_lines)
+
+            output.append("!")
+
+        # =====================================================
         # INTERFACES
         # =====================================================
 
         self._repeated_ports = {}
+
+        output.extend(self.plan_nac(config))
 
         for interface in config.interfaces:
 
@@ -530,6 +547,188 @@ class ArubaSwitchTranslator:
             or low == "no snmp trap link-status"
         )
 
+    NAC_GUIDE = "https://arubanetworking.hpe.com/techdocs/AOS-CX/"
+
+    @staticmethod
+    def _nac_role_name(vlan):
+        return f"CRITICAL-VLAN{vlan}"
+
+    def plan_nac(self, config):
+        """Global port-access lines and ``port-access role`` blocks for the
+        ports that authenticate; the per-port lines are produced by
+        ``_nac_interface_lines`` while the interfaces are translated.
+
+        Every command is documented in the AOS-CX 10.11 Security Guide
+        (6200, 6300, 6400), chapter "Port access" - the mapping table is in
+        ``nac.py``.  What has no verified equivalent is reported once per
+        port group instead of once per port."""
+
+        self._nac_ports = {}
+        roles = {}
+        dot1x_any = mab_any = False
+
+        for interface in config.interfaces:
+
+            settings, remaining = nac.extract(
+                interface.commands,
+                getattr(interface, "access_vlan", None),
+            )
+
+            if not settings or not (settings.dot1x or settings.mab):
+                continue
+
+            if settings.port_control in (
+                "force-authorized", "force-unauthorized"
+            ):
+                continue
+
+            self._nac_ports[interface.name] = {
+                "settings": settings,
+                "remaining": remaining,
+            }
+
+            dot1x_any = dot1x_any or settings.dot1x
+            mab_any = mab_any or settings.mab
+
+            if settings.server_dead and settings.access_vlan:
+                roles[settings.access_vlan] = self._nac_role_name(
+                    settings.access_vlan
+                )
+
+        if not self._nac_ports:
+            return []
+
+        out = [
+            "!",
+            "! ========================================================",
+            "! 802.1X / MAC authentication "
+            "(Cisco authentication / mab / dot1x -> AOS-CX port-access)",
+            f"! {len(self._nac_ports)} port(s). Commands follow the AOS-CX "
+            f"Security Guide, Port access: {self.NAC_GUIDE}",
+            "! REVIEW-NAC: RADIUS servers are not generated here. Define "
+            "them and a server group (radius-server host ... / aaa group "
+            "server radius <name>), then bind it with 'aaa authentication "
+            "port-access dot1x authenticator radius server-group <name>' "
+            "and the same under 'aaa authentication port-access mac-auth' "
+            "(the default group is 'radius').",
+            "! REVIEW-NAC: port access is enabled globally and again on "
+            "each access port below; keep uplinks and trunks out of it "
+            "('aaa authentication port-access dot1x authenticator "
+            "disable' under the interface).",
+        ]
+
+        if any(
+            entry["settings"].tx_period
+            for entry in self._nac_ports.values()
+        ):
+            out.append(
+                "! REVIEW-NAC: 'dot1x timeout tx-period' is generated as "
+                "'eapol-timeout' (the time the switch waits for the client "
+                "before resending EAPOL) - the nearest AOS-CX setting, "
+                "verify the value."
+            )
+
+        out.append("! ========================================================")
+
+        if dot1x_any:
+            out.append("aaa authentication port-access dot1x authenticator enable")
+
+        if mab_any:
+            out.extend([
+                "aaa authentication port-access mac-auth",
+                "    enable",
+            ])
+
+        for vlan, name in sorted(roles.items()):
+            out.extend([
+                f"port-access role {name}",
+                f"    vlan access {vlan}",
+            ])
+
+        out.append("!")
+
+        return out
+
+    def _nac_interface_lines(self, interface_name, settings):
+        """Per-port port-access lines for one interface (indented for the
+        interface block); notes without an equivalent go to the grouped
+        review at the end of the file."""
+
+        lines = []
+        notes = [
+            note for note in settings.notes
+            if note != "authentication order mab dot1x"
+        ]
+
+        if settings.dot1x and settings.mab:
+            lines.append(
+                "    aaa authentication port-access auth-precedence "
+                + ("mac-auth dot1x" if settings.mab_first else "dot1x mac-auth")
+            )
+
+        mode = settings.host_mode
+
+        if mode == "multi-auth":
+            lines.append("    aaa authentication port-access client-limit 256")
+            lines.append(
+                "    ! REVIEW-NAC: multi-auth has no client cap on the "
+                "source; 256 is the AOS-CX maximum - lower it to the "
+                "devices expected on the port"
+            )
+        elif mode == "multi-domain":
+            lines.append("    aaa authentication port-access auth-mode multi-domain")
+        elif mode == "multi-host":
+            lines.append("    aaa authentication port-access auth-mode device-mode")
+
+        if settings.server_dead:
+
+            if settings.access_vlan:
+                lines.append(
+                    "    aaa authentication port-access critical-role "
+                    + self._nac_role_name(settings.access_vlan)
+                )
+            else:
+                notes.append("authentication event server dead action authorize")
+
+        if settings.server_alive:
+            notes.append("authentication event server alive action reinitialize")
+
+        if settings.reauth_period and not settings.periodic:
+            notes.append(
+                f"authentication timer reauthenticate {settings.reauth_period}"
+                " (inactive on the source without 'authentication periodic')"
+            )
+
+        def reauth_lines():
+            out = []
+            if settings.periodic:
+                out.append("        reauth")
+                if settings.reauth_period:
+                    out.append(f"        reauth-period {settings.reauth_period}")
+            return out
+
+        if settings.dot1x:
+            lines.append("    aaa authentication port-access dot1x authenticator")
+            if settings.tx_period:
+                lines.append(f"        eapol-timeout {settings.tx_period}")
+            lines.extend(reauth_lines())
+            lines.append("        enable")
+
+        if settings.mab:
+            lines.append("    aaa authentication port-access mac-auth")
+            lines.extend(reauth_lines())
+            lines.append("        enable")
+
+        repeated = getattr(self, "_repeated_ports", None)
+
+        if repeated is None:
+            repeated = self._repeated_ports = {}
+
+        for note in notes:
+            repeated.setdefault(note, []).append(interface_name)
+
+        return lines
+
     def _repeated_port_review(self):
         """One REVIEW block per distinct command: the ports it was on,
         compacted (``Gi1/0/1-24``).  Nothing is dropped silently."""
@@ -541,10 +740,10 @@ class ArubaSwitchTranslator:
 
         out = [
             "! REVIEW-NAC: the commands below were on source access "
-            "ports and are not generated for AOS-CX. Port access "
-            "(802.1X / MAC authentication) is configured on AOS-CX "
-            "under 'aaa authentication port-access' - see the Security "
-            "Guide of the target switch series: "
+            "ports and have no generated AOS-CX equivalent. Port access "
+            "(802.1X / MAC authentication) that could be mapped was "
+            "generated under 'aaa authentication port-access' - see the "
+            "Security Guide of the target switch series: "
             "https://arubanetworking.hpe.com/techdocs/AOS-CX/",
         ]
 
@@ -585,9 +784,22 @@ class ArubaSwitchTranslator:
         if port_entry and port_entry.get("target"):
             interface_name = port_entry["target"]
 
-        lines.append(
-            f"interface {interface_name}"
-        )
+        header = f"interface {interface_name}"
+
+        # A vPC member port-channel is a multi-chassis LAG on VSX ("interface lag <id> multi-chassis").
+        if (
+            interface_name.lower().startswith("lag")
+            and getattr(interface, "vpc_id", None) is not None
+        ):
+            header += " multi-chassis"
+
+        lines.append(header)
+
+        if getattr(interface, "is_vpc_peer_link", False):
+            lines.append(
+                "    ! vPC peer-link: this LAG is the VSX inter-switch link "
+                "(see the vsx block, inter-switch-link lag)"
+            )
 
         if port_entry and (
             port_entry.get("note")
@@ -617,6 +829,12 @@ class ArubaSwitchTranslator:
             .startswith("loopback")
         )
 
+        # The out-of-band management port: AOS-CX addresses it with
+        # "ip static <ip>/<prefix>" under "interface mgmt" and it has no
+        # "routing" or "vrf attach" (it sits in the mgmt VRF by itself).
+        # AOS-CX 10.13 Fundamentals Guide, "Management interface".
+        is_mgmt = interface_name.lower() == "mgmt"
+
         # -----------------------------------------------------
         # DESCRIPTION
         # -----------------------------------------------------
@@ -635,11 +853,19 @@ class ArubaSwitchTranslator:
         # Must come before IP address assignment.
         # -----------------------------------------------------
 
-        if interface.vrf_forwarding:
+        if interface.vrf_forwarding and not is_mgmt:
 
             lines.append(
                 "    vrf attach "
-                f"{interface.vrf_forwarding}"
+                f"{self.vrf_name(interface.vrf_forwarding)}"
+            )
+
+        elif interface.vrf_forwarding:
+
+            lines.append(
+                "    ! REVIEW-VRF: source management VRF "
+                f"{interface.vrf_forwarding} is not attached: the AOS-CX "
+                "mgmt interface is always in the mgmt VRF"
             )
 
         # -----------------------------------------------------
@@ -650,7 +876,27 @@ class ArubaSwitchTranslator:
         # mode; VLAN interfaces are L3-only by nature.
         # -----------------------------------------------------
 
-        if interface.ip_address:
+        if interface.ip_address and is_mgmt:
+
+            prefix = (
+                self.mask_to_prefix(interface.subnet_mask)
+                if interface.subnet_mask
+                else None
+            )
+
+            lines.append(
+                "    ip static "
+                f"{interface.ip_address}"
+                + (f"/{prefix}" if prefix is not None else "")
+            )
+
+            if prefix is None:
+                lines.append(
+                    "    ! REVIEW-IP: the source address has no usable "
+                    "mask; ip static needs <ip>/<prefix>"
+                )
+
+        elif interface.ip_address:
 
             if not is_svi and not is_loopback:
 
@@ -740,7 +986,7 @@ class ArubaSwitchTranslator:
                     f"{interface.ip_policy_route_map}"
                 )
 
-        else:
+        elif not is_mgmt:
 
             # L2 — switchport mode / VLAN assignment
             lines.extend(
@@ -1060,7 +1306,15 @@ class ArubaSwitchTranslator:
         # Default is PoE enabled on PoE-capable ports.
         # -----------------------------------------------------
 
-        if interface.poe_enabled is False:
+        # PoE exists on physical front-panel ports only (not on VLAN,
+        # LAG, loopback or the management interface).
+        has_poe = not (is_svi or is_lag or is_loopback or is_mgmt)
+
+        if not has_poe:
+
+            pass
+
+        elif interface.poe_enabled is False:
 
             lines.append(
                 "    no poe-enable"
@@ -1129,7 +1383,27 @@ class ArubaSwitchTranslator:
         # PRESERVED UNRECOGNIZED COMMANDS
         # -----------------------------------------------------
 
-        for command in interface.commands:
+        commands = interface.commands
+
+        nac_entry = getattr(self, "_nac_ports", {}).get(interface.name)
+
+        if nac_entry:
+
+            lines.extend(
+                self._nac_interface_lines(
+                    interface.name,
+                    nac_entry["settings"],
+                )
+            )
+
+            commands = nac_entry["remaining"]
+
+        for command in commands:
+
+            # A bare "switchport" only enables Layer-2 mode (already expressed by "no routing"), and "hsrp version 2" is
+            # HSRP's message format -- the group itself is converted to VRRP.
+            if command.strip() in ("switchport", "hsrp version 2"):
+                continue
 
             if self._is_repeated_port_command(command):
 
@@ -1220,6 +1494,14 @@ class ArubaSwitchTranslator:
                     f"{interface.native_vlan}"
                 )
 
+            if not interface.allowed_vlans:
+
+                # A trunk with no allowed list carries every VLAN on Cisco (NX-OS "switchport mode trunk", IOS default); say so
+                # explicitly (AOS-CX 10.14 Layer-2 Bridging Guide, "vlan trunk native": "vlan trunk allowed all").
+                lines.append(
+                    "    vlan trunk allowed all"
+                )
+
             if interface.allowed_vlans:
 
                 vlan_text = ",".join(
@@ -1280,6 +1562,124 @@ class ArubaSwitchTranslator:
         return lines
 
     # =========================================================
+    # vPC -> VSX
+    #
+    # AOS-CX syntax (HPE Aruba Networking VSX examples):
+    #   vsx
+    #       system-mac <mac>
+    #       inter-switch-link lag <id>
+    #       role primary | secondary
+    #       keepalive peer <ip> source <ip> [vrf <vrf>]
+    #       linkup-delay-timer <n>
+    #   interface lag <id> multi-chassis
+    # Docs: https://developer.arubanetworks.com/aoscx/v10.04/docs/architecture-ii-dedicated-data-center-two-tier
+    #       https://arubanetworking.hpe.com/techdocs/VSG/docs/050-dc-deploy/esp-dc-deploy-730-central-two-tier-lossless-core/
+    # =========================================================
+
+    def translate_vsx(self, config):
+
+        if getattr(config, "vpc_domain_id", None) is None:
+            return []
+
+        lines = ["vsx"]
+
+        # system-mac is a value both VSX peers must share; vPC derives its own, so there is nothing to carry over.
+        lines.append(
+            "    ! REVIEW-VSX-SYSTEM-MAC: add 'system-mac <mac>' with the same locally-administered MAC on both VSX "
+            "peers; the vPC domain has no such value to convert"
+        )
+
+        peer_link = next(
+            (
+                i for i in config.interfaces
+                if getattr(i, "is_vpc_peer_link", False)
+            ),
+            None,
+        )
+
+        if peer_link is not None:
+
+            isl = self.convert_interface_name(peer_link.name)
+
+            if isl.startswith("lag "):
+                lines.append(f"    inter-switch-link lag {isl[4:].strip()}")
+            else:
+                lines.append(
+                    f"    ! REVIEW-VSX-ISL: the vPC peer-link is {peer_link.name}, which is not a LAG; "
+                    "VSX needs 'inter-switch-link lag <id>'"
+                )
+
+        else:
+
+            lines.append(
+                "    ! REVIEW-VSX-ISL: no interface carries 'vpc peer-link' in the source; "
+                "set 'inter-switch-link lag <id>' by hand"
+            )
+
+        role = vpc_role(getattr(config, "vpc_role_priority", None))
+
+        if role:
+
+            lines.append(f"    role {role}")
+            lines.append(
+                f"    ! REVIEW-VSX-ROLE: derived from vPC role priority {config.vpc_role_priority} "
+                "(NX-OS: the lower value is the primary peer); the other VSX peer must be 'secondary'"
+            )
+
+        else:
+
+            lines.append(
+                "    ! REVIEW-VSX-ROLE: the source vPC domain has no role priority (or kept the default), so "
+                "'role primary' / 'role secondary' must be chosen per peer"
+            )
+
+        src = getattr(config, "vpc_peer_keepalive_source_ip", "")
+        dst = getattr(config, "vpc_peer_keepalive_dest_ip", "")
+
+        if src and dst:
+
+            keepalive = f"    keepalive peer {dst} source {src}"
+
+            vrf = getattr(config, "vpc_peer_keepalive_vrf", "")
+
+            if vrf and vrf.lower() != "default":
+                keepalive += f" vrf {self.vrf_name(vrf)}"
+
+            lines.append(keepalive)
+
+        else:
+
+            lines.append(
+                "    ! REVIEW-VSX-KEEPALIVE: the source vPC domain has no peer-keepalive; VSX needs "
+                "'keepalive peer <ip> source <ip>'"
+            )
+
+        delay = getattr(config, "vpc_delay_restore_seconds", None)
+
+        if delay is not None:
+
+            lines.append(f"    linkup-delay-timer {delay}")
+            lines.append(
+                f"    ! REVIEW-VSX-LINKUP-DELAY: taken from vPC 'delay restore {delay}'; check the value is inside "
+                "the range of the target AOS-CX release"
+            )
+
+        if getattr(config, "vpc_peer_switch", False):
+
+            lines.append(
+                "    ! REVIEW-VSX-PEER-SWITCH: source vPC 'peer-switch' has no single VSX command; check the "
+                "spanning-tree behaviour of the VSX pair on the target release"
+            )
+
+        for raw in getattr(config, "vpc_domain_commands", []):
+
+            lines.append(
+                f"    ! REVIEW-VSX-UNMAPPED: source vPC domain command '{raw}' was not converted"
+            )
+
+        return lines
+
+    # =========================================================
     # HSRP -> VRRP TRANSLATION
     #
     # Cisco HSRP is proprietary — AOS-CX uses VRRP.
@@ -1301,11 +1701,28 @@ class ArubaSwitchTranslator:
             f"address-family ipv4"
         )
 
+        source_bits = []
+
+        if interface.hsrp_hello_interval is not None:
+
+            source_bits.append(
+                f"hello {interface.hsrp_hello_interval}s"
+                + (
+                    f" / hold {interface.hsrp_hold_interval}s"
+                    if interface.hsrp_hold_interval is not None
+                    else ""
+                )
+            )
+
+        source_bits.append(
+            "preempt on" if interface.hsrp_preempt else "preempt off (HSRP default)"
+        )
+
         lines.append(
             "    ! REVIEW-HSRP->VRRP: "
             "Cisco HSRP group mapped to "
-            f"VRRP VRID {vrid} — verify "
-            "timers, preempt, and tracking"
+            f"VRRP VRID {vrid} (source: {', '.join(source_bits)}) — verify "
+            "timers, preempt, and tracking on the AOS-CX release"
         )
 
         if interface.hsrp_virtual_ip:
@@ -1520,6 +1937,30 @@ class ArubaSwitchTranslator:
     # =========================================================
 
     def translate_static_route(
+        self,
+        route
+    ):
+        """AOS-CX puts a non-default VRF's static route in global config with a trailing ``vrf <name>``
+        (AOS-CX 10.15 IP Routing Guide, "ip route ... vrf <VRF-NAME>")."""
+
+        text = self._static_route_text(route)
+
+        if text and getattr(route, "vrf", ""):
+            text = f"{text} vrf {self.vrf_name(route.vrf)}"
+
+        return text
+
+    @staticmethod
+    def vrf_name(name):
+        """The VRF name AOS-CX uses for a source VRF.
+
+        AOS-CX ships two VRFs that need no definition, ``default`` and ``mgmt`` (the out-of-band management VRF; the
+        ``ssh server vrf mgmt`` form below uses it).  NX-OS calls the same thing ``management``, so a source VRF with
+        that name lands on the built-in ``mgmt`` instead of a user VRF that was never created.
+        """
+        return "mgmt" if str(name).strip().lower() in ("management", "mgmt") else str(name)
+
+    def _static_route_text(
         self,
         route
     ):
@@ -1957,8 +2398,20 @@ class ArubaSwitchTranslator:
     def translate_acls(
         commands
     ):
+        """IOS-dialect ACL entries (the Cisco parser also flattens NX-OS grammar into this dialect) -> AOS-CX ``access-list ip``.
+
+        AOS-CX ACE: ``[seq] {permit|deny} {sctp|tcp|udp} SRC [{eq|gt|lt} PORT | range MIN MAX] DST [...] [established] [log]``,
+        addresses as ``any`` or ``A.B.C.D/len``; comments as ``seq comment TEXT``
+        (AOS-CX 10.13 ACLs and Classifier Policies Guide, "ACL commands").  A standard ACL entry becomes a source-only
+        ``permit|deny any SRC any`` entry.  Anything the guide does not list (``neq``, non-contiguous wildcards, ICMP
+        type names, other trailing options) stays a REVIEW line instead of being guessed.
+        """
 
         output = []
+        in_acl = False
+        standard = False
+        seq = 0
+        pending_comment = None
 
         for cmd in commands:
 
@@ -1973,9 +2426,20 @@ class ArubaSwitchTranslator:
             if lower.startswith(
                 "ip access-list "
             ):
-                output.append(
-                    f"! REVIEW-ACL: {line}"
-                )
+                parts = line.split()
+                if len(parts) >= 4 and parts[2].lower() in ("standard", "extended"):
+                    standard = parts[2].lower() == "standard"
+                    name = parts[3]
+                elif len(parts) >= 3:
+                    standard = False
+                    name = parts[2]
+                else:
+                    output.append(f"! REVIEW-ACL: {line}")
+                    continue
+                output.append(f"access-list ip {name}")
+                in_acl = True
+                seq = 0
+                pending_comment = None
                 continue
 
             # Huawei ACL
@@ -1983,6 +2447,23 @@ class ArubaSwitchTranslator:
                 output.append(
                     f"! REVIEW-ACL-HUAWEI: {line}"
                 )
+                in_acl = False
+                continue
+
+            if in_acl and lower.startswith("remark "):
+                pending_comment = line[len("remark "):].strip()
+                continue
+
+            if in_acl and lower.startswith(("permit ", "deny ")):
+                converted = ArubaSwitchTranslator.acl_entry(line, standard)
+                if converted is None:
+                    output.append(f"    ! REVIEW-ACL: {line}")
+                    continue
+                seq += 10
+                if pending_comment:
+                    output.append(f"    {seq} comment {pending_comment[:200]}")
+                    pending_comment = None
+                output.append(f"    {seq} {converted}")
                 continue
 
             # ACL rule lines (indented)
@@ -1994,6 +2475,60 @@ class ArubaSwitchTranslator:
             output.append("!")
 
         return output
+
+    @staticmethod
+    def acl_entry(line, standard=False):
+        """One IOS-dialect ``permit|deny ...`` -> AOS-CX ACE text, or ``None`` when it cannot be expressed with confidence."""
+
+        tokens = line.split()
+        action = tokens.pop(0)
+
+        if standard:
+            kind, source, rest = acl_common.parse_endpoint(tokens)
+            if kind is None or rest not in ([], ["log"]):
+                return None
+            return f"{action} any {source} any" + (" log" if rest else "")
+
+        if not tokens:
+            return None
+
+        protocol = tokens.pop(0)
+        if protocol == "ip":
+            protocol = "any"
+        has_ports = protocol in ("tcp", "udp", "sctp")
+
+        k1, src, tokens = acl_common.parse_endpoint(tokens)
+        if k1 is None:
+            return None
+        sport = None
+        if has_ports:
+            sport, tokens = acl_common.parse_port(tokens)
+        k2, dst, tokens = acl_common.parse_endpoint(tokens)
+        if k2 is None:
+            return None
+        dport = None
+        if has_ports:
+            dport, tokens = acl_common.parse_port(tokens)
+
+        def port_text(match):
+            op, values = match
+            return f"{op} {' '.join(values)}"
+
+        if (sport and sport[0] == "neq") or (dport and dport[0] == "neq"):
+            return None                     # the AOS-CX guide lists eq/gt/lt/range only
+
+        allowed_tail = ("log", "established") if has_ports else ("log",)
+        if any(t not in allowed_tail for t in tokens):
+            return None
+
+        pieces = [action, protocol, src]
+        if sport:
+            pieces.append(port_text(sport))
+        pieces.append(dst)
+        if dport:
+            pieces.append(port_text(dport))
+        pieces.extend(tokens)
+        return " ".join(pieces)
 
     # =========================================================
     # DHCP POOL TRANSLATION
@@ -2418,6 +2953,10 @@ class ArubaSwitchTranslator:
 
         lower = line.lower()
 
+        # NX-OS banner / VDC carve-up / feature enablers (see nxos_noise): nothing to convert or decide.
+        if nxos_noise.is_noise(line):
+            return None
+
         # NTP — same syntax
         if lower.startswith(
             "ntp server "
@@ -2524,6 +3063,11 @@ class ArubaSwitchTranslator:
                 "! REVIEW-ACL: "
                 + line
             )
+
+        # NX-OS "vrf context management" only carries the management VRF's routes (already emitted as
+        # "ip route ... vrf mgmt"); AOS-CX has that VRF built in, so there is nothing to define.
+        if re.match(r"^vrf context (management|mgmt)\s*$", lower):
+            return "! vrf context management: AOS-CX has a built-in 'mgmt' VRF, nothing to define"
 
         # A comment of the source file ("! Last configuration change ...")
         # is not a command: it is carried as a plain comment.

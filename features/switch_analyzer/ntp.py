@@ -15,7 +15,7 @@ Layouts were read from captures of ours:
 * AOS-CX (6200F, 10.16): ``NTP Server : 172.17.254.254 at stratum 4``, ``Time accuracy : Within 0.009969 seconds``; associations
   ``ID NAME REMOTE REF-ID ST LAST POLL REACH`` with ``*`` / ``+`` flags.
 * Huawei VRP V600R025C00: ``clock status: synchronized``, ``clock stratum: 2``, ``clock offset: 0.0000 ms``; ``display ntp sessions`` prints one
-  ``clock source: <address>`` block per server (format taken from the command reference in the project's Huawei Official Reference folder).
+  ``clock source: <address>`` block per server (format taken from the command reference in the project's Official Reference Huawei folder).
 
 Sources:
 

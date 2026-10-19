@@ -1,0 +1,44 @@
+<SW-LAB-HW1>display current-configuration
+!Software Version V200R025C00SPC500
+sysname SW-LAB-HW1
+#
+telnet server enable
+ftp server enable
+ssh server compatible-ssh1x enable
+ssh server ip-block disable
+#
+snmp-agent
+snmp-agent local-engineid 800007DB03000000000001
+snmp-agent community read cipher %^%#SYNTHETIC-READ%^%#
+snmp-agent community write cipher %^%#SYNTHETIC-WRITE%^%#
+snmp-agent sys-info version all
+snmp-agent blacklist ip-block disable
+ntp server source-interface all enable
+#
+undo local-aaa-user wrong-password
+password complexity two-of-kinds
+undo password alert original
+#
+aaa
+ local-user labadmin password irreversible-cipher $1a$SYNTHETIC$
+ local-user labadmin service-type telnet ssh http
+ local-user opsro password irreversible-cipher $1a$SYNTHETIC$
+ local-user opsro service-type ssh
+#
+interface Vlan1
+ ip address 192.0.2.5 255.255.255.0
+#
+interface GigabitEthernet0/0/1
+ port link-type access
+#
+user-interface con 0
+ authentication-mode password
+user-interface vty 0 4
+ authentication-mode password
+ idle-timeout 0 0
+ protocol inbound all
+user-interface vty 16 20
+ authentication-mode aaa
+ protocol inbound ssh
+#
+return

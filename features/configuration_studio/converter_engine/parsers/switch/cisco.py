@@ -2,6 +2,8 @@ import ipaddress
 import re
 from pathlib import Path
 
+from features.configuration_studio.converter_engine.parsers.switch import nxos_acl
+
 from features.configuration_studio.converter_engine.models.switch import (
     SwitchConfig,
     VLAN,
@@ -71,8 +73,16 @@ class CiscoSwitchParser:
         # show command + diagnostic output.
         lines = self.extract_configuration(lines)
 
+        # NX-OS "object-group ip address|port NAME" definitions, referenced by
+        # "addrgroup" / "portgroup" in ACL entries.  Collected up front because
+        # an ACL may precede (or follow) the group it names.
+        nxos_groups = nxos_acl.collect_groups(lines)
+
+        self._vrf_context = ""
         banner_delimiter = None
         banner_buffer = []
+        in_pki_chain = False
+        self._flow_monitor_name = ""
 
         for raw_line in lines:
 
@@ -93,6 +103,12 @@ class CiscoSwitchParser:
             # sub-commands — including a "monitor session" description
             # line overwriting mgmt0's own description).
             is_indented = bool(raw_line) and raw_line[0] in (" ", "\t")
+
+            # NX-OS "vrf context NAME": the indented lines below it (ip route ...) belong to that VRF.
+            if line.startswith("vrf context "):
+                self._vrf_context = line.split()[2] if len(line.split()) > 2 else ""
+            elif line and not is_indented and not line.startswith(("!", "#")):
+                self._vrf_context = ""
 
             # ================================================
             # MULTILINE BANNER BODY
@@ -119,6 +135,64 @@ class CiscoSwitchParser:
                 continue
 
             if not line:
+                continue
+
+            # ================================================
+            # CERTIFICATE CHAIN (self-signed, hex body)
+            # ================================================
+            # "crypto pki certificate chain TP-self-signed-..." carries the certificate as indented hex words ended by "quit":
+            # about 25 lines of noise per switch that no Huawei command can take. One passthrough line stands for the block.
+            if in_pki_chain:
+                if is_indented or line == "quit":
+                    if line == "quit":
+                        in_pki_chain = False
+                    continue
+                in_pki_chain = False
+
+            # ================================================
+            # FLEXIBLE NETFLOW: exporter / monitor blocks
+            # ================================================
+            # `flow exporter` carries the collector (destination, UDP port) and the source interface; the indented lines of `flow record`
+            # and `flow monitor` hold nothing a Huawei switch can take (a monitor only names the exporter).
+            if current_section in ("flow_exporter", "flow_monitor", "flow_record") and is_indented:
+                parts = line.split()
+                if current_section == "flow_exporter" and config.netflow_exporters:
+                    exporter = config.netflow_exporters[-1]
+                    if parts[0] == "destination" and len(parts) >= 2:
+                        exporter["destination"] = parts[-1]
+                    elif parts[0] == "source" and len(parts) >= 2:
+                        exporter["source"] = parts[1]
+                        config.source_interfaces.setdefault("flow", parts[1])
+                    elif parts[0] == "transport" and len(parts) >= 3 and parts[1] == "udp" and parts[2].isdigit():
+                        exporter["port"] = parts[2]
+                elif current_section == "flow_monitor" and parts[0] == "exporter" and len(parts) >= 2:
+                    config.netflow_monitors[self._flow_monitor_name] = parts[1]
+                continue
+
+            flow_header = re.match(r"^flow\s+(exporter|monitor|record)\s+(\S+)\s*$", line)
+            if flow_header and not is_indented:
+                current_section = f"flow_{flow_header.group(1)}"
+                if flow_header.group(1) == "exporter":
+                    config.netflow_exporters.append({"name": flow_header.group(2), "destination": "", "port": "", "source": ""})
+                elif flow_header.group(1) == "monitor":
+                    self._flow_monitor_name = flow_header.group(2)
+                if flow_header.group(1) != "exporter":
+                    config.global_commands.append(line)
+                continue
+
+            # Management-service source interfaces: read here, then handled as before below.
+            source_match = re.match(
+                r"^(?:(ntp)\s+source|ip\s+(tacacs|tftp|ssh|radius|ftp)\s+source-interface|ip\s+(http)\s+client\s+source-interface|"
+                r"(logging)\s+source-interface|snmp-server\s+(trap)-source)\s+(\S+)\s*$",
+                line,
+            )
+            if source_match and not is_indented:
+                service = next(g for g in source_match.groups()[:-1] if g)
+                config.source_interfaces.setdefault("snmp" if service == "trap" else service, source_match.group(source_match.lastindex))
+
+            if line.startswith("crypto pki certificate chain "):
+                in_pki_chain = True
+                config.global_commands.append(f"{line} (certificate body not copied: a Huawei switch creates its own certificate)")
                 continue
 
             # ================================================
@@ -179,6 +253,13 @@ class CiscoSwitchParser:
             # LOCAL USERNAME
             # ================================================
             if line.startswith("username "):
+                # NX-OS "username X passphrase lifetime 99999 warntime 14
+                # gracetime 3" is the factory password-aging default (99999
+                # days = never expires); only a non-default lifetime is a
+                # setting somebody chose and is worth carrying forward.
+                aging = re.match(r"^username\s+\S+\s+passphrase\s+lifetime\s+(\d+)\b", line)
+                if aging and aging.group(1) == "99999":
+                    continue
                 config.username_commands.append(line)
                 continue
 
@@ -212,7 +293,7 @@ class CiscoSwitchParser:
             # ================================================
             # LINE VTY
             # ================================================
-            if re.match(r"^line\s+vty\s+\d+(?:\s+\d+)?$", line):
+            if re.match(r"^line\s+(?:vty\s+\d+(?:\s+\d+)?|con(?:sole)?\s+\d+)$", line):
                 current_interface = None
                 current_vlan = None
                 current_section = "line_vty"
@@ -314,6 +395,29 @@ class CiscoSwitchParser:
 
                 current_interface = None
                 current_section = "vlan"
+
+                continue
+
+            # NX-OS (and IOS "vlan 10,20,30-35") declare many VLANs on one line; only VLANs that carry a name get
+            # their own "vlan N" block afterwards, so the list is the only place the unnamed ones appear.
+            if re.match(r"^vlan\s+\d+(?:\s*[,-]\s*\d+)+$", line):
+
+                for item in line.split(None, 1)[1].replace(" ", "").split(","):
+
+                    low, _, high = item.partition("-")
+
+                    try:
+                        first, last = int(low), int(high or low)
+                    except ValueError:
+                        continue
+
+                    # VLAN 1 is the factory default on every target; only the ones that must be created are carried.
+                    for vlan_id in range(max(first, 2), min(last, 4094) + 1):
+                        self.get_or_create_vlan(config, vlan_id)
+
+                current_vlan = None
+                current_interface = None
+                current_section = None
 
                 continue
 
@@ -642,6 +746,23 @@ class CiscoSwitchParser:
             # ================================================
             # ACL
             # ================================================
+
+            if nxos_acl.group_header(line) and not is_indented:
+
+                # Members were collected by the pre-pass; the translators work
+                # on the expanded ACL entries, so the block is consumed here.
+                current_interface = None
+                current_vlan = None
+                current_section = "nxos_object_group"
+
+                continue
+
+            if current_section == "nxos_object_group":
+
+                if is_indented:
+                    continue
+
+                current_section = None
 
             if line.startswith(
                 (
@@ -1003,7 +1124,19 @@ class CiscoSwitchParser:
                         re.IGNORECASE,
                     )
 
-                    if peer_keepalive_match:
+                    role_priority_match = re.match(
+                        r"^role\s+priority\s+(\d+)\s*$",
+                        line,
+                        re.IGNORECASE,
+                    )
+
+                    if role_priority_match:
+
+                        config.vpc_role_priority = int(
+                            role_priority_match.group(1)
+                        )
+
+                    elif peer_keepalive_match:
 
                         config.vpc_peer_keepalive_dest_ip = (
                             peer_keepalive_match.group(1)
@@ -1031,7 +1164,7 @@ class CiscoSwitchParser:
                     else:
 
                         # peer-gateway / auto-recovery / ip arp
-                        # synchronize / role priority <n> — real Cisco
+                        # synchronize — real Cisco
                         # vPC refinements with no confirmed 1:1 Huawei
                         # M-LAG command (confirmed against the real
                         # M-LAG Configuration Guide — kept verbatim for
@@ -1240,9 +1373,22 @@ class CiscoSwitchParser:
 
                 if self.is_acl_entry(line):
 
-                    config.acl_commands.append(
-                        line
-                    )
+                    if nxos_acl.is_sequenced(line) or "addrgroup" in line or "portgroup" in line:
+
+                        # NX-OS grammar: sequence numbers, CIDR prefixes,
+                        # object-groups.  Flattened to the IOS dialect the
+                        # translators understand (see parsers/switch/nxos_acl.py).
+                        # An entry the grammar cannot read (or an over-large
+                        # expansion) is kept verbatim so the translator flags it.
+                        expanded, _notes = nxos_acl.expand_entry(line, nxos_groups)
+
+                        config.acl_commands.extend(expanded)
+
+                    else:
+
+                        config.acl_commands.append(
+                            line
+                        )
 
                     continue
 
@@ -1299,8 +1445,12 @@ class CiscoSwitchParser:
             # CURRENT LINE VTY BLOCK
             # ================================================
             if current_section == "line_vty":
-                if line.startswith(
+                # An indented line belongs to the open "line" block whatever it is: a "privilege level 15" ahead of
+                # "login authentication ..." used to close the block, and the login line then fell through to the global
+                # passthrough, so the console lost its authentication mode.
+                if is_indented or line.startswith(
                     (
+                        "privilege ",
                         "login",
                         "transport ",
                         "access-class ",
@@ -2326,6 +2476,8 @@ class CiscoSwitchParser:
         except ValueError:
             pass
 
+        route.vrf = getattr(self, "_vrf_context", "")
+
         config.routes.append(
             route
         )
@@ -2571,15 +2723,8 @@ class CiscoSwitchParser:
         line
     ):
 
-        return line.startswith(
-            (
-                "permit ",
-                "deny ",
-                "remark ",
-                "evaluate ",
-                "dynamic ",
-            )
-        )
+        # NX-OS prefixes every entry with its sequence number ("10 permit ...").
+        return nxos_acl.is_entry(line)
 
     # ========================================================
     # IP HELPER
@@ -2624,4 +2769,4 @@ class CiscoSwitchParser:
         return ".".join(
             str((mask_int >> shift) & 0xFF)
             for shift in (24, 16, 8, 0)
-        )
+        )

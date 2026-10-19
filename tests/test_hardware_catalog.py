@@ -28,10 +28,11 @@ ARUBA = FIXTURES / "aruba_6200f_vsf_synthetic.txt"
 
 SWITCH_KEYS = {
     "C9300X-24Y", "C9300X-48TX", "C9300-48P", "C9300-48T", "C9200L-24P-4X", "C9200L-48P-4X", "C9300L-48P-4X", "C9300L-48T-4X", "C9500-48Y4C",
-    "N9K-C93108TC-EX", "N9K-C93108TC-FX", "N9K-C93108TC-FX3", "JL724B",
-    "S5735-L8T4X-QA-V2", "S5735-S24T4XE-V2", "S5735-S24P4XE-V2", "S5735-S48T4XE-V2", "S5755-H24T4Y2CZ", "S5755-H48UM4Y2CZ",
+    "N9K-C93108TC-EX", "N9K-C93108TC-FX", "N9K-C93108TC-FX3", "N9K-C93180YC-EX", "N9K-C93180YC-FX", "N9K-C93180YC-FX3", "JL724B",
+    "WS-C2960-48TC-L", "WS-C2960-24TC-L", "WS-C2960+24TC-L", "WS-C2960X-24TS-L", "WS-C3560X-24P", "WS-C3650-24TS", "JL356A",
+    "S5735-L8T4X-QA-V2", "S5735-S24T4XE-V2", "S5735-S24P4XE-V2", "S5735-S48T4XE-V2", "S5755-H24T4Y2CZ", "S5755-H48UM4Y2CZ", "S6730-H48Y6C-V2",
 }
-HUAWEI_KEYS = ("S5735-L8T4X-QA-V2", "S5735-S24T4XE-V2", "S5735-S24P4XE-V2", "S5735-S48T4XE-V2", "S5755-H24T4Y2CZ", "S5755-H48UM4Y2CZ")
+HUAWEI_KEYS = ("S5735-L8T4X-QA-V2", "S5735-S24T4XE-V2", "S5735-S24P4XE-V2", "S5735-S48T4XE-V2", "S5755-H24T4Y2CZ", "S5755-H48UM4Y2CZ", "S6730-H48Y6C-V2")
 ROUTER_KEYS = {"C8200-1N-4T", "C8200L-1N-4T", "C8300-1N1S-6T", "ISR4431/K9", "ISR4331/K9", "ASR1002-X", "CISCO3825"}
 
 
@@ -60,7 +61,7 @@ def test_catalog_holds_every_sample_switch_and_router():
 
 def test_every_model_links_to_a_vendor_document():
     for model in ALL_MODELS:
-        assert model.doc_url.startswith(("https://www.cisco.com/", "https://www.hpe.com/", "https://e.huawei.com/")), model.key
+        assert model.doc_url.startswith(("https://www.cisco.com/", "https://www3-realm.cisco.com/", "https://www.hpe.com/", "https://e.huawei.com/")), model.key
         assert model.doc_title, model.key
         assert model.groups, model.key
 
@@ -154,8 +155,22 @@ def test_aruba_target_uses_member_slash_one_slash_port():
     assert _row(result, "GigabitEthernet1/0/2")["target"] == "1/1/2"
     assert _row(result, "TenGigabitEthernet1/1/1")["target"] == "1/1/25"
     mgmt = _row(result, "GigabitEthernet0/0")
-    assert mgmt["status"] == "missing" and "management" in mgmt["note"]
+    assert mgmt["status"] == "ok" and mgmt["target"] == "mgmt"
     assert "interface 1/1/25" in result["output_text"]
+
+
+def test_aruba_management_port_is_an_oobm_interface_without_routing_or_vrf_attach():
+    result = _convert(NM8X, "Aruba", "JL724B")
+    lines = result["output_text"].splitlines()
+    block = lines[lines.index("interface mgmt"):]
+    block = block[:block.index("!")]
+    assert any(line.startswith("    ip static ") and "/" in line for line in block)
+    assert "    routing" not in block and not any(line.startswith("    vrf attach") for line in block)
+
+
+def test_jl724b_vsf_limit_is_eight_members_from_the_vsf_guide():
+    from features.configuration_studio.converter_engine.hardware.catalog import get_model
+    assert get_model("JL724B").max_members == 8
 
 
 def test_aruba_source_with_vsf_members_maps_to_a_catalyst_module():
@@ -211,6 +226,32 @@ def test_switch_page_lists_every_switch_and_the_new_targets(client):
     for url in ("catalyst-9300-series-switches/nb-06-cat9300-ser-data-sheet-cte-en.html", "nexus-9000-series-switches/datasheet-c78-744052.html"):
         assert url in html
     assert "C9300-48P+C9300-NM-8X" in html  # embedded in the target-models-by-vendor JSON
+
+
+def test_catalog_tree_groups_vendor_then_product_line_and_os_then_series():
+    from features.configuration_studio.converter_engine.hardware.catalog import catalog_tree, split_platform
+    tree = {v["name"]: v for v in catalog_tree("switch")}
+    assert set(tree) == {"Cisco", "Aruba", "Huawei"}
+    cisco = {(l["name"], l["os"]): l for l in tree["Cisco"]["lines"]}
+    assert ("Catalyst", "IOS-XE") in cisco and ("Nexus", "NX-OS") in cisco          # Catalyst and Nexus are separate branches
+    assert {s["short"] for s in cisco[("Catalyst", "IOS-XE")]["series"]} >= {"9300", "9300X", "9300L", "9200L", "9500"}
+    assert [m["key"] for s in cisco[("Nexus", "NX-OS")]["series"] for m in s["models"]] == ["N9K-C93108TC-EX", "N9K-C93108TC-FX", "N9K-C93108TC-FX3", "N9K-C93180YC-EX", "N9K-C93180YC-FX", "N9K-C93180YC-FX3"]
+    assert {(l["name"], l["os"]) for l in tree["Aruba"]["lines"]} == {("CX", "AOS-CX"), ("Switch", "ArubaOS-Switch")}
+    assert ("Catalyst", "IOS") in cisco and {s["short"] for s in cisco[("Catalyst", "IOS")]["series"]} == {"2960", "2960-Plus", "2960-X", "3560-X"}     # legacy IOS is its own branch
+    assert [(l["name"], l["os"]) for l in tree["Huawei"]["lines"]] == [("CloudEngine", "VRP")]
+    assert sum(v["count"] for v in tree.values()) == len(SWITCH_KEYS)                  # every model is in exactly one leaf
+    leaves = [m["key"] for v in tree.values() for l in v["lines"] for s in l["series"] for m in s["models"]]
+    assert sorted(leaves) == sorted(SWITCH_KEYS)
+    assert split_platform("3800 ISR") == ("ISR", "3800") and split_platform("Catalyst 8200L") == ("Catalyst", "8200L")
+
+
+def test_switch_page_renders_the_collapsible_tree(client):
+    html = client.get("/convert/switch").get_data(as_text=True)
+    for level in ("vendor", "line", "series", "model"):
+        assert f'data-level="{level}"' in html
+    assert html.index('class="hw-node-name">Cisco<') < html.index('class="hw-node-name">Aruba<') < html.index('class="hw-node-name">Huawei<')
+    assert ">Catalyst</span>" in html and ">Nexus</span>" in html
+    assert 'data-hw-action="expand"' in html and 'data-hw-action="collapse"' in html
 
 
 def test_router_page_has_the_model_dropdown_and_catalog_but_cannot_convert(client):

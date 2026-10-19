@@ -1,0 +1,50 @@
+SW-LAB-UNK#show version
+cisco WS-C2960-99XX-Z (PowerPC405) processor (revision V0) with 65536K bytes of memory.
+Model number                    : WS-C2960-99XX-Z
+
+SW-LAB-UNK#show running-config
+Building configuration...
+
+version 12.2
+hostname SW-LAB-UNK
+!
+vlan 21
+ name LAB-WAN
+!
+interface Port-channel1
+ description SW-LAB-PEER-2960
+ switchport mode trunk
+!
+interface FastEthernet0/1
+ description LAB-ISP-A
+ switchport access vlan 21
+ switchport mode access
+!
+interface FastEthernet0/2
+ description LAB-FW-A
+ switchport access vlan 21
+ switchport mode access
+!
+interface FastEthernet0/23
+ description SW-LAB-PEER-2960
+ switchport mode trunk
+ channel-group 1 mode active
+!
+interface GigabitEthernet0/1
+ description LAB-FW-B
+ switchport access vlan 21
+ switchport mode access
+!
+interface GigabitEthernet0/2
+ description LAB-ISP-B
+ switchport access vlan 21
+ switchport mode access
+!
+interface Vlan1
+ no ip address
+ shutdown
+!
+interface Vlan21
+ ip address 192.0.2.20 255.255.255.0
+!
+end
