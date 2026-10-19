@@ -187,8 +187,48 @@ SPECS: tuple[Spec, ...] = (
          {"cisco": "show lacp counters"}, _extra("lacp_counters"), True),
     Spec("lacp_keys", "LACP system ids and keys", (rf"{SH} lacp port-channel(?: \S+)?",), "portchannels", "LACP system ids and keys of every bundle", "the LACP system ids and keys of every bundle",
          {"cisco": "show lacp port-channel"}, _extra("lacp_keys"), True),
+    Spec("nx_features", "Features", (rf"{SH} feature",), "health", "the features that are enabled on the switch", "which features are enabled", {"nxos": "show feature"}, _extra("features"), True),
+    Spec("nx_modules", "Modules", (rf"{SH} mod(?:ule)?",), "health", "line card and supervisor model, software, serial and status", "the modules, their software and status", {"nxos": "show module"}, _extra("modules"), True),
+    Spec("nx_boot", "Boot variables", (rf"{SH} boot",), "health", "the image booted now and the image booted after the next reload", "the boot image now and after the next reload", {"nxos": "show boot"}, _extra("boot"), True),
+    Spec("nx_reset", "Reset reasons", (rf"{SH} system reset-reason",), "health", "why the switch reset in the past (upgrade, reload, panic, power)", "why the switch reset in the past", {"nxos": "show system reset-reason"}, _extra("reset_reason"), True),
+    Spec("nx_cores", "Core files", (rf"{SH} cores",), "health", "core files left by crashed processes (an empty table is the good answer)", "whether a process has crashed", {"nxos": "show cores"}, _extra("cores"), True),
+    Spec("nx_proc_log", "Process log", (rf"{SH} processes log",), "health", "processes that exited abnormally (an empty table is the good answer)", "processes that exited abnormally", {"nxos": "show processes log"}, _extra("processes_log"), True),
+    Spec("nx_switchport", "Switchport modes", (rf"{SH} int(?:erfaces?)? switchport",), "trunks", "access / trunk mode, VLANs and native VLAN of every L2 port", "the mode and VLANs of every L2 port", {"nxos": "show interface switchport"}, _extra("switchport"), True),
+    Spec("nx_counter_errors", "Interface error counters", (rf"{SH} int(?:erfaces?)? counters errors",), "interfaces", "FCS, alignment, receive and transmit errors and discards per port", "the error counters of every port", {"nxos": "show interface counters errors"}, _extra("counters_errors"), True),
+    Spec("nx_xcvr_details", "Transceiver DOM", (rf"{SH} int(?:erfaces?)? transceivers? detail(?:s)?",), "transceivers", "optic type, serial and DOM power / temperature against the optic's own limits", "the optical power and temperature of every optic", {"nxos": "show interface transceiver details"}, _extra("xcvr_details"), True),
+    Spec("nx_pc_database", "Port-channel database", (rf"{SH} port-channel database",), "portchannels", "members of each bundle, their LACP mode and state", "the members of each bundle and their state", {"nxos": "show port-channel database"}, _extra("pc_database"), True),
+    Spec("nx_orphans", "vPC orphan ports", (rf"{SH} vpc orphan-ports",), "vpcmlag", "ports on vPC VLANs that are not part of a vPC (an empty answer is the good one)", "the vPC orphan ports", {"nxos": "show vpc orphan-ports"}, _extra("orphan_ports"), True),
+    Spec("nx_stp_root", "Spanning-tree root", (rf"{SH} spanning-tree root",), "stp", "the root bridge, cost and root port of every VLAN", "the root bridge of every VLAN", {"nxos": "show spanning-tree root"}, _extra("stp_root"), True),
+    Spec("nx_vrf", "VRFs", (rf"{SH} vrf",), "routing", "the VRFs and their state", "the VRFs and their state", {"nxos": "show vrf"}, _extra("vrf"), True),
+    Spec("nx_vrf_interface", "Interfaces per VRF", (rf"{SH} vrf interface",), "routing", "which VRF each interface belongs to", "the VRF of each interface", {"nxos": "show vrf interface"}, _extra("vrf_interface"), True),
+    Spec("nx_logging_server", "Syslog servers", (rf"{SH} logging server",), "logs", "the remote syslog servers and the status of each", "the remote syslog servers", {"nxos": "show logging server"}, _extra("logging_server"), True),
+    Spec("nx_route_summary", "Route summary", (rf"{SH} ip route summary(?: vrf \S+)?",), "routing", "routes and paths per VRF and per protocol", "the route counts per VRF", {"nxos": "show ip route summary"}, _extra("route_summary"), True),
     Spec("stp_vrp", "Spanning tree (VRP)", (rf"{DIS} stp(?: brief)?",), "health", "spanning-tree mode, root bridge, BPDU protection and port roles",
          "the spanning-tree mode, root bridge, BPDU protection and port roles", {"huawei": "display stp brief"}),
+    Spec("hw_topology", "Stack topology", (rf"{DIS} stack topology",), "health", "ring or chain, state of each member's stack ports and the physical stack links",
+         "whether the stack is a ring or a chain and which stack ports are up", {"huawei": "display stack topology"}, _path("health", "live", "topology"), True),
+    Spec("hw_stack_config", "Stack configuration", (rf"{DIS} stack configuration",), "health", "priority per member and the ports behind each stack port",
+         "the priority per member and the ports behind each stack port", {"huawei": "display stack configuration"}, _path("health", "live", "stack_configuration"), True),
+    Spec("hw_dual_active", "Dual-active detection", (rf"{DIS} dual-active",), "health", "dual-active status and detect mode",
+         "whether dual-active detection is configured", {"huawei": "display dual-active"}, _path("health", "live", "dual_active"), True),
+    Spec("hw_stack_history", "Stack troubleshooting history", (rf"{DIS} stack troubleshooting history",), "health", "faults the stack recorded",
+         "the faults the stack recorded", {"huawei": "display stack troubleshooting history"}, _path("health", "live", "stack_history"), True),
+    Spec("hw_stack_down", "Stack-port last down reason", (rf"{DIS} stack-port link-state last-down-reason",), "health", "when and why each stack port last went down",
+         "when and why each stack port last went down", {}, _path("health", "live", "stack_port_down"), False),
+    Spec("hw_vlan_summary", "VLAN count (VRP)", (rf"{DIS} vlan summary",), "health", "static, dynamic and service VLAN counts", "how many VLANs the device has",
+         {"huawei": "display vlan summary"}, _path("health", "live", "vlan_summary"), True),
+    Spec("hw_vlan", "VLAN table (VRP)", (rf"{DIS} vlan",), "health", "VLAN IDs, type, status and description as the device sees them", "the VLANs as the device sees them",
+         {"huawei": "display vlan"}, _path("health", "live", "vlan_table"), True),
+    Spec("hw_port_vlan", "Port VLAN (VRP)", (rf"{DIS} port vlan",), "health", "link type and PVID of every port", "the link type and PVID of every port",
+         {"huawei": "display port vlan"}, _path("health", "live", "port_vlan"), True),
+    Spec("hw_arp_stats", "ARP count (VRP)", (rf"{DIS} arp statistics",), "health", "dynamic, resolved, incomplete and static ARP entries", "how many ARP entries the device counts",
+         {"huawei": "display arp statistics"}, _path("health", "live", "arp_statistics"), True),
+    Spec("hw_lacp_brief", "LACP system (VRP)", (rf"{DIS} lacp brief",), "health", "the LACP system priority and ID", "the LACP system priority and ID",
+         {"huawei": "display lacp brief"}, _path("health", "live", "lacp_brief"), True),
+    Spec("hw_licence", "Licence (VRP)", (rf"{DIS} license(?: verbose)?",), "health", "whether a licence is activated on each board", "whether a licence is activated",
+         {"huawei": "display license"}, _path("health", "live", "licence"), True),
+    Spec("hw_stp_region", "MSTP region", (rf"{DIS} stp region-configuration",), "health", "the MSTP region name, revision and instance-to-VLAN mapping",
+         "the MSTP region name and revision (switches in one region must match)", {"huawei": "display stp region-configuration"}, _path("health", "live", "stp_region"), True),
     Spec("flash", "Software images", (rf"{SH} flash(?: _detail)?",), "health", "primary and secondary software image", "which software image is primary and which is the fallback",
          {"aruba": "show flash"}),
     Spec("logs", "Logs", (rf"{SH} logg?(?:i(?:n(?:g)?)?)?(?: (?:last \d+|logfile|buffered?|nvram|-[a-z]+|\d+))*", rf"{DIS} (?:logbuffer|trapbuffer|logfile)(?: [^|\s]+)*", rf"{SH} events(?: -[a-z](?: \S+)?)*"), "logs",
@@ -216,7 +256,7 @@ _NOT_USED = (
     (rf"{SH} port-channel compatibility-parameters", "reference text: what a member port must match to join a bundle. It is not state of this device"),
     (rf"{SH} event manager policy registered", "Embedded Event Manager policies (the system-supplied Mandatory.* scripts are not configuration); not used"),
     (rf"{DIS} (?:users|history-command)", "session information, not used"),
-    (rf"{SH} (?:flash:?|boot|file systems)(?: .*)?", "file system information, not used"), (r"dir(?: .*)?", "file system information, not used"),
+    (rf"{SH} (?:flash:?|file systems)(?: .*)?", "file system information, not used"), (r"dir(?: .*)?", "file system information, not used"),
     (rf"{SH} tech(?:-support)?(?: .*)?", "tech-support is not parsed; the individual commands are"), (rf"{DIS} diagnostic-information.*", "diagnostic bundle, not parsed"),
 )
 # A command whose whole answer is its own title: the feature behind it is not in use. (pattern, most lines that still count as "empty", note)
@@ -226,8 +266,13 @@ _EMPTY_ANSWERS = (
 
 # NX-OS answers "% Invalid command" to every command of a feature that is not enabled.
 _NXOS_FEATURE = {"vpc": "vpc", "lldp": "lldp", "lacp": "lacp", "standby": "hsrp", "hsrp": "hsrp", "ospf": "ospf", "bgp": "bgp", "eigrp": "eigrp", "pim": "pim", "vrrp": "vrrp"}
+# Commands that print nothing at all when the feature is not in use (confirmed on S5735-S-V2: `display eth-trunk` with no Eth-Trunk configured).
+# {family: {spec key}}; the command ran, so it is neither "missing" nor "half-typed".
+_EMPTY_WHEN_UNUSED = {"huawei": {"portchannel": "no Eth-Trunk exists on this device (the command ran and printed nothing)"}}
 _COVERED_BY_CONFIG = (rf"{SH} start(?:up-config)?", rf"{DIS} saved-configuration")
 _HELP_END = "?"
+# "show booytflas:h: bootflash:" / "show sys* diproses ...": the echo of a typed-ahead command with banner or tab-completion text glued into it
+_GLUED = re.compile(r"[*]|[A-Za-z]:[A-Za-z]|\bbootflash:|\b(?:undang|sesuai|berlaku)\b")
 _ERROR = re.compile(
     r"^\s*(?:%\s*(?:Invalid input|Invalid command|Incomplete command|Ambiguous command|Unrecognized command|Unknown command)|"
     r"Error:\s*(?:Unrecognized command|Wrong parameter|Incomplete command|Too many parameters|Ambiguous command)|"
@@ -338,8 +383,10 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
 
     # features (hsrp, ospf, vpc ...) that have a command with real output in this capture
     config_text = has_full_config or any(re.match(r"(?:hostname|feature|vrf context|ip routing)\b|interface \S", line) for line in clean)
-    answered = {_NXOS_FEATURE[word] for b in blocks if not b["error"] and b["lines"] for word in b["command"].split()[1:3] if word in _NXOS_FEATURE}
+    answered = {_NXOS_FEATURE[word] for b in blocks if not b["error"] and b["lines"] and not b["command"].endswith(_HELP_END) and not _GLUED.search(b["command"])
+                for word in b["command"].split()[1:3] if word in _NXOS_FEATURE}
     used_once: set[str] = set()
+    ran_empty: set[str] = set()
     for block in blocks:
         command, lines = block["command"], block["lines"]
         status, note, tab = "not parsed", "recognised command but this analyzer has no parser for it yet", ""
@@ -349,8 +396,14 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
             tab = spec.tab if spec else ""
         elif command.endswith(_HELP_END):
             status, note = "ignored", "help request"
+        elif _GLUED.search(command):
+            status, note = "ignored", "a typed-ahead echo mixed with other output (a login banner or a log message printed while the line was typed); the command itself is listed again with its own prompt"
         elif not lines:
             status, note = "ignored", "no output (half-typed, or the terminal swallowed it)"
+            unused = _EMPTY_WHEN_UNUSED.get(family, {}).get(spec.key) if spec else None
+            if unused:
+                note, tab = unused, spec.tab
+                ran_empty.add(spec.key)
         elif spec:
             tab = spec.tab
             if lines < longest.get(command, 0) or (command in used_once and lines == longest.get(command, 0)):
@@ -389,7 +442,7 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
     missing = []
     for key in EXPECTED.get(family, ()):
         spec = BY_KEY[key]
-        if key in seen:
+        if key in seen or key in ran_empty:
             continue
         shown = command_for(spec, family, nxos)
         found = spec.rows(result) if spec.rows else None

@@ -728,6 +728,13 @@
     { label: "State", key: "state", status: true },
     { label: "Reading", key: "reading" },
   ];
+  const HEALTH_STACK_COLUMNS = [
+    { label: "Member", key: "member" },
+    { label: "Role", key: "role" },
+    { label: "MAC", key: "mac" },
+    { label: "Priority", key: "priority" },
+    { label: "Model", key: "model" },
+  ];
   const HEALTH_NXOS_LICENCE_COLUMNS = [
     { label: "Feature", key: "license" },
     { label: "Installed", key: "tag" },
@@ -857,6 +864,12 @@
       smart_account: licence.smart_account || "—",
       virtual_account: licence.virtual_account || "—",
     });
+    const stack = health.stack || {};
+    const stackRows = supported ? (stack.display || {}) : {};
+    byId("switch-health-stack-section").classList.toggle("hidden", !Object.keys(stackRows).length);
+    renderHealthKV("switch-health-stack", stackRows);
+    renderTable("switch-health-stack-table", HEALTH_STACK_COLUMNS, supported ? (stack.members || []) : [], { hideEmpty: true });
+    byId("switch-health-stack-table").closest(".table-wrap").classList.toggle("hidden", !(supported && (stack.members || []).length));
     renderTable("switch-health-licence-table", family === "nxos" ? HEALTH_NXOS_LICENCE_COLUMNS : HEALTH_LICENCE_COLUMNS, licence.licenses || []);
     // Smart licensing detail exists on IOS XE only. NX-OS prints one feature table; Huawei and Aruba print nothing the tab reads.
     const licenceDetail = licence.detail || {};

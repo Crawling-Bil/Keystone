@@ -1,0 +1,74 @@
+SW-LAB-24TC#show version
+cisco WS-C2960-24TC-L (PowerPC405) processor (revision V0) with 65536K bytes of memory.
+Model number                    : WS-C2960-24TC-L
+
+SW-LAB-24TC#show running-config
+Building configuration...
+
+version 12.2
+hostname SW-LAB-24TC
+!
+aaa new-model
+aaa authentication login CONSOLE group tacacs+ local
+!
+crypto pki trustpoint TP-self-signed-1
+ enrollment selfsigned
+!
+crypto pki certificate chain TP-self-signed-1
+ certificate self-signed 01
+  3082024D 308201B6 A0030201 02020101 300D0609 2A864886 F70D0101 04050030
+  31312F30 2D060355 04031326 494F532D 53656C66
+        	quit
+!
+vlan 21
+ name LAB-WAN
+!
+interface Port-channel1
+ description SW-LAB-PEER-2960
+ switchport mode trunk
+!
+interface FastEthernet0/1
+ description LAB-ISP-A
+ switchport access vlan 21
+ switchport mode access
+!
+interface FastEthernet0/2
+ description LAB-FW-A
+ switchport access vlan 21
+ switchport mode access
+!
+interface FastEthernet0/21
+!
+interface FastEthernet0/22
+!
+interface FastEthernet0/23
+ description SW-LAB-PEER-2960
+ switchport mode trunk
+ channel-group 1 mode active
+!
+interface GigabitEthernet0/1
+ description LAB-FW-B
+ switchport access vlan 21
+ switchport mode access
+!
+interface GigabitEthernet0/2
+ description LAB-ISP-B
+ switchport access vlan 21
+ switchport mode access
+!
+interface Vlan1
+ no ip address
+ shutdown
+!
+interface Vlan21
+ ip address 192.0.2.20 255.255.255.0
+!
+line con 0
+ privilege level 15
+ logging synchronous
+ login authentication CONSOLE
+line vty 0 4
+ logging synchronous
+ login authentication CONSOLE
+!
+end

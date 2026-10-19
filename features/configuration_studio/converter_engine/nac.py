@@ -5,7 +5,7 @@ captures have them on 91 of 105 ports).  Translating them one line at a time bur
 lines of one port are read into a :class:`NacSettings` first; ports with identical settings share one target profile.
 
 Target: Huawei CloudEngine S-series NAC (V600R025C00).  Every mapping below was checked in the Huawei documentation set the project keeps in
-``Huawei Official Reference`` (Configuration Guide - User Access and Authentication, chapter NAC Configuration; the Command Reference .chm):
+``Official Reference Huawei`` (Configuration Guide - User Access and Authentication, chapter NAC Configuration; the Command Reference .chm):
 
 ====================================================  ===========================================================================
 Cisco                                                 Huawei VRP (view)
@@ -27,6 +27,33 @@ Cisco                                                 Huawei VRP (view)
 
 Not mapped, listed once per profile as a review item: ``timer reauthenticate server`` (period taken from the RADIUS Session-Timeout),
 ``event server dead action authorize voice``, ``order mab dot1x`` (MAB first), open authentication, violation, control-direction and anything unknown.
+
+Target: HPE Aruba AOS-CX 6200 / 6300 / 6400 (``translators/switch/aruba.py``).  Every mapping below was checked in the AOS-CX 10.11 Security Guide
+(6200, 6300, 6400 Switch Series), chapter "Port access", in the ``Official Reference Aruba`` folder:
+
+====================================================  ===========================================================================
+Cisco                                                 AOS-CX (context)
+====================================================  ===========================================================================
+``dot1x pae authenticator`` / ``order ... dot1x``     ``aaa authentication port-access dot1x authenticator`` + ``enable``
+                                                      (interface context ``config-if-dot1x-auth``); global ``... authenticator enable``
+``mab``                                               ``aaa authentication port-access mac-auth`` + ``enable`` (``config-if-macauth``)
+``authentication order dot1x mab``                    ``aaa authentication port-access auth-precedence dot1x mac-auth`` (the default)
+``authentication order mab dot1x``                    ``aaa authentication port-access auth-precedence mac-auth dot1x``
+``host-mode single-host``                             ``auth-mode client-mode`` with ``client-limit 1`` (both defaults)
+``host-mode multi-auth``                              ``client-limit 256`` (client mode, maximum of the 6200 / 6300 / 6400)
+``host-mode multi-domain``                            ``auth-mode multi-domain`` (10.08 and later: one data + one voice client)
+``host-mode multi-host``                              ``auth-mode device-mode`` (first client authenticates, the port then opens)
+``authentication periodic``                           ``reauth`` in the dot1x authenticator / mac-auth context
+``authentication timer reauthenticate <s>``           ``reauth-period <s>`` (same contexts; default 3600)
+``dot1x timeout tx-period <s>``                       ``eapol-timeout <s>`` (nearest equivalent: wait for the client before resending EAPOL)
+``event server dead action authorize [vlan N]``       ``aaa authentication port-access critical-role CRITICAL-VLAN<N>`` with a
+                                                      ``port-access role`` that holds ``vlan access <N>``
+====================================================  ===========================================================================
+
+Not mapped for AOS-CX, listed once per port group: ``event server alive action reinitialize``, ``timer reauthenticate server``, open
+authentication, violation, control-direction, ``mab eap`` and anything unknown.
+
+Documents: HPE Aruba Networking AOS-CX documentation portal (Security Guide, Port access): https://arubanetworking.hpe.com/techdocs/AOS-CX/
 
 Documents: Huawei CloudEngine S3700, S5700 and S6700 V600R025C00 Configuration Guide - User Access and Authentication, "NAC Configuration":
 https://support.huawei.com/enterprise/en/doc/EDOC1100333463  (the 802.1X + MAC examples also appear at
@@ -67,6 +94,11 @@ class NacSettings:
     def key(self) -> tuple:
         return (self.dot1x, self.mab, self.host_mode, self.port_control, self.mab_fallback, self.periodic, self.reauth_period,
                 self.server_dead, self.server_alive, self.access_vlan if self.server_dead else None, self.notes)
+
+    @property
+    def mab_first(self) -> bool:
+        """The source asked for MAC authentication before 802.1X (``authentication order mab dot1x``)."""
+        return "authentication order mab dot1x" in self.notes
 
     def mode(self) -> str:
         """The Huawei ``authentication mode`` keyword, or ``""`` when the source set no host mode (the Huawei default, multi-authen, applies)."""

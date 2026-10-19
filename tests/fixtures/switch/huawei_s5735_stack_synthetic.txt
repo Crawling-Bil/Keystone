@@ -1,0 +1,110 @@
+<SW-LAB-STK>display stack
+-------------------------------------------------------------------------------------
+MemberID Role     MAC              Priority   DeviceType              Description
+-------------------------------------------------------------------------------------
+1        Master   0200-5e00-0010   200        S5735-S24T4XE-V2
+2        Slave    0200-5e00-0030   100        S5735-S24T4XE-V2
+-------------------------------------------------------------------------------------
+<SW-LAB-STK>display stack topology
+Stack Topology Type: Link
+----------------------------------------------
+            Stack-Port 1      Stack-Port 2
+MemberID   Status Neighbor   Status Neighbor
+----------------------------------------------
+1          up     2          down   --
+2          down   --         up     1
+----------------------------------------------
+
+Stack Link:
+-------------------------------------------------------------------------------
+Stack-Port       Port            Speed    Status     PeerPort        PeerStatus
+-------------------------------------------------------------------------------
+Stack-Port1/1    GE1/0/21        GE       up         GE2/0/22        up
+Stack-Port1/1    10GE1/0/5       --       down       --              --
+Stack-Port1/2    GE1/0/22        --       down       --              --
+Stack-Port2/1    GE2/0/21        --       down       --              --
+Stack-Port2/2    GE2/0/22        --       down       --              --
+-------------------------------------------------------------------------------
+<SW-LAB-STK>display stack configuration
+Oper          : Operation
+Conf          : Configuration
+*             : Offline configuration
+#             : Media mismatch or absence
+^             : Unsaved configuration
+
+Attribute Configuration:
+---------------------------------------------------------------------------
+MemberID      Domain          Priority      DelayTime     PriorityFirst
+Oper(Conf)    Oper(Conf)      Oper(Conf)    Oper(Conf)    Oper
+---------------------------------------------------------------------------
+1(1)          --(--)          200(200)      0(0)          N
+2(2)          --(--)          100(100)      0(0)          N
+---------------------------------------------------------------------------
+
+Stack-Port Configuration:
+--------------------------------------------------------------------------------
+Stack-Port      Member Ports
+--------------------------------------------------------------------------------
+Stack-Port1/1   GE1/0/21            #10GE1/0/5
+Stack-Port1/2   GE1/0/22
+--------------------------------------------------------------------------------
+
+Stack-Global Configuration:
+--------------------------------------------------------------------------------
+AuthMode        Password
+--------------------------------------------------------------------------------
+-               -
+--------------------------------------------------------------------------------
+<SW-LAB-STK>display stack troubleshooting history
+Total :2
+<SW-LAB-STK>display dual-active
+Stack domainID: --
+Dual-active status: --
+Dual-active detect mode: --
+
+Dual-active direct detect interfaces configured:
+ --
+Dual-active relay detect interfaces configured:
+ --
+Excluded ports(configurable):
+ --
+Excluded ports(can not be configured):
+ GE1/0/21
+ GE1/0/22
+<SW-LAB-STK>display vlan summary
+Number of static VLAN: 14
+VLAN ID: 1 10 to 15 20 25 53 to 54 100 102
+         to 103
+
+Number of dynamic VLAN: 0
+VLAN ID:
+
+Number of service VLAN: 0
+VLAN ID:
+<SW-LAB-STK>display arp statistics
+Dynamic: 9  (Resolved: 7  Incomplete: 2)  Static: 0  Redirect: 0
+<SW-LAB-STK>display stp region-configuration
+ Operating configuration
+   Format selector    :0
+   Region name        :LAB-REGION
+   Revision level     :0
+
+   Instance   VLAN
+          0   1 to 4094
+<SW-LAB-STK>display license
+MainBoard:
+Info: No license is activated.
+SlaveBoard:
+Info: No license is activated.
+<SW-LAB-STK>display eth-trunk
+<SW-LAB-STK>display port vlan
+Port                    Link Type    PVID  Trunk VLAN List                      Port Description
+---------------------------------------------------------------------------------------------------------------
+10GE1/0/1               auto            1  1-4094
+GE1/0/1                 access         58  --                                   ** TO:LAB-ROUTER **
+GE1/0/2                 access         58  --
+GE1/0/3                 trunk           1  1-4094
+GE1/0/4                 auto            1  1-4094
+<SW-LAB-STK>display lacp brief
+System Priority: 32768
+System ID      : 0200-5e00-0010

@@ -217,6 +217,7 @@
 
   // ---- Interface map tab (switch converts): every source port -> the port it becomes on the target model. ----
   const interfaceMapPanel = document.getElementById("interface-map-panel");
+  const preflightPanel = document.getElementById("preflight-panel");
   const configView = document.getElementById("config-view");
   const resultTabs = document.querySelectorAll(".cv-result-tab");
   const showUnusedToggle = document.getElementById("interface-map-show-unused");
@@ -229,7 +230,8 @@
       tab.setAttribute("aria-selected", active ? "true" : "false");
     });
     interfaceMapPanel?.classList.toggle("hidden", name !== "interface-map");
-    configView?.classList.toggle("hidden", name === "interface-map");
+    preflightPanel?.classList.toggle("hidden", name !== "preflight");
+    configView?.classList.toggle("hidden", name === "interface-map" || name === "preflight");
   }
   resultTabs.forEach(tab => tab.addEventListener("click", () => setResultTab(tab.dataset.resultTab)));
 
@@ -257,6 +259,90 @@
     }).join("")}</tbody>`;
   }
 
+  const FIT_VERDICT = {
+    "fits": ["Target fits", "tone-ok"],
+    "partial": ["Target only partly fits", "tone-warn"],
+    "does-not-fit": ["Target does not fit", "tone-bad"],
+  };
+
+  // Target-fit banner: do the ports the source really uses exist on the chosen target model?
+  function renderTargetFit(fit) {
+    const box = document.getElementById("interface-map-fit");
+    if (!box) return;
+    if (!fit || !fit.verdict || fit.verdict === "unknown" || !fit.used) {
+      box.classList.add("hidden");
+      box.innerHTML = "";
+      return;
+    }
+    const esc = window.NES.escape;
+    const [label, tone] = FIT_VERDICT[fit.verdict] || [fit.verdict, ""];
+    const needs = Object.entries(fit.needs || {}).map(([k, n]) => `${esc(n)} x ${esc(k)}`).join(", ");
+    let html = `<p class="im-fit-head"><span class="cell-status ${tone}">${esc(label)}</span> ${esc(fit.mapped)} of ${esc(fit.used)} configured ports have a counterpart on the target${needs ? ` (needs ${needs})` : ""}.</p>`;
+    if ((fit.missing_ports || []).length) {
+      html += `<ul class="im-fit-list">${fit.missing_ports.map(p => `<li><code>${esc(p.source)}</code> ${esc(p.note || "")}</li>`).join("")}</ul>`;
+      if (fit.missing > fit.missing_ports.length) html += `<p class="im-fit-more">${esc(fit.missing - fit.missing_ports.length)} more not listed.</p>`;
+    }
+    if ((fit.alternatives || []).length) {
+      html += `<p class="im-fit-alt">Models in the catalog where every used port has a counterpart: ${fit.alternatives.map(a => `<strong>${esc(a.model)}</strong> (${esc(a.label)})`).join("; ")}.</p>`;
+    }
+    box.innerHTML = html;
+    box.classList.remove("hidden");
+  }
+
+  const PREFLIGHT_READY = {
+    ready: ["Ready to paste", "tone-ok"],
+    decisions: ["Decisions needed before it goes live", "tone-warn"],
+    blocked: ["Target model does not fit", "tone-bad"],
+  };
+  const PREFLIGHT_GROUP = { decision: ["Needs a decision", "tone-warn"], dropped: ["Not converted", "tone-bad"] };
+
+  // Pre-flight tab (switch converts): converted / needs a decision / dropped, REVIEW counts by code, structural checks, target fit.
+  function renderPreflight(pre) {
+    if (!preflightPanel) return;
+    const tab = [...resultTabs].find(t => t.dataset.resultTab === "preflight");
+    if (!pre) {
+      tab?.classList.add("hidden");
+      return;
+    }
+    tab?.classList.remove("hidden");
+    const esc = window.NES.escape;
+    const attention = (pre.review_lines || 0) + (pre.checks || []).length;
+    const count = document.getElementById("preflight-tab-count");
+    if (count) count.textContent = attention ? String(attention) : "";
+    const [label, tone] = PREFLIGHT_READY[pre.readiness] || [pre.readiness, ""];
+    document.getElementById("preflight-lead").textContent = label;
+    const chip = (text, n, t) => `<span class="cell-status ${t}">${esc(text)} ${esc(n)}</span>`;
+    document.getElementById("preflight-summary").innerHTML = [
+      `<span class="cell-status ${tone}">${esc(label)}</span>`,
+      chip("Converted lines", pre.converted_lines || 0, "tone-ok"),
+      chip("Need a decision", pre.decision || 0, "tone-warn"),
+      chip("Not converted", pre.dropped || 0, "tone-bad"),
+      chip("Structural checks", (pre.checks || []).length, (pre.checks || []).length ? "tone-warn" : "tone-ok"),
+    ].join("");
+    const fitBox = document.getElementById("preflight-fit");
+    const fit = pre.fit;
+    if (fit && fit.verdict) {
+      const [fitLabel, fitTone] = FIT_VERDICT[fit.verdict] || [fit.verdict, ""];
+      fitBox.innerHTML = `<p class="im-fit-head"><span class="cell-status ${fitTone}">${esc(fitLabel)}</span> ${esc(fit.mapped)} of ${esc(fit.used)} configured ports have a counterpart on the target.</p>`;
+      fitBox.classList.remove("hidden");
+    } else {
+      fitBox.innerHTML = "";
+      fitBox.classList.add("hidden");
+    }
+    const checks = pre.checks || [];
+    document.getElementById("preflight-checks").innerHTML = checks.length
+      ? `<ul class="im-fit-list">${checks.map(c => `<li><code>${esc(c.code)}</code> ${esc(c.subject)} ${esc(c.message)}</li>`).join("")}</ul>`
+      : "";
+    const table = document.getElementById("preflight-table");
+    const rows = pre.by_code || [];
+    table.innerHTML = rows.length
+      ? `<thead><tr><th>Review code</th><th>Count</th><th>Meaning</th></tr></thead><tbody>${rows.map(row => {
+          const [groupLabel, groupTone] = PREFLIGHT_GROUP[row.group] || [row.group, ""];
+          return `<tr><td><code>${esc(row.code)}</code></td><td>${esc(row.count)}</td><td><span class="cell-status ${groupTone}">${esc(groupLabel)}</span></td></tr>`;
+        }).join("")}</tbody>`
+      : '<tbody><tr><td>No review markers in the converted configuration.</td></tr></tbody>';
+  }
+
   function renderInterfaceMap(map) {
     if (!interfaceMapPanel) return;
     currentInterfaceMap = map || null;
@@ -274,6 +360,7 @@
     const source = map.source_model ? `${map.source_model}${(map.source_modules || []).length ? " + " + map.source_modules.join(", ") : ""}` : "source model not recognised (ports read from the names)";
     const target = map.target_model || "no Target Model chosen (naming rule only)";
     document.getElementById("interface-map-lead").textContent = `${source} → ${target}`;
+    renderTargetFit(map.fit);
     document.getElementById("interface-map-warnings").innerHTML = (map.warnings || []).map(w => `<p class="im-warning">${esc(w)}</p>`).join("");
     const chip = (label, count, tone) => `<span class="cell-status ${tone}">${esc(label)} ${esc(count)}</span>`;
     document.getElementById("interface-map-summary").innerHTML = [
@@ -306,6 +393,7 @@
     batchResultPanel.classList.add("hidden");
     mappingResultPanel?.classList.add("hidden");
     renderInterfaceMap(data.interface_map);
+    renderPreflight(data.preflight);
     resultPanel.classList.remove("hidden");
     window.NES.toast(`Converted ${data.hostname} successfully.`);
   }

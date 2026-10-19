@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from .converter_engine.domains import DOMAINS, classify, get_domain
-from .converter_engine.hardware.catalog import catalog_view, target_models as catalog_target_models
+from .converter_engine.hardware.catalog import catalog_tree, catalog_view, target_models as catalog_target_models
 from .converter_engine.engine import MigrationEngine
+from .converter_engine.preflight import build_preflight
 from .converter_engine.profiles import PROFILE_REGISTRY
 from .converter_engine.session_capture import prepared as prepared_source
 from .converter_engine.translators.switch.huawei import HUAWEI_TARGET_MODELS
@@ -63,6 +64,13 @@ def hardware_catalog(domain: str) -> list[dict[str, Any]]:
     if domain not in ("switch", "router"):
         return []
     return catalog_view(domain)
+
+
+def hardware_tree(domain: str) -> list[dict[str, Any]]:
+    """The same catalog grouped vendor -> product line / OS -> series -> model, for the collapsible tree."""
+    if domain not in ("switch", "router"):
+        return []
+    return catalog_tree(domain)
 
 
 # PaloAltoFirewallParser (models/paloalto_native.py's PaloAltoNativeConfig)
@@ -232,6 +240,14 @@ def safe_name(value: str, fallback: str = "converted-config") -> str:
     return value or fallback
 
 
+def _small_int(value: Any) -> int:
+    """Form value to an int of 1 or more (blank or garbage is 1)."""
+    try:
+        return max(1, int(str(value).strip()))
+    except (TypeError, ValueError):
+        return 1
+
+
 def convert_file(source_path: Path, **options: Any) -> dict[str, Any]:
     """Convert one uploaded file.  A switch file that is a whole terminal session (login banner, ``show version``, ``show running-config``) is
     reduced to its configuration block first (see ``converter_engine/session_capture.py``); the result says so under ``capture``."""
@@ -259,6 +275,8 @@ def _convert_prepared(
     mapping: dict[str, Any] | None = None,
     domain: str | None = None,
     identity_text: str | None = None,
+    stack_member: int | str | None = None,
+    stack_members: int | str | None = None,
 ) -> dict[str, Any]:
     engine = create_engine()
     resolved_vendor, resolved_device_type, detection = _resolve_source(
@@ -278,6 +296,8 @@ def _convert_prepared(
         target_model=target_model or None,
         mapping=mapping or None,
         identity_text=identity_text,
+        stack_member=_small_int(stack_member),
+        stack_members=_small_int(stack_members),
     )
 
     source_text = source_path.read_text(encoding="utf-8", errors="ignore")
@@ -285,6 +305,12 @@ def _convert_prepared(
     hostname = str(getattr(config, "hostname", "") or source_path.stem)
     inventory = engine.inventory.get(hostname) or {}
     review_count = sum(1 for line in output_lines if "REVIEW" in str(line).upper())
+    interface_map = (getattr(config, "metadata", None) or {}).get("interface_map")
+    preflight = (
+        build_preflight(output_text, target_vendor, (interface_map or {}).get("fit"))
+        if interface_map is not None or str(resolved_device_type).strip().lower() == "switch"
+        else None
+    )
 
     return {
         "source_text": source_text,
@@ -300,7 +326,9 @@ def _convert_prepared(
         "profile": profile.name if profile else None,
         "inventory": inventory,
         "review_count": review_count,
-        "interface_map": (getattr(config, "metadata", None) or {}).get("interface_map"),
+        "interface_map": interface_map,
+        "preflight": preflight,
+        "stack": (getattr(config, "metadata", None) or {}).get("stack"),
         "source_lines": len(source_text.splitlines()),
         "output_lines": len(output_text.splitlines()),
         "download_name": f"{safe_name(hostname)}_{safe_name(target_vendor)}.cfg",

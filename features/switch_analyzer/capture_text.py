@@ -171,7 +171,7 @@ def split_command(line: str) -> tuple[str, str] | None:
     return re.sub(r"\s+", " ", rest).strip().lower(), tail.strip()
 
 
-_TYPEAHEAD_WINDOW = 60
+_TYPEAHEAD_WINDOW = 400
 
 
 def _drop_typeahead_echo(lines: list[str]) -> list[str]:

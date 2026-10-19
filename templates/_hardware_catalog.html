@@ -1,9 +1,9 @@
 {#
   Hardware catalog panel for the Convert Switch and Convert Router pages. Server-rendered on purpose: the planned
   (not-yet-available) router page does not load configuration.js. Data comes from converter_engine/hardware/.
-  Variables: hardware_catalog (list of model dicts), domain.
+  Variables: hardware_catalog (list of model dicts), hardware_tree (vendor > line/OS > series > model), domain.
 #}
-{% if hardware_catalog %}
+{% if hardware_catalog and hardware_tree %}
 <details class="panel hw-catalog" id="hardware-catalog"{% if domain.key == 'router' and not domain.available %} open{% endif %}>
     <summary>
         <span class="hw-summary-title">{% if domain.key == 'router' %}Router hardware catalog &amp; interface map reference{% else %}Switch hardware catalog{% endif %}</span>
@@ -24,52 +24,99 @@
         </select>
     </label>
     {% endif %}
-    <div class="hw-list">
-    {% for m in hardware_catalog %}
-        <article class="hw-model" data-model="{{ m.key }}">
-            <header>
-                <div><strong>{{ m.key }}</strong><span>{{ m.platform }} · {{ m.os }}</span></div>
-                <div class="hw-badges">
-                    {% if domain.key == 'switch' %}<span class="cell-status {{ 'tone-ok' if m.target_ok else 'tone-mute' }}">{{ 'Source + target' if m.target_ok else 'Source / reference only' }}</span>{% endif %}
-                    {% if m.max_members and m.max_members > 1 %}<span class="cell-status">stack ≤ {{ m.max_members }}</span>{% endif %}
-                </div>
-            </header>
-            <p>{{ m.summary }}</p>
-            <div class="table-wrap hw-table"><table>
-                <thead><tr><th>Role</th><th>Interface pattern</th><th>Ports</th><th>Speed</th><th>Medium</th><th>Also appears as</th></tr></thead>
-                <tbody>
-                {% for g in m.groups %}
-                    <tr><td>{{ g.role }}</td><td><code>{{ g.pattern }}</code></td><td>{{ g.count }}</td><td>{{ g.speed }}</td><td>{{ g.medium }}{% if g.poe %} · {{ g.poe }}{% endif %}</td><td>{% if g.also_named %}{{ g.also_named|join(', ') }}{% else %}—{% endif %}{% if g.note %}<small class="hw-note">{{ g.note }}</small>{% endif %}</td></tr>
-                {% endfor %}
-                </tbody>
-            </table></div>
-            {% if m.modules %}
-            <p class="hw-modules"><span class="hw-label">Uplink modules (slot 1, <code>&lt;member&gt;/1/&lt;port&gt;</code>)</span>
-                {% for mod in m.modules %}<span class="hw-chip{% if mod.default %} is-seen{% endif %}" title="{{ 'Seen in the samples' if mod.default else 'From the data sheet' }}">{{ mod.key }} · {{ mod.label }}</span>{% endfor %}
-            </p>
-            {% endif %}
-            {% if m.slots %}
-            <div class="table-wrap hw-table"><table>
-                <thead><tr><th>Expansion slot</th><th>Interface naming</th><th>Accepts</th><th>Seen in samples</th></tr></thead>
-                <tbody>{% for s in m.slots %}<tr><td>{{ s.name }}</td><td><code>{{ s.naming }}</code></td><td>{{ s.accepts }}</td><td>{{ s.observed or '—' }}</td></tr>{% endfor %}</tbody>
-            </table></div>
-            {% endif %}
-            {% for note in m.notes %}<p class="hw-note">{{ note }}</p>{% endfor %}
-            <footer>
-                <a href="{{ m.doc_url }}" target="_blank" rel="noopener noreferrer">{{ m.doc_title }}</a>
-            </footer>
-        </article>
+    <div class="hw-toolbar">
+        <button type="button" class="hw-expand" data-hw-action="expand">Expand all</button>
+        <button type="button" class="hw-expand" data-hw-action="collapse">Collapse all</button>
+        <span class="hw-hint">Vendor &rsaquo; product line / OS &rsaquo; series &rsaquo; model</span>
+    </div>
+    <div class="hw-tree" role="tree">
+    {% for vendor in hardware_tree %}
+        <details class="hw-node hw-vendor" data-level="vendor">
+            <summary><span class="hw-node-name">{{ vendor.name }}</span><span class="hw-node-count">{{ vendor.count }} model{{ '' if vendor.count == 1 else 's' }}</span></summary>
+            <div class="hw-children">
+            {% for line in vendor.lines %}
+                <details class="hw-node hw-line" data-level="line">
+                    <summary><span class="hw-node-name">{{ line.name }}</span><span class="hw-node-os">{{ line.os }}</span><span class="hw-node-count">{{ line.count }} model{{ '' if line.count == 1 else 's' }}</span></summary>
+                    <div class="hw-children">
+                    {% for series in line.series %}
+                        <details class="hw-node hw-series" data-level="series">
+                            <summary><span class="hw-node-name">{{ series.name }}</span><span class="hw-node-count">{{ series.models|length }} model{{ '' if series.models|length == 1 else 's' }}</span></summary>
+                            <div class="hw-children">
+                            {% for m in series.models %}
+                                <details class="hw-node hw-model" data-level="model" data-model="{{ m.key }}">
+                                    <summary>
+                                        <span class="hw-node-name">{{ m.key }}</span>
+                                        <span class="hw-node-label">{{ m.label }}</span>
+                                        <span class="hw-badges">
+                                            {% if domain.key == 'switch' %}<span class="cell-status {{ 'tone-ok' if m.target_ok else 'tone-mute' }}">{{ 'Source + target' if m.target_ok else 'Source / reference only' }}</span>{% endif %}
+                                            {% if m.max_members and m.max_members > 1 %}<span class="cell-status">stack &le; {{ m.max_members }}</span>{% endif %}
+                                        </span>
+                                    </summary>
+                                    <div class="hw-card">
+                                        <p>{{ m.summary }}</p>
+                                        <div class="table-wrap hw-table"><table>
+                                            <thead><tr><th>Role</th><th>Interface pattern</th><th>Ports</th><th>Speed</th><th>Medium</th><th>Also appears as</th></tr></thead>
+                                            <tbody>
+                                            {% for g in m.groups %}
+                                                <tr><td>{{ g.role }}</td><td><code>{{ g.pattern }}</code></td><td>{{ g.count }}</td><td>{{ g.speed }}</td><td>{{ g.medium }}{% if g.poe %} · {{ g.poe }}{% endif %}</td><td>{% if g.also_named %}{{ g.also_named|join(', ') }}{% else %}—{% endif %}{% if g.note %}<small class="hw-note">{{ g.note }}</small>{% endif %}</td></tr>
+                                            {% endfor %}
+                                            </tbody>
+                                        </table></div>
+                                        {% if m.modules %}
+                                        <p class="hw-modules"><span class="hw-label">Uplink modules (slot 1, <code>&lt;member&gt;/1/&lt;port&gt;</code>)</span>
+                                            {% for mod in m.modules %}<span class="hw-chip{% if mod.default %} is-seen{% endif %}" title="{{ 'Seen in the samples' if mod.default else 'From the data sheet' }}">{{ mod.key }} · {{ mod.label }}</span>{% endfor %}
+                                        </p>
+                                        {% endif %}
+                                        {% if m.slots %}
+                                        <div class="table-wrap hw-table"><table>
+                                            <thead><tr><th>Expansion slot</th><th>Interface naming</th><th>Accepts</th><th>Seen in samples</th></tr></thead>
+                                            <tbody>{% for s in m.slots %}<tr><td>{{ s.name }}</td><td><code>{{ s.naming }}</code></td><td>{{ s.accepts }}</td><td>{{ s.observed or '—' }}</td></tr>{% endfor %}</tbody>
+                                        </table></div>
+                                        {% endif %}
+                                        {% for note in m.notes %}<p class="hw-note">{{ note }}</p>{% endfor %}
+                                        <footer>
+                                            <a href="{{ m.doc_url }}" target="_blank" rel="noopener noreferrer">{{ m.doc_title }}</a>
+                                        </footer>
+                                    </div>
+                                </details>
+                            {% endfor %}
+                            </div>
+                        </details>
+                    {% endfor %}
+                    </div>
+                </details>
+            {% endfor %}
+            </div>
+        </details>
     {% endfor %}
     </div>
 </details>
 <script>
 (() => {
+  const root = document.getElementById("hardware-catalog");
+  if (!root) return;
+  const nodes = () => root.querySelectorAll("details.hw-node");
+  root.querySelectorAll("[data-hw-action]").forEach(button => {
+    button.addEventListener("click", () => {
+      const open = button.dataset.hwAction === "expand";
+      nodes().forEach(node => { node.open = open; });
+    });
+  });
   const picker = document.getElementById("hw-model-picker");
   if (!picker) return;
+  // Router page: pick one model, every other model and every branch without it is hidden, the branches above it open.
   picker.addEventListener("change", () => {
-    document.querySelectorAll("#hardware-catalog .hw-model").forEach(card => {
-      card.classList.toggle("is-hidden", !!picker.value && card.dataset.model !== picker.value);
+    const wanted = picker.value;
+    root.querySelectorAll("details.hw-model").forEach(card => {
+      card.classList.toggle("is-hidden", !!wanted && card.dataset.model !== wanted);
     });
+    root.querySelectorAll("details.hw-node:not(.hw-model)").forEach(branch => {
+      const has = !wanted || branch.querySelector("details.hw-model:not(.is-hidden)");
+      branch.classList.toggle("is-hidden", !has);
+      if (wanted && has) branch.open = true;
+    });
+    const shown = root.querySelector("details.hw-model:not(.is-hidden)");
+    if (wanted && shown) shown.open = true;
   });
 })();
 </script>

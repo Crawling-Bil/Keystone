@@ -134,6 +134,9 @@ class HardwareModel:
     samples: tuple[str, ...] = ()  # which sample folders had it (no hostnames are stored)
     slots: tuple[ModuleSlot, ...] = ()
     notes: tuple[str, ...] = field(default_factory=tuple)
+    stack_ports: tuple[str, ...] = ()  # port name templates ({m} = member) that carry the stack links when the box is stacked (read from a real `display stack configuration`)
+    stack_transceiver: str = ""  # `device transceiver` keyword the stack-link ports carry in the real deployed stacks ("" = none seen)
+    stack_shares_bank: bool = False  # True when the stack links share a rate bank with data ports (25GE bank of the S5755-H)
 
     def all_keys(self) -> tuple[str, ...]:
         return (self.key, *self.detect)

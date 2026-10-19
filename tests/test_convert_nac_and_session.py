@@ -118,7 +118,67 @@ def test_aruba_groups_repeated_port_commands_into_one_block():
     out = _convert("Aruba")["output_text"]
     assert "REVIEW-UNSUPPORTED: authentication port-control auto" not in out
     assert "REVIEW-UNSUPPORTED on 2 port(s) GigabitEthernet1/0/1-2:" in out
-    assert out.count("!     dot1x pae authenticator") == 1
+    assert out.count("!     device-tracking") == 1
+    assert out.count("!     authentication event server alive action reinitialize") == 1     # no AOS-CX equivalent: reported once
+    assert "!     dot1x pae authenticator" not in out                                          # mapped, not just reported
+
+
+def _aruba_port_block(out: str, name: str) -> list[str]:
+    lines = out.splitlines()
+    start = lines.index(f"interface {name}")
+    end = next(i for i in range(start + 1, len(lines)) if lines[i] == "!")
+    return lines[start:end]
+
+
+def test_aruba_generates_8021x_and_mab_per_port_from_the_security_guide_syntax():
+    out = _convert("Aruba")["output_text"]
+    assert "\naaa authentication port-access dot1x authenticator enable\n" in out
+    assert "\naaa authentication port-access mac-auth\n    enable\n" in out
+    block = _aruba_port_block(out, "1/1/1")
+    for line in (
+        "    aaa authentication port-access auth-precedence dot1x mac-auth",       # authentication order dot1x mab
+        "    aaa authentication port-access auth-mode multi-domain",                 # host-mode multi-domain
+        "    aaa authentication port-access critical-role CRITICAL-VLAN10",         # event server dead action authorize vlan 10
+        "    aaa authentication port-access dot1x authenticator",
+        "        eapol-timeout 7",                                                    # dot1x timeout tx-period 7
+        "        reauth",
+        "        reauth-period 3600",
+        "    aaa authentication port-access mac-auth",
+        "        enable",
+    ):
+        assert line in block, line
+    # the contexts are closed in the order AOS-CX prints them: settings first, enable last
+    dot1x = block.index("    aaa authentication port-access dot1x authenticator")
+    assert block[dot1x + 1:dot1x + 5] == ["        eapol-timeout 7", "        reauth", "        reauth-period 3600", "        enable"]
+    assert "port-access role CRITICAL-VLAN10\n    vlan access 10\n" in out
+
+
+def test_aruba_mab_first_and_host_modes(tmp_path):
+    source = FIXTURE.read_text(encoding="utf-8")
+    for cisco, aruba in (
+        (" authentication order dot1x mab", " authentication order mab dot1x"),
+    ):
+        text = source.replace(cisco, aruba)
+        path = tmp_path / "mabfirst.txt"
+        path.write_text(text, encoding="utf-8")
+        block = _aruba_port_block(_convert("Aruba", path=path)["output_text"], "1/1/1")
+        assert "    aaa authentication port-access auth-precedence mac-auth dot1x" in block
+    for cisco_mode, expected in (
+        ("multi-host", "    aaa authentication port-access auth-mode device-mode"),
+        ("multi-auth", "    aaa authentication port-access client-limit 256"),
+    ):
+        path = tmp_path / f"{cisco_mode}.txt"
+        path.write_text(source.replace("host-mode multi-domain", f"host-mode {cisco_mode}"), encoding="utf-8")
+        block = _aruba_port_block(_convert("Aruba", path=path)["output_text"], "1/1/1")
+        assert expected in block
+        assert "    aaa authentication port-access auth-mode multi-domain" not in block
+
+
+def test_aruba_force_authorized_ports_are_not_given_port_access(tmp_path):
+    path = tmp_path / "forced.txt"
+    path.write_text(FIXTURE.read_text(encoding="utf-8").replace("authentication port-control auto", "authentication port-control force-authorized"), encoding="utf-8")
+    out = _convert("Aruba", path=path)["output_text"]
+    assert not [line for line in out.splitlines() if line.strip().startswith(("aaa authentication port-access", "port-access role"))]
 
 
 def test_aruba_dhcp_pool_does_not_crash_and_keeps_gateway_and_dns():
@@ -171,3 +231,60 @@ def test_aoscx_no_routing_is_understood_and_snmp_location_contact_translate(tmp_
     aruba = convert_file(path, target_vendor="Aruba", domain="switch")["output_text"]
     block = aruba.split("interface 1/1/1", 1)[1].split("interface 1/1/2", 1)[0]
     assert "    no routing\n    vlan access 10" in block          # an AOS-CX switchport needs "no routing" before "vlan access"
+
+
+# ----------------------------------------------------------------------------------- Huawei VTY / console, Aruba PoE
+VTY_SOURCE = """\
+hostname SW-X
+ip access-list standard MGMT
+ permit 192.0.2.0 0.0.0.255
+access-list 10 permit 198.51.100.0 0.0.0.255
+line con 0
+ exec-timeout 5 0
+ login local
+ transport input none
+line vty 0 4
+ access-class MGMT in
+ exec-timeout 10 0
+ login local
+ transport input ssh
+line vty 5 15
+ access-class 10 in
+ transport input ssh
+interface Vlan1
+ ip address 192.0.2.5 255.255.255.0
+"""
+
+
+def _vty(target: str, tmp_path: Path) -> list[str]:
+    path = tmp_path / "vty.txt"
+    path.write_text(VTY_SOURCE, encoding="utf-8")
+    return convert_file(path, target_vendor=target, source_vendor="Cisco", domain="switch")["output_text"].splitlines()
+
+
+def test_huawei_vty_access_class_becomes_acl_inbound_and_console_is_converted(tmp_path):
+    out = _vty("Huawei", tmp_path)
+    block = out[out.index("user-interface vty 0 4"):]
+    assert block[1] == " acl MGMT inbound"                       # acl { acl4name | acl4num } inbound, V600R025C00 Command Reference
+    assert " protocol inbound ssh" in block[:6]
+    assert " acl ACL-10 inbound" in out                           # a numbered Cisco ACL is named ACL-<n> by the parser
+    console = out[out.index("user-interface con 0"):]
+    assert console[1:3] == [" idle-timeout 5 0", " authentication-mode aaa"]
+    assert any(line.startswith(" # REVIEW-CONSOLE: transport input none") for line in console[:5])
+    assert not any("REVIEW-VTY-ACL" in line for line in out)
+
+
+def test_huawei_converted_vty_passes_its_own_baseline(tmp_path):
+    from features.switch_analyzer import service
+    out = "\n".join(["<SW-X>display current-configuration"] + _vty("Huawei", tmp_path) + ["return"])
+    codes = {f["code"] for f in service.analyze(out, filename="o.txt", vendor="Huawei")["health"]["findings"]}
+    assert not codes & {"SW-VTY-001", "SW-VTY-002", "SW-VTY-003", "SW-VTY-004", "SW-CON-001"}
+
+
+def test_aruba_no_poe_line_under_virtual_interfaces(tmp_path):
+    path = tmp_path / "svi.txt"
+    path.write_text(VTY_SOURCE, encoding="utf-8")
+    out = convert_file(path, target_vendor="Aruba", source_vendor="Cisco", domain="switch")["output_text"].splitlines()
+    block = out[out.index("interface vlan1"):]
+    block = block[:block.index("!")]
+    assert "    ip address 192.0.2.5/24" in block and "    no poe-enable" not in block

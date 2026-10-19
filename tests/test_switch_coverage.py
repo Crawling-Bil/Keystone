@@ -162,7 +162,7 @@ class SpecPatternTests(unittest.TestCase):
 
     def test_filtered_or_partial_views_are_not_taken_for_the_full_table(self):
         self.assertIsNone(coverage._spec_for("show ip arp vrf mgmt 10.0.0.1"))
-        self.assertIsNone(coverage._spec_for("display arp statistics"))
+        self.assertEqual(coverage._spec_for("display arp statistics").key, "hw_arp_stats")        # the count, not the ARP table
 
 
 class CollectListConsistencyTests(unittest.TestCase):

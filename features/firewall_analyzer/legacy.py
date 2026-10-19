@@ -399,6 +399,9 @@ def _sections(d: dict[str, Any], is_palo: bool) -> list[dict[str, Any]]:
     if not is_palo and d.get("routeros"):
         out += routeros.sections(d["routeros"])
     unhandled = d.get("unhandled_commands") or []
+    if not is_palo:
+        # The RouterOS parser appends a migration note ("... -- PAN-OS has no equivalent ...") for the converter; the analyzer shows the configuration line only.
+        unhandled = [line.split(" -- ", 1)[0] for line in unhandled]
     out.append(table_section("unhandled", "Not interpreted", [("line", "Configuration line", "wrap")], [{"line": line} for line in unhandled[:300]], group="System", total=len(unhandled),
                              empty="Every line was understood.", hint="Lines the parser did not map to a table. Review them for features that are not analyzed here."))
     live = {s["group"] for s in out if (s.get("rows") if s["kind"] == "table" else s.get("pairs"))}

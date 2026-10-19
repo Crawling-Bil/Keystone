@@ -779,6 +779,15 @@ class CiscoSwitchTranslator:
 
     def translate_static_route(self, route):
 
+        text = self._static_route_text(route)
+
+        if text and getattr(route, "vrf", "") and text.startswith("ip route "):
+            text = f"ip route vrf {route.vrf} " + text[len("ip route "):]
+
+        return text
+
+    def _static_route_text(self, route):
+
         destination = route.destination
         mask = route.mask
         next_hop = route.next_hop

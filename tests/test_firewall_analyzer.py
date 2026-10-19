@@ -313,6 +313,20 @@ def test_mikrotik_is_reshaped_with_documentation_links():
 
 
 @needs_studio
+def test_mikrotik_not_interpreted_table_shows_lines_without_converter_notes():
+    """The RouterOS parser adds a PAN-OS migration hint to lines it cannot map; the analyzer shows the configuration line only."""
+    config = (
+        "# synthetic\n/system identity\nset name=LAB-RT\n"
+        "/interface wireless security-profiles\nset [ find default=yes ] supplicant-identity=LAB\n"
+        "/ip proxy access\nadd action=deny comment=lab\n"
+    )
+    result = service.analyze(config, "lab.rsc")
+    rows = [r["line"] for r in section_by_id(result, "unhandled")["rows"]]
+    assert any("supplicant-identity=LAB" in line for line in rows)
+    assert not any("PAN-OS" in line or "Palo Alto" in line or " -- " in line for line in rows)
+
+
+@needs_studio
 def test_mikrotik_any_any_rule_and_input_chain_findings():
     samples = _studio_samples()
     result = service.analyze(samples.MIKROTIK_ANY_ANY_CONFIG, "mt.rsc")

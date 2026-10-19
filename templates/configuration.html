@@ -36,6 +36,12 @@
                     <label class="cv-field"><span>Target Vendor</span><select name="target_vendor" id="target-vendor">{% if off %}<option>None yet</option>{% endif %}{% for item in platforms.targets|map(attribute='vendor')|unique %}<option {% if item|lower == default_target %}selected{% endif %}>{{ item|title }}</option>{% endfor %}</select></label>
                 </div>
                 <label class="cv-field" id="target-model-field"><span>{% if domain.key == 'router' and router_models %}Router Model <small>(reference only, conversion not available yet)</small>{% else %}Target Model <small>(optional, checks ports against the real model)</small>{% endif %}</span><select name="target_model" id="target-model">{% if domain.key == 'router' and router_models %}{% for m in router_models %}<option value="{{ m.key }}">{{ m.label }}</option>{% endfor %}{% else %}<option value="">Auto / not sure (skip port check)</option>{% endif %}</select><script type="application/json" id="target-models-by-vendor">{{ target_models_by_vendor | tojson }}</script></label>
+                {% if domain.key == 'switch' %}
+                <div class="cv-row" id="stack-fields">
+                    <label class="cv-field"><span>Stack member <small>(Huawei target; 1 = single switch, N = this file becomes unit N of a stack)</small></span><input type="number" name="stack_member" id="stack-member" min="1" max="9" value="1" inputmode="numeric"></label>
+                    <label class="cv-field"><span>Units in the stack <small>(1 = no stack; 2 or more keeps the stack-link ports free)</small></span><input type="number" name="stack_members" id="stack-members" min="1" max="9" value="1" inputmode="numeric"></label>
+                </div>
+                {% endif %}
                 {% if profiles %}
                 <label class="cv-field"><span>Standard Config Profile</span><select name="profile_key" id="profile-select"><option value="">None (generic conversion only)</option>{% for p in profiles %}<option value="{{ p.key }}" title="{{ p.description }}">{{ p.name }}</option>{% endfor %}</select></label>
                 {% endif %}
@@ -139,13 +145,22 @@
             <div class="panel cv-result-tabs" role="tablist" aria-label="Conversion result views">
                 <button type="button" role="tab" class="cv-result-tab active" data-result-tab="config" aria-selected="true">Configuration</button>
                 <button type="button" role="tab" class="cv-result-tab" data-result-tab="interface-map" aria-selected="false">Interface map <span class="cv-tab-count" id="interface-map-tab-count"></span></button>
+                <button type="button" role="tab" class="cv-result-tab" data-result-tab="preflight" aria-selected="false">Pre-flight <span class="cv-tab-count" id="preflight-tab-count"></span></button>
             </div>
             <section id="interface-map-panel" class="panel im-panel hidden" role="tabpanel" aria-label="Interface map">
                 <div class="panel-heading"><div><h3>Interface map</h3><p id="interface-map-lead">Each source port and the port it becomes on the target.</p></div></div>
+                <div id="interface-map-fit" class="im-fit hidden"></div>
                 <div id="interface-map-warnings" class="im-warnings"></div>
                 <div class="im-summary" id="interface-map-summary"></div>
                 <label class="im-toggle"><input type="checkbox" id="interface-map-show-unused"> Show ports with no configuration</label>
                 <div class="table-wrap im-table"><table id="interface-map-table"></table></div>
+            </section>
+            <section id="preflight-panel" class="panel im-panel hidden" role="tabpanel" aria-label="Pre-flight summary">
+                <div class="panel-heading"><div><h3>Pre-flight</h3><p id="preflight-lead">What converted cleanly, what needs a decision, and what was left out.</p></div></div>
+                <div class="im-summary" id="preflight-summary"></div>
+                <div id="preflight-fit" class="im-fit hidden"></div>
+                <div id="preflight-checks"></div>
+                <div class="table-wrap im-table"><table id="preflight-table"></table></div>
             </section>
             {% endif %}
             <div class="editor-grid" id="config-view">

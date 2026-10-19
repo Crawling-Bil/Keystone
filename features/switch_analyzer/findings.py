@@ -24,7 +24,7 @@ STP_DOC = "https://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst9300/softw
 _CATEGORY = (
     ("SW-LACP", "Port-channel"), ("SW-TRK", "Port-channel"), ("SW-NX-VPC", "Port-channel"), ("SW-NX-LACP", "Port-channel"), ("SW-NX-MEM", "Device health"), ("SW-STP", "Spanning tree"), ("SW-STORM", "Spanning tree"),
     ("SW-AAA", "Management access"), ("SW-USER", "Management access"), ("SW-ENA", "Management access"), ("SW-HTTP", "Management access"),
-    ("SW-SSH", "Management access"), ("SW-SNMP", "Management access"), ("SW-NTP", "Management access"), ("SW-LOG", "Management access"),
+    ("SW-SSH", "Management access"), ("SW-VTY", "Management access"), ("SW-CON", "Management access"), ("SW-TEL", "Management access"), ("SW-FTP", "Management access"), ("SW-MGT", "Management access"), ("SW-SNMP", "Management access"), ("SW-NTP", "Management access"), ("SW-LOG", "Management access"), ("SW-STK", "Redundancy"), ("SW-ARP", "Addressing"),
     ("SW-DHCP", "Layer-2 security"), ("SW-ENV", "Device health"), ("SW-LIC", "Device health"), ("SW-VER", "Device health"),
     ("SW-EVT", "Logs"), ("SW-IF", "Interfaces"), ("SW-CAP", "Capture"), ("SW-INV", "Inventory"),
 )
