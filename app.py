@@ -7,7 +7,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template
 
-from core import auth
+from core import local_guard
 from core.database import initialize, recent_activity
 from core.modules import TOOLS, grouped_tools, health_modules, task_guide
 from features.configuration_studio.routes import bp as configuration_bp, pages_bp as convert_pages_bp
@@ -97,7 +97,7 @@ def create_app() -> Flask:
 
     initialize()
     _sweep_stale_files()
-    auth.register(app)
+    local_guard.register(app)
     app.register_blueprint(configuration_bp)
     app.register_blueprint(convert_pages_bp)
     app.register_blueprint(wireless_bp)

@@ -4,6 +4,24 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ## Unreleased
 
+### Easy start for new users: no login, self-installing start scripts, new README and PANDUAN
+
+No login
+- The shared-password login is gone. A fresh download opens straight to the dashboard: no password in the terminal, no `data/.auth_password`, no lockout. `core/auth.py` and `templates/login.html` are deleted; `/login` and `/logout` no longer exist. `NES_AUTH_PASSWORD` and `NES_DISABLE_AUTH` are ignored (an old `data/.auth_password` file does nothing and can be deleted).
+- New `core/local_guard.py` replaces it with what a login-free localhost tool still needs. It answers only to this computer's names (`localhost`, `127.0.0.1`, `[::1]`; more via `NES_ALLOWED_HOSTS`), which stops DNS rebinding, and it refuses POST, PUT, PATCH and DELETE that another website started (`Sec-Fetch-Site` other than same-origin/none, or an `Origin` that is not the page's own host), which stops cross-site request forgery against routes that take device addresses and SSH credentials. curl, scripts and the test client send neither header and are not affected. `NES_ALLOW_REMOTE=1` turns the Host check off and keeps the cross-site check.
+- `run.py`: the outdated "no authentication" comment is now true again and the messages are plain language. Starting Keystone while it already runs reopens the browser instead of failing; a port held by another program says how to pick another one (`NES_PORT`); a non-numeric `NES_PORT` is explained.
+- `verify_install.py` no longer logs in; it checks that a foreign Host header is refused.
+
+Start scripts
+- `start_windows.bat` and `start_mac_linux.sh` install Keystone on the first start (a missing `.venv` runs the setup), so one double-click or one command is enough.
+- `setup_windows.bat` looks for Python 3.13, 3.12, 3.11, then any 3.11 or newer (`py` launcher, then `python`), and says where to download it when none is found. Both setup scripts fall back to `requirements.txt` when the pinned `requirements-lock.txt` does not install, and print what to try when setup fails (proxy, antivirus, `python3-venv` on Debian or Ubuntu). The macOS/Linux scripts are started with `bash ...` so a ZIP download without the executable bit works. `stop_*` honour `NES_PORT` and say "Keystone", not "NES".
+- New `.gitattributes`: `*.sh` is stored and checked out with LF, `*.bat` and `*.vbs` with CRLF (a shell script with CRLF fails on macOS and Linux with `env: 'bash\r': No such file or directory`).
+
+Documentation
+- README.md and docs/PANDUAN.md: three-step Quick start at the top, what to expect on the first start, a Start and stop table, how to update, Windows SmartScreen and antivirus notes, a longer Troubleshooting table, and a short "Is it safe without a login?" explanation. docs/PRD.md: security rule and architecture diagram updated.
+
+Tests: tests/test_no_login.py (23 tests: pages open without login, no `/login`, guard allows/refuses by Host and Origin, `run.py` bind rules and port handling). The three test files that set `NES_DISABLE_AUTH` no longer do.
+
 ### Convert Switch: target-fit check, pre-flight tab, vPC to VSX, derived M-LAG priority, post-conversion checks
 
 Target fit

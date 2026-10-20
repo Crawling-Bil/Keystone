@@ -1,0 +1,4 @@
+# Keep shell scripts on LF and Windows scripts on CRLF so a download works on every system.
+*.sh  text eol=lf
+*.bat text eol=crlf
+*.vbs text eol=crlf

@@ -17,7 +17,6 @@ GROUPS = ("Source configuration", "Platforms", "Actions", "Batch conversion")
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setenv("NES_DISABLE_AUTH", "1")
     app = create_app()
     app.config["TESTING"] = True
     return app.test_client()

@@ -2,64 +2,65 @@
 
 Panduan ini untuk engineer yang baru pertama kali memakai Keystone. Ringkasan dalam bahasa Inggris ada di [README.md](../README.md).
 
-Keystone adalah aplikasi web lokal. Ia berjalan di laptop Anda sendiri, jadi konfigurasi pelanggan tidak keluar dari mesin Anda. Versi saat ini: 1.11.0.
+Keystone adalah aplikasi web lokal. Ia berjalan di komputer Anda sendiri, jadi konfigurasi pelanggan tidak keluar dari mesin Anda. Tidak ada akun dan tidak ada login: unduh, jalankan, dan browser terbuka. Versi saat ini: 1.11.0.
 
-## 1. Yang dibutuhkan
+## 1. Mulai cepat (3 langkah)
+
+**Windows**
+
+1. Pasang Python 3.12 atau 3.13 dari [python.org](https://www.python.org/downloads/windows/) (sekali saja).
+2. Di halaman GitHub Keystone, tekan tombol hijau **Code**, lalu **Download ZIP** ([langkah dari GitHub](https://docs.github.com/en/repositories/working-with-files/using-files/downloading-source-code-archives)). Klik kanan file ZIP, pilih **Extract All**, lalu buka folder `Keystone` hasil ekstrak.
+3. Klik dua kali **`start_windows.bat`**.
+
+**macOS atau Linux**
+
+1. Pasang Python 3.11 atau lebih baru jika belum ada (macOS: `brew install python@3.12`; Debian atau Ubuntu: `sudo apt install python3 python3-venv python3-pip`).
+2. Unduh dan ekstrak repository, atau jalankan `git clone https://github.com/Crawling-Bil/Keystone.git`.
+3. Di terminal, di dalam folder Keystone, jalankan `bash start_mac_linux.sh`.
+
+Saat dijalankan pertama kali, Keystone memasang semua yang dibutuhkan sendiri. Ini memakan 2 sampai 5 menit dan butuh internet; biarkan jendelanya terbuka. Setelah itu browser terbuka di `http://127.0.0.1:8002`, dan start berikutnya hanya beberapa detik. Biarkan jendela hitam tetap terbuka selama Anda bekerja. Tutup jendela itu (atau tekan Ctrl+C) untuk menghentikan Keystone.
+
+Windows kadang menampilkan "Windows protected your PC" untuk file `.bat` hasil unduhan. Tekan **More info**, lalu **Run anyway**. Isi skripnya teks biasa; buka dengan Notepad jika Anda ingin membacanya dulu.
+
+### Apakah aman tanpa login?
+
+Keystone hanya mendengarkan di komputer Anda sendiri (`127.0.0.1`), jadi mesin lain di jaringan tidak bisa menjangkaunya. Keystone juga menolak permintaan yang dikirim website lain lewat browser Anda. Siapa pun yang sedang login di komputer Anda bisa memakainya, sama seperti program lain di komputer itu. Jangan buka ke jaringan (lihat `NES_ALLOW_REMOTE` di bagian Pengaturan) kecuali jaringannya tepercaya dan terisolasi, karena tool Operate bisa mengirim firmware dan konfigurasi ke perangkat asli.
+
+## 2. Yang dibutuhkan
 
 - Windows, macOS, atau Linux.
-- Python 3.11 atau lebih baru. Di Windows, pasang dari [python.org](https://www.python.org/downloads/) dan biarkan opsi "py launcher" tetap tercentang, karena skrip setup menjalankan Python dengan `py -3`.
-- Koneksi internet saat setup (sekali saja) untuk mengunduh paket di `requirements-lock.txt`.
+- Python 3.11 atau lebih baru. Python 3.12 dipakai oleh test otomatis dan 3.13 juga dicoba; pilih salah satunya jika ada pilihan. Cara kerja installer Python dan perintah `py` di Windows: [Python on Windows](https://docs.python.org/3/using/windows.html).
+- Koneksi internet hanya pada start pertama, untuk mengunduh paket yang tercantum di `requirements-lock.txt`.
+- Browser yang masih baru.
 - Opsional: `dnsmasq`, hanya jika Anda memakai DHCP bawaan ZTP Provisioning (`apt install dnsmasq` atau `brew install dnsmasq`).
 
-## 2. Pasang dan jalankan
+## 3. Menjalankan dan menghentikan
 
-1. Unduh repository (tombol hijau Code, lalu Download ZIP) dan ekstrak, atau clone:
+| | Windows | macOS atau Linux |
+| --- | --- | --- |
+| Jalankan | klik dua kali `start_windows.bat` | `bash start_mac_linux.sh` |
+| Hentikan | tutup jendelanya, atau klik dua kali `stop_windows.bat` | Ctrl+C, atau `bash stop_mac_linux.sh` |
+| Buka halaman lagi | klik dua kali `open_nes.bat`, atau buka `http://127.0.0.1:8002` | buka `http://127.0.0.1:8002` |
+| Pasang ulang atau perbaiki | klik dua kali `setup_windows.bat` | `bash setup_mac_linux.sh` |
+| Periksa instalasi | `.venv\Scripts\python.exe verify_install.py` | `.venv/bin/python verify_install.py` |
 
-   ```bash
-   git clone https://github.com/Crawling-Bil/Keystone.git
-   cd Keystone
-   ```
-
-2. Jalankan setup satu kali. Setup membuat folder `.venv`, memasang paket, lalu menjalankan `verify_install.py`.
-
-   Windows: klik dua kali `setup_windows.bat`. Tunggu sampai jendela berhenti dan meminta Anda menekan tombol.
-
-   macOS atau Linux:
-
-   ```bash
-   ./setup_mac_linux.sh
-   ```
-
-   Jika `python3` Anda lebih lama dari 3.11: `PYTHON_BIN=python3.12 ./setup_mac_linux.sh`.
-
-3. Jalankan Keystone.
-
-   Windows: klik dua kali `start_windows.bat`.
-
-   macOS atau Linux:
-
-   ```bash
-   ./start_mac_linux.sh
-   ```
-
-   Browser terbuka di `http://127.0.0.1:8002`. Jika tidak, buka alamat itu sendiri (di Windows, `open_nes.bat` membukanya).
-
-4. Login. Saat pertama kali dijalankan, Keystone membuat password, menampilkannya di jendela terminal dengan judul "Keystone login password", dan menyimpannya di `data/.auth_password`. Untuk memakai password sendiri, set `NES_AUTH_PASSWORD` sebelum start.
-
-5. Hentikan dengan Ctrl+C di jendela terminalnya, atau jalankan `stop_windows.bat` / `./stop_mac_linux.sh`.
+Jika Keystone dijalankan saat ia sudah berjalan, ia hanya membuka browser lagi dan tidak error.
 
 Jika antivirus atau kebijakan perusahaan memblokir skrip, jalankan langkahnya manual dari folder Keystone. Windows:
 
 ```bat
 py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-lock.txt
-.venv\Scripts\python.exe verify_install.py
 .venv\Scripts\python.exe run.py
 ```
 
 Di macOS atau Linux ganti `.venv\Scripts\python.exe` dengan `.venv/bin/python` dan `py -3` dengan `python3`.
 
-## 3. Memilih tool
+## 4. Memperbarui ke versi baru
+
+Dengan git: `git pull`, lalu jalankan file setup sekali (`setup_windows.bat` atau `bash setup_mac_linux.sh`) kalau-kalau daftar paket berubah. Dengan ZIP: unduh ZIP baru, ekstrak ke folder baru, dan salin folder `data` lama ke dalamnya jika Anda ingin riwayat aktivitas tetap ada. Lalu jalankan file setup sekali.
+
+## 5. Memilih tool
 
 | Kebutuhan | Tool | File yang diunggah |
 | --- | --- | --- |
@@ -75,7 +76,7 @@ Di macOS atau Linux ganti `.venv\Scripts\python.exe` dengan `.venv/bin/python` d
 
 Halaman Convert untuk Wireless, Router, dan Load Balancer belum punya converter. Halamannya menjelaskan apa yang dibutuhkan dan mengarahkan ke analyzer yang sesuai.
 
-## 4. Analisa pertama (sekitar lima menit)
+## 6. Analisa pertama (sekitar lima menit)
 
 1. Buka **Switch Analyzer**, pilih tab **Collect Backup**.
 2. Unduh daftar perintah untuk platform Anda: Cisco Catalyst, Cisco Nexus, Aruba Switch, Aruba CX, Huawei S/L/E-series, atau Huawei H-series. Atau tekan **Copy commands** dan tempel ke sesi SSH atau console.
@@ -89,7 +90,7 @@ Tab **Coverage** di Switch Analyzer menunjukkan perintah mana yang ditemukan di 
 
 Jika file Anda milik tool lain (misalnya capture router di halaman Switch), Keystone tidak memaksanya lewat parser yang salah. Halaman akan menyebut analyzer yang tepat.
 
-## 5. Konversi konfigurasi switch
+## 7. Konversi konfigurasi switch
 
 1. Buka **Convert**, lalu **Switch**.
 2. Pilih file konfigurasi atau tempel isinya. Source Vendor boleh tetap Auto Detect.
@@ -104,50 +105,53 @@ Jika file Anda milik tool lain (misalnya capture router di halaman Switch), Keys
 
 Beberapa file atau satu ZIP bisa dikonversi sekaligus lewat **batch conversion**. Aturan converter ada di [modules/configuration-studio.md](modules/configuration-studio.md).
 
-## 6. Tool yang mengubah perangkat
+## 8. Tool yang mengubah perangkat
 
 Lifecycle Manager, Config Push, dan ZTP Provisioning menulis ke perangkat asli. Run sungguhan hanya mendukung Huawei VRP; vendor lain berjalan di demo mode. Upgrade firmware dan Config Push menjalankan pre-check dan mengambil backup konfigurasi di sekitar job. Latihan dulu dengan Demo Mode. Config Backup dan Live Logs hanya membaca. Baca [modules/lifecycle-manager.md](modules/lifecycle-manager.md) sebelum job sungguhan pertama.
 
-## 7. Pengaturan
+## 9. Pengaturan (opsional)
 
-Set sebagai environment variable sebelum menjalankan Keystone.
+Anda tidak perlu mengubah apa pun di sini. Set sebagai environment variable sebelum menjalankan Keystone.
 
 | Variabel | Default | Arti |
 | --- | --- | --- |
 | `NES_PORT` | `8002` | Port yang dipakai |
 | `NES_HOST` | `127.0.0.1` | Alamat yang didengarkan. Selain localhost juga butuh `NES_ALLOW_REMOTE=1` |
-| `NES_ALLOW_REMOTE` | tidak diset | Isi `1` agar mesin lain bisa terhubung. Hanya di jaringan terisolasi yang tepercaya: login hanya satu password bersama |
-| `NES_AUTH_PASSWORD` | dibuat otomatis | Password login Anda sendiri |
-| `NES_DISABLE_AUTH` | tidak diset | Isi `1` untuk mematikan login, hanya untuk pengembangan lokal |
+| `NES_ALLOW_REMOTE` | tidak diset | Isi `1` agar mesin lain bisa terhubung. Tidak ada login, jadi hanya di jaringan terisolasi yang tepercaya |
+| `NES_ALLOWED_HOSTS` | tidak diset | Nama host tambahan yang boleh dijawab Keystone, dipisah koma |
 | `NES_OPEN_BROWSER` | `1` | Isi `0` agar browser tidak terbuka otomatis |
-| `NES_SECRET_KEY` | dibuat otomatis | Kunci penandatangan sesi |
+| `NES_SECRET_KEY` | dibuat otomatis | Kunci penandatangan cookie |
 
-Di Windows, buka Command Prompt di folder Keystone, jalankan misalnya `set NES_PORT=8010`, lalu `start_windows.bat`. Variabel yang diset dengan cara ini hanya berlaku untuk jendela itu.
+Di Windows, buka Command Prompt di folder Keystone, jalankan misalnya `set NES_PORT=8010`, lalu `start_windows.bat`. Variabel yang diset dengan cara ini hanya berlaku untuk jendela itu. Di macOS atau Linux: `NES_PORT=8010 bash start_mac_linux.sh`.
 
-## 8. Masalah umum
+## 10. Masalah umum
 
 | Yang terlihat | Yang dilakukan |
 | --- | --- |
-| `py` is not recognized (Windows) | Pasang Python 3.11 atau lebih baru dari python.org dengan py launcher, lalu jalankan `setup_windows.bat` lagi |
-| "Python 3 was not found" (macOS/Linux) | Pasang Python 3.11 atau lebih baru, atau jalankan `PYTHON_BIN=python3.12 ./setup_mac_linux.sh` |
-| Setup berhenti saat memasang paket | Periksa internet dan proxy (pip membaca `HTTPS_PROXY`), lalu jalankan setup lagi |
-| `start_windows.bat` meminta setup dulu | Folder `.venv` tidak ada. Jalankan `setup_windows.bat` |
-| Port 8002 sudah dipakai | Jalankan `stop_windows.bat` / `./stop_mac_linux.sh`, atau pakai port lain dengan `NES_PORT=8010` |
-| Lupa password | Buka `data/.auth_password`. Atau set `NES_AUTH_PASSWORD` lalu restart |
-| "Too many attempts" saat login | Lima kali salah mengunci login 60 detik. Tunggu, lalu coba lagi |
+| "Python 3.11 or newer was not found" | Pasang Python dari [python.org](https://www.python.org/downloads/), lalu klik dua kali `setup_windows.bat` lagi (macOS atau Linux: `bash setup_mac_linux.sh`). Untuk memilih satu Python: `PYTHON_BIN=python3.12 bash setup_mac_linux.sh` |
+| "Windows protected your PC" | Tekan **More info**, lalu **Run anyway** |
+| Setup berhenti saat memasang paket | Periksa internet dan proxy perusahaan (pip membaca `HTTPS_PROXY`), lalu jalankan file setup lagi |
+| Antivirus menghapus atau memblokir skrip | Izinkan folder Keystone, atau pakai perintah manual di bagian Menjalankan dan menghentikan |
+| "Could not create the private Python folder" (Debian atau Ubuntu) | `sudo apt install python3-venv python3-pip`, lalu jalankan setup lagi |
+| `bash: ... No such file` atau error `\r` aneh di macOS/Linux | Skrip memakai akhir baris Windows. Jalankan `sed -i 's/\r$//' *.sh` (macOS: `sed -i '' 's/\r$//' *.sh`) di folder Keystone |
+| "Port 8002 is already used by another program" | Port dipakai program lain. Jalankan Keystone di port lain dengan `NES_PORT=8010` (lihat Pengaturan) |
+| "Keystone is already running" | Memang sudah berjalan. Browser dibuka lagi; pakai tab itu |
 | Browser tidak terbuka | Buka `http://127.0.0.1:8002` sendiri |
-| "Refusing to bind to" | `NES_HOST` diisi alamat non-lokal. Isi `NES_ALLOW_REMOTE=1` hanya jika Anda menerima risikonya |
+| "Keystone only answers on this computer's own addresses" | Anda membukanya dengan nama atau alamat lain. Pakai `http://127.0.0.1:8002` atau `http://localhost:8002` |
+| "Refusing to listen on ..." | `NES_HOST` diisi alamat non-lokal. Hapus, atau isi juga `NES_ALLOW_REMOTE=1` jika Anda menerima risikonya |
+| "Keystone refused a request that another website started" | Halaman selain Keystone mencoba mengirim permintaan. Tutup tab itu dan pakai tab Keystone |
 | Analyzer bilang file tidak dikenali | Pakai analyzer yang sesuai, atau kumpulkan ulang output dengan daftar perintah di tab Collect Backup |
+| Hasil terlihat kurang lengkap | Kumpulkan dengan daftar perintah lengkap untuk platformnya. Tab Coverage di Switch Analyzer menunjukkan perintah mana yang ditemukan |
 | DHCP bawaan ZTP tidak jalan | Pasang `dnsmasq` dan jalankan Keystone dengan hak administrator atau root; DHCP memakai port istimewa |
-| Setup selesai tapi ada yang gagal | Jalankan `.venv/bin/python verify_install.py` (Windows: `.venv\Scripts\python.exe verify_install.py`) dan baca hasilnya |
+| Setup selesai tapi ada yang gagal | Jalankan pemeriksaan di bagian Menjalankan dan menghentikan dan baca hasilnya |
 
-## 9. Data Anda
+## 11. Data Anda
 
 - File unggahan, ekspor, log, dan setting yang dibuat otomatis tersimpan di `data/`, `uploads/`, `exports/`, dan `logs/` di dalam folder Keystone. Folder itu sengaja diabaikan oleh git.
 - Jangan pernah commit capture pelanggan atau kredensial asli. Test memakai file sintetis saja.
 - Keystone tidak mengirim konfigurasi ke layanan eksternal.
 
-## 10. Dokumen lain
+## 12. Dokumen lain
 
 - [PRD.md](PRD.md): scope, vendor yang didukung, roadmap
 - [modules/configuration-studio.md](modules/configuration-studio.md): cara kerja Convert, Nexus, stack, katalog hardware
