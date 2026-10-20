@@ -1,8 +1,32 @@
 # Keystone
 
-Keystone is a local web tool for network engineers. It reads device captures and builds assessment reports, converts configurations between vendors, and runs firmware and configuration jobs on switches. It runs on your own laptop, so customer configurations never leave your machine.
+Keystone is a local web tool for network engineers. It reads device captures and builds assessment reports, converts configurations between vendors, and runs firmware and configuration jobs on switches. It runs on your own computer, so customer configurations never leave your machine.
 
 Current version: 1.11.0. Indonesian guide: [docs/PANDUAN.md](docs/PANDUAN.md).
+
+## Quick start
+
+There is no account and no login. You download it, start it, and the browser opens.
+
+**Windows**
+
+1. Install Python 3.12 or 3.13 from [python.org](https://www.python.org/downloads/windows/) (once).
+2. On this page press the green **Code** button, then **Download ZIP** ([GitHub's steps](https://docs.github.com/en/repositories/working-with-files/using-files/downloading-source-code-archives)). Right-click the ZIP, choose **Extract All**, and open the extracted `Keystone` folder.
+3. Double-click **`start_windows.bat`**.
+
+**macOS or Linux**
+
+1. Install Python 3.11 or newer if you do not have it (macOS: `brew install python@3.12`, Debian or Ubuntu: `sudo apt install python3 python3-venv python3-pip`).
+2. Download and unzip the repository, or run `git clone https://github.com/Crawling-Bil/Keystone.git`.
+3. In a terminal, in the Keystone folder, run `bash start_mac_linux.sh`.
+
+The first start installs everything it needs by itself. That takes 2 to 5 minutes and needs internet; keep the window open. After that, Keystone opens in your browser at `http://127.0.0.1:8002` and every later start takes a few seconds. Leave the black window open while you work, and close it (or press Ctrl+C) to stop Keystone.
+
+Windows may show "Windows protected your PC" for a downloaded `.bat` file. Press **More info**, then **Run anyway**. The scripts are plain text; open them in Notepad if you want to read them first.
+
+### Is it safe without a login?
+
+Keystone only listens on your own computer (`127.0.0.1`), so another machine on the network cannot reach it, and it also refuses requests that another website tries to send to it from your browser. Anyone who is signed in to your computer can use it, the same as any other program on it. Do not expose it on a network (see `NES_ALLOW_REMOTE` in Settings) unless that network is trusted and isolated, because the Operate tools can push firmware and configuration to real devices.
 
 ## What it does
 
@@ -22,58 +46,36 @@ Current version: 1.11.0. Indonesian guide: [docs/PANDUAN.md](docs/PANDUAN.md).
 ## Requirements
 
 - Windows, macOS or Linux.
-- Python 3.11 or newer. On Windows install it from [python.org](https://www.python.org/downloads/) and keep the "py launcher" option selected, because the setup script starts Python with `py -3`.
-- Internet access during setup, once, to download the packages in `requirements-lock.txt`.
-- A current browser. Keystone listens on your own machine at `http://127.0.0.1:8002`.
+- Python 3.11 or newer. Python 3.12 is what the automatic tests use and 3.13 is also tried; take one of those if you have a choice. Download: [python.org](https://www.python.org/downloads/). How the Windows installer and the `py` command work: [Python on Windows](https://docs.python.org/3/using/windows.html).
+- Internet access on the first start only, to download the packages listed in `requirements-lock.txt`.
+- A current browser.
 - Optional: `dnsmasq`, only if you use the built-in DHCP server of ZTP Provisioning (`apt install dnsmasq` or `brew install dnsmasq`).
 
-## Install
+## Start and stop
 
-1. Download the repository (green Code button, then Download ZIP) and unzip it, or clone it:
+| | Windows | macOS or Linux |
+| --- | --- | --- |
+| Start | double-click `start_windows.bat` | `bash start_mac_linux.sh` |
+| Stop | close the window, or double-click `stop_windows.bat` | Ctrl+C, or `bash stop_mac_linux.sh` |
+| Open the page again | double-click `open_nes.bat`, or go to `http://127.0.0.1:8002` | go to `http://127.0.0.1:8002` |
+| Install again or repair | double-click `setup_windows.bat` | `bash setup_mac_linux.sh` |
+| Check the installation | `.venv\Scripts\python.exe verify_install.py` | `.venv/bin/python verify_install.py` |
 
-   ```bash
-   git clone https://github.com/Crawling-Bil/Keystone.git
-   cd Keystone
-   ```
+If you start Keystone while it is already running, it just reopens the browser instead of failing.
 
-2. Run setup once. It creates a private `.venv` folder, installs the pinned packages and runs `verify_install.py`.
-
-   Windows: double-click `setup_windows.bat`. Wait until the window stops and asks you to press a key; scroll up if you want to read the check result.
-
-   macOS or Linux:
-
-   ```bash
-   ./setup_mac_linux.sh
-   ```
-
-   If `python3` is older than 3.11, point the script at a newer one: `PYTHON_BIN=python3.12 ./setup_mac_linux.sh`.
-
-3. Start Keystone.
-
-   Windows: double-click `start_windows.bat`.
-
-   macOS or Linux:
-
-   ```bash
-   ./start_mac_linux.sh
-   ```
-
-   The browser opens at `http://127.0.0.1:8002`. If it does not, open that address yourself (on Windows `open_nes.bat` does it).
-
-4. Log in. The first start generates a password, prints it in the terminal window under the heading "Keystone login password", and saves it to `data/.auth_password`. Use your own password instead by setting `NES_AUTH_PASSWORD` before you start.
-
-5. Stop Keystone with Ctrl+C in its terminal window, or run `stop_windows.bat` / `./stop_mac_linux.sh`.
-
-If your security software blocks the scripts, run the same steps by hand from the Keystone folder. On Windows:
+If your security software blocks the scripts, do the same by hand from the Keystone folder. On Windows:
 
 ```bat
 py -3 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-lock.txt
-.venv\Scripts\python.exe verify_install.py
 .venv\Scripts\python.exe run.py
 ```
 
 On macOS or Linux replace `.venv\Scripts\python.exe` with `.venv/bin/python` and `py -3` with `python3`.
+
+## Update to a newer version
+
+With git: `git pull`, then run the setup file once (`setup_windows.bat` or `bash setup_mac_linux.sh`) in case the package list changed. With a ZIP: download the new ZIP, extract it to a new folder, and copy the old `data` folder into it if you want to keep your activity history. Then run the setup file once.
 
 ## Your first analysis (five minutes)
 
@@ -106,39 +108,41 @@ Several files or a ZIP can be converted in one go with **batch conversion**. Det
 
 Lifecycle Manager, Config Push and ZTP Provisioning write to real devices. Real runs support Huawei VRP only; other vendors run in demo mode. Firmware upgrade and Config Push run a pre-check and take a configuration backup around the job. Use Demo Mode to rehearse first. Config Backup and Live Logs are read-only. Read [docs/modules/lifecycle-manager.md](docs/modules/lifecycle-manager.md) before the first real job.
 
-## Settings
+## Settings (optional)
 
-Set these as environment variables before you start Keystone.
+You do not need any of these. Set them as environment variables before you start Keystone.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `NES_PORT` | `8002` | Port to listen on |
 | `NES_HOST` | `127.0.0.1` | Address to listen on. Anything other than localhost also needs `NES_ALLOW_REMOTE=1` |
-| `NES_ALLOW_REMOTE` | unset | Set to `1` to allow another machine to connect. Only on a trusted, isolated network: the login is a single shared password |
-| `NES_AUTH_PASSWORD` | generated | Your own login password |
-| `NES_DISABLE_AUTH` | unset | Set to `1` to turn the login off, for local development only |
+| `NES_ALLOW_REMOTE` | unset | Set to `1` to let another machine connect. There is no login, so only on a trusted, isolated network |
+| `NES_ALLOWED_HOSTS` | unset | Extra host names Keystone should answer to, separated by commas |
 | `NES_OPEN_BROWSER` | `1` | Set to `0` to stop the browser opening at start |
-| `NES_SECRET_KEY` | generated | Session signing key |
+| `NES_SECRET_KEY` | generated | Signing key for cookies |
 
-On Windows, open Command Prompt in the Keystone folder, run for example `set NES_PORT=8010`, then `start_windows.bat`. Variables set that way last only for that window.
+On Windows, open Command Prompt in the Keystone folder, run for example `set NES_PORT=8010`, then `start_windows.bat`. Variables set that way last only for that window. On macOS or Linux: `NES_PORT=8010 bash start_mac_linux.sh`.
 
 ## Troubleshooting
 
 | What you see | What to do |
 | --- | --- |
-| `py` is not recognized (Windows) | Install Python 3.11 or newer from python.org with the py launcher, then run `setup_windows.bat` again |
-| "Python 3 was not found" (macOS/Linux) | Install Python 3.11 or newer, or run `PYTHON_BIN=python3.12 ./setup_mac_linux.sh` |
-| Setup stops while installing packages | Check internet access and any proxy (pip reads `HTTPS_PROXY`), then run setup again |
-| `start_windows.bat` says to run setup first | The `.venv` folder is missing. Run `setup_windows.bat` |
-| Port 8002 is already in use | Run `stop_windows.bat` / `./stop_mac_linux.sh`, or start on another port with `NES_PORT=8010` |
-| Forgot the password | Open `data/.auth_password`. Or set `NES_AUTH_PASSWORD` and restart |
-| "Too many attempts" at login | Five wrong passwords lock the login for 60 seconds. Wait, then try again |
+| "Python 3.11 or newer was not found" | Install Python from [python.org](https://www.python.org/downloads/), then double-click `setup_windows.bat` (macOS or Linux: `bash setup_mac_linux.sh`) again. To pick one Python: `PYTHON_BIN=python3.12 bash setup_mac_linux.sh` |
+| "Windows protected your PC" | Press **More info**, then **Run anyway** |
+| Setup stops while installing packages | Check internet access and any company proxy (pip reads `HTTPS_PROXY`), then run the setup file again |
+| Antivirus deletes or blocks a script | Allow the Keystone folder, or use the manual commands in Start and stop |
+| "Could not create the private Python folder" (Debian or Ubuntu) | `sudo apt install python3-venv python3-pip`, then run setup again |
+| `bash: ... No such file` or strange `\r` errors on macOS/Linux | The script has Windows line endings. Run `sed -i 's/\r$//' *.sh` (macOS: `sed -i '' 's/\r$//' *.sh`) in the Keystone folder |
+| "Port 8002 is already used by another program" | Another program owns the port. Start on a different port with `NES_PORT=8010` (see Settings) |
+| "Keystone is already running" | It is. The browser reopens; use that tab |
 | Browser does not open | Go to `http://127.0.0.1:8002` yourself |
-| Refusing to bind to an address | You set `NES_HOST` to a non-local address. Set `NES_ALLOW_REMOTE=1` only if you accept the risk |
+| "Keystone only answers on this computer's own addresses" | You opened it with a different name or address. Use `http://127.0.0.1:8002` or `http://localhost:8002` |
+| "Refusing to listen on ..." | `NES_HOST` is set to a non-local address. Remove it, or also set `NES_ALLOW_REMOTE=1` if you accept the risk |
+| "Keystone refused a request that another website started" | A page other than Keystone tried to send a request. Close that tab and use the Keystone tab |
 | An analyzer says the file is not recognised | Use the matching analyzer, or collect the output again with the command list from the Collect Backup tab |
 | Results look incomplete | Collect with the full command list for the platform. The Coverage tab of the Switch Analyzer shows which commands were found |
 | ZTP built-in DHCP does not start | Install `dnsmasq` and run Keystone with administrator or root rights; DHCP uses a privileged port |
-| Setup finished but something fails later | Run `.venv/bin/python verify_install.py` (Windows: `.venv\Scripts\python.exe verify_install.py`) and read what it reports |
+| Setup finished but something fails later | Run the check in Start and stop and read what it reports |
 
 ## Your data
 
@@ -161,7 +165,7 @@ pip install -r requirements.txt pytest
 python -m pytest -q
 ```
 
-The tool list lives in `core/modules.py`. To add a module, register its blueprint in `app.py` and add an entry there. Adding a converter is described in `docs/modules/configuration-studio.md`.
+The tool list lives in `core/modules.py`. To add a module, register its blueprint in `app.py` and add an entry there. Adding a converter is described in `docs/modules/configuration-studio.md`. `core/local_guard.py` is the small guard that keeps other websites from calling Keystone; keep new routes behind the same app so they get it.
 
 ## License
 

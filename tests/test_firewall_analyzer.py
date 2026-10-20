@@ -356,8 +356,6 @@ def test_palo_alto_weak_ipsec_cites_palo_alto_documentation():
 # ------------------------------------------------------------------------ app wiring
 class FirewallAnalyzerRouteTests(unittest.TestCase):
     def setUp(self):
-        os.environ["NES_DISABLE_AUTH"] = "1"
-        self.addCleanup(os.environ.pop, "NES_DISABLE_AUTH", None)
         import app as nes_app
 
         self.client = nes_app.create_app().test_client()

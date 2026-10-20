@@ -110,7 +110,7 @@ Setiap fitur masuk satu dari tiga kelas risiko. Fitur baru tidak boleh dirilis s
 **Aturan lintas kelas**
 
 - Server default hanya bind ke `127.0.0.1`. Akses remote harus diaktifkan eksplisit lewat `NES_ALLOW_REMOTE`.
-- Login gate aktif di semua route kecuali `/api/health`, dengan lockout setelah beberapa percobaan password gagal.
+- Tidak ada login. Karena server hanya bind ke `127.0.0.1`, hanya program di komputer yang sama yang bisa terhubung. `core/local_guard.py` menjawab hanya nama host milik komputer itu (`localhost`, `127.0.0.1`, `[::1]`) dan menolak POST/PUT/PATCH/DELETE yang dimulai website lain (cek `Host`, `Origin`, dan `Sec-Fetch-Site`), sehingga DNS rebinding dan CSRF dari browser tidak bisa menjalankan tool.
 - Platform baru masuk kelas R2 hanya setelah satu kali uji end-to-end di hardware cadangan, dicatat di bagian status validasi.
 
 ## Kebutuhan non-fungsional
@@ -118,9 +118,9 @@ Setiap fitur masuk satu dari tiga kelas risiko. Fitur baru tidak boleh dirilis s
 | Area | Kebutuhan |
 | --- | --- |
 | Local-first | Berjalan penuh tanpa internet. Font, ikon, dan library UI dibundel lokal, tanpa CDN. |
-| Platform | Windows, macOS, dan Linux dengan Python 3. Installer satu klik (`setup_*`, `start_*`, `stop_*`). |
+| Platform | Windows, macOS, dan Linux dengan Python 3. Satu klik: `start_*` memasang dirinya sendiri pada start pertama (`setup_*` untuk pasang ulang, `stop_*` untuk berhenti). |
 | Data handling | Data runtime (credential, secret key, backup, firmware) tidak pernah masuk git. File export dan upload lebih dari 30 hari dibersihkan otomatis saat startup. |
-| Keamanan | Secret key dan password login dibuat acak saat instalasi pertama. Credential perangkat tidak ditampilkan ulang di log maupun export. |
+| Keamanan | Tanpa login, hanya lokal. Secret key dibuat acak saat instalasi pertama. Credential perangkat tidak ditampilkan ulang di log maupun export. |
 | Keandalan | Satu command atau satu perangkat yang gagal tidak menghentikan job batch. Error ditampilkan per perangkat, bukan sebagai crash halaman. |
 | Performa | Analisa satu capture selesai dalam hitungan detik di laptop standar. Upgrade paralel beberapa perangkat dalam satu job. |
 | Aksesibilitas | Navigasi keyboard, focus state terlihat, kontras WCAG AA, dukungan reduced motion. Status tidak hanya dibedakan dengan warna. |
@@ -133,7 +133,7 @@ Keystone adalah satu aplikasi Flask yang dijalankan di laptop engineer. Modul An
 ```mermaid
 flowchart TB
     UI["Browser UI: Jinja templates, static JS, SPA router"]
-    APP["Flask app di 127.0.0.1:8002 (Waitress)<br/>Login gate · Module registry · Activity log (SQLite)"]
+    APP["Flask app di 127.0.0.1:8002 (Waitress)<br/>Local guard · Module registry · Activity log (SQLite)"]
     AN["Analyze<br/>Wireless, Switch, Router, Firewall, Load Balancer<br/>shared analyzer_core"]
     CV["Convert<br/>Configuration Studio<br/>parsers + translators per vendor"]
     OP["Operate<br/>Lifecycle Manager, Config Push, Backup, Live Logs<br/>vendor drivers, ZTP DHCP/SFTP"]

@@ -72,26 +72,19 @@ def rerun_in_venv() -> int | None:
 def run_smoke_tests() -> list[str]:
     errors: list[str] = []
 
-    # core/auth.py fronts every route with a shared-password login gate.
-    # This script is verifying that a fresh install's features work, not
-    # exercising that gate, so pin a private password for this run (via
-    # NES_AUTH_PASSWORD) unless the environment already disables auth or
-    # sets its own -- then log the test client in before touching any
-    # protected route, instead of every route failing on a login redirect.
-    auth_disabled = os.environ.get("NES_DISABLE_AUTH", "").strip() == "1"
-    login_password = os.environ.setdefault("NES_AUTH_PASSWORD", "keystone-verify-install")
-
+    # Keystone has no login: it answers only requests that come from this
+    # computer.  The smoke test therefore opens the pages directly and also
+    # proves the localhost guard (core/local_guard.py) is switched on.
     try:
         from app import app
 
         client = app.test_client()
 
-        if not auth_disabled:
-            login_response = client.post("/login", data={"password": login_password})
-            if login_response.status_code != 302:
-                errors.append(
-                    f"Login smoke test failed: /login returned {login_response.status_code}"
-                )
+        guard_response = client.get("/api/health", base_url="http://not-this-computer.example")
+        if os.environ.get("NES_ALLOW_REMOTE") != "1" and guard_response.status_code != 403:
+            errors.append(
+                f"Localhost guard test failed: a foreign Host header returned {guard_response.status_code}, expected 403"
+            )
 
         for path in ("/", "/convert/switch", "/convert/firewall", "/convert/router", "/wireless", "/switch-analyzer", "/lifecycle/", "/api/health"):
             response = client.get(path)
@@ -241,7 +234,7 @@ def main() -> int:
     if rerun is not None:
         return rerun
 
-    print("Network Engineer Suite Web installation verification")
+    print("Keystone installation verification")
     print("=" * 58)
     errors: list[str] = []
 
