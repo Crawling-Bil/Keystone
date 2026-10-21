@@ -4,6 +4,26 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ## Unreleased
 
+### Convert Firewall: guided conversion, PAN-OS reference checks, IKE/IPsec syntax fix
+
+Guided conversion (MikroTik RouterOS to Palo Alto)
+- New "Guided Conversion (step by step)" button on Convert Firewall. Ten steps in dependency order: Target, Interfaces, Zones, Routing, Objects, NAT, Security policy, VPN, Services, Review & export. Each step is checked when you press "Validate & continue"; the next step opens only when the step has no errors and its warnings are acknowledged. Download is refused until every step passes.
+- Interfaces step: source port, detected role (INET from DHCP client, masquerade egress, default-route next hop or public address; LAN from DHCP server, bridge membership or private address), addresses and a target-port dropdown built from the target model. Swapping LAN and INET is two dropdown changes; zones, NAT egress, MSS, virtual router and IKE local interface follow. Source-side checks: an in-use port with no target (MAP-UNMAPPED), two sources on one port (MAP-DUP), a port the model lacks (MAP-PORT-MISSING), and a renumber list for the cutover (MAP-RENUMBER).
+- Zones step: one zone per interface. A bridge member port is layer2 and takes its bridge's zone, so a renamed bridge zone also reaches rules written on a member port. A rule on a RouterOS interface list uses the zones of the list's members (`from [ A B ]` when they were split).
+- VPN step: local interface per IKE gateway, zone and tunnel.N per tunnel.
+- `converter_engine/wizard/pan_validator.py` reads the generated set commands back and reports what does not resolve or would not commit: undefined interfaces, zones, address objects, services, IKE/IPsec profiles and gateways; an interface in two zones; layer2/layer3 zone mismatch; overlapping subnets; ports beyond the target model; invalid names; NAT with several destination zones or `!` negation; IKE gateway without local interface; non-PAN-OS algorithm keywords; plus warnings (weak crypto, placeholder PSK, unreachable next hop, ECMP, shadowed and any-any rules, NAT egress without address). It cannot replace `validate full` on a firewall, and the export header says so.
+- Sessions live under `uploads/configuration/wizard/<token>` and are removed after a day. API: `POST /configuration/api/wizard/start`, `POST /configuration/api/wizard/<token>/validate`, `GET /configuration/api/wizard/<token>/download`.
+
+Translator fixes (all conversions, not only the wizard)
+- IKE and IPsec now use the PAN-OS CLI paths, which follow the configuration XML: `network ike crypto-profiles ike-crypto-profiles`, `network ike crypto-profiles ipsec-crypto-profiles`, `network ike gateway`, and `auto-key proxy-id` under the tunnel. The old `network ike-gateway`, `network ike-crypto-profile`, `network ipsec-crypto-profile` and `proxy-id` without `auto-key` are rejected by PAN-OS.
+- Encryption names are PAN-OS keywords (`aes-256` becomes `aes-256-cbc`); lifetimes use the largest exact unit (`lifetime days 1` instead of `lifetime-seconds 86400`, which is above the 65535 limit); `protocol version` is written; `peer-address ip` drops `/32`; `passive-mode` sits under `protocol-common`.
+- An IKE gateway is bound to the interface that owns the RouterOS `local-address` (`local-address interface ethernet1/N` plus `local-address ip`), or to the interface picked in the VPN step. When neither exists it is REVIEW-flagged instead of writing a bare `local-address ip` PAN-OS refuses.
+- A tunnel with a zone also gets `set network interface tunnel units tunnel.N` before it is referenced.
+- A NAT rule whose RouterOS match used `!address` no longer writes the `!` into the PAN-OS address field (refused at commit even on a disabled rule); the rule stays disabled and reviewed.
+- The PAN-OS set parser (Firewall Analyzer) reads both the new and the old IKE syntax, bracketed algorithm lists, `lifetime <unit> N`, gateway version/local-address/passive-mode, and `network interface tunnel units`.
+
+Tests: tests/test_firewall_wizard.py (18 tests: IKE paths, gateway binding and swap, NAT negation, parser round trip, validator references and commit blockers, roles, swap consistency, gating, API refusal and export). test_routeros_real_world and test_paloalto_firewall_parser updated for the new syntax.
+
 ### Topology Builder 0.5: logical IP view, neighbors from ARP and descriptions, endpoint options, label placement
 
 - New view "Logical IP view only" (`features/topology/iplogical.py`): devices that share a subnet are joined by a line labelled with interface and address at each end; shared VLAN subnets are yellow ovals; pairs that share many subnets are one "N shared subnets" line; every device with two or more interface addresses gets a table (interface, description, address, VRF, state) under the diagram, in the SVG, the HTML report and as HTML-table cells in draw.io. Loopbacks, /32, management and shut-down interfaces are not links.

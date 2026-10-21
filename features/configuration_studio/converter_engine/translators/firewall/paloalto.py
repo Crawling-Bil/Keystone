@@ -87,6 +87,75 @@ _PFS_GROUP_MAP = {
 }
 
 
+# Mikrotik IKE/ESP algorithm names -> PAN-OS keywords. PAN-OS only knows
+# the CBC/GCM-suffixed AES names; a bare "aes-256" is rejected at commit.
+_PAN_ENCRYPTION = {
+    "aes-128": "aes-128-cbc", "aes-192": "aes-192-cbc", "aes-256": "aes-256-cbc",
+    "aes-128-cbc": "aes-128-cbc", "aes-192-cbc": "aes-192-cbc", "aes-256-cbc": "aes-256-cbc",
+    "aes-128-ctr": "aes-128-cbc", "aes-192-ctr": "aes-192-cbc", "aes-256-ctr": "aes-256-cbc",
+    "aes-128-gcm": "aes-128-gcm", "aes-256-gcm": "aes-256-gcm",
+    "3des": "3des", "des": "des", "null": "null",
+}
+_PAN_HASH = {"md5": "md5", "sha1": "sha1", "sha256": "sha256", "sha384": "sha384", "sha512": "sha512"}
+PAN_ENCRYPTION_KEYWORDS = frozenset(_PAN_ENCRYPTION.values())
+PAN_HASH_KEYWORDS = frozenset(_PAN_HASH.values()) | {"none"}
+
+_IFACE_IP_RE = re.compile(
+    r'^set network interface (?:ethernet (\S+) layer3 ip|ethernet (\S+\.\d+) ip|vlan units (vlan\.\d+) ip|'
+    r'loopback units (loopback\.\d+) ip|ethernet (\S+) layer3 units (\S+) ip) (\S+)$'
+)
+
+
+def _algorithm_list(value, table):
+    names = []
+    for raw in re.split(r'[,\s]+', str(value or "").strip().lower()):
+        if not raw:
+            continue
+        names.append(table.get(raw, raw))
+    unique = list(dict.fromkeys(names))
+    if not unique:
+        return ""
+    return unique[0] if len(unique) == 1 else "[ " + " ".join(unique) + " ]"
+
+
+def _pan_encryption_list(value):
+    return _algorithm_list(value, _PAN_ENCRYPTION)
+
+
+def _pan_hash_list(value):
+    return _algorithm_list(value, _PAN_HASH)
+
+
+def _pan_lifetime(seconds):
+    """PAN-OS lifetime takes one unit with a value up to 65535; use the
+    largest unit that divides the value exactly (86400 s -> 'hours 24')."""
+    seconds = int(seconds)
+    for unit, size in (("days", 86400), ("hours", 3600), ("minutes", 60)):
+        if seconds % size == 0 and seconds // size <= 65535:
+            if unit == "days" and seconds // size > 365:
+                continue
+            return f"{unit} {seconds // size}"
+    return f"seconds {min(max(seconds, 180), 65535)}"
+
+
+def _strip_host_mask(address):
+    value = str(address or "").strip()
+    return value[:-3] if value.endswith("/32") else value
+
+
+def _interface_ip_owners(interface_lines):
+    """bare IP -> (PAN interface, "ip/len") from emitted interface lines."""
+    owners = {}
+    for line in interface_lines:
+        match = _IFACE_IP_RE.match(str(line).strip())
+        if not match:
+            continue
+        name = match.group(1) or match.group(2) or match.group(3) or match.group(4) or match.group(6)
+        address = match.group(7)
+        owners.setdefault(address.split("/")[0], (name, address))
+    return owners
+
+
 def resolve_target_ethernet_port_count(target_model):
     """
     target_model -> real ethernet1/N port count for that PAN-OS
@@ -145,7 +214,7 @@ class PaloAltoFirewallTranslator:
         static_routes_out = self.translate_static_routes(config, review)
         address_lists_out = self.translate_address_lists(config)
         sdwan_out = self.translate_sdwan(config, mapping, review)
-        ipsec_out = self.translate_ipsec(config, review, mapping)
+        ipsec_out = self.translate_ipsec(config, review, mapping, interfaces_out)
         nat_out = self.translate_nat_rules(config, zone_map, review, mapping)
         filter_out = self.translate_filter_rules(config, zone_map, review)
         system_out = self.translate_system_settings(config, review)
@@ -348,8 +417,32 @@ class PaloAltoFirewallTranslator:
                     zone_of[name] = sdwan_zone
                 elif override.get("zone"):
                     zone_of[name] = override["zone"]
+            # A zone set on a bridge also applies to its member ports unless a
+            # port has its own override, so rules that match on a bridge port
+            # name land in the same (renamed) zone as the bridge itself.
+            overrides = mapping.get("interfaces") or {}
+            for interface in config.interfaces:
+                if interface.interface_type != "bridge":
+                    continue
+                bridge_zone = (overrides.get(interface.name) or {}).get("zone")
+                if not bridge_zone:
+                    continue
+                for port in interface.bridge_ports:
+                    if not (overrides.get(port) or {}).get("zone"):
+                        zone_of[port] = bridge_zone
+
+        # RouterOS "in-interface-list=X" means "any member of X", so a rule on
+        # a list matches the zones its members ended up in (after every
+        # override above). One zone in the usual case; several when the
+        # members were split, which PAN-OS expresses as "from [ A B ]".
+        for list_name, members in list_members.items():
+            zones = list(dict.fromkeys(zone_of[m] for m in members if m in zone_of))
+            zone_of[f"list:{list_name}"] = " ".join(zones) if zones else self.pan_name(list_name)
 
         return zone_of
+
+    def list_zone(self, zone_map, list_name):
+        return zone_map.get(f"list:{list_name}") or self.pan_name(list_name)
 
     # ====================================================
     # INTERFACES
@@ -768,38 +861,49 @@ class PaloAltoFirewallTranslator:
             return False
         return policy.peer_name not in disabled_peers
 
-    def translate_ipsec(self, config, review, mapping=None):
+    def translate_ipsec(self, config, review, mapping=None, interfaces_out=None):
+        """
+        PAN-OS CLI paths follow the configuration XML exactly:
+        network/ike/crypto-profiles/{ike,ipsec}-crypto-profiles,
+        network/ike/gateway and network/tunnel/ipsec/<name>/auto-key
+        (proxy-id lives under auto-key). An IKE gateway needs a local
+        interface; it is taken from the interface that owns the RouterOS
+        local-address, or from mapping["ipsec_gateways"][name]
+        ["local_interface"], and REVIEW-flagged when neither exists.
+        """
         output = []
         if not (config.ipsec_peers or config.ipsec_policies):
             return output
 
         output.append("")
+        mapping = mapping or {}
+        gateway_overrides = mapping.get("ipsec_gateways") or {}
+        owners = _interface_ip_owners(interfaces_out or [])
 
         disabled_peers = {peer.name for peer in config.ipsec_peers if peer.disabled}
 
         for profile in config.ipsec_profiles:
             crypto_name = self.pan_name(profile.name)
+            base = f"set network ike crypto-profiles ike-crypto-profiles {crypto_name}"
             output.append(
-                f"set network ike-crypto-profile {crypto_name} dh-group "
-                f"{_PFS_GROUP_MAP.get(str(profile.dh_group).lower(), profile.dh_group)}"
+                f"{base} dh-group {_PFS_GROUP_MAP.get(str(profile.dh_group).lower(), profile.dh_group)}"
             )
-            output.append(f"set network ike-crypto-profile {crypto_name} hash {profile.hash_algorithm}")
-            output.append(f"set network ike-crypto-profile {crypto_name} encryption {profile.enc_algorithm}")
-            output.append(
-                f"set network ike-crypto-profile {crypto_name} lifetime-seconds "
-                f"{self.lifetime_seconds(profile.lifetime)}"
-            )
+            output.append(f"{base} hash {_pan_hash_list(profile.hash_algorithm)}")
+            output.append(f"{base} encryption {_pan_encryption_list(profile.enc_algorithm)}")
+            output.append(f"{base} lifetime {_pan_lifetime(self.lifetime_seconds(profile.lifetime))}")
 
         for proposal in config.ipsec_proposals:
             if proposal.disabled:
                 continue
             crypto_name = self.pan_name(proposal.name)
-            output.append(f"set network ipsec-crypto-profile {crypto_name} esp encryption {proposal.enc_algorithms}")
-            output.append(f"set network ipsec-crypto-profile {crypto_name} esp authentication {proposal.auth_algorithms}")
+            base = f"set network ike crypto-profiles ipsec-crypto-profiles {crypto_name}"
+            output.append(f"{base} esp encryption {_pan_encryption_list(proposal.enc_algorithms)}")
+            output.append(f"{base} esp authentication {_pan_hash_list(proposal.auth_algorithms)}")
             output.append(
-                f"set network ipsec-crypto-profile {crypto_name} dh-group "
-                f"{_PFS_GROUP_MAP.get(str(proposal.pfs_group).lower(), proposal.pfs_group)}"
+                f"{base} dh-group {_PFS_GROUP_MAP.get(str(proposal.pfs_group).lower(), proposal.pfs_group)}"
             )
+            if proposal.lifetime:
+                output.append(f"{base} lifetime {_pan_lifetime(self.lifetime_seconds(proposal.lifetime))}")
 
         for peer in config.ipsec_peers:
             if peer.disabled:
@@ -808,27 +912,48 @@ class PaloAltoFirewallTranslator:
                 )
                 continue
             gateway_name = self.pan_name(peer.name)
+            base = f"set network ike gateway {gateway_name}"
             crypto_profile = self.pan_name(peer.profile_name) if peer.profile_name else "default"
             ikev1 = str(peer.exchange_mode).lower() in ("main", "aggressive", "base", "main-l2tp")
             protocol = "ikev1" if ikev1 else "ikev2"
-            output.append(
-                f"set network ike-gateway {gateway_name} protocol {protocol} ike-crypto-profile {crypto_profile}"
-            )
+            output.append(f"{base} protocol version {protocol}")
+            output.append(f"{base} protocol {protocol} ike-crypto-profile {crypto_profile}")
             if peer.address:
-                output.append(f"set network ike-gateway {gateway_name} peer-address ip {peer.address}")
+                output.append(f"{base} peer-address ip {_strip_host_mask(peer.address)}")
             else:
-                output.append(f"set network ike-gateway {gateway_name} peer-address dynamic")
+                output.append(f"{base} peer-address dynamic")
                 review.append(
                     f"ike-gateway {gateway_name}: source peer has no fixed address (responder / road-warrior) -- "
                     "PAN-OS uses 'peer-address dynamic' plus a peer identification; confirm it."
                 )
+
+            override = gateway_overrides.get(gateway_name) or gateway_overrides.get(peer.name) or {}
+            local_interface = str(override.get("local_interface") or "").strip()
+            local_ip = ""
             if peer.local_address:
-                output.append(f"set network ike-gateway {gateway_name} local-address ip {peer.local_address}")
+                owner = owners.get(_strip_host_mask(peer.local_address))
+                if owner:
+                    local_interface = local_interface or owner[0]
+                    if local_interface == owner[0]:
+                        local_ip = owner[1]
+            if local_interface:
+                output.append(f"{base} local-address interface {local_interface}")
+                if local_ip:
+                    output.append(f"{base} local-address ip {local_ip}")
+            else:
+                review.append(
+                    f"ike-gateway {gateway_name}: no local interface -- "
+                    + (
+                        f"local-address {peer.local_address} is not configured on any converted interface"
+                        if peer.local_address else "the source peer sets no local-address"
+                    )
+                    + ". PAN-OS needs 'local-address interface <egress port>'; pick it in the VPN step."
+                )
             if peer.passive:
-                output.append(f"set network ike-gateway {gateway_name} passive-mode yes")
+                output.append(f"{base} protocol-common passive-mode yes")
             if str(peer.exchange_mode).lower() == "aggressive":
-                output.append(f"set network ike-gateway {gateway_name} protocol ikev1 exchange-mode aggressive")
-            output.append(f'set network ike-gateway {gateway_name} authentication pre-shared-key key "REPLACE-ME"')
+                output.append(f"{base} protocol ikev1 exchange-mode aggressive")
+            output.append(f'{base} authentication pre-shared-key key "REPLACE-ME"')
             review.append(
                 f"ike-gateway {gateway_name}: a Mikrotik export never includes the real pre-shared "
                 "key or certificate -- set the actual key manually before using this tunnel."
@@ -857,32 +982,28 @@ class PaloAltoFirewallTranslator:
             if not self._active_ipsec_policy(policy, disabled_peers):
                 continue
             tunnel_name = tunnel_names[index - 1]
+            base = f"set network tunnel ipsec {tunnel_name}"
             gateway_name = self.pan_name(policy.peer_name) if policy.peer_name else ""
             if gateway_name:
-                output.append(f"set network tunnel ipsec {tunnel_name} auto-key ike-gateway [ {gateway_name} ]")
+                output.append(f"{base} auto-key ike-gateway {gateway_name}")
             else:
                 review.append(f"ipsec tunnel {tunnel_name}: policy had no peer set -- attach the right ike-gateway manually.")
             if policy.proposal_name:
-                output.append(
-                    f"set network tunnel ipsec {tunnel_name} auto-key ipsec-crypto-profile "
-                    f"{self.pan_name(policy.proposal_name)}"
-                )
+                output.append(f"{base} auto-key ipsec-crypto-profile {self.pan_name(policy.proposal_name)}")
             if policy.src_address and policy.dst_address:
-                output.append(f"set network tunnel ipsec {tunnel_name} proxy-id proxy1 local {policy.src_address}")
-                output.append(f"set network tunnel ipsec {tunnel_name} proxy-id proxy1 remote {policy.dst_address}")
+                output.append(f"{base} auto-key proxy-id proxy1 local {policy.src_address}")
+                output.append(f"{base} auto-key proxy-id proxy1 remote {policy.dst_address}")
 
             if mapping:
                 # A tunnel with no interface/zone binding routes nowhere
-                # on PAN-OS -- this is genuinely new behavior (the
-                # pre-mapping version of this translator never created a
-                # tunnel interface or zone at all), so it only activates
-                # once a mapping is supplied, keeping plain
-                # translate(config) output unchanged.
+                # on PAN-OS -- this only activates once a mapping is
+                # supplied, keeping plain translate(config) output unchanged.
                 tunnel_ov = (mapping.get("ipsec_tunnels") or {}).get(tunnel_name) or {}
                 zone = tunnel_ov.get("zone")
                 if zone:
-                    unit = tunnel_ov.get("tunnel_unit", index)
-                    output.append(f"set network tunnel ipsec {tunnel_name} tunnel-interface tunnel.{unit}")
+                    unit = tunnel_ov.get("tunnel_unit") or index
+                    output.append(f"set network interface tunnel units tunnel.{unit}")
+                    output.append(f"{base} tunnel-interface tunnel.{unit}")
                     output.append(f"set zone {self.pan_name(zone)} network layer3 [ tunnel.{unit} ]")
                 else:
                     review.append(
@@ -1139,13 +1260,13 @@ class PaloAltoFirewallTranslator:
             if rule.in_interface:
                 from_zone = zone_map.get(rule.in_interface, "any")
             elif getattr(rule, "in_interface_list", ""):
-                from_zone = self.pan_name(rule.in_interface_list)
+                from_zone = self.list_zone(zone_map, rule.in_interface_list)
             else:
                 from_zone = "any"
             if rule.out_interface:
                 to_zone = zone_map.get(rule.out_interface, "any")
             elif getattr(rule, "out_interface_list", ""):
-                to_zone = self.pan_name(rule.out_interface_list)
+                to_zone = self.list_zone(zone_map, rule.out_interface_list)
             else:
                 to_zone = "any"
 
@@ -1295,6 +1416,12 @@ class PaloAltoFirewallTranslator:
     @staticmethod
     def _nat_match_value(direct_value, address_list, review, rule_name, field_label):
         if direct_value:
+            if str(direct_value).startswith("!"):
+                # PAN-OS rejects "!" inside an address field at commit time,
+                # even on a disabled rule. The rule is already emitted
+                # disabled and reviewed (see _nat_unexpressed), so the field
+                # becomes "any" and stays syntactically valid.
+                return "any"
             return direct_value
         if address_list:
             if address_list.startswith("!"):
@@ -1411,13 +1538,13 @@ class PaloAltoFirewallTranslator:
             if rule.in_interface:
                 from_zone = zone_map.get(rule.in_interface, "any")
             elif rule.in_interface_list:
-                from_zone = self.pan_name(rule.in_interface_list)
+                from_zone = self.list_zone(zone_map, rule.in_interface_list)
 
             to_zone = "any"
             if rule.out_interface:
                 to_zone = zone_map.get(rule.out_interface, "any")
             elif rule.out_interface_list:
-                to_zone = self.pan_name(rule.out_interface_list)
+                to_zone = self.list_zone(zone_map, rule.out_interface_list)
 
             negate_source = False
             negate_destination = False

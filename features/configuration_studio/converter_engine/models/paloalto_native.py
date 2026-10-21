@@ -276,6 +276,7 @@ class PaIpsecCryptoProfile:
     esp_encryption: str = ""
     esp_authentication: str = ""
     dh_group: str = ""
+    lifetime_seconds: Optional[int] = None
 
 
 @dataclass
@@ -284,6 +285,11 @@ class PaIkeGateway:
     ike_crypto_profile: str = ""
     peer_address: str = ""
     has_preshared_key: bool = False
+    version: str = ""  # "ikev1" / "ikev2" / "ikev2-preferred"
+    local_interface: str = ""
+    local_ip: str = ""
+    passive_mode: bool = False
+    exchange_mode: str = ""
 
 
 @dataclass
