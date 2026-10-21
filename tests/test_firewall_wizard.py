@@ -408,7 +408,11 @@ def test_disabled_port_is_shown_and_written_link_down(vlan_parsed):
     config, translator = vlan_parsed
     facts = fw.describe_source(config)
     assert facts["ether5"]["disabled"] is True and facts["ether5"]["used"] is False
+    # Disabled and unused: unmapped by default, so nothing is written for it.
     text = _evaluate(config, translator, model="PA-1410")["output_text"]
+    assert "ethernet1/5" not in "\n".join(l for l in text.splitlines() if l.startswith("set "))
+    # Mapped on purpose: it is converted but stays down.
+    text = _evaluate(config, translator, {"interfaces": {"ether5": {"pan_interface": "ethernet1/5"}}}, model="PA-1410")["output_text"]
     assert "set network interface ethernet ethernet1/5 link-state down" in text
 
 
@@ -417,3 +421,19 @@ def test_synthetic_vlan_numbers_are_stable_across_runs(vlan_parsed):
     first = _evaluate(config, translator, model="PA-1410")["output_text"]
     second = _evaluate(config, translator, model="PA-1410")["output_text"]
     assert first == second
+
+
+def test_an_enabled_unused_port_starts_unmapped_and_writes_nothing(parsed):
+    config, translator = parsed
+    state = fw.initial_state(config, translator, "PA-505")
+    assert state["interfaces"]["ether3"]["pan_interface"] == ""
+    result = fw.evaluate(config, translator, state)
+    set_lines = [l for l in result["output_text"].splitlines() if l.startswith("set ")]
+    assert not any("ethernet1/3" in l or "ether3" in l for l in set_lines)
+    assert not any(i["code"] == "MAP-UNMAPPED" for i in _step(result, "interfaces")["issues"])
+
+
+def test_unmapping_a_used_port_is_still_an_error(parsed):
+    config, translator = parsed
+    result = _evaluate(config, translator, {"interfaces": {"ether1": {"pan_interface": ""}}})  # bridge member
+    assert "MAP-UNMAPPED" in {i["code"] for i in _step(result, "interfaces")["issues"]}

@@ -171,7 +171,9 @@ def initial_state(config, translator, target_model: Optional[str] = None) -> dic
         else:
             mode, tag, unit = "", "", ""
         interfaces[row["name"]] = {
-            "pan_interface": row.get("suggested_pan_interface") or "",
+            # An enabled port with nothing on it starts unmapped: converting it
+            # would only add an empty layer3 interface and a zone.
+            "pan_interface": (row.get("suggested_pan_interface") or "") if fact.get("used") or fact.get("bridge") else "",
             # A bridge member is a layer2 port: its zone is the bridge's.
             "zone": "" if fact.get("bridge") else (row.get("suggested_zone") or ""),
             "sdwan_link_type": "none",
@@ -236,7 +238,11 @@ def to_mapping(state: dict, translator, facts: Optional[dict] = None) -> dict:
         for key in ("mode", "parent_port", "tag", "unit"):
             if str(row.get(key) or "").strip():
                 entry[key] = str(row[key]).strip()
-        if (facts.get(name) or {}).get("bridge"):
+        fact = facts.get(name) or {}
+        if fact.get("physical") and not entry.get("pan_interface"):
+            interfaces[name] = {"skip": True}
+            continue
+        if fact.get("bridge"):
             interfaces[name] = entry  # zone follows the bridge (assign_zones)
             continue
         if str(row.get("zone") or "").strip():
@@ -295,7 +301,7 @@ def _source_issues(state: dict, facts: dict, port_count: Optional[int]) -> list:
             continue
         target = str(row.get("pan_interface") or "").strip()
         if not target:
-            if fact.get("used"):
+            if fact.get("used") or fact.get("bridge"):
                 add(Issue("MAP-UNMAPPED", ERROR, "interfaces",
                           f"{name} is in use ({fact.get('role_label', '-')}) but has no target port.",
                           "Pick the target port for it.", ref=name))

@@ -480,8 +480,17 @@ class PaloAltoFirewallTranslator:
         for vlan in vlans:
             output += self._translate_vlan_interface(config, vlan, bridges_by_name, zone_map, review, consumed, mapping)
 
+        # "skip": the user left this port unmapped on purpose (an enabled but
+        # unused port). Nothing is written for it, not even an auto-guessed slot.
+        skipped = {
+            name for name, override in ((mapping or {}).get("interfaces") or {}).items()
+            if override.get("skip")
+        }
+        for name in sorted(skipped):
+            review.append(f"interface {name}: left unmapped on purpose -- not converted.")
+
         for interface in others:
-            if interface.name in consumed or interface.name in sdwan_names:
+            if interface.name in consumed or interface.name in sdwan_names or interface.name in skipped:
                 continue
             output += self._translate_routed_interface(interface, zone_map, review, mapping)
 

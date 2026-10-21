@@ -207,7 +207,7 @@
     if (ports.length) {
       const known = !value || ports.includes(value);
       return `<select data-bind="${bind('interfaces', name, 'pan_interface')}" aria-label="Target port for ${esc(name)}">
-        <option value="">Not mapped</option>
+        <option value="">Not mapped (skip)</option>
         ${ports.map(p => `<option ${p === value ? "selected" : ""}>${esc(p)}</option>`).join("")}
         ${known ? "" : `<option selected>${esc(value)}</option>`}
       </select>`;
@@ -294,7 +294,7 @@
         <tbody>${rows.map(([name, row]) => {
           const f = facts[name] || {};
           return `<tr class="${f.used ? "" : "is-unused"}">
-            <td><strong>${esc(name)}</strong>${f.default_name && f.default_name !== name ? `<small>${esc(f.default_name)}</small>` : ""}${f.comment ? `<small>${esc(f.comment)}</small>` : ""}${f.used ? "" : `<small>not used</small>`}</td>
+            <td><strong>${esc(name)}</strong>${f.default_name && f.default_name !== name ? `<small>${esc(f.default_name)}</small>` : ""}${f.comment ? `<small>${esc(f.comment)}</small>` : ""}${f.used || f.bridge ? "" : `<small>no IP, bridge or rule uses it: leave unmapped to skip</small>`}</td>
             <td>${statusBadge(f)}</td>
             <td>${roleBadge(f)}</td>
             <td>${esc((f.addresses || []).join(", ") || (f.dhcp_client ? "DHCP client" : "-"))}</td>
@@ -316,7 +316,9 @@
         <thead><tr><th>Interface</th><th>Role</th><th>Target</th><th>Zone</th><th>SD-WAN link</th></tr></thead>
         <tbody>${rows.map(([name, row]) => {
           const f = facts[name] || {};
-          const zoneCell = f.bridge
+          const zoneCell = f.physical !== false && !row.pan_interface
+            ? `<span class="wz-muted">not mapped, not converted</span>`
+            : f.bridge
             ? `<span class="wz-muted">follows ${esc(f.bridge)}</span>`
             : `<input type="text" data-bind="${bind('interfaces', name, 'zone')}" value="${esc(row.zone)}" aria-label="Zone for ${esc(name)}">`;
           const sdwanCell = f.physical === false || f.bridge ? "-" :
