@@ -68,6 +68,7 @@ Dengan git: `git pull`, lalu jalankan file setup sekali (`setup_windows.bat` ata
 | Menilai router (routing, BGP/OSPF, VPN, SD-WAN) | Router Analyzer | Capture Cisco IOS, IOS-XE, atau SD-WAN |
 | Menilai firewall (policy, NAT, VPN) | Firewall Analyzer | FortiGate, FortiSwitch, Palo Alto, MikroTik |
 | Menilai load balancer F5 | Load Balancer Analyzer | `.ucs`, `bigip.conf`, atau output `tmsh` |
+| Membuat diagram topologi (draw.io) | Topology Builder | Capture per perangkat (atau ZIP) berisi `show cdp neighbors detail` / `show lldp neighbors detail`, opsional tabel MAC / ARP; hasil: tampilan fisik, vPC, dan Logical IP, tetangga dari ARP / MAC / description saat CDP/LLDP tidak ada, pengelompokan per site, nama topologi untuk nama file, kecepatan link, paket dokumentasi (ZIP / laporan HTML), gabung dengan hasil sebelumnya |
 | Menilai wireless controller | Wireless Analyzer | Konfigurasi WLC Huawei atau Cisco 9800 |
 | Memindahkan konfigurasi switch ke vendor lain | Convert, Switch | Konfigurasi switch Cisco, Huawei, atau Aruba |
 | Memindahkan firewall MikroTik ke Palo Alto | Convert, Firewall | Konfigurasi MikroTik |
@@ -104,6 +105,23 @@ Jika file Anda milik tool lain (misalnya capture router di halaman Switch), Keys
 7. Cari `REVIEW-` di hasil. Setiap baris itu adalah keputusan atau padanan yang tidak ada, dan harus diputuskan manusia sebelum konfigurasi masuk ke perangkat.
 
 Beberapa file atau satu ZIP bisa dikonversi sekaligus lewat **batch conversion**. Aturan converter ada di [modules/configuration-studio.md](modules/configuration-studio.md).
+
+## 7b. Membuat diagram topologi
+
+1. Buka **Analyze**, lalu **Topology Builder**. Pilih atau tarik satu capture per perangkat (atau satu ZIP). Semakin banyak perangkat, semakin banyak link yang terkonfirmasi dari kedua ujung.
+2. Opsional: isi **Topology name**. Semua file unduhan lalu diberi nama itu (`Panin-DC-topology.drawio`, `Panin-DC-links.csv`, ...); kosong berarti nama biasa. File draw.io menampilkan nama dan `Topology Created at Date YYYY:MM:DD - Time HH:MM:SS` di atas diagram.
+3. Atur opsi (nilai awal dalam kurung):
+   - **Exclude IP phones, PCs and servers** (aktif): hanya perangkat jaringan yang digambar. Selama aktif, opsi phone/host disembunyikan.
+   - **Collapse phones and hosts into one node per switch** (aktif) dan **Collapse access points into one node per switch** (aktif: satu kotak per switch; matikan agar setiap access point tampil dengan hostname, model, dan IP sendiri untuk diagram yang lebih detail).
+   - **Show port names on the lines** (aktif), **Infer neighbors where CDP/LLDP is silent** (aktif; urutan kepercayaan: ARP, lalu MAC address, lalu port description), **Add routed /30 and /31 links** (aktif), **Leave out-of-band management links out of the picture** (aktif), **Draw end hosts learned from MAC tables** (mati).
+   - **Grouping**: satu diagram, atau kelompok berdasarkan satu, dua, atau tiga kata pertama hostname (`JKT`, `JKT-A02`, `JKT-GD1-LT1`). Grup dengan link terbanyak ke grup lain digambar di tengah, grup lain di sekelilingnya, masing-masing dalam kotak hitam.
+   - **Diagram file contains**: tampilan fisik dan vPC, fisik saja, vPC saja, atau **Logical IP view** (perangkat yang berbagi subnet, interface dan alamat di tiap ujung, serta tabel semua alamat interface per perangkat).
+   - **Style lines by**: kecepatan rating (default) atau status link.
+4. Tekan **Build topology**, lihat pratinjau (zoom, geser, buka di tab baru), dan baca findings. Unduh **pack** (ZIP) untuk semuanya, atau file satuan.
+5. Untuk melanjutkan nanti, pilih `topology.json` di **Add to a previous run** dan `topology.drawio` yang sudah Anda geser di **Keep my layout**.
+6. Penempatan perangkat: satu level dibaca dari kiri ke kanan urut nama (A-Z, lalu 0-9). Semua yang terhubung ke satu perangkat (switch, access point, IP phone, PC) dikelompokkan tepat di bawah perangkat itu, jadi 3 AP di bawah switch A tidak bercampur dengan 2 AP di bawah switch B. Perangkat yang hanya uplink (router, firewall) ditempatkan di atas perangkat yang dilayaninya, berdampingan (router A, B, C).
+
+Pack berisi `run-settings.txt`: opsi yang Anda pilih, waktu pembuatan, dan nama topologi. Kirimkan bersama pertanyaan atau laporan masalah. Penjelasan lengkap, termasuk ID finding (TOPO-001 ...), ada di [modules/topology.md](modules/topology.md).
 
 ## 8. Tool yang mengubah perangkat
 

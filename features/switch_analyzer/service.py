@@ -112,6 +112,7 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
         # one routing protocol name per row (Connected / Static / OSPF ...) for the filter chips on the Routing tab
         route_row["group"] = l3.protocol_group(route_row.get("protocol", "")) or "Other"
     arp_table, arp_check = live_state.parse_arp_with_meta(clean)
+    arp_vrf_table = live_state.parse_arp_vrf(clean)
     mac_table, mac_check = live_state.parse_mac_table_with_meta(clean)
     if av and not arp_table and av["arp_meta"]:
         arp_table, arp_check = av["arp"], av["arp_meta"]
@@ -174,6 +175,16 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
             os_version = dict(os_version, model=model)
     if not os_version.get("model") or not os_version.get("os_version"):
         os_version = _sdwan_identity(clean, os_version)
+    system_identity = _aoscx_system_identity(clean)
+    if system_identity:
+        # A capture whose top was cut off still has `show system` further down: model and software version come from it
+        os_version = dict(os_version)
+        if not os_version.get("model") and system_identity.get("model"):
+            os_version["model"] = system_identity["model"]
+        if not os_version.get("os_version") and system_identity.get("os_version"):
+            os_version["os_version"] = system_identity["os_version"]
+        if not serial_info.get("serial_number") and system_identity.get("serial"):
+            serial_info = dict(serial_info, serial_number=system_identity["serial"], source="show system")
     poe = _apply_poe_config_fallback(poe, config)
 
     # Transceiver rows only carry install/type data — cross-reference the
@@ -253,6 +264,7 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
         "routes": routes,
         "routing_table": routing_table,
         "arp_table": arp_table,
+        "arp_vrf_table": arp_vrf_table,
         "mac_table": mac_table,
         # Device-reported totals vs rows found (live_state._table_meta): a table
         # shorter than the device said it printed means the capture lost lines.
@@ -275,6 +287,7 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
         "parts": device_parts,
         "capture_notes": capture_notes,
         "serials": serial_info,
+        "system": system_identity,
         "routing_protocols": _routing_protocol_summary(config),
         "l3": l3_view,
         "health": health_view,
@@ -567,6 +580,7 @@ def _resolve_interface_status(
             "status_source": ", ".join(live["sources"]),
             "protocol": live.get("protocol", ""),
             "live_ip": live.get("ip_address", ""),
+            **{key: live[key] for key in ("speed_mbps", "speed_auto", "duplex", "duplex_auto") if key in live},
         }
     if shut_in_config:
         return {
@@ -629,6 +643,7 @@ def _build_interfaces(
             ),
             "poe_enabled": bool(getattr(item, "poe_enabled", False)),
             "source": "show/display" if resolved["status_source"] and resolved["status_source"] != "config" else "config",
+            **{key: resolved[key] for key in ("speed_mbps", "speed_auto", "duplex", "duplex_auto") if key in resolved},
         })
 
     # Interfaces that only appear in the runtime tables (sub-interfaces, ports
@@ -891,6 +906,38 @@ def _apply_vpc_mlag_config_fallback(
 
     vpc_mlag["summary"] = summary
     return vpc_mlag
+
+
+def _aoscx_system_identity(clean: list[str]) -> dict[str, str]:
+    """``show system`` of an Aruba CX switch: product, software, chassis serial and base MAC.
+
+    ::
+
+        Product Name           : JL724B 6200F 24G 4SFP+ Swch
+        Chassis Serial Nbr     : TW59LZ4014
+        Base MAC Address       : 5ca47d-c584c0
+        AOS-CX Version         : ML.10.16.1020
+    """
+    for index, line in enumerate(clean):
+        parts = capture_text.split_command(line)
+        if not parts or not re.fullmatch(r"show system", parts[0]):
+            continue
+        found: dict[str, str] = {}
+        for row in clean[index + 1:index + 60]:
+            if capture_text.split_command(row):
+                break
+            match = re.match(r"^\s*(Product Name|Chassis Serial Nbr|Base MAC Address|AOS-CX Version)\s*:\s*(.+?)\s*$", row)
+            if match:
+                found.setdefault(match.group(1), match.group(2))
+        if not found.get("AOS-CX Version") and not found.get("Product Name"):
+            return {}
+        product = found.get("Product Name", "")
+        pid, _, name = product.partition(" ")
+        model = f"{name.replace(' Swch', ' Switch')} ({pid})" if name and pid.upper().startswith("JL") else product
+        base = re.sub(r"[^0-9a-fA-F]", "", found.get("Base MAC Address", "")).lower()
+        return {"model": model, "os_version": found.get("AOS-CX Version", ""), "serial": found.get("Chassis Serial Nbr", ""),
+                "base_mac": base if len(base) == 12 else ""}
+    return {}
 
 
 def _sdwan_identity(clean: list[str], os_version: dict[str, Any]) -> dict[str, Any]:

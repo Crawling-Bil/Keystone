@@ -5595,7 +5595,45 @@ class HuaweiSwitchTranslator:
 
         output.append("#")
 
-        return output
+        return self._collapse_acl_log_reviews(output)
+
+    @staticmethod
+    def _collapse_acl_log_reviews(output, limit=5):
+        """An ACL whose rules were all logged (a core switch can expand to thousands of rules) gets ONE review line
+        under its header instead of one per rule; up to ``limit`` logged rules keep their own line."""
+
+        result = []
+        block = []
+
+        output = [line for entry in output for line in str(entry).split("\n")]
+
+        def flush():
+
+            logged = [line for line in block if line.startswith(" # REVIEW-ACL-LOG:")]
+
+            if len(logged) > limit:
+                kept = [line for line in block if line not in logged]
+                kept.insert(
+                    1,
+                    f" # REVIEW-ACL-LOG: {len(logged)} rules of this ACL logged matches in the source (\"log\"); "
+                    "enable ACL logging for them on the target",
+                )
+                result.extend(kept)
+            else:
+                result.extend(block)
+
+        for line in output:
+
+            if line.startswith("acl name "):
+                flush()
+                block = [line]
+                continue
+
+            block.append(line)
+
+        flush()
+
+        return result
 
     def translate_acl_rule(
         self,
@@ -6246,4 +6284,4 @@ class HuaweiSwitchTranslator:
                 command
             )
 
-        return output
+        return output

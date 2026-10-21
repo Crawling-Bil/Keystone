@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Topology Builder · Keystone{% endblock %}
+{% block page_title %}Topology Builder{% endblock %}
+{% block page_subtitle %}Draw the network from the CDP and LLDP neighbors in your device captures. Export a draw.io file.{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/analyzer_kit.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/topology.css') }}">{% endblock %}
+{% block content %}
+{#- No element ids: the SPA router keeps every visited page mounted; topology.js scopes itself to .tp-page. -#}
+<section class="tp-page" data-api="/topology" data-max-files="{{ max_files }}">
+  <form class="panel tp-intake" data-role="form" enctype="multipart/form-data" novalidate>
+    <div class="tp-intake-main">
+      <label class="an-field tp-name"><span class="an-label">Topology name (optional)</span>
+        <input class="tp-text" type="text" maxlength="60" autocomplete="off" data-role="name" placeholder="Used in the download file names and as the title in draw.io">
+      </label>
+      <fieldset class="tp-card-box">
+        <legend class="an-label">Options</legend>
+        <label class="tp-opt"><input type="checkbox" data-role="exclude-endpoints" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Exclude IP phones, PCs and servers</strong><small>Draw network devices only: router, firewall, load balancer, switch, access point.</small></span></label>
+        <label class="tp-opt" data-dep="no-exclude"><input type="checkbox" data-role="collapse" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Collapse phones and hosts into one node per switch</strong><small>Shown only when end points are drawn.</small></span></label>
+        <label class="tp-opt"><input type="checkbox" data-role="collapse-ap" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Collapse access points into one node per switch</strong><small>Clear it to draw every access point with its own hostname, model and IP address.</small></span></label>
+        <label class="tp-opt"><input type="checkbox" data-role="ports" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Show port names on the lines</strong><small></small></span></label>
+        <label class="tp-opt"><input type="checkbox" data-role="infer" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Infer neighbors where CDP/LLDP is silent</strong><small>Order of trust: ARP, then MAC address, then port description.</small></span></label>
+        <label class="tp-opt"><input type="checkbox" data-role="routed" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Add routed /30 and /31 links found in interface addresses</strong><small></small></span></label>
+        <label class="tp-opt"><input type="checkbox" data-role="mgmt" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Leave out-of-band management links (mgmt0) out of the picture</strong><small>They stay in links.csv.</small></span></label>
+        <label class="tp-opt" data-dep="no-exclude"><input type="checkbox" data-role="hosts"><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Draw end hosts learned from MAC tables</strong><small>Up to 3 per port, more become one box. Shown only when end points are drawn.</small></span></label>
+      </fieldset>
+      <span class="an-label">Device captures</span>
+      <label class="an-drop" data-role="drop">
+        <input type="file" data-role="file-input" multiple accept=".txt,.log,.cfg,.conf,.config,.cap,.out,.zip">
+        <span class="an-drop-icon"><svg class="an-icon" aria-hidden="true"><use href="/static/icons/nes-icons.svg#upload"></use></svg></span>
+        <span><strong>Select or drop device captures</strong><small>Terminal logs or backups with <code>show cdp neighbors detail</code> and/or <code>show lldp neighbors detail</code>. One file per device, a file holding several devices, or a .zip of captures. Up to {{ max_files }} devices; the more you add, the more links are confirmed from both ends.</small></span>
+      </label>
+      <ul class="an-file-list hidden" data-role="file-list" aria-label="Selected files"></ul>
+      <p class="an-hint">Cisco IOS XE, NX-OS and the other vendors the Switch Analyzer reads. Nothing leaves this computer.</p>
+    </div>
+    <div class="tp-intake-side">
+      <fieldset class="tp-card-box">
+        <legend class="an-label">Diagram</legend>
+        <label class="an-field"><span class="tp-sub">Grouping</span>
+          <select class="an-select" data-role="group">{% for value, label in group_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        </label>
+        <label class="an-field"><span class="tp-sub">Diagram file contains</span>
+          <select class="an-select" data-role="view"><option value="both">Physical and vPC view</option><option value="physical">Physical view only</option><option value="logical">vPC view only</option><option value="ip">Logical IP view only (shared subnets, interface addresses)</option></select>
+        </label>
+        <label class="an-field"><span class="tp-sub">Style lines by</span>
+          <select class="an-select" data-role="line-style"><option value="speed" selected>Rated speed (1G, 10G, 25G, 40G, 100G)</option><option value="state">Link state (confirmed, one end, conflict)</option></select>
+        </label>
+      </fieldset>
+      <fieldset class="tp-card-box">
+        <legend class="an-label">Continue earlier work (optional)</legend>
+      <div class="tp-field"><span class="an-label">Add to a previous run</span>
+        <label class="tp-file"><input type="file" data-role="previous-state" accept=".json"><span class="tp-file-btn">Choose file</span><span class="tp-file-name" data-role="previous-state-name">No file chosen</span></label>
+        <small class="an-hint">Pick the topology.json of an earlier run. Its devices are kept; devices in the new captures replace the ones with the same serial number or hostname. You can also pick it with no new captures to rebuild with other options.</small></div>
+      <div class="tp-field"><span class="an-label">Keep my layout</span>
+        <label class="tp-file"><input type="file" data-role="previous" accept=".drawio,.xml"><span class="tp-file-btn">Choose file</span><span class="tp-file-name" data-role="previous-name">No file chosen</span></label>
+        <small class="an-hint">Pick the topology.drawio you moved things in. Devices keep their position; new devices are placed beside them.</small></div>
+      </fieldset>
+      <div class="an-actions">
+        <button type="submit" class="an-btn primary" data-role="build" disabled>Build topology</button>
+        <button type="button" class="an-btn" data-role="clear">Clear</button>
+      </div>
+      <p class="tp-status" data-role="status" role="status" aria-live="polite"></p>
+    </div>
+  </form>
+
+  <div class="tp-result hidden" data-role="result">
+    <div class="tp-cards" data-role="cards"></div>
+    <div class="panel tp-downloads">
+      <div><strong>Download</strong><span class="muted-copy"> <em>keystone-topology-pack.zip</em> holds everything (open <em>topology-report.html</em> and print it to PDF). <em>topology.drawio</em> opens in diagrams.net with every device and line carrying its data in Edit Data. Keep <em>topology.json</em> to add more devices later.</span></div>
+      <div class="tp-buttons" data-role="downloads"></div>
+    </div>
+    <div class="panel">
+      <div class="tp-tabs" role="tablist" data-role="tabs">
+        <button type="button" role="tab" data-tab="diagram" aria-selected="true">Diagram</button>
+        <button type="button" role="tab" data-tab="findings" aria-selected="false">Findings <span class="an-badge" data-role="findings-count"></span></button>
+        <button type="button" role="tab" data-tab="links" aria-selected="false">Links</button>
+        <button type="button" role="tab" data-tab="bundles" aria-selected="false">Bundles</button>
+        <button type="button" role="tab" data-tab="hosts" aria-selected="false">Hosts</button>
+        <button type="button" role="tab" data-tab="behind" aria-selected="false">Behind devices</button>
+        <button type="button" role="tab" data-tab="devices" aria-selected="false">Devices</button>
+      </div>
+      <div data-panel="diagram">
+        <div class="tp-viewbar" data-role="viewbar" role="group" aria-label="Diagram view"></div>
+        <div class="tp-pagebar" data-role="pagebar"></div>
+        <div class="tp-canvas" data-role="canvas"></div>
+        <ul class="tp-legend" data-role="legend"></ul>
+        <p class="an-hint">Preview only. <strong>vPC view</strong>: each vPC pair is one frame and each bundle spanning the pair is one line (vPC id, member count, rated speed). <strong>Physical view</strong>: every cable. <strong>IP view</strong>: devices that share a subnet, with the interface and address at each end and a table of every interface address under the picture. Speeds are transceiver or port ratings, not negotiated rates. Drag nodes in draw.io, then upload that file under <em>Keep my layout</em> next time.</p>
+      </div>
+      <div data-panel="findings" class="hidden" data-role="findings"></div>
+      <div data-panel="links" class="hidden" data-role="links"></div>
+      <div data-panel="bundles" class="hidden" data-role="bundles"></div>
+      <div data-panel="hosts" class="hidden" data-role="hosts-table"></div>
+      <div data-panel="behind" class="hidden" data-role="behind"></div>
+      <div data-panel="devices" class="hidden" data-role="devices"></div>
+    </div>
+  </div>
+
+  <div class="panel tp-empty" data-role="empty">
+    <h2>What to upload</h2>
+    <p>One capture per device is enough. Each capture should contain these commands (Cisco names shown; the Switch Analyzer collect lists already include most of them):</p>
+    <ul>
+      <li><code>show cdp neighbors detail</code> and <code>show lldp neighbors detail</code> - the links.</li>
+      <li><code>show etherchannel summary</code> / <code>show port-channel summary</code> and <code>show vpc</code> - bundles and vPC pairs.</li>
+      <li><code>show inventory</code> and <code>show version</code> - model, serial number and stack members.</li>
+      <li><code>show mac address-table</code> and <code>show ip arp</code> - end hosts (optional).</li>
+      <li><code>show ip interface brief</code> or the running configuration - management IP address.</li>
+    </ul>
+    <p>The builder matches the two ends of each link by serial number, management IP and hostname, so a device that appears in a neighbor table is placed on the diagram even when you did not capture it (grey box).</p>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/topology.js') }}"></script>{% endblock %}

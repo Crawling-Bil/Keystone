@@ -16,6 +16,7 @@ from features.wireless_center.routes import bp as wireless_bp
 from features.router_analyzer.routes import bp as router_analyzer_bp
 from features.firewall_analyzer.routes import bp as firewall_analyzer_bp
 from features.lb_analyzer.routes import bp as lb_analyzer_bp
+from features.topology.routes import bp as topology_bp
 from features.switch_analyzer.routes import bp as switch_analyzer_bp
 from features.ztp.routes import bp as ztp_bp
 
@@ -105,6 +106,7 @@ def create_app() -> Flask:
     app.register_blueprint(router_analyzer_bp)
     app.register_blueprint(firewall_analyzer_bp)
     app.register_blueprint(lb_analyzer_bp)
+    app.register_blueprint(topology_bp)
     app.register_blueprint(lifecycle_bp)
     app.register_blueprint(ztp_bp)
 

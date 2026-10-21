@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+from features.configuration_studio.converter_engine.parsers.switch import aruba_acl
 from features.configuration_studio.converter_engine.models.switch import (
     SwitchConfig,
     VLAN,
@@ -39,6 +40,8 @@ class ArubaSwitchParser:
         current_vlan = None
         current_section = None
         current_dhcp_pool = None
+        group_blocks = {}
+        current_group = None
 
         path = Path(filename)
 
@@ -729,6 +732,31 @@ class ArubaSwitchParser:
             #       permit tcp any any eq 22
             # ================================================
 
+            # AOS-CX object-groups: "object-group ip address NAME" followed by
+            # indented "10 172.18.18.224/255.255.255.240" members; ACL entries
+            # name them. Kept for the flattening done once the file is read.
+            group_key = aruba_acl.group_header(line) if not is_indented else None
+
+            if group_key:
+
+                current_interface = None
+                current_vlan = None
+                current_section = "object_group"
+                current_group = group_key
+                group_blocks.setdefault(group_key, [])
+
+                continue
+
+            if current_section == "object_group":
+
+                if is_indented:
+
+                    group_blocks[current_group].append(line)
+
+                    continue
+
+                current_section = None
+
             if line.startswith(
                 (
                     "ip access-list ",
@@ -1121,6 +1149,16 @@ class ArubaSwitchParser:
             config.global_commands.append(
                 line
             )
+
+        # AOS-CX "access-list ip" blocks -> IOS dialect, object-groups expanded.
+        if config.acl_commands:
+
+            config.acl_commands, acl_notes = aruba_acl.convert(
+                config.acl_commands,
+                group_blocks,
+            )
+
+            config.metadata.setdefault("acl_notes", []).extend(acl_notes)
 
         return config
 

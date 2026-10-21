@@ -37,6 +37,7 @@ Keystone only listens on your own computer (`127.0.0.1`), so another machine on 
 | Analyze | Router Analyzer | Cisco IOS, IOS-XE or SD-WAN capture | Interfaces, routing, BGP/OSPF, VPN, hardening findings |
 | Analyze | Firewall Analyzer | FortiGate, FortiSwitch, Palo Alto (configuration or runtime log), MikroTik RouterOS 6/7 | Policies, NAT, VPN, routing, objects, hardening findings |
 | Analyze | Load Balancer Analyzer | F5 BIG-IP `.ucs`, `bigip.conf` or `tmsh` output | Virtual server to pool map, monitors, SSL, HA, DNS (GTM), findings |
+| Analyze | Topology Builder | Captures (or a ZIP) with CDP / LLDP neighbors, optionally MAC / ARP tables | draw.io diagram with physical, vPC and logical IP views (keeps your layout between runs), neighbors from ARP / MAC / descriptions where CDP/LLDP is silent, grouping by site, optional topology name for the file names, link speeds, documentation pack (ZIP / HTML report), Excel, link, bundle and host tables, devices behind uncaptured devices, merge with a previous run, gaps in the discovery |
 | Convert | Convert Switch | Cisco, Huawei or Aruba switch configuration | Configuration for another vendor, interface map, pre-flight summary |
 | Convert | Convert Firewall | MikroTik configuration | Palo Alto (Panorama-ready) configuration |
 | Convert | Wireless, Router, Load Balancer | none yet | These pages say what is needed first and link to the matching analyzer |
@@ -103,6 +104,22 @@ A file that belongs to another tool (for example a router capture on the Switch 
 7. Search the output for `REVIEW-`. Every such line is a decision or a missing equivalent that a person must settle before the configuration goes on a device.
 
 Several files or a ZIP can be converted in one go with **batch conversion**. Details and the rules behind the converter are in [docs/modules/configuration-studio.md](docs/modules/configuration-studio.md).
+
+## Draw a network topology
+
+1. Open **Analyze**, then **Topology Builder**. Select or drop one capture per device (or a ZIP). The more devices you add, the more links are confirmed from both ends.
+2. Optional: type a **Topology name**. Every download is then named after it (`Panin-DC-topology.drawio`, `Panin-DC-links.csv`, ...); empty keeps the plain names. The draw.io file shows the name and `Topology Created at Date YYYY:MM:DD - Time HH:MM:SS` above the diagram.
+3. Check the options (defaults in brackets):
+   - **Exclude IP phones, PCs and servers** (on): draw network devices only. While it is on, the phone/host options are hidden.
+   - **Collapse phones and hosts into one node per switch** (on) and **Collapse access points into one node per switch** (on: one box per switch; clear it to draw every access point with its own hostname, model and IP address for a detailed diagram).
+   - **Show port names on the lines** (on), **Infer neighbors where CDP/LLDP is silent** (on; order of trust: ARP, then MAC address, then port description), **Add routed /30 and /31 links** (on), **Leave out-of-band management links out of the picture** (on), **Draw end hosts learned from MAC tables** (off).
+   - **Grouping**: one diagram, or group by the first one, two or three hostname words (`JKT`, `JKT-A02`, `JKT-GD1-LT1`). The group with the most links to other groups is drawn in the middle, the others around it, each in a black frame.
+   - **Diagram file contains**: physical and vPC view, physical only, vPC only, or the **Logical IP view** (devices that share a subnet, the interface and address at each end, and a table of every interface address per device).
+   - **Style lines by**: rated speed (default) or link state.
+4. Press **Build topology**, look at the preview (zoom, drag, open in a new tab) and read the findings. Download the **pack** (ZIP) for everything, or single files.
+5. To continue later, pick the `topology.json` under **Add to a previous run** and the `topology.drawio` you moved things in under **Keep my layout**.
+
+The pack contains `run-settings.txt`: the options you set, the creation time and the topology name. Send it together with a question or a bug report. Everything else, including finding IDs (TOPO-001 ...) and what each option does, is in [docs/modules/topology.md](docs/modules/topology.md).
 
 ## Tools that change devices
 
