@@ -354,7 +354,7 @@ def _parse_cdp_detail(lines: list[str]) -> list[dict]:
     device_id_re = re.compile(r"^Device ID:\s*(.+)$", re.IGNORECASE)
     platform_re = re.compile(r"^Platform:\s*([^,]+),", re.IGNORECASE)
     interface_re = re.compile(
-        r"^Interface:\s*(\S+),\s*Port ID \(outgoing port\):\s*(\S+)", re.IGNORECASE
+        r"^Interface:\s*(\S+),\s*Port ID \(outgoing port\):\s*(.+?)\s*$", re.IGNORECASE
     )
 
     def flush():
@@ -389,6 +389,11 @@ def _parse_cdp_detail(lines: list[str]) -> list[dict]:
             platform = match.group(1).strip()
             platform = re.sub(r"^(cisco|huawei)\s+", "", platform, flags=re.IGNORECASE)
             current["platform"] = platform
+            # "Platform: cisco WS-C2960X-48FPS-L,  Capabilities: Switch IGMP": the same line carries the capabilities (Router,
+            # Switch, Phone, Trans-Bridge ...), which is what tells a router from a switch when the name and model say nothing
+            capabilities = re.search(r"Capabilities:\s*(.+?)\s*$", line, re.IGNORECASE)
+            if capabilities:
+                current["capabilities"] = capabilities.group(1).strip()
             continue
 
         match = interface_re.match(line)
@@ -502,6 +507,16 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
                 entry["system_name"] = value
             elif key == "device model name":
                 entry["model"] = value
+            elif key == "chassis id":
+                entry["chassis_id"] = value
+            elif key == "port description":
+                entry["port_description"] = value
+            elif key == "management address value" and "management_address" not in entry:
+                entry["management_address"] = value
+            elif key == "port vlan id(pvid)":
+                entry["native_vlan"] = value
+            elif key == "device serial number" and "serial" not in entry:
+                entry["serial"] = value
         if entry:
             entries.append(entry)
         for parsed_entry in entries:
@@ -511,6 +526,9 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
                 "local_interface": iface,
                 "remote_interface": parsed_entry.get("port_id", ""),
                 "platform": parsed_entry.get("model", ""),
+                **_lldp_extras(parsed_entry.get("chassis_id", ""), parsed_entry.get("management_address", ""),
+                               parsed_entry.get("port_description", ""), "", parsed_entry.get("serial", ""),
+                               parsed_entry.get("native_vlan", "")),
             })
 
     for line in section:
@@ -576,8 +594,27 @@ def _parse_cisco_lldp_brief_fixed_width(line: str, columns: tuple[int, int, int,
 
 
 _CISCO_LLDP_DETAIL_FIELD_RE = re.compile(
-    r"^(Local Intf|Chassis id|Port id|Port Description|System Name)\s*:\s*(.*?)\s*$", re.IGNORECASE
+    r"^(Local Intf|Local Port id|Chassis id|Port id|Port Description|System Name|System Capabilities|"
+    r"Management Address|System UUID|Vlan ID|Link agg ID)\s*:\s*(.*?)\s*$", re.IGNORECASE
 )
+# IOS XE prints the management address as "Management Addresses:" followed by "    IP: 10.1.1.1".
+_CISCO_LLDP_IP_LINE_RE = re.compile(r"^IP\s*:\s*(\d{1,3}(?:\.\d{1,3}){3})\s*$", re.IGNORECASE)
+_IPV4_RE = re.compile(r"\d{1,3}(?:\.\d{1,3}){3}")
+_SERIAL_LIKE_RE = re.compile(r"^[A-Za-z0-9]{8,16}$")
+
+
+def _lldp_extras(chassis_id="", management_address="", port_description="", capabilities="", serial="", native_vlan="", link_agg_id="") -> dict:
+    """The neighbor identity facts beyond name and ports. Only non-empty values are added, so rows from
+    captures that do not carry them keep their original shape."""
+    extras = {}
+    ip = _IPV4_RE.search(management_address or "")
+    for key, value in (("chassis_id", (chassis_id or "").strip()), ("management_address", ip.group(0) if ip else ""),
+                       ("port_description", (port_description or "").strip()), ("capabilities", (capabilities or "").strip()),
+                       ("serial", serial if _SERIAL_LIKE_RE.match(serial or "") else ""),
+                       ("native_vlan", (native_vlan or "").strip()), ("link_agg_id", (link_agg_id or "").strip())):
+        if value:
+            extras[key] = value
+    return extras
 
 
 def _parse_cisco_lldp_detail(lines: list[str]) -> list[dict]:
@@ -616,7 +653,8 @@ def _parse_cisco_lldp_detail(lines: list[str]) -> list[dict]:
     in_description = False
 
     def flush() -> None:
-        local_interface = current.get("local intf", "")
+        # IOS XE prints "Local Intf:", NX-OS prints "Local Port id:" (and has no divider lines).
+        local_interface = current.get("local intf") or current.get("local port id", "")
         neighbor_id = current.get("system name") or current.get("chassis id", "")
         if local_interface and neighbor_id:
             results.append({
@@ -625,6 +663,9 @@ def _parse_cisco_lldp_detail(lines: list[str]) -> list[dict]:
                 "local_interface": local_interface,
                 "remote_interface": current.get("port id", ""),
                 "platform": _cisco_lldp_platform(description),
+                **_lldp_extras(current.get("chassis id", ""), current.get("management address", ""),
+                               current.get("port description", ""), current.get("system capabilities", ""),
+                               current.get("system uuid", ""), current.get("vlan id", ""), current.get("link agg id", "")),
             })
 
     for line in section:
@@ -636,6 +677,10 @@ def _parse_cisco_lldp_detail(lines: list[str]) -> list[dict]:
             continue
         if line.lower().startswith("system description"):
             in_description = True
+            # NX-OS puts the first line of the description right after the colon.
+            first = line.partition(":")[2].strip()
+            if first:
+                description.append(first)
             continue
         if in_description:
             if line.lower().startswith("time remaining"):
@@ -645,7 +690,17 @@ def _parse_cisco_lldp_detail(lines: list[str]) -> list[dict]:
                 continue
         match = _CISCO_LLDP_DETAIL_FIELD_RE.match(line)
         if match:
-            current[match.group(1).lower()] = match.group(2)
+            key = match.group(1).lower()
+            if key == "chassis id" and "chassis id" in current:
+                # NX-OS has no divider between neighbors: a second "Chassis id" starts the next block.
+                flush()
+                current = {}
+                description = []
+            current[key] = match.group(2)
+            continue
+        ip_line = _CISCO_LLDP_IP_LINE_RE.match(line)
+        if ip_line and "management address" not in current:
+            current["management address"] = ip_line.group(1)
 
     flush()
     return results
@@ -932,6 +987,10 @@ def _parse_aruba_cdp_detail(lines: list[str]) -> list[dict]:
 _ARUBA_LLDP_LOCAL_PORT_RE = re.compile(r"^Local Port\s*:\s*(\S+)", re.IGNORECASE)
 _ARUBA_LLDP_SYSNAME_RE = re.compile(r"^SysName\s*:\s*(\S.*?)\s*$", re.IGNORECASE)
 _ARUBA_LLDP_PORTID_RE = re.compile(r"^PortId\s*:\s*(\S.*?)\s*$", re.IGNORECASE)
+_ARUBA_LLDP_CHASSISID_RE = re.compile(r"^ChassisId\s*:\s*(\S.*?)\s*$", re.IGNORECASE)
+_ARUBA_LLDP_PORTDESCR_RE = re.compile(r"^PortDescr\s*:\s*(\S.*?)\s*$", re.IGNORECASE)
+_ARUBA_LLDP_CAPS_RE = re.compile(r"^System Capabilities Enabled\s*:\s*(\S.*?)\s*$", re.IGNORECASE)
+_ARUBA_LLDP_ADDRESS_RE = re.compile(r"^Address\s*:\s*(\d{1,3}(?:\.\d{1,3}){3})\s*$", re.IGNORECASE)
 
 
 def _parse_aruba_lldp_detail(lines: list[str]) -> list[dict]:
@@ -966,6 +1025,8 @@ def _parse_aruba_lldp_detail(lines: list[str]) -> list[dict]:
                 "local_interface": local_port,
                 "remote_interface": current.get("port_id", ""),
                 "platform": "",
+                **_lldp_extras(current.get("chassis_id", ""), current.get("management_address", ""),
+                               current.get("port_description", ""), current.get("capabilities", "")),
             })
 
     for line in section:
@@ -973,6 +1034,11 @@ def _parse_aruba_lldp_detail(lines: list[str]) -> list[dict]:
             flush()
             current = {}
             continue
+        for regex, key in ((_ARUBA_LLDP_CHASSISID_RE, "chassis_id"), (_ARUBA_LLDP_PORTDESCR_RE, "port_description"),
+                           (_ARUBA_LLDP_CAPS_RE, "capabilities"), (_ARUBA_LLDP_ADDRESS_RE, "management_address")):
+            found = regex.match(line)
+            if found and key not in current:
+                current[key] = found.group(1).strip()
         match = _ARUBA_LLDP_LOCAL_PORT_RE.match(line)
         if match:
             if current.get("local_port"):

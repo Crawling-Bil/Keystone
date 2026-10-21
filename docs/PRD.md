@@ -69,6 +69,7 @@ Keystone terdiri dari 8 modul dalam tiga kelompok kerja: **Analyze** (baca dan n
 | Router Analyzer | Analyze | Terminal capture atau show tech-support | Findings routing, BGP/OSPF, VPN, NAT, SD-WAN | Health check router dan overlay SD-WAN |
 | Firewall Analyzer | Analyze | Config atau capture firewall | Findings policy, NAT, VPN, profile, Excel | Review policy dan hardening firewall |
 | Load Balancer Analyzer | Analyze | Capture tmsh atau arsip UCS | Findings LTM, GTM, SSL, HA, sertifikat | Review virtual server, pool, dan masa berlaku sertifikat |
+| Topology Builder | Analyze | Capture per perangkat atau ZIP (CDP/LLDP, opsional MAC/ARP) | Diagram draw.io (layout dipertahankan), Excel, tabel link dan host, port-channel, pasangan vPC (tampilan vPC), kecepatan link, paket dokumentasi, gabung hasil sebelumnya, link routed | Membuat diagram jaringan dari backup tanpa menggambar manual |
 | Convert (Configuration Studio) | Convert | Running-config sumber + mapping inventory | Config target, preview mapping, batch export | Migrasi antar vendor. Lima halaman per jenis perangkat; saat ini hanya Switch dan Firewall yang punya converter |
 | Lifecycle Manager | Operate | Range IP, credential, firmware image, draft config | Inventaris perangkat, job upgrade, push, backup, Live Logs | Discovery, firmware upgrade massal, config push, config backup |
 | ZTP Provisioning | Operate | Daftar ESN dan parameter manajemen | File intermediate `.ini`, bootstrap config, layanan SFTP/DHCP | Onboarding switch Huawei factory-default tanpa console |

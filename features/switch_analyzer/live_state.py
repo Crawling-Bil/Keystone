@@ -165,8 +165,43 @@ def _parse_interface_status_table(section: list[str]) -> dict[str, dict[str, Any
         if not mapped:
             continue
         state, detail = mapped
-        results[port] = _obs(port, state, detail, "show interfaces status")
+        results[port] = _obs(port, state, detail, "show interfaces status", **_status_speed(line, columns))
     return results
+
+
+def _speed_mbps(text: str) -> int | None:
+    """Speed column of "show interfaces status": ``1000``, ``a-100``, ``10G``, ``a-10G`` -> Mbit/s; ``auto`` / blank -> None."""
+    found = re.fullmatch(r"(?:a-)?(\d+)(G|M)?", text.strip(), re.IGNORECASE)
+    if not found:
+        return None
+    value = int(found.group(1))
+    unit = (found.group(2) or "").upper()
+    return value * 1000 if unit == "G" else value
+
+
+def _status_speed(line: str, columns: dict[str, int]) -> dict[str, Any]:
+    """Duplex and speed of one row. An ``a-`` prefix means auto-negotiated (Cisco: "Ethernet 10/100/1000Mb half/full duplex
+    auto-negotiation", https://www.cisco.com/c/en/us/support/docs/lan-switching/ethernet/10561-3.html); a bare number was
+    configured by hand. ``auto`` alone means the port has not negotiated a rate (down).
+
+    The two columns are found by their words, not by header position: NX-OS rows are not aligned with their header."""
+    found = _DUPLEX_SPEED_RE.search(line)
+    if not found:
+        return {}
+    duplex_text, speed_text = found.group(1).lower(), found.group(2)
+    extra: dict[str, Any] = {}
+    speed = _speed_mbps(speed_text)
+    if speed:
+        extra["speed_mbps"] = speed
+        extra["speed_auto"] = speed_text.lower().startswith("a-")
+    duplex = duplex_text.removeprefix("a-")
+    if duplex in ("full", "half"):
+        extra["duplex"] = duplex
+        extra["duplex_auto"] = duplex_text.startswith("a-")
+    return extra
+
+
+_DUPLEX_SPEED_RE = re.compile(r"\s((?:a-)?(?:full|half|auto))\s+((?:a-)?(?:auto|\d+[GM]?))(?=\s|$)", re.IGNORECASE)
 
 
 # --------------------------------------------------------------------------
@@ -577,6 +612,11 @@ def resolve_state(observations: Iterable[dict[str, Any]]) -> dict[str, Any] | No
         chosen["protocol"] = next((e["protocol"] for e in items if e.get("protocol")), "")
     if not chosen.get("ip_address"):
         chosen["ip_address"] = next((e.get("ip_address", "") for e in items if e.get("ip_address")), "")
+    for extra_key in ("speed_mbps", "speed_auto", "duplex", "duplex_auto"):
+        if extra_key not in chosen:
+            value = next((e[extra_key] for e in items if extra_key in e), None)
+            if value is not None:
+                chosen[extra_key] = value
     states = {e["state"] for e in items}
     if UP in states and (DOWN in states or ADMIN_DOWN in states):
         chosen["conflict"] = True
@@ -824,6 +864,37 @@ def parse_arp_with_meta(lines: list[str]) -> tuple[list[dict[str, Any]], dict[st
 
 def parse_arp(lines: list[str]) -> list[dict[str, Any]]:
     return parse_arp_with_meta(lines)[0]
+
+
+# ARP of a named VRF: "show ip arp vrf WAN", "show arp vrf 1", "show ip arp vrf all" (NX-OS, one "IP ARP Table for context X" section per VRF),
+# Huawei "display arp vpn-instance X".  The plain table above is the default VRF; the Topology Builder reads both.
+_P_ARP_VRF = [r"sh(?:ow)? ip arp vrf \S+", r"sh(?:ow)? arp vrf \S+", r"dis(?:p(?:l(?:a(?:y)?)?)?)? arp vpn-instance \S+"]
+_ARP_VRF_IN_COMMAND = re.compile(r"(?:vrf|vpn-instance)\s+(\S+)", re.IGNORECASE)
+_ARP_CONTEXT = re.compile(r"IP ARP Table for context\s+(\S+)", re.IGNORECASE)
+
+
+def parse_arp_vrf(lines: list[str]) -> list[dict[str, Any]]:
+    """ARP rows of every ``show ip arp vrf <name>`` block, each row tagged with its VRF; empty when the capture holds none."""
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for start, block in find_blocks(lines, _P_ARP_VRF):
+        found = _ARP_VRF_IN_COMMAND.search(lines[start])
+        base = found.group(1) if found else ""
+        base = "" if base.lower() == "all" else base
+        sections: list[tuple[str, list[str]]] = [(base, [])]
+        for line in block:
+            context = _ARP_CONTEXT.search(line)
+            if context:
+                sections.append((context.group(1), []))
+            else:
+                sections[-1][1].append(line)
+        for vrf, section in sections:
+            for row in _parse_arp_section(section):
+                key = (vrf, row["ip_address"], row["mac_address"], row["interface"])
+                if key not in seen:
+                    seen.add(key)
+                    rows.append({**row, "vrf": vrf})
+    return rows
 
 
 # --------------------------------------------------------------------------

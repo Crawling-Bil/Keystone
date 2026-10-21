@@ -1,0 +1,70 @@
+.tp-page { display: grid; gap: 16px; }
+.tp-intake { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 22px; padding: 18px; }
+.tp-intake-main, .tp-intake-side { display: grid; gap: 12px; align-content: start; }
+.tp-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text-soft); }
+.tp-status { margin: 0; min-height: 18px; font-size: 12px; color: var(--muted); }
+.tp-status.error { color: var(--red, #d64545); }
+.tp-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.tp-card { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.tp-card strong { display: block; font-size: 24px; line-height: 1.1; }
+.tp-card span { font-size: 12px; color: var(--muted); }
+.tp-downloads { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; padding: 14px 18px; }
+.tp-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.tp-tabs { display: flex; gap: 6px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.tp-tabs button { padding: 9px 14px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text-soft); font-weight: 700; font-size: 13px; cursor: pointer; }
+.tp-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--blue); }
+.tp-pagebar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.tp-canvas { overflow: auto; max-height: 70vh; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.tp-zoom { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.tp-zoom span { font-size: 12px; color: var(--muted); min-width: 40px; }
+.tp-canvas { cursor: grab; }
+.tp-canvas.dragging { cursor: grabbing; user-select: none; }
+.tp-canvas svg { display: block; min-width: 900px; width: 100%; height: auto; }
+.tp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tp-table th, .tp-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.tp-table th { position: sticky; top: 0; background: var(--panel-2); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.tp-scroll { overflow: auto; max-height: 60vh; }
+.tp-finding { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.tp-finding h4 { margin: 0 0 4px; font-size: 14px; }
+.tp-finding p { margin: 3px 0; font-size: 13px; color: var(--text-soft); }
+.tp-empty { padding: 26px 30px; }
+.tp-empty h2 { margin: 0 0 14px; font-size: 16px; }
+.tp-empty p { margin: 0 0 14px; line-height: 1.6; }
+.tp-empty ul { margin: 0 0 16px; padding-left: 24px; }
+.tp-empty li { margin: 8px 0; line-height: 1.55; }
+.tp-empty p:last-child { margin-bottom: 0; }
+@media (max-width: 900px) { .tp-intake { grid-template-columns: 1fr; } }
+.tp-pair { display: grid; gap: 12px; }
+.tp-viewbar { display: flex; gap: 6px; margin-bottom: 8px; }
+.tp-legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 10px 0 4px; padding: 0; list-style: none; font-size: 12px; color: var(--text-soft); }
+.tp-legend li { display: flex; align-items: center; gap: 6px; }
+.tp-legend i { display: inline-block; width: 22px; height: 4px; border-radius: 2px; }
+
+.tp-text { width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font-size: 13px; }
+.tp-text:focus { outline: 3px solid var(--focus); outline-offset: 1px; border-color: var(--blue); }
+.tp-card-box { display: grid; gap: 6px; margin: 0; padding: 14px 14px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.tp-card-box > legend { float: left; width: 100%; margin: 0 0 4px; padding: 0; }
+.tp-card-box > legend + * { clear: both; }
+.tp-sub { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 700; color: var(--text-soft); }
+.tp-opt { position: relative; display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid transparent; border-radius: 10px; background: var(--panel); cursor: pointer; transition: border-color .15s, background .15s; }
+.tp-opt:hover { border-color: var(--border-strong); }
+.tp-opt input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.tp-box { flex: none; width: 20px; height: 20px; margin-top: 1px; border: 2px solid var(--border-strong); border-radius: 6px; background: var(--panel); display: grid; place-items: center; transition: background .15s, border-color .15s; }
+.tp-box::after { content: ""; width: 5px; height: 10px; margin-top: -2px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) scale(0); transition: transform .12s; }
+.tp-opt input:checked + .tp-box { background: var(--blue); border-color: var(--blue); }
+.tp-opt input:checked + .tp-box::after { transform: rotate(45deg) scale(1); }
+.tp-opt input:focus-visible + .tp-box { outline: 3px solid var(--focus); outline-offset: 2px; }
+.tp-opt:has(input:checked) { border-color: var(--blue); background: var(--accent-wash); }
+.tp-opt-text { display: grid; gap: 2px; min-width: 0; }
+.tp-opt-text strong { font-size: 13px; line-height: 1.35; color: var(--text); }
+.tp-opt-text small { font-size: 12px; line-height: 1.4; color: var(--muted); }
+.tp-opt-text small:empty { display: none; }
+.tp-opt[hidden] { display: none; }
+.tp-field { display: grid; gap: 6px; }
+.tp-file { position: relative; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--panel); cursor: pointer; transition: border-color .15s, background .15s; min-width: 0; }
+.tp-file:hover, .tp-file:focus-within { border-color: var(--blue); background: var(--accent-wash); }
+.tp-file input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.tp-file-btn { flex: none; padding: 6px 14px; border-radius: 8px; background: var(--blue); color: #fff; font-size: 12px; font-weight: 700; }
+.tp-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.tp-file.has-file .tp-file-name { color: var(--text); font-weight: 600; }
+.tp-name { max-width: 640px; }

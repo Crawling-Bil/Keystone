@@ -114,9 +114,11 @@ class TestAvailableTargetModels(unittest.TestCase):
         self.assertEqual(available_target_models(), available_target_models("Huawei"))
 
     def test_vendor_with_no_model_data_returns_empty_list(self):
-        self.assertEqual(available_target_models("Cisco"), [])
-        self.assertEqual(available_target_models("Aruba"), [])
         self.assertEqual(available_target_models("Some Unknown Vendor"), [])
+
+    def test_cisco_and_aruba_have_target_models_from_the_hardware_catalog(self):
+        self.assertIn("C9300L-48P-4X", [m["model"] for m in available_target_models("Cisco")])
+        self.assertIn("JL724B", [m["model"] for m in available_target_models("Aruba")])
 
 
 class TestConvertFile(unittest.TestCase):

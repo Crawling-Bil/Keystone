@@ -240,10 +240,10 @@ class ConvertPagesRouteTests(unittest.TestCase):
             self.assertIn('id="converter-form"', html)
             self.assertIn(f'name="domain" value="{key}"', html)
 
-    def test_planned_pages_have_no_form_and_point_to_the_analyzer(self):
+    def test_planned_pages_are_disabled_and_point_to_the_analyzer(self):
         for slug, analyzer in (("wireless", "/wireless"), ("router", "/router-analyzer"), ("load-balancer", "/load-balancer-analyzer")):
             html = self.client.get(f"/convert/{slug}").get_data(as_text=True)
-            self.assertNotIn('id="converter-form"', html, slug)
+            self.assertIn('data-planned="true"', html, slug)         # the form is shown disabled (onsubmit is blocked), not a live converter
             self.assertIn("convert-unavailable", html)
             self.assertIn(analyzer, html)
 

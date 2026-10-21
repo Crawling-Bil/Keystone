@@ -289,7 +289,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_every_one_of_the_nine_commands_is_analyzed_even_when_typed_short(self):
         status = {row["command"]: row["status"] for row in self.result["coverage"]["rows"]}
-        for command in ("show vlan", "sh vlan sum", "sh int desc", "sh int tru", "sh ip arp su", "sh span", "sh mac add count"):
+        for command in ("show vlan", "show vlan summary", "show interface description", "show interface trunk", "show ip arp summary", "show spanning-tree", "show mac address-table count"):      # typed short in the capture, spelled out by command_names
             self.assertEqual(status[command], "analyzed", command)
 
     def test_licence_commands_are_analyzed_in_coverage(self):

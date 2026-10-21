@@ -102,7 +102,8 @@ def extract_config(text: str) -> Extracted:
         if echoes >= 4 and not _looks_like_config(lines):
             raise ValueError(
                 "This file is a terminal session capture (it holds the output of several show commands) but no 'show running-config' output. "
-                "Collect the configuration with 'show running-config' (Cisco, Aruba) or 'display current-configuration' (Huawei) and convert that."
+                "Collect the configuration with 'show running-config' (Cisco, Aruba) or 'display current-configuration' (Huawei) and convert that. "
+                "If you did type it, the first part of the session probably scrolled out of the terminal buffer: raise the scrollback (or log the session to a file) and collect again."
             )
         return Extracted(text, total_lines=total, kept_lines=total)
     command, block = best

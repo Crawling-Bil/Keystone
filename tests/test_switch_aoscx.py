@@ -327,7 +327,7 @@ class CoverageTests(unittest.TestCase):
 
     def test_commands_the_switch_rejected_are_errors_not_analyzed(self):
         rows = self.rows(stack_result())
-        for command in ("show interface desc", "show interface status", "show power inline", "show run | in route route"):
+        for command in ("show interface description", "show interface status", "show power inline", "show running-config | in route route"):
             self.assertEqual(rows[command], {"error"}, command)
 
     def test_every_command_the_parsers_read_is_analyzed(self):

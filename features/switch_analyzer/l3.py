@@ -275,9 +275,9 @@ def _parse_interfaces(statements: list[tuple[str, list[str]]], vendor: str) -> l
     order: list[str] = []
     for header, children in statements:
         name = ""
-        match = re.match(r"^interface\s+(\S+)\s*$", header, re.IGNORECASE)
+        match = re.match(r"^interface\s+(\S+)\s*$", header, re.IGNORECASE) or re.match(r"^interface\s+((?:vlan|loopback|lag)\s+\d+)\s*$", header, re.IGNORECASE)
         if match:
-            name = match.group(1)
+            name = re.sub(r"\s+", "", match.group(1)) if " " in match.group(1) else match.group(1)    # AOS-CX writes "interface vlan 130"
         elif vendor.lower() == "aruba":
             vlan = re.match(r"^vlan\s+(\d+)\s*$", header, re.IGNORECASE)
             if vlan and any(child.strip().lower().startswith("ip address ") for child in children):

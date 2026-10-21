@@ -303,7 +303,7 @@ class HuaweiHealthTests(unittest.TestCase):
         self.assertIn("forwarding", display["port_entries"])
 
     def test_findings_on_the_real_configuration(self):
-        self.assertEqual(codes(self.result), ["SW-LACP-001", "SW-SNMP-001", "SW-SNMP-003"])
+        self.assertEqual(codes(self.result), ["SW-LACP-001", "SW-MGT-001", "SW-SNMP-005", "SW-SNMP-001", "SW-SNMP-003"])      # SW-MGT-001 (all-interface) and SW-SNMP-005 (no SNMP ACL) are baseline checks
         self.assertEqual(finding(self.result, "SW-SNMP-001")["severity"], "low")
         self.assertNotIn("SW-NTP-001", codes(self.result))      # five `ntp unicast-server domain ...` lines
         self.assertNotIn("SW-LOG-001", codes(self.result))
@@ -477,7 +477,7 @@ class ServiceLevelTests(unittest.TestCase):
             self.assertEqual(rows[command]["status"], "analyzed", command)
             self.assertEqual(rows[command]["tab"], "health")
         nx = {row["command"]: row for row in analyze(fixture(NXOS), filename="n.txt")["coverage"]["rows"]}
-        for command in ("sh vpc role", "sh vpc peer-keepalive", "sh vpc consistency-parameters global", "sh license usage", "show environment all"):
+        for command in ("show vpc role", "show vpc peer-keepalive", "show vpc consistency-parameters global", "show license usage", "show environment all"):
             self.assertEqual(nx[command]["status"], "analyzed", command)
         ar = {row["command"]: row for row in analyze(fixture(ARUBA), filename="a.txt")["coverage"]["rows"]}
         self.assertEqual(ar["show flash"]["status"], "analyzed")
