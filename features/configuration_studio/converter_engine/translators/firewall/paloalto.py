@@ -217,7 +217,7 @@ class PaloAltoFirewallTranslator:
         static_routes_out = self.translate_static_routes(config, review)
         address_lists_out = self.translate_address_lists(config)
         sdwan_out = self.translate_sdwan(config, mapping, review)
-        ipsec_out = self.translate_ipsec(config, review, mapping, interfaces_out)
+        ipsec_out = self.translate_ipsec(config, review, mapping, interfaces_out + sdwan_out)
         nat_out = self.translate_nat_rules(config, zone_map, review, mapping)
         filter_out = self.translate_filter_rules(config, zone_map, review)
         system_out = self.translate_system_settings(config, review)

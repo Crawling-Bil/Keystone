@@ -252,10 +252,10 @@ def to_mapping(state: dict, translator, facts: Optional[dict] = None) -> dict:
     for name, row in state["ipsec_tunnels"].items():
         zone = str(row.get("zone") or "").strip()
         if zone:
-            try:
-                unit = max(1, min(int(row.get("tunnel_unit") or 1), 9999))
-            except (TypeError, ValueError):
-                unit = 1
+            text = str(row.get("tunnel_unit") or "").strip()
+            unit = int(text) if text.isdigit() and 1 <= int(text) <= 9999 else 0
+            if not unit:
+                continue  # MAP-TUNNEL-UNIT blocks the VPN step; write no tunnel interface
             tunnels[name] = {"zone": zone, "tunnel_unit": unit}
     deployment = state["deployment"]
     return {
@@ -311,9 +311,10 @@ def _source_issues(state: dict, facts: dict, port_count: Optional[int]) -> list:
                       "Use ethernet<slot>/<port> (for example ethernet1/3) or aeN.", ref=name))
             continue
         owners.setdefault(target, []).append(name)
-        if port_count and target.startswith("ethernet1/") and int(target.split("/")[1]) > port_count:
+        slot_port = re.match(r"^ethernet(\d+)/(\d+)$", target)
+        if port_count and slot_port and (slot_port.group(1) != "1" or int(slot_port.group(2)) > port_count):
             add(Issue("MAP-PORT-MISSING", ERROR, "interfaces",
-                      f"{name} -> {target}, but {model} has only {port_count} data ports.",
+                      f"{name} -> {target}, but {model} has only ethernet1/1 to ethernet1/{port_count}.",
                       "Pick a port that exists on the target.", ref=name))
     for target, names in owners.items():
         if len(names) > 1:
@@ -321,6 +322,7 @@ def _source_issues(state: dict, facts: dict, port_count: Optional[int]) -> list:
                       "One source interface per target port; move the others.", ref=target))
 
     issues += _logical_issues(state, facts, owners)
+    issues += _tunnel_issues(state)
 
     swaps = []
     for name, row in state["interfaces"].items():
@@ -335,6 +337,26 @@ def _source_issues(state: dict, facts: dict, port_count: Optional[int]) -> list:
         add(Issue("MAP-RENUMBER", INFO, "interfaces", "Ports that change number: " + "; ".join(swaps) + ".",
                   "Recable these ports at cutover; every reference in the output already follows the new port.",
                   ref="renumber"))
+    return issues
+
+
+def _tunnel_issues(state: dict) -> list:
+    """Each tunnel with a zone needs its own tunnel.N unit, 1-9999."""
+    issues = []
+    units: dict = {}
+    for name, row in state["ipsec_tunnels"].items():
+        if not str(row.get("zone") or "").strip():
+            continue
+        text = str(row.get("tunnel_unit") or "").strip()
+        if not text.isdigit() or not 1 <= int(text) <= 9999:
+            issues.append(Issue("MAP-TUNNEL-UNIT", ERROR, "vpn", f"Tunnel {name}: unit '{text}' is not 1-9999.",
+                                "Use a whole number for tunnel.N.", ref=name))
+            continue
+        units.setdefault(int(text), []).append(name)
+    for unit, names in units.items():
+        if len(names) > 1:
+            issues.append(Issue("MAP-TUNNEL-DUP", ERROR, "vpn", f"{', '.join(names)} all use tunnel.{unit}.",
+                                "Give each tunnel its own unit.", ref=f"tunnel.{unit}"))
     return issues
 
 
@@ -515,11 +537,15 @@ def evaluate(config, translator, state: dict) -> dict:
     target_ports = (
         [f"ethernet1/{n}" for n in range(1, port_count + 1)] if port_count else []
     )
-    l3_targets = sorted({str(row.get("pan_interface")) for row in state["interfaces"].values() if row.get("pan_interface")},
-                        key=_port_sort_key)
+    index = pan_validator.build_index(output_lines)
+    l3_targets = sorted((name for name, entry in index.interfaces.items()
+                         if entry.mode == "layer3" and not name.startswith("tunnel.")), key=_port_sort_key)
+    chosen = {str((row or {}).get("local_interface") or "") for row in state["ipsec_gateways"].values()}
+    l3_targets += sorted(c for c in chosen if c and c not in l3_targets)
     return {
         "steps": steps,
         "ready": all_clear,
+        "revision": state_revision(state),
         "output_text": "\n".join(output_lines).rstrip() + "\n",
         "output_lines": len(output_lines),
         "facts": facts,
@@ -534,6 +560,13 @@ def evaluate(config, translator, state: dict) -> dict:
         "gateways": _gateway_rows(config, translator, state),
         "tunnels": [{"name": name, **row} for name, row in state["ipsec_tunnels"].items()],
     }
+
+
+def state_revision(state: dict) -> str:
+    """Fingerprint of the choices an evaluation was made from. Export only
+    accepts the revision the user last saw checked."""
+    import hashlib, json
+    return hashlib.sha256(json.dumps(state, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
 def _port_sort_key(name: str):

@@ -21,6 +21,14 @@ VLANs, bridges and disabled ports (Interfaces step)
 - An interface named or commented WAN/ISP/INET/internet/uplink is detected as INET.
 - An enabled port with nothing on it (no address, not in a bridge, no rule, NAT, DHCP or VLAN uses it) starts unmapped. "Not mapped (skip)" now really skips the port: the translator writes nothing for it (it used to auto-guess ethernet1/N and add an empty layer3 interface, a zone and a virtual-router entry) and leaves one review note. Unmapping a port that is in use is still an error.
 
+Fixes from a debugging pass on the guided conversion
+- Export could differ from the page: after an edit that was not re-checked, the stepper still opened Review as "Passed" and Download exported the last checked state. Leaving a step with unchecked edits now checks them first, and the download carries the revision of the state the page last saw checked (`?rev=`); the server refuses any other revision.
+- A port in a slot the model does not have (`ethernet2/1` on a PA-505) passed. Wizard (MAP-PORT-MISSING) and validator (IF-PORT-MISSING) now check slot 1 and the port number.
+- Two tunnels could be given the same tunnel.N and both bound to it without an error; a non-numeric unit silently became 1. New MAP-TUNNEL-UNIT / MAP-TUNNEL-DUP in the VPN step and VPN-TUN-DUP in the validator; an invalid unit writes no tunnel interface.
+- Marking the WAN as an SD-WAN link lost the IKE gateway's local interface: the owner of the local address is now also looked up in the SD-WAN lines.
+- The VPN step's local-interface list held physical ports only, so a WAN on a sub-interface (`ethernet1/1.100`), vlan.N or SD-WAN could not be picked and the error could not be fixed from the page. It now lists every layer3 interface in the output.
+- A session that started more than a day ago was deleted by the next start even while in use. Every check now refreshes the session's age.
+
 Translator fixes (all conversions, not only the wizard)
 - A VLAN on a bridge was built as vlan.N with the bare bridge ports as members, while the same ports already belonged to the bridge's untagged VLAN object; PAN-OS refuses one interface in two VLAN objects. It now uses a tagged layer2 sub-interface (`ethernet1/2.20 tag 20`) on each bridge port.
 - Synthetic vlan.N numbers for untagged bridges restart at 900 per conversion, so converting the same file twice gives the same output.

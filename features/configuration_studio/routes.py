@@ -551,7 +551,7 @@ def wizard_validate_route(token: str):
 @bp.get("/api/wizard/<token>/download")
 def wizard_download_route(token: str):
     try:
-        name, text = wizard_service.export(WIZARD_DIR, token)
+        name, text = wizard_service.export(WIZARD_DIR, token, request.args.get("rev"))
     except wizard_service.WizardError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
     log_activity("Convert Firewall", "Guided conversion exported", name)

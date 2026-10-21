@@ -435,9 +435,9 @@ def validate(lines: list, target_port_count: Optional[int] = None) -> list:
                       f"'{name}' is not a PAN-OS ethernet name (ethernet<slot>/<port>).",
                       "Pick a real port from the target model in the Interfaces step.", entry.line, name))
             continue
-        if match and target_port_count and not match.group(3) and int(match.group(2)) > target_port_count:
+        if match and target_port_count and not match.group(3) and (match.group(1) != "1" or int(match.group(2)) > target_port_count):
             add(Issue("IF-PORT-MISSING", ERROR, "interfaces",
-                      f"{name} does not exist on the target model ({target_port_count} data ports).",
+                      f"{name} does not exist on the target model (ethernet1/1 to ethernet1/{target_port_count}).",
                       "Map this interface to an existing port, or pick a bigger model.", entry.line, name))
         if match and match.group(3):
             parent = name.rsplit(".", 1)[0]
@@ -754,6 +754,11 @@ def validate(lines: list, target_port_count: Optional[int] = None) -> list:
             add(Issue("REF-IPSEC-PROFILE", ERROR, "vpn", f"IPsec tunnel {name} uses undefined IPsec crypto profile {profile}.",
                       "Define the profile.", tun["line"], f"{name}|{profile}"))
         tunnel_if = tun.get("tunnel_interface")
+        sharing = [other for other, data in idx.tunnels.items() if other != name and tunnel_if and data.get("tunnel_interface") == tunnel_if]
+        if sharing:
+            add(Issue("VPN-TUN-DUP", ERROR, "vpn",
+                      f"IPsec tunnel {name} shares {tunnel_if} with {', '.join(sharing)}.",
+                      "Give each tunnel its own tunnel.N unit.", tun["line"], f"{tunnel_if}|{name}"))
         if not tunnel_if:
             add(Issue("VPN-TUN-IF", ERROR, "vpn", f"IPsec tunnel {name} has no tunnel interface.",
                       "Give it a zone and a tunnel.N unit in the VPN step.", tun["line"], name))

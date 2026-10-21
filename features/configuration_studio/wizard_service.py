@@ -10,6 +10,7 @@ new one starts. Everything stays on this machine.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import time
@@ -64,6 +65,11 @@ def _load(root: Path, token: str):
 
 def _save_state(folder: Path, state: dict) -> None:
     (folder / "state.json").write_text(json.dumps(state, indent=1), encoding="utf-8")
+    # Expiry is measured from the last use, not from the start.
+    try:
+        os.utime(folder, None)
+    except OSError:
+        pass
 
 
 def _public(meta: dict, token: str, result: dict) -> dict:
@@ -131,10 +137,13 @@ def validate(root: Path, token: str, incoming_state: Optional[dict]) -> dict[str
     return _public({**meta, "source_text": ""}, token, result)
 
 
-def export(root: Path, token: str) -> tuple[str, str]:
+def export(root: Path, token: str, revision: Optional[str] = None) -> tuple[str, str]:
     """(file name, config text). Refused while any step has an open error or
-    an unacknowledged warning."""
+    an unacknowledged warning, and when ``revision`` is not the state the
+    user last had checked (an edit in the page that was never validated)."""
     folder, meta, state, config, translator = _load(root, token)
+    if not revision or revision != firewall_wizard.state_revision(state):
+        raise WizardError("The page has changes that were not checked yet. Re-check, then download.")
     result = firewall_wizard.evaluate(config, translator, state)
     if not result["ready"]:
         blocking = [s["label"] for s in result["steps"] if s["status"] != "ok"]

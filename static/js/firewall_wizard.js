@@ -15,7 +15,7 @@
   const targetVendor = $("target-vendor");
   const otherPanels = ["converter-empty", "converter-result", "mapping-result", "batch-result"];
 
-  const wiz = { token: null, result: null, state: null, current: 0, busy: false };
+  const wiz = { token: null, result: null, state: null, current: 0, busy: false, dirty: false };
 
   function updateStartVisibility() {
     const isPaloAlto = ((targetVendor && targetVendor.value) || "").toLowerCase() === "palo alto";
@@ -71,6 +71,7 @@
   function accept(result) {
     wiz.result = result;
     wiz.state = JSON.parse(JSON.stringify(result.state));
+    wiz.dirty = false;
     $("wizard-hostname-line").textContent =
       `${result.hostname}: ${result.source_vendor} to ${result.target_vendor}. Each step is checked before the next one opens.`;
     render();
@@ -86,14 +87,17 @@
       const step = result.steps[wiz.current];
       wiz.result = result;
       wiz.state = JSON.parse(JSON.stringify(result.state));
+      wiz.dirty = false;
       if (advance && step.status === "ok" && wiz.current < result.steps.length - 1) {
         wiz.current += 1;
       } else if (advance && step.status !== "ok") {
         window.NES.toast(step.status === "error" ? "Fix the errors in this step first." : "Read and acknowledge the warnings first.", "error");
       }
       render();
+      return true;
     } catch (error) {
       window.NES.toast(error.message, "error");
+      return false;
     } finally {
       wiz.busy = false;
       window.NES.setLoading(nextButton, false);
@@ -101,9 +105,27 @@
     }
   }
 
+  // Leaving a step with unchecked edits checks them first, so the steps,
+  // the review and the download always show the state the server checked.
+  async function go(index) {
+    if (wiz.dirty && !(await validate(false))) return;
+    const target = wiz.result.steps[index];
+    if (!target) return;
+    if (index > wiz.current && !target.reachable) {
+      window.NES.toast("Finish the open steps first.", "error");
+      return;
+    }
+    wiz.current = index;
+    render();
+  }
+
+  function downloadUrl() {
+    return `/configuration/api/wizard/${wiz.token}/download?rev=${encodeURIComponent(wiz.result.revision || "")}`;
+  }
+
   $("wizard-next").addEventListener("click", () => validate(true));
   $("wizard-recheck").addEventListener("click", () => validate(false));
-  $("wizard-back").addEventListener("click", () => { if (wiz.current > 0) { wiz.current -= 1; render(); } });
+  $("wizard-back").addEventListener("click", () => { if (wiz.current > 0) go(wiz.current - 1); });
   $("wizard-restart").addEventListener("click", () => {
     wiz.token = null; wiz.result = null;
     root.classList.add("hidden");
@@ -115,6 +137,7 @@
     const set = new Set(wiz.state.acknowledged || []);
     keys.forEach(k => (event.target.checked ? set.add(k) : set.delete(k)));
     wiz.state.acknowledged = [...set];
+    wiz.dirty = true;
     validate(false);
   });
 
@@ -153,7 +176,7 @@
         <span class="wz-dot-n">${index + 1}</span><span class="wz-dot-label">${esc(step.label)}</span></button></li>`;
     }).join("");
     $("wizard-stepper").querySelectorAll("button[data-step]").forEach(button => {
-      button.addEventListener("click", () => { wiz.current = Number(button.dataset.step); render(); });
+      button.addEventListener("click", () => go(Number(button.dataset.step)));
     });
   }
 
@@ -356,7 +379,7 @@
           : `<p class="wz-ready">All steps passed Keystone's checks.</p>`}
         <p class="wz-hint">Keystone checks references and the rules it knows. Only PAN-OS can confirm a commit: load the file on a lab or the target firewall and run <code>validate full</code> before cutover.</p>
         <div class="wz-review-actions">
-          <a class="primary-button ${wiz.result.ready ? "" : "is-disabled"}" id="wizard-download" ${wiz.result.ready ? `href="/configuration/api/wizard/${esc(wiz.token)}/download"` : `aria-disabled="true"`}>Download PAN-OS config</a>
+          <a class="primary-button ${wiz.result.ready ? "" : "is-disabled"}" id="wizard-download" ${wiz.result.ready ? `href="${esc(downloadUrl())}"` : `aria-disabled="true"`}>Download PAN-OS config</a>
           <button type="button" class="secondary-button" id="wizard-copy">Copy output</button>
         </div>
         <article class="code-panel"><header><div><strong>Generated configuration</strong><span>${wiz.result.output_lines} lines</span></div></header><pre id="wizard-output">${esc(wiz.result.output_text)}</pre></article>
@@ -400,12 +423,19 @@
         const status = $("wizard-step-status");
         status.className = "wz-status is-stale";
         status.textContent = "Changed, not checked yet";
+        wiz.dirty = true;
       };
       control.addEventListener(control.tagName === "SELECT" || control.type === "checkbox" ? "change" : "input", handler);
     });
     if (stepKey === "review") {
       $("wizard-copy")?.addEventListener("click", () => window.NES.copyText(wiz.result.output_text));
-      $("wizard-download")?.addEventListener("click", event => { if (!wiz.result.ready) event.preventDefault(); });
+      $("wizard-download")?.addEventListener("click", async event => {
+        if (!wiz.result.ready) { event.preventDefault(); return; }
+        if (wiz.dirty) {
+          event.preventDefault();
+          if ((await validate(false)) && wiz.result.ready) window.location.href = downloadUrl();
+        }
+      });
     }
   }
 })();
