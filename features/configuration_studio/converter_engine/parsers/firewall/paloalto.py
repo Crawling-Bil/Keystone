@@ -55,7 +55,9 @@ _MGMT_SERVICE_RE = re.compile(r'^deviceconfig system service (\S+) (yes|no)$')
 _ETH_LAYER2_RE = re.compile(r'^network interface ethernet (\S+) layer2$')
 _ETH_LAYER3_BARE_RE = re.compile(r'^network interface ethernet (\S+) layer3$')
 _ETH_LAYER3_IP_RE = re.compile(r'^network interface ethernet (\S+) layer3 ip (\S+)$')
-_ETH_SUBIF_CREATE_RE = re.compile(r'^network interface ethernet (\S+) layer3 units (\S+) tag (\d+)$')
+_ETH_SUBIF_CREATE_RE = re.compile(r'^network interface ethernet (\S+) (layer3|layer2) units (\S+) tag (\d+)$')
+_ETH_LINK_STATE_RE = re.compile(r'^network interface ethernet (\S+) link-state (up|down|auto)$')
+_VLAN_UNIT_BARE_RE = re.compile(r'^network interface vlan units (vlan\.\d+)$')
 _ETH_SUBIF_IP_RE = re.compile(r'^network interface ethernet (\S+\.\d+) ip (\S+)$')
 _ETH_SUBIF_COMMENT_RE = re.compile(r'^network interface ethernet (\S+\.\d+) comment "(.*)"$')
 _ETH_COMMENT_RE = re.compile(r'^network interface ethernet (\S+) comment "(.*)"$')
@@ -528,12 +530,22 @@ class PaloAltoFirewallParser:
 
         match = _ETH_SUBIF_CREATE_RE.match(rest)
         if match:
-            parent, subif_name, tag = match.group(1), match.group(2), match.group(3)
-            get_interface(parent, "ethernet").mode = "layer3"
+            parent, layer, subif_name, tag = match.group(1), match.group(2), match.group(3), match.group(4)
+            get_interface(parent, "ethernet").mode = layer
             sub = get_interface(subif_name, "subinterface")
             sub.parent_interface = parent
             sub.tag = int(tag)
-            sub.mode = "layer3"
+            sub.mode = layer
+            return True
+
+        match = _ETH_LINK_STATE_RE.match(rest)
+        if match:
+            get_interface(match.group(1), "ethernet").link_state = match.group(2)
+            return True
+
+        match = _VLAN_UNIT_BARE_RE.match(rest)
+        if match:
+            get_interface(match.group(1), "vlan").mode = "layer3"
             return True
 
         match = _ETH_SUBIF_IP_RE.match(rest)

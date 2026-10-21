@@ -79,6 +79,11 @@ class _Iface:
     dhcp: bool = False
     line: int = 0
     mgmt_profile: str = ""
+    modes: set = field(default_factory=set)  # every layer this interface was written with
+
+    def set_mode(self, mode: str) -> None:
+        self.mode = mode
+        self.modes.add(mode)
 
 
 @dataclass
@@ -239,9 +244,11 @@ def _index_network(idx: Index, tok: list, n: int, iface) -> bool:
             entry = iface(name, n)
             rest = tok[3:]
             if rest[:1] == ["layer2"]:
-                entry.mode = "layer2"
+                entry.set_mode("layer2")
+                if rest[1:2] == ["units"] and len(rest) > 2:
+                    iface(rest[2], n).set_mode("layer2")
             elif rest[:1] == ["layer3"]:
-                entry.mode = "layer3"
+                entry.set_mode("layer3")
                 sub = rest[1:]
                 if sub[:1] == ["ip"] and len(sub) > 1:
                     entry.ips += [v for v in _value_list(sub[1:]) if v not in entry.ips]
@@ -249,7 +256,7 @@ def _index_network(idx: Index, tok: list, n: int, iface) -> bool:
                     entry.dhcp = True
                 elif sub[:1] == ["units"] and len(sub) > 1:
                     unit = iface(sub[1], n)
-                    unit.mode = "layer3"
+                    unit.set_mode("layer3")
                     tail = sub[2:]
                     if tail[:1] == ["ip"] and len(tail) > 1:
                         unit.ips += [v for v in _value_list(tail[1:]) if v not in unit.ips]
@@ -439,11 +446,18 @@ def validate(lines: list, target_port_count: Optional[int] = None) -> list:
                 add(Issue("IF-SUB-PARENT", ERROR, "interfaces",
                           f"Sub-interface {name} has no parent {parent} defined.",
                           f"Define {parent} as a layer3 interface.", entry.line, name))
-            elif parent_entry.mode == "layer2":
+            elif entry.mode and parent_entry.mode and entry.mode != parent_entry.mode:
                 add(Issue("IF-SUB-PARENT", ERROR, "interfaces",
-                          f"Sub-interface {name} sits on {parent}, which is layer2.",
-                          f"A layer3 sub-interface needs a layer3 parent; change {parent} or the mapping.",
+                          f"Sub-interface {name} is {entry.mode} but its parent {parent} is {parent_entry.mode}.",
+                          f"A {entry.mode} sub-interface needs a {entry.mode} parent. Usually a VLAN set to "
+                          "'sub-interface' sits on a port that is also a bridge member; pick 'VLAN interface' "
+                          "for that VLAN, or route the bridge on the port.",
                           entry.line, name))
+        if len(entry.modes) > 1:
+            add(Issue("IF-MODE", ERROR, "interfaces",
+                      f"{name} is written as both layer2 and layer3.",
+                      "A port is either a bridge member (layer2) or routed (layer3); check the VLAN and "
+                      "bridge modes that use this port.", entry.line, name))
         for address in entry.ips:
             if _network(address) is None and not address.replace("-", "").replace("_", "").isalnum():
                 add(Issue("IF-IP-INVALID", ERROR, "interfaces",

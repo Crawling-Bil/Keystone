@@ -115,8 +115,10 @@ def describe_source(config) -> dict:
                 role, reasons = "inet", reasons + ["default route next hop"]
             elif not role and _is_private(address) is False:
                 role, reasons = "inet", reasons + ["public address"]
+        text = f"{name} {interface.comment}".lower()
+        if not role and re.search(r"\b(wan|isp|inet|internet|uplink)\b", text):
+            role, reasons = "inet", ["name/comment"]
         if not role:
-            text = f"{name} {interface.comment}".lower()
             if "mgmt" in text or "manage" in text:
                 role, reasons = "mgmt", ["name/comment"]
             elif "dmz" in text:
@@ -144,6 +146,9 @@ def describe_source(config) -> dict:
             "role_label": ROLE_LABELS.get(role, role.upper()),
             "role_reason": ", ".join(dict.fromkeys(reasons)),
             "physical": interface.interface_type not in ("bridge", "vlan"),
+            "vlan_id": interface.vlan_id,
+            "parent": interface.parent_interface or "",
+            "parent_is_bridge": (interface.parent_interface or "") in {i.name for i in config.interfaces if i.interface_type == "bridge"},
         }
     return facts
 
@@ -156,12 +161,27 @@ def initial_state(config, translator, target_model: Optional[str] = None) -> dic
     interfaces = {}
     for row in preview["interfaces"]:
         fact = facts.get(row["name"], {})
+        kind = fact.get("type", "")
+        if kind == "vlan":
+            mode = "vlan" if fact.get("parent_is_bridge") else "subinterface"
+            tag = fact.get("vlan_id") or ""
+            unit = tag
+        elif kind == "bridge":
+            mode, tag, unit = "vlan", "", ""
+        else:
+            mode, tag, unit = "", "", ""
         interfaces[row["name"]] = {
             "pan_interface": row.get("suggested_pan_interface") or "",
             # A bridge member is a layer2 port: its zone is the bridge's.
             "zone": "" if fact.get("bridge") else (row.get("suggested_zone") or ""),
             "sdwan_link_type": "none",
             "role": fact.get("role", ""),
+            # VLAN / bridge shape on PAN-OS (see _translate_vlan_interface /
+            # _translate_bridge): mode, parent port for a sub-interface, tag, vlan.N unit.
+            "mode": mode,
+            "parent_port": "",
+            "tag": tag,
+            "unit": unit,
         }
     tunnels = {
         t["tunnel_name"]: {"zone": t.get("suggested_zone") or "", "tunnel_unit": t.get("suggested_unit") or 1}
@@ -213,6 +233,9 @@ def to_mapping(state: dict, translator, facts: Optional[dict] = None) -> dict:
         entry = {"sdwan_link_type": row.get("sdwan_link_type") or "none"}
         if str(row.get("pan_interface") or "").strip():
             entry["pan_interface"] = str(row["pan_interface"]).strip()
+        for key in ("mode", "parent_port", "tag", "unit"):
+            if str(row.get(key) or "").strip():
+                entry[key] = str(row[key]).strip()
         if (facts.get(name) or {}).get("bridge"):
             interfaces[name] = entry  # zone follows the bridge (assign_zones)
             continue
@@ -291,6 +314,8 @@ def _source_issues(state: dict, facts: dict, port_count: Optional[int]) -> list:
             add(Issue("MAP-DUP", ERROR, "interfaces", f"{', '.join(names)} are all mapped to {target}.",
                       "One source interface per target port; move the others.", ref=target))
 
+    issues += _logical_issues(state, facts, owners)
+
     swaps = []
     for name, row in state["interfaces"].items():
         fact = facts.get(name, {})
@@ -304,6 +329,79 @@ def _source_issues(state: dict, facts: dict, port_count: Optional[int]) -> list:
         add(Issue("MAP-RENUMBER", INFO, "interfaces", "Ports that change number: " + "; ".join(swaps) + ".",
                   "Recable these ports at cutover; every reference in the output already follows the new port.",
                   ref="renumber"))
+    return issues
+
+
+def _logical_issues(state: dict, facts: dict, owners: dict) -> list:
+    """VLAN and bridge choices: tag range, parent port, duplicate units and sub-interfaces."""
+    issues = []
+    add = issues.append
+    mapped_ports = set(owners)
+    units: dict = {}
+    subifs: dict = {}
+    for name, row in state["interfaces"].items():
+        fact = facts.get(name, {})
+        kind = fact.get("type")
+        if kind not in ("vlan", "bridge"):
+            continue
+        mode = str(row.get("mode") or "")
+        if kind == "bridge":
+            ports = fact.get("bridge_ports") or []
+            if mode == "routed" and len(ports) != 1:
+                add(Issue("MAP-BRIDGE-ROUTED", ERROR, "interfaces",
+                          f"Bridge {name} has {len(ports)} member ports; only a one-port bridge can be routed on the port.",
+                          "Keep it as a VLAN interface (vlan.N).", ref=name))
+            unit = str(row.get("unit") or "").strip()
+            if mode != "routed" and unit:
+                units.setdefault(unit, []).append(name)
+            continue
+
+        tag_text = str(row.get("tag") or "").strip()
+        try:
+            tag = int(tag_text)
+        except ValueError:
+            tag = 0
+        if not 1 <= tag <= 4094:
+            add(Issue("MAP-VLAN-TAG", ERROR, "interfaces", f"VLAN {name}: tag '{tag_text}' is not 1-4094.",
+                      "Use the 802.1Q tag the switch side uses.", ref=name))
+            continue
+        if mode == "vlan":
+            if not fact.get("parent_is_bridge"):
+                add(Issue("MAP-VLAN-MODE", ERROR, "interfaces",
+                          f"VLAN {name} sits on port {fact.get('parent')}, not on a bridge, so it cannot be a VLAN interface.",
+                          "Use 'sub-interface'.", ref=name))
+                continue
+            unit = str(row.get("unit") or tag).strip()
+            units.setdefault(unit, []).append(name)
+        else:
+            parent = str(row.get("parent_port") or "").strip()
+            if not parent:
+                if fact.get("parent_is_bridge"):
+                    bridge = facts.get(fact.get("parent"), {})
+                    ports = bridge.get("bridge_ports") or []
+                    if len(ports) == 1:
+                        parent = str((state["interfaces"].get(ports[0]) or {}).get("pan_interface") or "")
+                    else:
+                        add(Issue("MAP-VLAN-PARENT", ERROR, "interfaces",
+                                  f"VLAN {name} is a sub-interface on bridge {fact.get('parent')}, which has "
+                                  f"{len(ports)} ports; pick the trunk port.", "Choose the parent port.", ref=name))
+                        continue
+                else:
+                    parent = str((state["interfaces"].get(fact.get("parent")) or {}).get("pan_interface") or "")
+            if parent and parent not in mapped_ports:
+                add(Issue("MAP-VLAN-PARENT", ERROR, "interfaces",
+                          f"VLAN {name}: parent port {parent} is not mapped from any source port.",
+                          "Pick a port that is in use on the target.", ref=name))
+            if parent:
+                subifs.setdefault(f"{parent}.{tag}", []).append(name)
+    for unit, names in units.items():
+        if len(names) > 1:
+            add(Issue("MAP-VLAN-UNIT", ERROR, "interfaces", f"{', '.join(names)} all use vlan.{unit}.",
+                      "Give each VLAN interface its own unit number.", ref=f"vlan.{unit}"))
+    for subif, names in subifs.items():
+        if len(names) > 1:
+            add(Issue("MAP-VLAN-DUP", ERROR, "interfaces", f"{', '.join(names)} all become {subif}.",
+                      "Two VLANs cannot share a tag on one port.", ref=subif))
     return issues
 
 

@@ -204,6 +204,9 @@ class PaloAltoFirewallTranslator:
         self._synthetic_vlan_unit = 900
 
     def translate(self, config, mapping=None, target_model=None):
+        # Synthetic vlan.N numbering restarts per conversion, so the same
+        # input always gives the same output (the wizard re-runs translate).
+        self._synthetic_vlan_unit = 900
         review = []
         mapping = mapping or {}
         target_ethernet_port_count = resolve_target_ethernet_port_count(target_model)
@@ -524,10 +527,54 @@ class PaloAltoFirewallTranslator:
             f"interface {tunnel.name} [{tunnel.interface_type}]{suffix}: not converted automatically -- {advice}."
         )
 
+    @staticmethod
+    def _override(mapping, name):
+        return ((mapping or {}).get("interfaces") or {}).get(name) or {}
+
+    @staticmethod
+    def _int_or(value, default):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _link_down(phys, interface, review):
+        """A port disabled on the RouterOS stays down on PAN-OS."""
+        if interface is None or not interface.disabled:
+            return []
+        review.append(
+            f"interface {interface.name}: DISABLED in the source -- {phys} is written with "
+            "'link-state down'; set it to auto when the port goes into service."
+        )
+        return [f"set network interface ethernet {phys} link-state down"]
+
     def _translate_bridge(self, config, bridge, zone_map, review, consumed, mapping=None):
         output = []
         zone = zone_map.get(bridge.name, self.pan_name(bridge.name))
         phys_names = []
+        override = self._override(mapping, bridge.name)
+
+        # "routed": a bridge with one member port becomes that port as a
+        # plain layer3 interface (no VLAN object, no synthetic vlan.N).
+        if str(override.get("mode") or "") == "routed" and len(bridge.bridge_ports) == 1:
+            port = config.find_interface(bridge.bridge_ports[0])
+            phys = self.resolve_physical(port, review, mapping)
+            if phys:
+                consumed.update({bridge.name, bridge.bridge_ports[0]})
+                output.append(f"set network interface ethernet {phys} layer3")
+                if bridge.ip_addresses:
+                    output.append(f"set network interface ethernet {phys} layer3 ip {bridge.ip_addresses[0]}")
+                if bridge.comment:
+                    output.append(f'set network interface ethernet {phys} comment "{bridge.comment}"')
+                output += self._link_down(phys, port, review)
+                output.append(f"set zone {zone} network layer3 [ {phys} ]")
+                if len(bridge.ip_addresses) > 1:
+                    review.append(
+                        f"bridge {bridge.name}: had {len(bridge.ip_addresses)} IP addresses; only the first "
+                        f"was applied to {phys} -- add the rest manually if still needed."
+                    )
+                return output
 
         for port_name in bridge.bridge_ports:
             port = config.find_interface(port_name)
@@ -553,6 +600,7 @@ class PaloAltoFirewallTranslator:
                 review.append(note)
                 continue
             output.append(f"set network interface ethernet {phys} layer2")
+            output += self._link_down(phys, port, review)
             phys_names.append(phys)
             if port is not None and port.ip_addresses:
                 # The member resolved fine to a real PAN-OS port, but it
@@ -575,8 +623,12 @@ class PaloAltoFirewallTranslator:
         vlan_object_name = self.pan_name(bridge.name)
 
         if bridge.ip_addresses:
-            unit = self._synthetic_vlan_unit
-            self._synthetic_vlan_unit += 1
+            chosen = self._int_or(override.get("unit"), None)
+            if chosen:
+                unit = chosen
+            else:
+                unit = self._synthetic_vlan_unit
+                self._synthetic_vlan_unit += 1
             output.append(f"set network interface vlan units vlan.{unit} ip {bridge.ip_addresses[0]}")
             if bridge.comment:
                 output.append(f'set network interface vlan units vlan.{unit} comment "{bridge.comment}"')
@@ -584,10 +636,11 @@ class PaloAltoFirewallTranslator:
             if phys_names:
                 output.append(f"set network vlan {vlan_object_name} interface [ {' '.join(phys_names)} ]")
             output.append(f"set zone {zone} network layer3 [ vlan.{unit} ]")
-            review.append(
-                f"bridge {bridge.name}: no Mikrotik VLAN tag exists for this untagged bridge, so "
-                f"vlan.{unit} was assigned arbitrarily -- renumber if it collides with a real VLAN."
-            )
+            if not chosen:
+                review.append(
+                    f"bridge {bridge.name}: no Mikrotik VLAN tag exists for this untagged bridge, so "
+                    f"vlan.{unit} was assigned arbitrarily -- renumber if it collides with a real VLAN."
+                )
             if len(bridge.ip_addresses) > 1:
                 review.append(
                     f"bridge {bridge.name}: had {len(bridge.ip_addresses)} IP addresses; only the "
@@ -605,45 +658,72 @@ class PaloAltoFirewallTranslator:
         return output
 
     def _translate_vlan_interface(self, config, vlan, bridges_by_name, zone_map, review, consumed, mapping=None):
+        """
+        RouterOS VLAN -> PAN-OS, in one of two shapes:
+
+        * "subinterface" (the default for a VLAN on a routed port): a layer3
+          sub-interface <port>.<tag> on a layer3 parent port. On a bridge it
+          is router-on-a-stick on the chosen (or only) member port.
+        * "vlan" (the default for a VLAN on a bridge): a vlan.<unit> layer3
+          interface whose VLAN object holds a TAGGED layer2 sub-interface
+          <port>.<tag> on every bridge member. The bare member port already
+          belongs to the bridge's untagged VLAN object, and PAN-OS refuses
+          one interface in two VLAN objects.
+        """
         output = []
         consumed.add(vlan.name)
         zone = zone_map.get(vlan.name, self.pan_name(vlan.name))
         parent_bridge = bridges_by_name.get(vlan.parent_interface)
+        override = self._override(mapping, vlan.name)
+        tag = self._int_or(override.get("tag"), vlan.vlan_id)
+        mode = str(override.get("mode") or ("vlan" if parent_bridge is not None else "subinterface"))
+        if vlan.disabled:
+            review.append(
+                f"vlan {vlan.name} (id {vlan.vlan_id}): DISABLED in the source -- converted anyway; "
+                "remove it or leave its zone unused until it goes into service."
+            )
 
-        if parent_bridge is not None:
-            phys_names = []
+        if mode == "vlan" and parent_bridge is not None:
+            members = []
             for port_name in parent_bridge.bridge_ports:
                 phys = self.resolve_physical(config.find_interface(port_name), review, mapping)
                 if phys:
-                    phys_names.append(phys)
-            unit = vlan.vlan_id
+                    output.append(f"set network interface ethernet {phys} layer2 units {phys}.{tag} tag {tag}")
+                    members.append(f"{phys}.{tag}")
+            unit = self._int_or(override.get("unit"), tag)
             vlan_object_name = self.pan_name(vlan.name)
+            output.append(f"set network interface vlan units vlan.{unit}")
             if vlan.ip_addresses:
                 output.append(f"set network interface vlan units vlan.{unit} ip {vlan.ip_addresses[0]}")
             if vlan.comment:
                 output.append(f'set network interface vlan units vlan.{unit} comment "{vlan.comment}"')
             output.append(f"set network vlan {vlan_object_name} vlan-interface vlan.{unit}")
-            if phys_names:
-                output.append(f"set network vlan {vlan_object_name} interface [ {' '.join(phys_names)} ]")
+            if members:
+                output.append(f"set network vlan {vlan_object_name} interface [ {' '.join(members)} ]")
             output.append(f"set zone {zone} network layer3 [ vlan.{unit} ]")
         else:
+            phys = str(override.get("parent_port") or "").strip()
             parent_obj = config.find_interface(vlan.parent_interface)
-            phys = self.resolve_physical(parent_obj, review, mapping)
+            if not phys:
+                if parent_bridge is not None:
+                    if len(parent_bridge.bridge_ports) == 1:
+                        phys = self.resolve_physical(config.find_interface(parent_bridge.bridge_ports[0]), review, mapping)
+                else:
+                    phys = self.resolve_physical(parent_obj, review, mapping)
             if not phys:
                 review.append(
                     f"vlan {vlan.name} (id {vlan.vlan_id}): could not resolve parent interface "
-                    f"'{vlan.parent_interface}' to a PAN-OS port -- create this sub-interface manually."
+                    f"'{vlan.parent_interface}' to a PAN-OS port -- pick the parent port for this "
+                    "sub-interface (or create it manually)."
                 )
                 return output
-            if parent_obj is not None and not parent_obj.ip_addresses:
+            if parent_bridge is None and parent_obj is not None and not parent_obj.ip_addresses:
                 # The parent port carries no native/untagged IP of its own --
                 # it's a pure VLAN trunk, so it must NOT also be emitted (and
-                # zoned) as its own standalone routed interface by
-                # _translate_routed_interface, which would bind an empty,
-                # traffic-less "layer3" interface to a spurious zone.
+                # zoned) as its own standalone routed interface.
                 consumed.add(vlan.parent_interface)
-            sub_if = f"{phys}.{vlan.vlan_id}"
-            output.append(f"set network interface ethernet {phys} layer3 units {sub_if} tag {vlan.vlan_id}")
+            sub_if = f"{phys}.{tag}"
+            output.append(f"set network interface ethernet {phys} layer3 units {sub_if} tag {tag}")
             if vlan.ip_addresses:
                 output.append(f"set network interface ethernet {sub_if} ip {vlan.ip_addresses[0]}")
             if vlan.comment:
@@ -684,6 +764,7 @@ class PaloAltoFirewallTranslator:
             output.append(f"set network interface ethernet {phys} layer3 ip {interface.ip_addresses[0]}")
         if interface.comment:
             output.append(f'set network interface ethernet {phys} comment "{interface.comment}"')
+        output += self._link_down(phys, interface, review)
         output.append(f"set zone {zone} network layer3 [ {phys} ]")
 
         if len(interface.ip_addresses) > 1:

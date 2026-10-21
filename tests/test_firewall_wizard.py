@@ -328,3 +328,92 @@ def test_a_rule_on_an_interface_list_uses_every_member_zone(parsed):
     mapping = {"interfaces": {"ether2": {"zone": "ISP-A"}, "ether3": {"pan_interface": "ethernet1/3", "zone": "ISP-B"}}}
     text = "\n".join(_lines(config, translator, mapping))
     assert "set rulebase security rules lan-out to [ ISP-A ISP-B ]" in text
+
+
+# ------------------------------------------------------------------ VLAN, bridge, disabled ports
+
+VLAN_RSC = """
+/interface ethernet
+set [ find default-name=ether1 ] comment=WAN
+set [ find default-name=ether2 ] comment=LAN-1
+set [ find default-name=ether3 ] comment=LAN-2
+set [ find default-name=ether4 ] comment=DMZ-trunk
+set [ find default-name=ether5 ] disabled=yes comment=spare
+/interface bridge
+add name=br-lan
+/interface bridge port
+add bridge=br-lan interface=ether2
+add bridge=br-lan interface=ether3
+/interface vlan
+add interface=br-lan name=vlan20-guest vlan-id=20
+add interface=ether4 name=vlan30-dmz vlan-id=30
+/ip address
+add address=203.0.113.6/29 interface=ether1
+add address=192.168.10.1/24 interface=br-lan
+add address=192.168.20.1/24 interface=vlan20-guest
+add address=172.16.30.1/24 interface=vlan30-dmz
+add address=10.5.5.1/24 interface=ether5
+"""
+
+
+@pytest.fixture()
+def vlan_parsed():
+    engine = MigrationEngine()
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "vlan.rsc"
+        path.write_text(VLAN_RSC, encoding="utf-8")
+        config = engine.parse(filename=path, source_vendor="Mikrotik", source_device_type="Firewall")
+    return config, engine.get_translator(vendor="Palo Alto", device_type="Firewall")
+
+
+def test_vlan_on_a_bridge_uses_tagged_layer2_subinterfaces(vlan_parsed):
+    config, translator = vlan_parsed
+    result = _evaluate(config, translator, model="PA-1410")
+    text = result["output_text"]
+    assert "set network interface ethernet ethernet1/2 layer2 units ethernet1/2.20 tag 20" in text
+    assert "set network vlan vlan20-guest interface [ ethernet1/2.20 ethernet1/3.20 ]" in text
+    assert "set network vlan vlan20-guest interface [ ethernet1/2 " not in text
+    assert "set network interface ethernet ethernet1/4 layer3 units ethernet1/4.30 tag 30" in text
+    assert all(s["counts"]["error"] == 0 for s in result["steps"][:3])
+
+
+def test_vlan_as_subinterface_on_a_bridge_port_conflicts_and_needs_a_parent(vlan_parsed):
+    config, translator = vlan_parsed
+    result = _evaluate(config, translator, {"interfaces": {"vlan20-guest": {"mode": "subinterface"}}}, model="PA-1410")
+    assert "MAP-VLAN-PARENT" in {i["code"] for i in _step(result, "interfaces")["issues"]}
+    result = _evaluate(config, translator, {"interfaces": {"vlan20-guest": {"mode": "subinterface", "parent_port": "ethernet1/2"}}},
+                       model="PA-1410")
+    assert "IF-MODE" in {i["code"] for i in _step(result, "interfaces")["issues"]}
+
+
+def test_vlan_tag_unit_and_duplicate_checks(vlan_parsed):
+    config, translator = vlan_parsed
+    codes = lambda changes: {i["code"] for i in _step(_evaluate(config, translator, changes, model="PA-1410"), "interfaces")["issues"]}
+    assert "MAP-VLAN-TAG" in codes({"interfaces": {"vlan30-dmz": {"tag": "5000"}}})
+    assert "MAP-VLAN-UNIT" in codes({"interfaces": {"br-lan": {"unit": "20"}}})
+    assert "MAP-BRIDGE-ROUTED" in codes({"interfaces": {"br-lan": {"mode": "routed"}}})
+
+
+def test_vlan_tag_and_unit_overrides_reach_the_output(vlan_parsed):
+    config, translator = vlan_parsed
+    result = _evaluate(config, translator, {"interfaces": {"vlan30-dmz": {"tag": "130"}, "vlan20-guest": {"unit": "200"},
+                                                           "br-lan": {"unit": "10"}}}, model="PA-1410")
+    text = result["output_text"]
+    assert "ethernet1/4.130 tag 130" in text
+    assert "set network vlan vlan20-guest vlan-interface vlan.200" in text
+    assert "set network interface vlan units vlan.10 ip 192.168.10.1/24" in text
+
+
+def test_disabled_port_is_shown_and_written_link_down(vlan_parsed):
+    config, translator = vlan_parsed
+    facts = fw.describe_source(config)
+    assert facts["ether5"]["disabled"] is True and facts["ether5"]["used"] is False
+    text = _evaluate(config, translator, model="PA-1410")["output_text"]
+    assert "set network interface ethernet ethernet1/5 link-state down" in text
+
+
+def test_synthetic_vlan_numbers_are_stable_across_runs(vlan_parsed):
+    config, translator = vlan_parsed
+    first = _evaluate(config, translator, model="PA-1410")["output_text"]
+    second = _evaluate(config, translator, model="PA-1410")["output_text"]
+    assert first == second

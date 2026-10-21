@@ -215,6 +215,55 @@
     return `<input type="text" data-bind="${bind('interfaces', name, 'pan_interface')}" value="${esc(value)}" placeholder="ethernet1/N" aria-label="Target port for ${esc(name)}">`;
   }
 
+  function statusBadge(fact) {
+    return fact.disabled
+      ? `<span class="wz-state is-off" title="Disabled in the source; written with link-state down">Disabled</span>`
+      : `<span class="wz-state">Enabled</span>`;
+  }
+
+  function memberPorts(bridgeName) {
+    const bridge = wiz.result.facts[bridgeName] || {};
+    return (bridge.bridge_ports || []).map(p => (wiz.state.interfaces[p] || {}).pan_interface).filter(Boolean);
+  }
+
+  function logicalTarget(name) {
+    const row = wiz.state.interfaces[name] || {}, f = wiz.result.facts[name] || {};
+    if (f.type === "bridge") {
+      if (row.mode === "routed") return memberPorts(name)[0] || "?";
+      return row.unit ? `vlan.${row.unit}` : "vlan.(auto)";
+    }
+    const tag = row.tag || f.vlan_id || "?";
+    if (row.mode === "vlan") return `vlan.${row.unit || tag}`;
+    let parent = row.parent_port;
+    if (!parent) parent = f.parent_is_bridge ? (memberPorts(f.parent).length === 1 ? memberPorts(f.parent)[0] : "") : (wiz.state.interfaces[f.parent] || {}).pan_interface;
+    return `${parent || "?"}.${tag}`;
+  }
+
+  function logicalRow(name, row, f) {
+    const isBridge = f.type === "bridge";
+    const modes = isBridge
+      ? [["vlan", "vlan.N"], ["routed", "Routed on port"]]
+      : (f.parent_is_bridge ? [["vlan", "vlan.N + tagged L2"], ["subinterface", "L3 sub-interface"]] : [["subinterface", "L3 sub-interface"]]);
+    const modeCell = `<select data-bind="${bind("interfaces", name, "mode")}" data-rerender="1" aria-label="PAN-OS shape for ${esc(name)}">
+      ${modes.map(([v, label]) => `<option value="${v}" ${v === row.mode ? "selected" : ""}>${label}</option>`).join("")}</select>`;
+    const ports = Object.values(wiz.state.interfaces).map(r => r.pan_interface).filter(Boolean);
+    const parentCell = !isBridge && row.mode === "subinterface"
+      ? `<select data-bind="${bind("interfaces", name, "parent_port")}" data-rerender="1" aria-label="Parent port for ${esc(name)}">
+          <option value="">Auto</option>${[...new Set(ports)].map(p => `<option ${p === row.parent_port ? "selected" : ""}>${esc(p)}</option>`).join("")}</select>`
+      : `<span class="wz-muted">-</span>`;
+    const tagCell = isBridge ? `<span class="wz-muted">untagged</span>`
+      : `<input type="number" min="1" max="4094" data-bind="${bind("interfaces", name, "tag")}" data-rerender="1" value="${esc(row.tag)}" aria-label="VLAN tag for ${esc(name)}">`;
+    const unitCell = row.mode === "subinterface" || row.mode === "routed" ? `<span class="wz-muted">-</span>`
+      : `<input type="number" min="1" max="9999" data-bind="${bind("interfaces", name, "unit")}" data-rerender="1" value="${esc(row.unit)}" placeholder="auto" aria-label="vlan.N unit for ${esc(name)}">`;
+    const on = isBridge ? (f.bridge_ports || []).join(", ") || "-" : `${f.parent}${f.parent_is_bridge ? " (bridge)" : ""}`;
+    return `<tr class="${f.used ? "" : "is-unused"}">
+      <td><strong>${esc(name)}</strong><small>${isBridge ? `bridge: ${esc(on)}` : `VLAN ${esc(f.vlan_id ?? "")} on ${esc(on)}`}</small><small>${esc((f.addresses || []).join(", ") || "no address")}</small>${f.comment ? `<small>${esc(f.comment)}</small>` : ""}</td>
+      <td>${statusBadge(f)}</td>
+      <td>${modeCell}</td>
+      <td><code class="wz-result">${esc(logicalTarget(name))}</code></td>
+      <td>${parentCell}</td><td>${tagCell}</td><td>${unitCell}</td></tr>`;
+  }
+
   function roleBadge(fact) {
     if (!fact || !fact.role) return `<span class="wz-role">-</span>`;
     return `<span class="wz-role is-${esc(fact.role)}" title="${esc(fact.role_reason)}">${esc(fact.role_label)}</span>`;
@@ -238,20 +287,26 @@
     interfaces() {
       const facts = wiz.result.facts;
       const rows = Object.entries(wiz.state.interfaces).filter(([name]) => (facts[name] || {}).physical !== false);
-      const logical = Object.values(facts).filter(f => !f.physical);
+      const logical = Object.entries(wiz.state.interfaces).filter(([name]) => ["vlan", "bridge"].includes((facts[name] || {}).type));
       return `<p class="wz-hint">Pick the target port for each source port. To swap LAN and INET, give each one the other's port; zones, NAT, routes, VPN and MSS follow automatically.</p>
       <div class="table-wrap wz-table"><table>
-        <thead><tr><th>Source</th><th>Role</th><th>Addresses</th><th>Bridge</th><th>Target port</th></tr></thead>
+        <thead><tr><th>Source</th><th>Status</th><th>Role</th><th>Addresses</th><th>Bridge</th><th>Target port</th></tr></thead>
         <tbody>${rows.map(([name, row]) => {
           const f = facts[name] || {};
           return `<tr class="${f.used ? "" : "is-unused"}">
             <td><strong>${esc(name)}</strong>${f.default_name && f.default_name !== name ? `<small>${esc(f.default_name)}</small>` : ""}${f.comment ? `<small>${esc(f.comment)}</small>` : ""}${f.used ? "" : `<small>not used</small>`}</td>
+            <td>${statusBadge(f)}</td>
             <td>${roleBadge(f)}</td>
             <td>${esc((f.addresses || []).join(", ") || (f.dhcp_client ? "DHCP client" : "-"))}</td>
             <td>${esc(f.bridge || "-")}</td>
             <td>${portControl(name, row.pan_interface)}</td></tr>`;
         }).join("")}</tbody></table></div>
-      ${logical.length ? `<p class="wz-hint">Logical interfaces (built from the ports above): ${logical.map(f => `<strong>${esc(f.name)}</strong> (${esc(f.type)}${f.bridge_ports.length ? `: ${esc(f.bridge_ports.join(", "))}` : ""})`).join(", ")}.</p>` : ""}`;
+      ${logical.length ? `<h4 class="wz-sub">VLAN and bridge interfaces</h4>
+      <p class="wz-hint"><strong>VLAN interface</strong>: vlan.N, with a tagged layer2 sub-interface on every bridge port (the switch side keeps its trunk).
+        <strong>Sub-interface</strong>: layer3 port.tag on one port (router-on-a-stick). A bridge with one port can be <strong>routed</strong> on that port instead of vlan.N.</p>
+      <div class="table-wrap wz-table"><table>
+        <thead><tr><th>Source</th><th>Status</th><th>PAN-OS as</th><th>Result</th><th>Parent port</th><th>Tag</th><th>vlan.N unit</th></tr></thead>
+        <tbody>${logical.map(([name, row]) => logicalRow(name, row, facts[name] || {})).join("")}</tbody></table></div>` : ""}`;
     },
     zones() {
       const facts = wiz.result.facts;
@@ -266,7 +321,7 @@
             : `<input type="text" data-bind="${bind('interfaces', name, 'zone')}" value="${esc(row.zone)}" aria-label="Zone for ${esc(name)}">`;
           const sdwanCell = f.physical === false || f.bridge ? "-" :
             `<select data-bind="${bind('interfaces', name, 'sdwan_link_type')}">${SDWAN_TYPES.map(t => `<option ${t === row.sdwan_link_type ? "selected" : ""}>${t}</option>`).join("")}</select>`;
-          return `<tr><td><strong>${esc(name)}</strong></td><td>${roleBadge(f)}</td><td>${esc(row.pan_interface || (f.physical === false ? f.type : "-"))}</td><td>${zoneCell}</td><td>${sdwanCell}</td></tr>`;
+          return `<tr><td><strong>${esc(name)}</strong></td><td>${roleBadge(f)}</td><td>${esc(["vlan", "bridge"].includes(f.type) ? logicalTarget(name) : (row.pan_interface || "-"))}</td><td>${zoneCell}</td><td>${sdwanCell}</td></tr>`;
         }).join("")}</tbody></table></div>
       <div class="cv-row wz-form">
         <label class="wz-check"><input type="checkbox" data-bind="${bind('sdwan', 'enabled')}" ${wiz.state.sdwan.enabled ? "checked" : ""}> Enable SD-WAN for links marked above</label>
@@ -328,9 +383,17 @@
     editor.querySelectorAll("[data-bind]").forEach(control => {
       const handler = () => {
         let value = control.type === "checkbox" ? control.checked : control.value;
-        if (control.type === "number") value = Number(value) || 1;
+        if (control.type === "number") value = String(value).trim();
         setPath(control.dataset.bind, value);
         if (control.dataset.bind === JSON.stringify(["deployment", "panorama"])) $("wz-panorama-names")?.classList.toggle("hidden", !value);
+        if (control.dataset.rerender && control.type !== "number") {
+          $("wizard-editor").innerHTML = EDITORS[stepKey](wiz.result.steps[wiz.current]);
+          bindEditor(stepKey);
+        } else if (control.dataset.rerender) {
+          const cell = control.closest("tr")?.querySelector("code.wz-result");
+          const name = JSON.parse(control.dataset.bind)[1];
+          if (cell) cell.textContent = logicalTarget(name);
+        }
         // Any edit invalidates this step's last result until it is re-checked.
         const status = $("wizard-step-status");
         status.className = "wz-status is-stale";
