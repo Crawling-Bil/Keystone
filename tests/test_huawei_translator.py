@@ -331,8 +331,8 @@ class StackingHintTest(unittest.TestCase):
         )
         joined = "\n".join(output)
         self.assertIn("REVIEW-STACKING", joined)
-        self.assertIn("Template A", joined)
-        self.assertIn("Template B", joined)
+        self.assertIn("Member 1", joined)
+        self.assertIn("Member 2", joined)
 
     def test_no_marker_produces_no_block(self):
         output = self.translator.translate_stacking_hint(

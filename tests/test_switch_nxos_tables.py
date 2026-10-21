@@ -71,7 +71,7 @@ class NxosRouteTests(unittest.TestCase):
     def test_the_table_is_found_when_the_command_echo_was_lost(self):
         body = clean(REAL)
         start = body.index("IP Route Table for VRF \"default\"")
-        end = next(i for i, line in enumerate(body) if "sh ip arp summary" in line)
+        end = next(i for i, line in enumerate(body) if "ip arp summary" in line)
         self.assertEqual(len(nxos_routes.parse_ip_routes(body[start:end])), 19)
 
     def test_an_error_reply_gives_no_rows(self):
@@ -170,8 +170,8 @@ class NxosServiceTests(unittest.TestCase):
 
     def test_coverage_lists_the_route_and_arp_summary_commands_as_analyzed(self):
         status = {row["command"]: row["status"] for row in self.result["coverage"]["rows"]}
-        self.assertEqual(status["sh ip route"], "analyzed")
-        self.assertEqual(status["sh ip arp summary"], "analyzed")
+        self.assertEqual(status["show ip route"], "analyzed")
+        self.assertEqual(status["show ip arp summary"], "analyzed")
 
     def test_trunks_reach_the_result_and_the_trunk_tab(self):
         self.assertEqual(len(self.synthetic["trunks"]["rows"]), 6)
