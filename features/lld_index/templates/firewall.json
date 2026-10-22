@@ -1,0 +1,120 @@
+{
+  "technology": "firewall",
+  "label": "Firewall",
+  "summary": "Device summary, topology and design, then one chapter per site with every configuration table the firewall has (Palo Alto and FortiGate). Sections with no data are left out.",
+  "based_on": "LLD - Peremajaan Perangkat Firewall Palo Alto v1.0; [LLD] Enterprise Network Regional 3 HO - Firewall",
+  "devices": ["firewall"],
+  "chapters": [
+    {
+      "title": "Device Summary",
+      "children": [
+        {"title": "Existing Device List", "type": "table", "caption": "Existing Device List", "sheet": "Existing Devices",
+         "table": {"builder": "static", "headers": ["Site Name", "Existing Device", "Status"], "rows": [["TBD", "", ""]]}},
+        {"title": "New Device List", "type": "table", "caption": "New Device List", "sheet": "New Devices",
+         "table": {"builder": "inventory", "columns": [["Hostname", "hostname"], ["Model", "model"], ["Site Name", "site"], ["Role", "role"],
+                                                       ["IP Management", "mgmt_cidr"], ["Serial Number", "serial"]]}}
+      ]
+    },
+    {
+      "title": "Topology",
+      "children": [
+        {"title": "Topology Before", "type": "image", "caption": "Topology Before"},
+        {"title": "Topology After", "type": "image", "caption": "Topology After"}
+      ]
+    },
+    {
+      "title": "Network Design",
+      "children": [
+        {"title": "Design Overview", "type": "paragraph", "text": ""},
+        {"title": "Assumptions and Open Items", "type": "table", "caption": "Assumptions and Open Items", "sheet": "Open Items",
+         "table": {"builder": "static", "headers": ["Topic", "Assumption / Decision", "Action"], "rows": [["TBD", "", ""]]}}
+      ]
+    },
+    {
+      "title": "Site {site}",
+      "repeat": "site",
+      "children": [
+        {"title": "{hostname}", "repeat": "device", "inline_single": true, "children": [
+          {"title": "Device Naming Scheme", "type": "table", "caption": "Device Naming {hostname}", "sheet": "Naming {hostname}",
+           "table": {"builder": "inventory", "numbered": false,
+                     "columns": [["Site Name", "site"], ["Model", "model"], ["Role", "role"], ["Hostname", "hostname"], ["Serial Number", "serial"],
+                                 ["IP Management", "mgmt_ip"], ["Netmask", "netmask"], ["Software Version", "version"]]}},
+          {"title": "Administrator Configuration", "type": "table", "optional": true, "caption": "Administrator {hostname}", "sheet": "Admin {hostname}",
+           "table": {"builder": "device", "tables": ["pan_admins", "admins", "administrators"],
+                     "columns": [["Name", "name|username"], ["Role", "role|profile"], ["Authentication Profile", "auth_profile|remote"], ["Trusted Hosts", "trusthosts"]]}},
+          {"title": "Log Forwarding Configuration", "type": "table", "optional": true, "caption": "Log Forwarding {hostname}", "sheet": "LogFwd {hostname}",
+           "table": {"builder": "device", "tables": ["log_profiles", "logging"],
+                     "columns": [["Name", "name|target"], ["Log Type", "log_type|kind"], ["Filter", "filter"], ["Forward To", "forward|server"], ["Status", "status"]]}},
+          {"title": "Server Profile Configuration - Syslog", "type": "table", "optional": true, "caption": "Syslog {hostname}", "sheet": "Syslog {hostname}",
+           "table": {"builder": "device", "tables": ["pan_syslog"],
+                     "columns": [["Name", "profile"], ["Server", "server"], ["Transport", "transport"], ["Port", "port"], ["Format", "format"], ["Facility", "facility"]]}},
+          {"title": "Virtual Router Configuration", "type": "table", "optional": true, "caption": "Virtual Router {hostname}", "sheet": "VR {hostname}",
+           "table": {"builder": "device", "tables": ["routing_protocols"],
+                     "columns": [["Routing Instance", "virtual_router"], ["Type", "routing_type"], ["Dynamic Protocols", "dynamic_protocols"], ["Static Routes", "static_route_count"]]}},
+          {"title": "Zone Configuration", "type": "table", "caption": "Zone {hostname}", "sheet": "Zone {hostname}",
+           "table": {"builder": "device", "tables": ["zones"],
+                     "columns": [["Name", "name"], ["Interfaces", "interfaces"], ["Zone Protection", "zone_protection_profile|intrazone"], ["Description", "description"]]}},
+          {"title": "Device Port Allocation", "type": "table", "caption": "Port Allocation {hostname}", "sheet": "Ports {hostname}",
+           "table": {"builder": "device", "tables": ["interfaces"],
+                     "columns": [["Interface", "name"], ["Interface Type", "type"], ["Security Zone", "zone|role"], ["IP Address", "ip_address|ip"],
+                                 ["VLAN Tag", "tag"], ["Mgmt Profile", "management_profile|allowaccess"], ["Description", "comment|description|alias"]]}},
+          {"title": "Routing Configuration", "type": "table", "caption": "Routing {hostname}", "sheet": "Routing {hostname}",
+           "table": {"builder": "device", "tables": ["static_routes"],
+                     "columns": [["Routing Instance", "virtual_router"], ["Name", "name|seq"], ["Destination", "destination|dst"], ["Next Hop", "nexthop|gateway"],
+                                 ["Interface", "interface|device"], ["Metric", "metric|distance"], ["Description", "comment"]]}},
+          {"title": "Address Object", "type": "table", "caption": "Address Object {hostname}", "sheet": "Address {hostname}",
+           "table": {"builder": "device", "tables": ["address_objects", "addresses"],
+                     "columns": [["Name", "name"], ["Type", "type"], ["Value", "value|members"], ["Description", "comment|description"]]}},
+          {"title": "Address Group", "type": "table", "optional": true, "caption": "Address Group {hostname}", "sheet": "AddrGrp {hostname}",
+           "table": {"builder": "device", "tables": ["address_groups", "addrgrps"],
+                     "columns": [["Name", "name"], ["Members", "members"], ["Description", "comment|description"]]}},
+          {"title": "Service Object", "type": "table", "caption": "Service Object {hostname}", "sheet": "Service {hostname}",
+           "table": {"builder": "device", "tables": ["service_objects", "services"],
+                     "columns": [["Name", "name"], ["Protocol", "protocol"], ["Port", "ports|members"], ["Description", "comment|description"]]}},
+          {"title": "Service Group", "type": "table", "optional": true, "caption": "Service Group {hostname}", "sheet": "SvcGrp {hostname}",
+           "table": {"builder": "device", "tables": ["service_groups", "svcgroups"], "columns": [["Name", "name"], ["Members", "members"]]}},
+          {"title": "Security Policy", "type": "table", "caption": "Security Policy {hostname}", "sheet": "SecPol {hostname}",
+           "table": {"builder": "device", "tables": ["security_rules", "policies"],
+                     "columns": [["Rule Name", "name"], ["Source Zone", "from_zone|from"], ["Source Address", "source"], ["Destination Zone", "to_zone|to"],
+                                 ["Destination Address", "destination"], ["Application", "application"], ["Service", "service"], ["Action", "action"], ["Profile", "profile|profiles"]]}},
+          {"title": "NAT Policy", "type": "table", "caption": "NAT Policy {hostname}", "sheet": "NAT {hostname}",
+           "table": {"builder": "device", "tables": ["nat_rules", "vips", "central_snat"],
+                     "columns": [["Rule Name", "name|id"], ["Type", "type"], ["Original Src Zone", "from_zone|srcintf|extintf"], ["Original Dst Zone", "to_zone|dstintf"],
+                                 ["Original Source", "source|orig"], ["Original Destination", "destination|extip|dst"], ["Service", "service|ports"],
+                                 ["Translated Address", "translated_address|mappedip|pool"], ["Translated Port", "translated_port"]]}},
+          {"title": "Policy Based Forwarding", "type": "table", "optional": true, "caption": "PBF {hostname}", "sheet": "PBF {hostname}",
+           "table": {"builder": "device", "tables": ["pbf_rules", "policy_routes"],
+                     "columns": [["Rule Name", "name|seq"], ["Source Zone / Interface", "from_zone|input"], ["Source Address", "source|src"], ["Destination", "destination|dst"],
+                                 ["Egress Interface", "egress_interface|output"], ["Next Hop", "nexthop|gateway"]]}},
+          {"title": "IKE/IPsec Crypto Profile Configuration", "type": "table", "optional": true, "caption": "Crypto Profiles {hostname}", "sheet": "Crypto {hostname}",
+           "table": {"builder": "device", "tables": ["vpn_crypto_profiles"],
+                     "columns": [["Type", "kind"], ["Name", "name"], ["Encryption", "encryption"], ["Authentication/Hash", "hash"], ["DH Group", "dh"], ["Lifetime", "lifetime"]]}},
+          {"title": "IKE Gateway Configuration", "type": "table", "optional": true, "caption": "IKE Gateway {hostname}", "sheet": "IKE {hostname}",
+           "table": {"builder": "device", "tables": ["ike_gateways", "ipsec_p1"],
+                     "columns": [["Name", "name"], ["Version", "version|ike"], ["Interface / Local", "local|interface"], ["Peer Address", "peer|remote_gw"],
+                                 ["Authentication", "auth"], ["IKE Crypto Profile", "ike_profile|proposal"], ["NAT-T", "nat_t"], ["DPD", "dpd"]]}},
+          {"title": "IPsec Tunnel Configuration", "type": "table", "optional": true, "caption": "IPsec Tunnel {hostname}", "sheet": "IPsec {hostname}",
+           "table": {"builder": "device", "tables": ["vpn_tunnel_settings", "ipsec_tunnels", "ipsec_p2"],
+                     "columns": [["Name", "name"], ["Tunnel Interface", "tunnel_interface"], ["IKE Gateway", "gateways|peer_address|phase1"],
+                                 ["IPsec Crypto Profile", "ipsec_profile|proposal|esp_encryption"], ["Proxy ID", "proxy_ids|proxy_id_local|src"], ["Remote", "proxy_id_remote|dst"]]}},
+          {"title": "DHCP Configuration", "type": "table", "optional": true, "caption": "DHCP {hostname}", "sheet": "DHCP {hostname}",
+           "table": {"builder": "device", "tables": ["dhcp"],
+                     "columns": [["Interface", "interface"], ["Pool / Range", "address_pool|ranges"], ["Gateway", "gateway"], ["DNS", "dns_servers|dns"], ["Lease", "lease_minutes|lease"]]}},
+          {"title": "QoS Profile", "type": "table", "optional": true, "caption": "QoS Profile {hostname}", "sheet": "QoS {hostname}",
+           "table": {"builder": "device", "tables": ["qos_profiles"],
+                     "columns": [["Name", "name"], ["Class", "classes"], ["Guaranteed Egress", "egress_guaranteed"], ["Maximum Egress", "egress_max"]]}},
+          {"title": "SD-WAN Interface", "type": "table", "optional": true, "caption": "SD-WAN Interface {hostname}", "sheet": "SDWAN {hostname}",
+           "table": {"builder": "device", "tables": ["sdwan_members"],
+                     "columns": [["Interface", "interface"], ["Zone", "zone"], ["Gateway", "gateway"], ["Cost", "cost"], ["Priority", "priority"]]}},
+          {"title": "Security Profile Groups", "type": "table", "optional": true, "caption": "Security Profile Groups {hostname}", "sheet": "ProfGrp {hostname}",
+           "table": {"builder": "device", "tables": ["profile_groups"],
+                     "columns": [["Group Name", "name"], ["Antivirus", "virus"], ["Anti-Spyware", "spyware"], ["Vulnerability", "vulnerability"],
+                                 ["URL Filtering", "url-filtering"], ["File Blocking", "file-blocking"], ["WildFire", "wildfire-analysis"]]}},
+          {"title": "Interface Management Profile", "type": "table", "optional": true, "caption": "Interface Mgmt Profile {hostname}", "sheet": "MgmtProf {hostname}",
+           "table": {"builder": "device", "tables": ["management_profiles"],
+                     "columns": [["Name", "name"], ["Allowed Services", "permitted_services"]]}}
+        ]}
+      ]
+    }
+  ]
+}

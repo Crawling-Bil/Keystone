@@ -21,6 +21,7 @@ GROUPS = (
     ("analyze", "Analyze", "Read a capture or backup and report what needs attention."),
     ("convert", "Convert", "Prepare configuration for a new platform."),
     ("operate", "Operate", "Run jobs against live devices."),
+    ("document", "Document", "Turn the inventory and configs into project documents."),
 )
 
 RISK_LABELS = {
@@ -104,6 +105,9 @@ TOOLS: tuple[Tool, ...] = (
     Tool("live_logs", "Live Logs", "operate", "read", "1.4", "/lifecycle/live-logs", "pulse",
          "Upgrade, config push, backup and ZTP activity in real time, across the whole suite.",
          keywords=("jobs", "monitor")),
+    Tool("lld_index", "LLD Index", "document", "offline", "0.1", "/lld-index", "folder",
+         "Build the LLD Content Index for the Document Generator: chapters per technology, expanded per site, device and model, tables filled from the inventory and configs, narrative from the project goals.",
+         task="Prepare the LLD index for the document generator", keywords=("lld", "document", "index", "low level design", "docgen", "word")),
 )
 
 

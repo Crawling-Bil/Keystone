@@ -1,0 +1,69 @@
+{
+  "technology": "loadbalancer",
+  "label": "Load Balancer",
+  "summary": "Draft (no load balancer LLD sample yet): topology, then per site and device the network, high availability, virtual servers, pools, monitors and profiles (F5 BIG-IP). Sections with no data are left out.",
+  "based_on": "Draft from the firewall LLD structure and the Load Balancer Analyzer tables; replace once an LB LLD sample exists",
+  "devices": ["loadbalancer"],
+  "chapters": [
+    {
+      "title": "Topology",
+      "children": [
+        {"title": "Load Balancer Topology", "type": "image", "caption": "Load Balancer Topology"}
+      ]
+    },
+    {
+      "title": "Site {site}",
+      "repeat": "site",
+      "children": [
+        {"title": "{hostname}", "repeat": "device", "inline_single": true, "children": [
+          {"title": "Device Information", "type": "table", "caption": "Device Information {hostname}", "sheet": "Info {hostname}",
+           "table": {"builder": "inventory", "numbered": false,
+                     "columns": [["Hostname", "hostname"], ["Model", "model"], ["Serial Number", "serial"], ["IP Management", "mgmt_cidr"], ["Software Version", "version"]]}},
+          {"title": "VLAN Configuration", "type": "table", "optional": true, "caption": "VLAN {hostname}", "sheet": "VLAN {hostname}",
+           "table": {"builder": "device", "tables": ["vlans"],
+                     "columns": [["Name", "short|name"], ["Tag", "tag"], ["Interfaces", "interfaces"], ["Description", "description"]]}},
+          {"title": "Self IP Configuration", "type": "table", "optional": true, "caption": "Self IP {hostname}", "sheet": "SelfIP {hostname}",
+           "table": {"builder": "device", "tables": ["selfs"],
+                     "columns": [["Name", "name"], ["Address", "address"], ["VLAN", "vlan"], ["Traffic Group", "traffic_group"], ["Floating", "floating"], ["Port Lockdown", "port_lockdown"]]}},
+          {"title": "Route Configuration", "type": "table", "optional": true, "caption": "Routes {hostname}", "sheet": "Routes {hostname}",
+           "table": {"builder": "device", "tables": ["routes"],
+                     "columns": [["Name", "short"], ["Network", "network"], ["Gateway", "gateway"], ["Interface", "interface"]]}},
+          {"title": "High Availability", "type": "table", "optional": true, "caption": "HA Devices {hostname}", "sheet": "HA {hostname}",
+           "table": {"builder": "device", "tables": ["devices"],
+                     "columns": [["Hostname", "hostname"], ["Failover State", "failover_state"], ["Model", "marketing_name"], ["Version", "version"],
+                                 ["ConfigSync IP", "configsync_ip"], ["Mirror IP", "mirror_ip"]]}},
+          {"title": "Device Group", "type": "table", "optional": true, "caption": "Device Group {hostname}", "sheet": "DevGrp {hostname}",
+           "table": {"builder": "device", "tables": ["device_groups"],
+                     "columns": [["Name", "short"], ["Type", "type"], ["Devices", "devices"], ["Auto Sync", "auto_sync"], ["Network Failover", "network_failover"]]}},
+          {"title": "Virtual Server", "type": "table", "caption": "Virtual Server {hostname}", "sheet": "VS {hostname}",
+           "table": {"builder": "device", "tables": ["virtuals"],
+                     "columns": [["Name", "name"], ["Destination", "destination"], ["Protocol", "protocol"], ["Pool", "pool"], ["Profiles", "profiles"],
+                                 ["Persistence", "persistence"], ["iRules", "rules"], ["SNAT", "snat"]]}},
+          {"title": "Pool", "type": "table", "caption": "Pool {hostname}", "sheet": "Pool {hostname}",
+           "table": {"builder": "device", "tables": ["pools"],
+                     "columns": [["Name", "name"], ["Method", "method"], ["Monitors", "monitors"], ["Members", "members"], ["Description", "description"]]}},
+          {"title": "Pool Member", "type": "table", "optional": true, "caption": "Pool Member {hostname}", "sheet": "Member {hostname}",
+           "table": {"builder": "device", "tables": ["members"],
+                     "columns": [["Pool", "pool"], ["Member", "member"], ["Address", "address"], ["Port", "port"], ["Ratio", "ratio"], ["Priority", "priority"]]}},
+          {"title": "Health Monitor", "type": "table", "optional": true, "caption": "Monitor {hostname}", "sheet": "Monitor {hostname}",
+           "table": {"builder": "device", "tables": ["monitors"],
+                     "columns": [["Name", "name"], ["Type", "type"], ["Interval", "interval"], ["Timeout", "timeout"], ["Send", "send"], ["Receive", "recv"]]}},
+          {"title": "SSL Profile", "type": "table", "optional": true, "caption": "SSL Profile {hostname}", "sheet": "SSL {hostname}",
+           "table": {"builder": "device", "tables": ["ssl_profiles"],
+                     "columns": [["Name", "name"], ["Side", "side"], ["Parent", "parent"], ["Protocols", "protocols"], ["Certificate", "certificate"]]}},
+          {"title": "Persistence Profile", "type": "table", "optional": true, "caption": "Persistence {hostname}", "sheet": "Persist {hostname}",
+           "table": {"builder": "device", "tables": ["persistence"],
+                     "columns": [["Name", "name"], ["Type", "type"], ["Parent", "parent"], ["Timeout", "timeout"]]}},
+          {"title": "iRules", "type": "table", "optional": true, "caption": "iRules {hostname}", "sheet": "iRules {hostname}",
+           "table": {"builder": "device", "tables": ["irules"],
+                     "columns": [["Name", "name"], ["Events", "events"], ["Pools", "pools"], ["Used By", "used_by"]]}},
+          {"title": "SNAT Configuration", "type": "table", "optional": true, "caption": "SNAT {hostname}", "sheet": "SNAT {hostname}",
+           "table": {"builder": "device", "tables": ["snat"], "columns": [["Kind", "kind"], ["Name", "name"], ["Detail", "detail"], ["Used By", "used_by"]]}},
+          {"title": "Certificate", "type": "table", "optional": true, "caption": "Certificate {hostname}", "sheet": "Cert {hostname}",
+           "table": {"builder": "device", "tables": ["certificates"],
+                     "columns": [["Name", "name"], ["Subject", "subject"], ["Issuer", "issuer"], ["Expires", "expires"], ["Used By", "used_by"]]}}
+        ]}
+      ]
+    }
+  ]
+}

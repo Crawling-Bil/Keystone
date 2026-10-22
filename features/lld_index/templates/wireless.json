@@ -1,0 +1,64 @@
+{
+  "technology": "wireless",
+  "label": "Wireless",
+  "summary": "Layout and topology; IP scheme and SSIDs from the controller; connectivity and configuration per site, then per device (access points are listed, not given a chapter each).",
+  "based_on": "[LLD] 7TAMO23010001 - TAM Wireless Network Improvement (Refreshment for 20 site)",
+  "devices": ["wireless", "switch"],
+  "chapters": [
+    {
+      "title": "Device Layout",
+      "children": [
+        {"title": "Layout Overview", "type": "table", "caption": "Layout Overview", "sheet": "Layout Overview",
+         "table": {"builder": "inventory", "numbered": false,
+                   "columns": [["Device Type", "role"], ["Model", "model"], ["Position", "site"], ["Hostname", "hostname"]]}},
+        {"title": "MAP Layout {site}", "repeat": "site", "type": "image", "caption": "MAP Layout {site}"}
+      ]
+    },
+    {
+      "title": "Network Topology",
+      "children": [
+        {"title": "Topology Wireless Network", "type": "image", "caption": "Topology Wireless Network"}
+      ]
+    },
+    {
+      "title": "VLAN and IP Addressing",
+      "children": [
+        {"title": "IP Addressing Scheme", "type": "table", "caption": "IP Addressing Scheme", "sheet": "IP Addressing Scheme",
+         "devices": {"tech": ["wireless"]},
+         "table": {"builder": "device", "tables": ["wlc_interfaces", "svi"],
+                   "columns": [["Interface", "name|interface"], ["VLAN ID", "vlan_id"], ["IP Address", "ip_address"], ["Netmask", "netmask"]]}},
+        {"title": "Access Point SSID", "type": "table", "caption": "Access Point SSID", "sheet": "SSID",
+         "devices": {"tech": ["wireless"]},
+         "table": {"builder": "device", "tables": ["ssids"],
+                   "columns": [["SSID Name", "ssid"], ["Security", "security"], ["Security Profile", "security_profile"], ["VLAN", "vlan"], ["Forward Mode", "forward_mode"]]}},
+        {"title": "AP Group Mapping", "type": "table", "optional": true, "caption": "AP Group Mapping", "sheet": "AP Group",
+         "devices": {"tech": ["wireless"]},
+         "table": {"builder": "device", "tables": ["ap_groups"],
+                   "columns": [["AP Group", "ap_group"], ["SSID", "ssid"], ["VAP Profile", "vap_profile"], ["VLAN", "vlan"], ["AP Count", "ap_count"]]}},
+        {"title": "Access Point List", "type": "table", "optional": true, "caption": "Access Point List", "sheet": "AP List",
+         "devices": {"tech": ["wireless"]},
+         "table": {"builder": "device", "tables": ["aps"],
+                   "columns": [["AP Name", "name"], ["Model", "model"], ["MAC", "mac"], ["IP", "ip"], ["AP Group", "group"], ["Status", "status|state"]]}}
+      ]
+    },
+    {
+      "title": "Device Connectivity",
+      "children": [
+        {"title": "Site {site}", "repeat": "site", "devices": {"exclude_role": "\\b(ap|access ?point)\\b"}, "children": [
+          {"title": "{hostname}", "repeat": "device", "type": "table", "caption": "Connectivity {hostname}", "sheet": "Conn {hostname}",
+           "table": {"builder": "device", "tables": ["interfaces"], "require_any": ["description", "mode", "vlan"],
+                     "columns": [["Interface", "name"], ["Description", "description"], ["Mode", "mode"], ["Allowed VLAN", "vlan"]]}}
+        ]}
+      ]
+    },
+    {
+      "title": "Device Configuration",
+      "children": [
+        {"title": "Site {site}", "repeat": "site", "devices": {"exclude_role": "\\b(ap|access ?point)\\b"}, "children": [
+          {"title": "{hostname}", "repeat": "device", "type": "table", "caption": "Configuration {hostname}", "sheet": "Cfg {hostname}",
+           "table": {"builder": "config", "numbered": false}}
+        ]}
+      ]
+    }
+  ]
+}

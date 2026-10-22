@@ -4,6 +4,15 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ## Unreleased
 
+### LLD Index: Document Generator index from the inventory, configs and project goals
+
+- New module **LLD Index** (`/lld-index`, new sidebar group "Document"). It builds the "LLD Content Index" workbook the Document Generator imports: chapters per technology, expanded per site, per device and per model, tables filled from the inventory and from the configs, narrative written from the project goals.
+- Inputs: project form (customer, project, code, goals, scope, out of scope, related documents), technologies (switch, wireless, firewall, router, load balancer), device inventory (Site, Hostname, Model, Role, Mgmt IP, SN, Config; CSV/XLSX import, template download, paste from Excel) and optional config files or a ZIP.
+- Templates are JSON files in `features/lld_index/templates/` (common, switch, wireless, firewall, router, loadbalancer), editable without code. Switch, wireless and firewall follow the TAM Switch Replacement, TAM Wireless Network Improvement and Peremajaan Perangkat Firewall Palo Alto LLDs; router and load balancer are drafts until a sample exists.
+- Tables come from the existing analyzers through small adapters (`datasets.py`): VLAN, interfaces and configuration blocks for switches; zones, ports, routes, objects, policies, NAT, IKE/IPsec, DHCP and more for Palo Alto and FortiGate; interfaces, VRF, static and BGP for routers; virtual servers, pools, members, monitors and profiles for F5; SSID, AP group and AP list for wireless. Model specifications come from the hardware catalog.
+- Output follows the Document Generator importer exactly (checked against `lld_generator_v1.0.5/backend/importer.py`): Index header, `H#` levels, one sheet per table with at least one row (empty tables carry `TBD`), unique sheet names of at most 31 characters. Yellow Index rows still need manual content (images, TBD).
+- Docs: `docs/modules/lld-index.md`. Tests: `tests/test_lld_index.py` (16).
+
 ### Convert Firewall: guided conversion, PAN-OS reference checks, IKE/IPsec syntax fix
 
 Guided conversion (MikroTik RouterOS to Palo Alto)
