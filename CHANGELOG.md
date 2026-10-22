@@ -13,7 +13,8 @@ Newest first. Module versions are listed in `core/modules.py`.
 - Output follows the Document Generator importer exactly (checked against `lld_generator_v1.0.5/backend/importer.py`): Index header, `H#` levels, one sheet per table with at least one row (empty tables carry `TBD`), unique sheet names of at most 31 characters. Yellow Index rows still need manual content (images, TBD).
 - More than one block per heading: a template node can carry `blocks` (paragraph + table + image under one heading), written as continuation rows with an empty Judul Heading. The model heading in Device Overview now has the description paragraph ("S5755-H24T4Y2CZ (...). 2 units will be used as Core Switch at HO and BR.") and the spec table, as in the existing LLDs. Needs the Document Generator multi-block importer; an older importer keeps the first block only.
 - Rack layout: new inventory columns Rack, Rack Size (24/27/32/36/42/45/47/48U, blank = 42), U and U Height (blank = 1). Each rack becomes a table under Rack Layout per site (`U | rack (size) | U`, top unit first, multi-U devices as one merged cell), in the format of the Switch Replacement LLD without the power and cable columns. Overlaps and devices that do not fit are noted and left out; a site with no rack positions keeps an image slot. The page draws every rack before download.
-- Docs: `docs/modules/lld-index.md`. Tests: `tests/test_lld_index.py` (20).
+- Rack status colours: inventory column Status (Existing / New / Replace, blank = New) colours each device in the rack with the legend colours of the Switch Replacement LLD (green B3E5A1, blue 83CAEB, orange FFC000), with a legend table under every rack and on the page. Colours travel as cell fills; the Document Generator reads them from the multi-block importer branch.
+- Docs: `docs/modules/lld-index.md`. Tests: `tests/test_lld_index.py` (22).
 
 ### Convert Firewall: guided conversion, PAN-OS reference checks, IKE/IPsec syntax fix
 

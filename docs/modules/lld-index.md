@@ -8,14 +8,14 @@ Page: `/lld-index`. Code: `features/lld_index/`. Templates: `features/lld_index/
 
 1. **Project**: customer, project name, code, company, goals, scope, out of scope, related documents. The Introduction chapter is written from these (`narrative.py`), in the wording of the existing Multipolar LLDs.
 2. **Technologies**: switch, wireless, firewall, router, load balancer. Pick one or more.
-3. **Device inventory**: Site, Hostname, Model, Role, Mgmt IP, SN, Config, Rack, Rack Size, U, U Height. Import a CSV/XLSX (template on the page) or type/paste rows. Config names an uploaded file; blank means "match by hostname", or no config at all for a design written before implementation.
+3. **Device inventory**: Site, Hostname, Model, Role, Mgmt IP, SN, Config, Rack, Rack Size, U, U Height, Status. Import a CSV/XLSX (template on the page) or type/paste rows. Config names an uploaded file; blank means "match by hostname", or no config at all for a design written before implementation.
 4. **Config files** (optional): running configs or terminal captures, or one ZIP.
 
 A device's technology comes from its config (the same domain detection Convert uses), then keywords in Role (switch/core/access, WLC/AP, firewall/FW, router/WAN, LB/F5), then the model name.
 
 ## Rack layout
 
-Rack (name), Rack Size (24/27/32/36/42/45/47/48U, blank = 42), U (lowest unit the device sits in) and U Height (blank = 1) draw one table per rack under **Rack Layout**, per site: `U | <rack> (<size>U) | U`, top unit first, a device taller than 1U as one merged cell. A device that overlaps another one or does not fit the rack is left out of the table and noted on the page; a site where no device has a rack position keeps an image slot instead. The page shows each rack as a drawing before download.
+Rack (name), Rack Size (24/27/32/36/42/45/47/48U, blank = 42), U (lowest unit the device sits in) and U Height (blank = 1) draw one table per rack under **Rack Layout**, per site: `U | <rack> (<size>U) | U`, top unit first, a device taller than 1U as one merged cell. **Status** (Existing / New / Replace, blank = New) colours the device cell with the legend colours of the Switch Replacement LLD (Existing `B3E5A1`, New `83CAEB`, Replace `FFC000`), and a legend table follows each rack. The Document Generator copies cell colours into Word from the importer version that reads fills (`feat/multi-block-import`). A device that overlaps another one or does not fit the rack is left out of the table and noted on the page; a site where no device has a rack position keeps an image slot instead. The page shows each rack as a drawing before download.
 
 ## How the index is built
 
