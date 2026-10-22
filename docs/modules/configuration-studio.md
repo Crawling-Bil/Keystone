@@ -129,6 +129,28 @@ Documentation: Cisco Nexus 9000 NX-OS Security Configuration Guide 10.3(x), "Con
 
 Documentation: Cisco, "Understand the vPC Election Process" (https://www.cisco.com/c/en/us/support/docs/ios-nx-os-software/nx-os-software/212589-understanding-vpc-election-process.html); HPE Aruba Networking VSX examples (https://developer.arubanetworks.com/aoscx/v10.04/docs/architecture-ii-dedicated-data-center-two-tier , https://arubanetworking.hpe.com/techdocs/VSG/docs/050-dc-deploy/esp-dc-deploy-730-central-two-tier-lossless-core/); Huawei CloudEngine S6730-H-V2 25GE product page (https://e.huawei.com/en/products/switches/campus-switches/s6730-h-v2-25g); Huawei M-LAG white paper, DFS group priority (https://actfornet.com/ueditor/php/upload/file/20181230/1546128876958575.pdf, third-party copy of the Huawei document; the V600R025C00 page itself refused the fetch).
 
+## Guided firewall conversion (MikroTik to Palo Alto)
+
+The Convert Firewall page has a second path next to the one-click convert: "Guided Conversion (step by step)". It exists because a firewall config is a graph of references. A security rule names zones, a zone names interfaces, NAT names zones, interfaces and objects. A one-shot conversion that guesses one port wrong breaks references three sections later, and the mistake shows up only at commit.
+
+The steps follow that dependency order: Target, Interfaces, Zones, Routing, Objects, NAT, Security policy, VPN, Services, Review & export. Step N opens only when steps 1 to N-1 have no errors and their warnings are acknowledged.
+
+How it works
+- `converter_engine/wizard/firewall_wizard.py` keeps the user's choices as a state (target model, deployment, per-interface target port and zone, tunnel zones, gateway local interfaces, acknowledged warnings) and turns it into the mapping `PaloAltoFirewallTranslator.translate(mapping=...)` already takes. The translator stays the single place that writes PAN-OS lines; the wizard never edits output text.
+- On every check the translator runs with the full state, then two sets of checks run: source-side (`_source_issues`: unmapped used ports, two sources on one port, ports the model lacks, renumber list) and target-side (`pan_validator.validate`: every reference in the generated lines must resolve, plus the commit blockers visible without a firewall).
+- Each issue carries the step it belongs to. Warnings are acknowledged by key (`CODE:ref`), so a new warning after an edit needs a new acknowledgement.
+- `wizard_service.py` stores a session as `uploads/configuration/wizard/<token>/` (source file, `session.json`, `state.json`) and parses the source again on each check.
+
+Rules worth knowing
+- A bridge member port has no zone of its own: it is layer2 and the zone sits on the bridge's vlan.N interface. A zone set on a bridge applies to its member ports (`assign_zones`).
+- A RouterOS rule on an interface list matches the zones of the list's members after all overrides (`list_zone`). Split members give `from [ A B ]`; a NAT rule with two destination zones is then an error in the NAT step, because PAN-OS NAT takes one.
+- An IKE gateway needs a local interface. It comes from the interface that owns the RouterOS `local-address`, or the VPN step. Without one the gateway is REVIEW-flagged and the VPN step shows an error.
+
+What it does not do
+- It does not run PAN-OS schema validation. A clean run means the references are consistent. Load the export on a lab or target firewall and run `validate full` before cutover; add any error PAN-OS reports as a new validator rule.
+- Sources other than MikroTik RouterOS are refused (the PAN-OS source has no translation path to a firewall target yet).
+- Port counts come from `PALOALTO_TARGET_MODELS` (data sheets). Which number is RJ45 and which is SFP is not modelled; confirm once per model with `show interface hardware` on a real unit.
+
 ## Adding a converter
 
 1. Write the parser under `parsers/<domain>/` and the translator under `translators/<domain>/`.

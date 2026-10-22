@@ -49,6 +49,7 @@
 
             <section class="cv-group cv-actions" aria-label="Actions">
                 {% if domain.key == 'firewall' %}
+                <button class="secondary-button full-width hidden" type="button" id="wizard-start-button" title="MikroTik RouterOS to Palo Alto, validated one step at a time"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Guided Conversion (step by step)</button>
                 <button class="secondary-button full-width hidden" type="button" id="preview-mapping-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Preview Interface Mapping</button>
                 {% endif %}
                 <button class="primary-button full" type="submit" id="convert-button"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Convert Configuration</button>
@@ -88,6 +89,33 @@
         {% else %}
         <div id="converter-empty" class="panel empty-state tall"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#swap"></use></svg></div><h3>Ready to convert</h3><p>Upload a configuration or paste it on the left. Detection, conversion, review markers, and download will appear here.</p></div>
         {% if domain.key == 'firewall' %}
+        <div id="wizard-result" class="wz hidden" aria-live="polite">
+            <div class="panel wz-head">
+                <div>
+                    <h3>Guided conversion</h3>
+                    <p id="wizard-hostname-line">MikroTik RouterOS to Palo Alto PAN-OS. Each step is checked before the next one opens.</p>
+                </div>
+                <button type="button" class="secondary-button" id="wizard-restart">Start over</button>
+            </div>
+            <nav class="panel wz-stepper" aria-label="Conversion steps"><ol id="wizard-stepper"></ol></nav>
+            <section class="panel wz-step" id="wizard-step" aria-labelledby="wizard-step-title">
+                <header class="wz-step-head">
+                    <div><span class="wz-step-index" id="wizard-step-index"></span><h3 id="wizard-step-title"></h3><p id="wizard-step-summary"></p></div>
+                    <span class="wz-status" id="wizard-step-status"></span>
+                </header>
+                <div id="wizard-editor" class="wz-editor"></div>
+                <div id="wizard-issues" class="wz-issues"></div>
+                <details class="wz-fold" id="wizard-notes-fold"><summary>Translator notes for this step <span id="wizard-notes-count"></span></summary><ul id="wizard-notes" class="wz-notes"></ul></details>
+                <details class="wz-fold" id="wizard-lines-fold"><summary>Generated lines for this step <span id="wizard-lines-count"></span></summary><pre id="wizard-lines" class="wz-lines"></pre></details>
+                <footer class="wz-actions">
+                    <button type="button" class="secondary-button" id="wizard-back">Back</button>
+                    <label class="wz-ack hidden" id="wizard-ack-wrap"><input type="checkbox" id="wizard-ack"> <span id="wizard-ack-label">I have read the warnings in this step</span></label>
+                    <span class="wz-spacer"></span>
+                    <button type="button" class="secondary-button" id="wizard-recheck">Re-check</button>
+                    <button type="button" class="primary-button" id="wizard-next">Validate &amp; continue</button>
+                </footer>
+            </section>
+        </div>
         <div id="mapping-result" class="hidden">
             <div class="panel">
                 <div class="panel-heading"><div><h3>Interface &amp; Zone Mapping</h3><p id="mapping-hostname-line">Review the auto-detected mapping below, adjust anything, then generate the config.</p></div></div>
@@ -173,4 +201,4 @@
     </section>
 </form>
 {% endblock %}
-{% block scripts %}{% if domain.available %}<script src="{{ url_for('static', filename='js/configuration.js') }}"></script>{% endif %}{% endblock %}
+{% block scripts %}{% if domain.available %}<script src="{{ url_for('static', filename='js/configuration.js') }}"></script>{% if domain.key == 'firewall' %}<script src="{{ url_for('static', filename='js/firewall_wizard.js') }}"></script>{% endif %}{% endif %}{% endblock %}

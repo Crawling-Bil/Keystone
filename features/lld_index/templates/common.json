@@ -1,0 +1,81 @@
+{
+  "label": "Common chapters",
+  "summary": "Chapters every LLD has. The technology chapters go where {\"insert\": \"technology\"} sits. Document Acceptance is not listed: the Document Generator keeps it from the master template (closing heading).",
+  "based_on": "7TAMO26009001 Switch Replacement LLD; 7TAMO23010001 TAM Wireless Network Improvement LLD; Peremajaan Perangkat Firewall Palo Alto LLD",
+  "chapters": [
+    {
+      "title": "Introduction",
+      "children": [
+        {"title": "Project Description", "type": "paragraph", "narrative": "project_description"},
+        {"title": "Scope of Work", "type": "paragraph", "narrative": "scope_of_work"},
+        {"title": "Out of Scope", "type": "paragraph", "narrative": "out_of_scope"},
+        {"title": "Document Scope", "type": "paragraph", "narrative": "document_scope"},
+        {"title": "Related Document", "type": "paragraph", "narrative": "related_documents"}
+      ]
+    },
+    {
+      "title": "Device Overview",
+      "children": [
+        {"title": "Bill of Quantity", "type": "table", "table": {"builder": "boq"}, "caption": "Bill of Quantity", "sheet": "BoQ"},
+        {"title": "{vendor} {model}", "repeat": "model", "type": "paragraph", "narrative": "model_description",
+         "blocks": [
+           {"type": "table", "table": {"builder": "models_spec", "numbered": false}, "caption": "{model} Specification", "sheet": "Spec {model}"}
+         ]}
+      ]
+    },
+    {"title": "Device Allocation Per Site", "type": "table", "table": {"builder": "allocation", "numbered": false},
+     "caption": "Device Allocation Per Site", "sheet": "Device Allocation"},
+    {
+      "title": "Access Management",
+      "children": [
+        {"title": "Hostname Scheme", "type": "table", "caption": "Hostname Scheme", "sheet": "Hostname Scheme",
+         "table": {"builder": "static", "numbered": false, "headers": ["Hostname Format", "Description", "Example"],
+                   "rows": [["AAA-BBB-CCC-DDD", "AAA = site code, BBB = device role, CCC = function, DDD = model", "TBD"]]}},
+        {"title": "Banner", "type": "paragraph", "text": ""},
+        {"title": "Management IP Address", "type": "table", "table": {"builder": "mgmt_ip"},
+         "caption": "Management IP Address", "sheet": "Management IP"},
+        {"title": "Software OS Recommendation", "type": "table", "table": {"builder": "software"},
+         "caption": "Software OS Recommendation", "sheet": "Software OS"}
+      ]
+    },
+    {
+      "title": "Rack Layout",
+      "children": [
+        {"title": "{site}", "repeat": "site", "children": [
+          {"title": "{rack}", "repeat": "rack", "type": "table", "table": {"builder": "rack", "numbered": false},
+           "caption": "Rack Layout {site} {rack}", "sheet": "Rack {rack}"},
+          {"title": "Rack Layout {site}", "type": "image", "devices": {"rack": false}, "caption": "Rack Layout {site}"}
+        ]}
+      ]
+    },
+    {"insert": "technology"},
+    {
+      "title": "Implementation Scenario",
+      "children": [
+        {"title": "Implementation Step", "type": "table", "caption": "Implementation Step", "sheet": "Implementation Step",
+         "table": {"builder": "static", "headers": ["Phase", "Action", "Note"], "rows": [
+           ["Preparation", "Collect the existing configuration, check the BoQ and site readiness", ""],
+           ["Installation", "Rack, cable and power on the new devices", ""],
+           ["Configuration", "Apply the configuration in this document", ""],
+           ["Migration", "Move links and services in the agreed maintenance window", ""],
+           ["Verification", "Run the UAT scenario and monitor the network", ""]]}},
+        {"title": "Implementation Anticipation", "type": "table", "caption": "Implementation Anticipation", "sheet": "Implementation Anticipation",
+         "table": {"builder": "static", "headers": ["Risk", "Solution"], "rows": [
+           ["A device fails during migration", "Roll back to the existing device and configuration"],
+           ["Service is down after cut-over", "Revert the cabling and configuration with the rollback plan"],
+           ["Maintenance window runs out", "Stop at the last verified step and continue in the next window"]]}}
+      ]
+    },
+    {"title": "UAT Scenario", "type": "table", "caption": "UAT Scenario", "sheet": "UAT",
+     "table": {"builder": "uat", "tests": {
+       "switch": [["Management access (SSH)", "Login succeeds"], ["VLAN and trunk status", "VLANs active, trunks up"],
+                  ["Uplink redundancy", "Traffic stays up when one uplink is down"]],
+       "wireless": [["AP joins the controller", "AP status Joined / Normal"], ["Client connects to each SSID", "Client gets an IP and reaches the gateway"],
+                    ["Roaming between APs", "Session stays up"]],
+       "firewall": [["Management access", "HTTPS / SSH login succeeds"], ["Security policy", "Allowed traffic passes, denied traffic is blocked and logged"],
+                    ["NAT", "Translation matches the NAT policy"], ["VPN", "Tunnels up, traffic passes"]],
+       "router": [["WAN reachability", "Neighbours and default route up"], ["Routing", "Routing table matches the design"]],
+       "loadbalancer": [["Virtual server", "Service reachable on the VIP"], ["Pool member health", "Members up; traffic moves when one fails"]],
+       "default": [["Management access", "Login succeeds"]]}}}
+  ]
+}

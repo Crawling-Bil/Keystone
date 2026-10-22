@@ -55,7 +55,9 @@ _MGMT_SERVICE_RE = re.compile(r'^deviceconfig system service (\S+) (yes|no)$')
 _ETH_LAYER2_RE = re.compile(r'^network interface ethernet (\S+) layer2$')
 _ETH_LAYER3_BARE_RE = re.compile(r'^network interface ethernet (\S+) layer3$')
 _ETH_LAYER3_IP_RE = re.compile(r'^network interface ethernet (\S+) layer3 ip (\S+)$')
-_ETH_SUBIF_CREATE_RE = re.compile(r'^network interface ethernet (\S+) layer3 units (\S+) tag (\d+)$')
+_ETH_SUBIF_CREATE_RE = re.compile(r'^network interface ethernet (\S+) (layer3|layer2) units (\S+) tag (\d+)$')
+_ETH_LINK_STATE_RE = re.compile(r'^network interface ethernet (\S+) link-state (up|down|auto)$')
+_VLAN_UNIT_BARE_RE = re.compile(r'^network interface vlan units (vlan\.\d+)$')
 _ETH_SUBIF_IP_RE = re.compile(r'^network interface ethernet (\S+\.\d+) ip (\S+)$')
 _ETH_SUBIF_COMMENT_RE = re.compile(r'^network interface ethernet (\S+\.\d+) comment "(.*)"$')
 _ETH_COMMENT_RE = re.compile(r'^network interface ethernet (\S+) comment "(.*)"$')
@@ -113,23 +115,33 @@ _ADMIN_CUSTOM_ROLE_RE = re.compile(r'^mgt-config users (\S+) permissions role-ba
 
 _PBF_RULE_RE = re.compile(r'^(?:pre-)?rulebase pbf rules (\S+) (.+)$')
 
-_IKE_CRYPTO_DH_RE = re.compile(r'^network ike-crypto-profile (\S+) dh-group (\S+)$')
-_IKE_CRYPTO_HASH_RE = re.compile(r'^network ike-crypto-profile (\S+) hash (\S+)$')
-_IKE_CRYPTO_ENC_RE = re.compile(r'^network ike-crypto-profile (\S+) encryption (\S+)$')
-_IKE_CRYPTO_LIFETIME_RE = re.compile(r'^network ike-crypto-profile (\S+) lifetime-seconds (\d+)$')
+_IKE_CRYPTO_DH_RE = re.compile(r'^network (?:ike-crypto-profile|ike crypto-profiles ike-crypto-profiles) (\S+) dh-group (\S+)$')
+_IKE_CRYPTO_HASH_RE = re.compile(r'^network (?:ike-crypto-profile|ike crypto-profiles ike-crypto-profiles) (\S+) hash (.+)$')
+_IKE_CRYPTO_ENC_RE = re.compile(r'^network (?:ike-crypto-profile|ike crypto-profiles ike-crypto-profiles) (\S+) encryption (.+)$')
+_IKE_CRYPTO_LIFETIME_RE = re.compile(r'^network (?:ike-crypto-profile|ike crypto-profiles ike-crypto-profiles) (\S+) lifetime(?:-seconds| seconds) (\d+)$')
+_IKE_CRYPTO_LIFETIME_UNIT_RE = re.compile(r'^network (?:ike-crypto-profile|ike crypto-profiles ike-crypto-profiles) (\S+) lifetime (minutes|hours|days) (\d+)$')
+_LIFETIME_UNIT_SECONDS = {"minutes": 60, "hours": 3600, "days": 86400}
 
-_IPSEC_CRYPTO_ENC_RE = re.compile(r'^network ipsec-crypto-profile (\S+) esp encryption (\S+)$')
-_IPSEC_CRYPTO_AUTH_RE = re.compile(r'^network ipsec-crypto-profile (\S+) esp authentication (\S+)$')
-_IPSEC_CRYPTO_DH_RE = re.compile(r'^network ipsec-crypto-profile (\S+) dh-group (\S+)$')
+_IPSEC_CRYPTO_ENC_RE = re.compile(r'^network (?:ipsec-crypto-profile|ike crypto-profiles ipsec-crypto-profiles) (\S+) esp encryption (.+)$')
+_IPSEC_CRYPTO_AUTH_RE = re.compile(r'^network (?:ipsec-crypto-profile|ike crypto-profiles ipsec-crypto-profiles) (\S+) esp authentication (.+)$')
+_IPSEC_CRYPTO_DH_RE = re.compile(r'^network (?:ipsec-crypto-profile|ike crypto-profiles ipsec-crypto-profiles) (\S+) dh-group (\S+)$')
 
-_IKE_GW_PROFILE_RE = re.compile(r'^network ike-gateway (\S+) protocol ikev2 ike-crypto-profile (\S+)$')
-_IKE_GW_PEER_RE = re.compile(r'^network ike-gateway (\S+) peer-address ip (\S+)$')
-_IKE_GW_PSK_RE = re.compile(r'^network ike-gateway (\S+) authentication pre-shared-key key "(.*)"$')
+_IKE_GW_PROFILE_RE = re.compile(r'^network (?:ike-gateway|ike gateway) (\S+) protocol ikev[12] ike-crypto-profile (\S+)$')
+_IKE_GW_PEER_RE = re.compile(r'^network (?:ike-gateway|ike gateway) (\S+) peer-address ip (\S+)$')
+_IKE_GW_PSK_RE = re.compile(r'^network (?:ike-gateway|ike gateway) (\S+) authentication pre-shared-key key "(.*)"$')
+
+_IKE_GW_VERSION_RE = re.compile(r'^network (?:ike-gateway|ike gateway) (\S+) protocol version (ikev1|ikev2|ikev2-preferred)$')
+_IKE_GW_LOCAL_IF_RE = re.compile(r'^network (?:ike-gateway|ike gateway) (\S+) local-address interface (\S+)$')
+_IKE_GW_LOCAL_IP_RE = re.compile(r'^network (?:ike-gateway|ike gateway) (\S+) local-address ip (\S+)$')
+_IKE_GW_PASSIVE_RE = re.compile(r'^network (?:ike-gateway|ike gateway) (\S+) (?:protocol-common )?passive-mode yes$')
+_IKE_GW_EXCHANGE_RE = re.compile(r'^network (?:ike-gateway|ike gateway) (\S+) protocol ikev1 exchange-mode (\S+)$')
+_IPSEC_CRYPTO_LIFETIME_RE = re.compile(r'^network (?:ipsec-crypto-profile|ike crypto-profiles ipsec-crypto-profiles) (\S+) lifetime (seconds|minutes|hours|days) (\d+)$')
+_TUNNEL_UNIT_RE = re.compile(r'^network interface tunnel units (tunnel\.\d+)$')
 
 _IPSEC_TUNNEL_GW_RE = re.compile(r'^network tunnel ipsec (\S+) auto-key ike-gateway (.+)$')
 _IPSEC_TUNNEL_PROFILE_RE = re.compile(r'^network tunnel ipsec (\S+) auto-key ipsec-crypto-profile (\S+)$')
-_IPSEC_TUNNEL_PROXY_LOCAL_RE = re.compile(r'^network tunnel ipsec (\S+) proxy-id (\S+) local (\S+)$')
-_IPSEC_TUNNEL_PROXY_REMOTE_RE = re.compile(r'^network tunnel ipsec (\S+) proxy-id (\S+) remote (\S+)$')
+_IPSEC_TUNNEL_PROXY_LOCAL_RE = re.compile(r'^network tunnel ipsec (\S+) (?:auto-key )?proxy-id (\S+) local (\S+)$')
+_IPSEC_TUNNEL_PROXY_REMOTE_RE = re.compile(r'^network tunnel ipsec (\S+) (?:auto-key )?proxy-id (\S+) remote (\S+)$')
 _IPSEC_TUNNEL_IFACE_RE = re.compile(r'^network tunnel ipsec (\S+) tunnel-interface (tunnel\.\d+)$')
 
 _DHCP_ENABLE_RE = re.compile(r'^network dhcp interface (\S+) server enable yes$')
@@ -497,6 +509,11 @@ class PaloAltoFirewallParser:
             get_interface(match.group(1), "ethernet").mode = "layer2"
             return True
 
+        match = _TUNNEL_UNIT_RE.match(rest)
+        if match:
+            get_interface(match.group(1), "tunnel")
+            return True
+
         match = _ETH_LAYER3_BARE_RE.match(rest)
         if match:
             interface = get_interface(match.group(1), "ethernet")
@@ -513,12 +530,22 @@ class PaloAltoFirewallParser:
 
         match = _ETH_SUBIF_CREATE_RE.match(rest)
         if match:
-            parent, subif_name, tag = match.group(1), match.group(2), match.group(3)
-            get_interface(parent, "ethernet").mode = "layer3"
+            parent, layer, subif_name, tag = match.group(1), match.group(2), match.group(3), match.group(4)
+            get_interface(parent, "ethernet").mode = layer
             sub = get_interface(subif_name, "subinterface")
             sub.parent_interface = parent
             sub.tag = int(tag)
-            sub.mode = "layer3"
+            sub.mode = layer
+            return True
+
+        match = _ETH_LINK_STATE_RE.match(rest)
+        if match:
+            get_interface(match.group(1), "ethernet").link_state = match.group(2)
+            return True
+
+        match = _VLAN_UNIT_BARE_RE.match(rest)
+        if match:
+            get_interface(match.group(1), "vlan").mode = "layer3"
             return True
 
         match = _ETH_SUBIF_IP_RE.match(rest)
@@ -729,24 +756,28 @@ class PaloAltoFirewallParser:
             return True
         match = _IKE_CRYPTO_HASH_RE.match(rest)
         if match:
-            get_ike_crypto(match.group(1)).hash_algorithm = match.group(2)
+            get_ike_crypto(match.group(1)).hash_algorithm = (_bracket_list(match.group(2)) or [''])[0]
             return True
         match = _IKE_CRYPTO_ENC_RE.match(rest)
         if match:
-            get_ike_crypto(match.group(1)).encryption = match.group(2)
+            get_ike_crypto(match.group(1)).encryption = (_bracket_list(match.group(2)) or [''])[0]
             return True
         match = _IKE_CRYPTO_LIFETIME_RE.match(rest)
         if match:
             get_ike_crypto(match.group(1)).lifetime_seconds = int(match.group(2))
             return True
+        match = _IKE_CRYPTO_LIFETIME_UNIT_RE.match(rest)
+        if match:
+            get_ike_crypto(match.group(1)).lifetime_seconds = int(match.group(3)) * _LIFETIME_UNIT_SECONDS[match.group(2)]
+            return True
 
         match = _IPSEC_CRYPTO_ENC_RE.match(rest)
         if match:
-            get_ipsec_crypto(match.group(1)).esp_encryption = match.group(2)
+            get_ipsec_crypto(match.group(1)).esp_encryption = (_bracket_list(match.group(2)) or [''])[0]
             return True
         match = _IPSEC_CRYPTO_AUTH_RE.match(rest)
         if match:
-            get_ipsec_crypto(match.group(1)).esp_authentication = match.group(2)
+            get_ipsec_crypto(match.group(1)).esp_authentication = (_bracket_list(match.group(2)) or [''])[0]
             return True
         match = _IPSEC_CRYPTO_DH_RE.match(rest)
         if match:
@@ -786,6 +817,31 @@ class PaloAltoFirewallParser:
         match = _IPSEC_TUNNEL_IFACE_RE.match(rest)
         if match:
             get_ipsec_tunnel(match.group(1)).tunnel_interface = match.group(2)
+            return True
+        match = _IKE_GW_VERSION_RE.match(rest)
+        if match:
+            get_ike_gateway(match.group(1)).version = match.group(2)
+            return True
+        match = _IKE_GW_LOCAL_IF_RE.match(rest)
+        if match:
+            get_ike_gateway(match.group(1)).local_interface = match.group(2)
+            return True
+        match = _IKE_GW_LOCAL_IP_RE.match(rest)
+        if match:
+            get_ike_gateway(match.group(1)).local_ip = match.group(2)
+            return True
+        match = _IKE_GW_PASSIVE_RE.match(rest)
+        if match:
+            get_ike_gateway(match.group(1)).passive_mode = True
+            return True
+        match = _IKE_GW_EXCHANGE_RE.match(rest)
+        if match:
+            get_ike_gateway(match.group(1)).exchange_mode = match.group(2)
+            return True
+        match = _IPSEC_CRYPTO_LIFETIME_RE.match(rest)
+        if match:
+            unit = {"seconds": 1, "minutes": 60, "hours": 3600, "days": 86400}[match.group(2)]
+            get_ipsec_crypto(match.group(1)).lifetime_seconds = int(match.group(3)) * unit
             return True
 
         return False

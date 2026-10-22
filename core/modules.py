@@ -21,6 +21,7 @@ GROUPS = (
     ("analyze", "Analyze", "Read a capture or backup and report what needs attention."),
     ("convert", "Convert", "Prepare configuration for a new platform."),
     ("operate", "Operate", "Run jobs against live devices."),
+    ("document", "Document", "Turn the inventory and configs into project documents."),
 )
 
 RISK_LABELS = {
@@ -83,9 +84,9 @@ TOOLS: tuple[Tool, ...] = (
     Tool("convert_router", "Router", "convert", "offline", "", "/convert/router", "router",
          "Router configuration: WAN interfaces, routing protocols, NAT, IPsec and SD-WAN. No converter yet; Router Analyzer reads these files.",
          keywords=("bgp", "ospf", "nat", "ipsec", "migration"), status="planned"),
-    Tool("convert_firewall", "Firewall", "convert", "offline", "1.8", "/convert/firewall", "firewall",
-         "MikroTik to Palo Alto (Panorama-ready) with interface and zone mapping preview. FortiGate and Palo Alto files are analyzed, not converted.",
-         task="Move a MikroTik firewall to Palo Alto", keywords=("mikrotik", "palo alto", "panorama", "migration")),
+    Tool("convert_firewall", "Firewall", "convert", "offline", "1.9", "/convert/firewall", "firewall",
+         "MikroTik to Palo Alto (Panorama-ready), one click or as a guided conversion checked step by step. FortiGate and Palo Alto files are analyzed, not converted.",
+         task="Move a MikroTik firewall to Palo Alto", keywords=("mikrotik", "palo alto", "panorama", "migration", "wizard")),
     Tool("convert_load_balancer", "Load Balancer", "convert", "offline", "", "/convert/load-balancer", "balancer",
          "Load balancer virtual servers, pools, monitors and profiles. No converter yet; Load Balancer Analyzer reads F5 BIG-IP files.",
          keywords=("f5", "big-ip", "ucs", "migration"), status="planned"),
@@ -104,6 +105,9 @@ TOOLS: tuple[Tool, ...] = (
     Tool("live_logs", "Live Logs", "operate", "read", "1.4", "/lifecycle/live-logs", "pulse",
          "Upgrade, config push, backup and ZTP activity in real time, across the whole suite.",
          keywords=("jobs", "monitor")),
+    Tool("lld_index", "LLD Index", "document", "offline", "0.1", "/lld-index", "folder",
+         "Build the LLD Content Index for the Document Generator: chapters per technology, expanded per site, device and model, tables filled from the inventory and configs, narrative from the project goals.",
+         task="Prepare the LLD index for the document generator", keywords=("lld", "document", "index", "low level design", "docgen", "word")),
 )
 
 

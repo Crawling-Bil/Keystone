@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}LLD Index · Keystone{% endblock %}
+{% block page_title %}LLD Index{% endblock %}
+{% block page_subtitle %}Build the LLD Content Index for the Document Generator from the device inventory, the configs and the project goals.{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/analyzer_kit.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/lld_index.css') }}">{% endblock %}
+{% block content %}
+{#- No element ids: the SPA router keeps every visited page mounted; lld_index.js scopes itself to .li-page. -#}
+<section class="an-page li-page" data-api="/lld-index">
+  <form class="li-form" data-role="form" novalidate>
+    <div class="panel li-card">
+      <header class="li-card-head"><span class="li-step">1</span><div><h3>Project</h3><p class="an-hint">The narrative chapters (Project Description, Scope of Work, Out of Scope, Related Document) are written from these fields.</p></div></header>
+      <div class="li-grid">
+        <label class="an-field"><span class="an-label">Customer</span><input class="li-input" data-field="customer" placeholder="Toyota Astra Motor"></label>
+        <label class="an-field"><span class="an-label">Project name</span><input class="li-input" data-field="project_name" placeholder="Switch Replacement"></label>
+        <label class="an-field"><span class="an-label">Project code</span><input class="li-input" data-field="project_code" placeholder="7TAMO26009001"></label>
+        <label class="an-field"><span class="an-label">Implemented by</span><input class="li-input" data-field="company" value="Multipolar Technology"></label>
+      </div>
+      <div class="li-grid">
+        <label class="an-field"><span class="an-label">Project goals <small>(one per line)</small></span><textarea class="li-text" data-field="goals" rows="4" placeholder="Replace end-of-life core and access switches&#10;Standardise VLAN and management addressing"></textarea></label>
+        <label class="an-field"><span class="an-label">Scope of work <small>(one per line, blank = written from the inventory)</small></span><textarea class="li-text" data-field="scope" rows="4"></textarea></label>
+        <label class="an-field"><span class="an-label">Out of scope <small>(one per line, blank = standard list)</small></span><textarea class="li-text" data-field="out_of_scope" rows="3"></textarea></label>
+        <label class="an-field"><span class="an-label">Related documents <small>(one per line)</small></span><textarea class="li-text" data-field="related_documents" rows="3" placeholder="Kick Off Meeting (KOM) document&#10;Bill of Quantity (BoQ)"></textarea></label>
+      </div>
+    </div>
+
+    <div class="panel li-card">
+      <header class="li-card-head"><span class="li-step">2</span><div><h3>Technologies</h3><p class="an-hint">Each technology adds its own chapters between Access Management and Implementation Scenario. Chapters per site and per device repeat for every site and device in the inventory.</p></div></header>
+      <div class="li-techs">
+        {% for t in templates %}
+        <label class="li-tech"><input type="checkbox" data-tech="{{ t.key }}"><span class="li-tech-box" aria-hidden="true"></span>
+          <span><strong>{{ t.label }}</strong><small>{{ t.summary }}</small><small class="li-based">Based on: {{ t.based_on }}</small></span></label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="panel li-card">
+      <header class="li-card-head"><span class="li-step">3</span><div><h3>Device inventory</h3><p class="an-hint">One row per device. <strong>Config</strong> names an uploaded file (blank = matched by hostname, or left empty for a design written before configuration). Technology comes from the config, then the Role, then the model. <strong>Rack</strong>, <strong>Rack Size</strong> (24/27/32/36/42/45/47/48U, blank = 42), <strong>U</strong> (lowest unit) and <strong>U Height</strong> (blank = 1) draw the rack layout.</p></div></header>
+      <div class="an-actions">
+        <a class="an-btn small" href="/lld-index/inventory-template.xlsx">Download inventory template</a>
+        <label class="an-btn small li-file-btn">Import CSV / XLSX<input type="file" data-role="inventory-file" accept=".csv,.xlsx,.xlsm" hidden></label>
+        <button type="button" class="an-btn small" data-role="add-row">Add device</button>
+        <button type="button" class="an-btn small" data-role="clear-rows">Clear</button>
+        <span class="an-status" data-role="inventory-status"></span>
+      </div>
+      <div class="li-table-wrap"><table class="li-table">
+        <thead><tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}<th aria-label="Remove"></th></tr></thead>
+        <tbody data-role="rows"></tbody>
+      </table></div>
+    </div>
+
+    <div class="panel li-card">
+      <header class="li-card-head"><span class="li-step">4</span><div><h3>Config files <small>(optional)</small></h3><p class="an-hint">Running configs or terminal captures, one per device, or one ZIP. VLAN, interfaces, routing, policy and configuration tables are filled from them with the same parsers as the analyzers.</p></div></header>
+      <label class="an-drop" data-role="drop">
+        <input type="file" data-role="config-files" multiple accept=".txt,.cfg,.conf,.config,.log,.rsc,.out,.cap,.xml,.zip">
+        <span class="an-drop-icon"><svg class="an-icon" aria-hidden="true"><use href="/static/icons/nes-icons.svg#upload"></use></svg></span>
+        <span><strong>Select or drop config files</strong><small>TXT, CFG, CONF, LOG, RSC or ZIP. Nothing leaves this computer.</small></span>
+      </label>
+      <ul class="an-file-list hidden" data-role="file-list" aria-label="Selected config files"></ul>
+    </div>
+
+    <div class="li-submit">
+      <button type="submit" class="an-btn primary" data-role="build">Build LLD index</button>
+      <span class="an-status" data-role="status"></span>
+    </div>
+  </form>
+
+  <section class="li-result hidden" data-role="result" aria-live="polite">
+    <div class="panel li-card">
+      <header class="li-result-head">
+        <div><h3>LLD Content Index</h3><p class="an-hint" data-role="summary"></p></div>
+        <a class="an-btn primary" data-role="download" href="#">Download Index (.xlsx)</a>
+      </header>
+      <div class="an-cards" data-role="cards"></div>
+      <p class="an-hint">Import the file in the Document Generator with <strong>Import Excel Index</strong>. Yellow rows in the Index sheet still need manual content: images (topology, rack, map layout) and anything marked TBD.</p>
+    </div>
+    <div class="panel li-card">
+      <h3>Devices</h3>
+      <div class="li-table-wrap"><table class="li-table li-readonly"><thead><tr><th>Site</th><th>Hostname</th><th>Model</th><th>Technology</th><th>Config</th><th>Notes</th></tr></thead><tbody data-role="devices"></tbody></table></div>
+    </div>
+    <div class="panel li-card hidden" data-role="racks-panel">
+      <h3>Rack layout</h3>
+      <p class="an-hint">From the Rack, Rack Size, U and U Height columns. Each rack becomes a table under Rack Layout, per site.</p>
+      <div class="li-racks" data-role="racks"></div>
+    </div>
+    <div class="panel li-card">
+      <h3>Chapters</h3>
+      <ol class="li-tree" data-role="tree"></ol>
+    </div>
+  </section>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/lld_index.js') }}"></script>{% endblock %}

@@ -210,7 +210,7 @@ class PaloAltoFirewallParserPanoramaRoundTripTests(unittest.TestCase):
         # RouterOS "modp1024" is PAN-OS "group2": the translator now emits the
         # PAN-OS keyword (raw "modp1024" is not a valid dh-group value there).
         self.assertEqual(ike_crypto.dh_group, "group2")
-        self.assertEqual(ike_crypto.encryption, "aes-256")
+        self.assertEqual(ike_crypto.encryption, "aes-256-cbc")
 
     def test_address_objects_groups_and_service(self):
         addresses_by_name = {a.name: a for a in self.config.address_objects}

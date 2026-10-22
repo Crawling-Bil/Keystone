@@ -160,9 +160,12 @@ class RouterOsTranslatorTests(unittest.TestCase):
         self.assertTrue(any("template" in r for r in self.review))
 
     def test_ikev1_peer_and_pan_dh_group_names(self):
-        self.assertIn("ike-gateway peer-main protocol ikev1", self.text)
-        self.assertIn("local-address ip 203.0.113.6", self.text)
-        self.assertIn("ike-crypto-profile prof1 dh-group group14", self.text)
+        self.assertIn("ike gateway peer-main protocol ikev1", self.text)
+        # 203.0.113.6 is on no converted interface: PAN-OS needs
+        # "local-address interface <port>", so it is reviewed, not emitted bare.
+        self.assertNotIn("local-address ip 203.0.113.6", self.text)
+        self.assertTrue(any("peer-main: no local interface" in r for r in self.review))
+        self.assertIn("ike-crypto-profiles prof1 dh-group group14", self.text)
         self.assertNotIn("dh-group modp", self.text)
 
     def test_tunnel_interfaces_are_reviewed_not_guessed(self):

@@ -1,0 +1,45 @@
+{
+  "technology": "router",
+  "label": "Router",
+  "summary": "Draft (no router LLD sample yet): topology, then per site and device the interfaces, VRF, static and BGP routing and the configuration. Sections with no data are left out.",
+  "based_on": "Draft from the switch and firewall LLD structure; replace once a router LLD sample exists",
+  "devices": ["router"],
+  "chapters": [
+    {
+      "title": "Topology",
+      "children": [
+        {"title": "WAN Topology", "type": "image", "caption": "WAN Topology"},
+        {"title": "Topology Site {site}", "repeat": "site", "type": "image", "caption": "Topology Site {site}"}
+      ]
+    },
+    {
+      "title": "Site {site}",
+      "repeat": "site",
+      "children": [
+        {"title": "{hostname}", "repeat": "device", "inline_single": true, "children": [
+          {"title": "Device Information", "type": "table", "caption": "Device Information {hostname}", "sheet": "Info {hostname}",
+           "table": {"builder": "inventory", "numbered": false,
+                     "columns": [["Hostname", "hostname"], ["Model", "model"], ["Serial Number", "serial"], ["IP Management", "mgmt_cidr"], ["Software Version", "version"]]}},
+          {"title": "Interface Configuration", "type": "table", "caption": "Interfaces {hostname}", "sheet": "Intf {hostname}",
+           "table": {"builder": "device", "tables": ["interfaces"], "require_any": ["ip", "description"],
+                     "columns": [["Interface", "name"], ["IP Address", "ip"], ["VRF", "vrf"], ["Description", "description"]]}},
+          {"title": "VRF Configuration", "type": "table", "optional": true, "caption": "VRF {hostname}", "sheet": "VRF {hostname}",
+           "table": {"builder": "device", "tables": ["vrfs"],
+                     "columns": [["Name", "name"], ["RD", "rd"], ["RT Import", "rt_import"], ["RT Export", "rt_export"], ["Interfaces", "interfaces"]]}},
+          {"title": "Static Routing", "type": "table", "optional": true, "caption": "Static Routes {hostname}", "sheet": "Static {hostname}",
+           "table": {"builder": "device", "tables": ["static_routes"],
+                     "columns": [["VRF", "vrf"], ["Destination", "prefix"], ["Next Hop", "next_hop"], ["Interface", "interface"], ["Distance", "distance"], ["Name", "name"]]}},
+          {"title": "BGP Configuration", "type": "table", "optional": true, "caption": "BGP {hostname}", "sheet": "BGP {hostname}",
+           "table": {"builder": "device", "tables": ["bgp_process"],
+                     "columns": [["AS Number", "asn"], ["Router ID", "router_id"], ["Networks", "networks"], ["Redistribute", "redistribute"]]}},
+          {"title": "BGP Neighbor", "type": "table", "optional": true, "caption": "BGP Neighbor {hostname}", "sheet": "BGPNbr {hostname}",
+           "table": {"builder": "device", "tables": ["bgp_neighbors"],
+                     "columns": [["Neighbor", "neighbor"], ["Remote AS", "remote_as"], ["Type", "type"], ["Description", "description"],
+                                 ["Policy In", "policy_in"], ["Policy Out", "policy_out"]]}},
+          {"title": "Device Configuration", "type": "table", "optional": true, "caption": "Configuration {hostname}", "sheet": "Cfg {hostname}",
+           "table": {"builder": "config", "numbered": false}}
+        ]}
+      ]
+    }
+  ]
+}

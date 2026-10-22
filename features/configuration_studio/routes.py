@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from flask import Blueprint, jsonify, redirect, render_template, request, send_from_directory
+from flask import Blueprint, Response, jsonify, redirect, render_template, request, send_from_directory
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
@@ -490,3 +490,73 @@ def download_batch_item(batch_id: str, preview_id: str):
 def download(export_id: str):
     name = secure_filename(request.args.get("name", "converted-config.cfg")) or "converted-config.cfg"
     return send_from_directory(EXPORT_DIR, f"{export_id}.cfg", as_attachment=True, download_name=name)
+
+
+# ---------------------------------------------------------------- guided firewall conversion
+# Step-by-step MikroTik -> Palo Alto conversion; see wizard_service.py and
+# converter_engine/wizard/. Each step is validated before the next opens.
+from . import wizard_service  # noqa: E402
+
+WIZARD_DIR = UPLOAD_DIR / "wizard"
+
+
+@bp.post("/api/wizard/start")
+def wizard_start_route():
+    uploaded = request.files.get("config_file")
+    config_text = request.form.get("config_text", "")
+    with tempfile.TemporaryDirectory() as scratch:
+        if uploaded and uploaded.filename:
+            original_name = secure_filename(uploaded.filename) or "source.rsc"
+            if not _is_config_name(original_name):
+                return jsonify({"ok": False, "error": "Unsupported configuration file type."}), 400
+            source_path = Path(scratch) / original_name
+            uploaded.save(source_path)
+        elif config_text.strip():
+            source_path = Path(scratch) / "pasted-config.rsc"
+            source_path.write_text(config_text, encoding="utf-8")
+        else:
+            return jsonify({"ok": False, "error": "Upload or paste the MikroTik export first."}), 400
+        if source_path.stat().st_size > MAX_CONFIG_BYTES:
+            return jsonify({"ok": False, "error": "The configuration file is too large."}), 400
+        try:
+            result = wizard_service.start(
+                WIZARD_DIR,
+                source_path,
+                source_vendor=request.form.get("source_vendor", "Auto Detect"),
+                target_vendor=request.form.get("target_vendor", "Palo Alto"),
+                target_model=request.form.get("target_model") or None,
+                domain="firewall",
+            )
+        except wizard_service.WizardError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+        except Exception as exc:
+            log_activity("Convert Firewall", "Guided conversion failed", f"{type(exc).__name__}: {exc}", "error")
+            return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
+    log_activity("Convert Firewall", "Guided conversion started", f"{result['hostname']} · MikroTik to Palo Alto")
+    return jsonify({"ok": True, "result": result})
+
+
+@bp.post("/api/wizard/<token>/validate")
+def wizard_validate_route(token: str):
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = wizard_service.validate(WIZARD_DIR, token, payload.get("state"))
+    except wizard_service.WizardError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
+    return jsonify({"ok": True, "result": result})
+
+
+@bp.get("/api/wizard/<token>/download")
+def wizard_download_route(token: str):
+    try:
+        name, text = wizard_service.export(WIZARD_DIR, token, request.args.get("rev"))
+    except wizard_service.WizardError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    log_activity("Convert Firewall", "Guided conversion exported", name)
+    return Response(
+        text,
+        mimetype="text/plain",
+        headers={"Content-Disposition": f'attachment; filename="{secure_filename(name)}"'},
+    )

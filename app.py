@@ -19,6 +19,7 @@ from features.lb_analyzer.routes import bp as lb_analyzer_bp
 from features.topology.routes import bp as topology_bp
 from features.switch_analyzer.routes import bp as switch_analyzer_bp
 from features.ztp.routes import bp as ztp_bp
+from features.lld_index.routes import bp as lld_index_bp
 
 APP_NAME = "Keystone"
 APP_VERSION = "1.11.0"
@@ -109,6 +110,7 @@ def create_app() -> Flask:
     app.register_blueprint(topology_bp)
     app.register_blueprint(lifecycle_bp)
     app.register_blueprint(ztp_bp)
+    app.register_blueprint(lld_index_bp)
 
     @app.context_processor
     def inject_suite_context():

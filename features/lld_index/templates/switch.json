@@ -1,0 +1,57 @@
+{
+  "technology": "switch",
+  "label": "Switch",
+  "summary": "Topology and rack per site; VLAN, physical connectivity and configuration per site, then per hostname.",
+  "based_on": "7TAMO26009001 - Switch Replacement - LLD",
+  "devices": ["switch"],
+  "chapters": [
+    {
+      "title": "Physical Topology Planning",
+      "children": [
+        {"title": "Topology Network Infrastructure", "type": "image", "caption": "Topology Network Infrastructure"},
+        {"repeat": "site", "flatten": true, "children": [
+          {"title": "Physical Topology Before Site {site}", "type": "image", "caption": "Physical Topology Before Site {site}"},
+          {"title": "Physical Topology After Site {site}", "type": "image", "caption": "Physical Topology After Site {site}"}
+        ]}
+      ]
+    },
+    {
+      "title": "Logical Topology Planning",
+      "children": [
+        {"repeat": "site", "flatten": true, "children": [
+          {"title": "Logical Topology Before Site {site}", "type": "image", "caption": "Logical Topology Before Site {site}"},
+          {"title": "Logical Topology After Site {site}", "type": "image", "caption": "Logical Topology After Site {site}"}
+        ]}
+      ]
+    },
+    {
+      "title": "VLAN and IP Addressing",
+      "children": [
+        {"title": "{site}", "repeat": "site", "children": [
+          {"title": "{hostname}", "repeat": "device", "type": "table", "caption": "VLAN {hostname}", "sheet": "VLAN {hostname}",
+           "table": {"builder": "device", "tables": ["vlans"], "numbered": false,
+                     "columns": [["VLAN ID", "vlan_id"], ["VLAN Description", "description|name"], ["IP Address", "ip_address"]]}}
+        ]}
+      ]
+    },
+    {
+      "title": "Device Physical Connectivity",
+      "children": [
+        {"title": "{site}", "repeat": "site", "children": [
+          {"title": "{hostname}", "repeat": "device", "type": "table", "caption": "Physical Connectivity {hostname}", "sheet": "Conn {hostname}",
+           "table": {"builder": "device", "tables": ["interfaces"], "require_any": ["description", "mode", "vlan"],
+                     "columns": [["Interface", "name"], ["Description", "description"], ["Mode", "mode"], ["Allowed / Access VLAN", "vlan"]]}}
+        ]}
+      ]
+    },
+    {
+      "title": "Device Configuration",
+      "children": [
+        {"title": "{site}", "repeat": "site", "children": [
+          {"title": "{hostname}", "repeat": "device", "type": "table", "caption": "Configuration {hostname}", "sheet": "Cfg {hostname}",
+           "table": {"builder": "config", "numbered": false}}
+        ]}
+      ]
+    }
+  ]
+}
