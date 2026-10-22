@@ -31,6 +31,7 @@ Template node keys:
 | `table.builder` | `device` (config tables), `inventory`, `boq`, `allocation`, `models_spec`, `mgmt_ip`, `software`, `config`, `uat`, `static` |
 | `table.tables` | candidate dataset tables, first one with rows wins (PAN-OS `security_rules`, FortiGate `policies`) |
 | `table.columns` | `[label, "key1|key2"]`: first key with a value wins |
+| `blocks` | more content under the same heading, each with its own `type`, `text`/`narrative`/`table`, `caption`, `optional` (model heading: description paragraph + spec table) |
 
 `datasets.py` runs the existing analyzers (switch, firewall, router, load balancer, wireless) and flattens their results into named tables. An analyzer error never stops the index; the device gets a note.
 
@@ -49,13 +50,13 @@ The workbook follows `lld_generator/backend/importer.py`:
 * `Paragraf`: text in Isi, or a sheet (`No | Isi`, one paragraph per row) for more than one paragraph;
 * `Tabel`: a sheet with a header row and at least one data row (the importer drops a table without rows, so empty tables carry `TBD`); Catatan is the caption;
 * `Gambar`: an empty image block for manual upload;
+* a row with an empty Judul Heading adds one more block to the heading above it. The Document Generator reads these with the multi-block importer (`feat/multi-block-import`); an older importer skips them and keeps the first block;
 * sheet names unique, at most 31 characters.
 
 Yellow rows in the Index sheet still need manual content. Document Acceptance is not in the index: the Document Generator keeps it from the master template.
 
 ## Known limits
 
-* One content block per heading (an importer rule): a model heading gets its spec table, not a paragraph plus a table.
 * Router and Load Balancer templates are drafts until an LLD sample exists for them.
 * Narrative is English, the language of the switch, wireless and Palo Alto LLD samples.
 * Rack layout, topology and map layout are image placeholders.

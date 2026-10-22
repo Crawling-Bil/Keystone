@@ -59,3 +59,4 @@
   .li-page .li-node.lvl-3 { padding-left: 30px; }
   .li-page .li-node.lvl-4 { padding-left: 42px; }
 }
+.li-page .li-plus { color: var(--faint); font-weight: 800; }

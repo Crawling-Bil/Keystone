@@ -143,10 +143,27 @@ def test_narrative_uses_the_project_fields_and_lists_the_chapters():
     assert "• Device Overview" in scope and "• Introduction" not in scope
 
 
-def test_model_spec_comes_from_the_hardware_catalog():
+def test_model_heading_has_a_description_paragraph_and_a_spec_table():
     result = _build(["switch"])
     spec = next(n for n in result["tree"] if n["title"] == "Huawei S5755-H24T4Y2CZ")
-    assert spec["source"] == "hardware catalog" and spec["rows"] > 4
+    assert spec["kind"] == "paragraph"
+    assert spec["more"][0]["kind"] == "table" and spec["more"][0]["source"] == "hardware catalog" and spec["more"][0]["rows"] > 4
+
+
+def test_extra_blocks_are_written_as_continuation_rows():
+    devices = build_devices(INVENTORY, FILES)
+    datasets = {d.hostname: analyze_device(d) for d in devices}
+    project = dict(PROJECT, technologies=["switch"])
+    nodes = builder.build(project, devices, datasets, ["switch"])
+    wb, rows = _index_rows(workbook.write(nodes, project))
+    sheet = wb["Index"]
+    header = next(r for r in range(1, 30) if sheet.cell(r, 1).value == "No")
+    all_rows = [list(r)[:6] for r in sheet.iter_rows(min_row=header + 1, values_only=True)]
+    at = next(i for i, r in enumerate(all_rows) if r[1] == "Huawei S5755-H24T4Y2CZ")
+    heading, extra = all_rows[at], all_rows[at + 1]
+    assert heading[3] == "Paragraf" and "Core Switch" in heading[4]
+    assert extra[:3] == [None, None, None] and extra[3] == "Tabel" and extra[4] in wb.sheetnames
+    assert extra[5] == "S5755-H24T4Y2CZ Specification"
 
 
 # ------------------------------------------------------------------ workbook format
@@ -161,6 +178,7 @@ def test_workbook_follows_the_document_generator_importer_format():
     assert len(rows) == len(nodes) == len(result["tree"])
     names = [s.lower() for s in wb.sheetnames]
     assert len(names) == len(set(names)) and all(len(n) <= 31 for n in wb.sheetnames)
+    rows = [r for r in rows]  # heading rows only (Judul filled)
     for no, title, level, kind, isi, note in rows:
         assert str(level).startswith("H") and 1 <= int(level[1:]) <= 9
         if kind == "Tabel":

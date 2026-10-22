@@ -49,6 +49,7 @@ class Node:
     sheet_hint: str = ""
     placeholder: bool = False           # table/paragraph has no real data yet
     source: str = ""                    # where the content came from, for the preview
+    more: list = field(default_factory=list)  # extra content blocks under the same heading (Node, title "")
 
 
 @dataclass
@@ -358,12 +359,10 @@ def _expand_node(spec: dict, scope: Scope, level: int, project: dict, datasets: 
     return _single(spec, scope, level, project, datasets)
 
 
-def _single(spec: dict, scope: Scope, level: int, project: dict, datasets: dict) -> list:
-    values = _values(project, scope, datasets)
-    title = _fmt(spec.get("title") or "", values).strip()
-    kind = spec.get("type") or ("group" if spec.get("children") else "paragraph")
-    node = Node(title=title, level=level, kind=kind, caption=_fmt(spec.get("caption") or "", values),
-                sheet_hint=_fmt(spec.get("sheet") or title, values))
+def _fill(node: Node, spec: dict, scope: Scope, project: dict, datasets: dict, values: dict) -> bool:
+    """Put the content of one block spec into node. False = drop it
+    (optional and empty)."""
+    kind = node.kind
     if kind == "paragraph":
         if spec.get("narrative"):
             node.paragraphs = narrative.paragraphs(spec["narrative"], project, scope, datasets)
@@ -375,7 +374,7 @@ def _single(spec: dict, scope: Scope, level: int, project: dict, datasets: dict)
         node.placeholder = not any(p.strip() for p in node.paragraphs)
         if node.placeholder:
             if spec.get("optional"):
-                return []
+                return False
             node.paragraphs = [PLACEHOLDER]
     elif kind == "table":
         headers, rows, source = _builder_rows(spec.get("table") or {}, scope, datasets, project)
@@ -385,7 +384,7 @@ def _single(spec: dict, scope: Scope, level: int, project: dict, datasets: dict)
         node.headers, node.rows, node.source = headers, rows, source
         if not rows:
             if spec.get("optional"):
-                return []
+                return False
             node.placeholder = True
             node.rows = [[PLACEHOLDER] + [""] * (len(headers) - 1)] if headers else [[PLACEHOLDER]]
             if not headers:
@@ -393,8 +392,27 @@ def _single(spec: dict, scope: Scope, level: int, project: dict, datasets: dict)
     elif kind == "image":
         node.source = "manual"
         node.placeholder = True
+    return True
+
+
+def _single(spec: dict, scope: Scope, level: int, project: dict, datasets: dict) -> list:
+    values = _values(project, scope, datasets)
+    title = _fmt(spec.get("title") or "", values).strip()
+    kind = spec.get("type") or ("group" if spec.get("children") or spec.get("blocks") else "paragraph")
+    node = Node(title=title, level=level, kind=kind, caption=_fmt(spec.get("caption") or "", values),
+                sheet_hint=_fmt(spec.get("sheet") or title, values))
+    if not _fill(node, spec, scope, project, datasets, values):
+        return []
+    # "blocks": more content under the same heading, written as continuation
+    # rows (empty Judul Heading) that the Document Generator adds to it.
+    for index, block in enumerate(spec.get("blocks") or [], start=2):
+        extra = Node(title="", level=level, kind=block.get("type") or "paragraph",
+                     caption=_fmt(block.get("caption") or "", values),
+                     sheet_hint=_fmt(block.get("sheet") or f"{title} {index}", values))
+        if _fill(extra, block, scope, project, datasets, values):
+            node.more.append(extra)
     children = expand(spec.get("children") or [], scope, level + 1, project, datasets)
-    if kind == "group" and spec.get("children") and not children:
+    if kind == "group" and (spec.get("children") or spec.get("blocks")) and not children and not node.more:
         return []
     return [node] + children
 

@@ -17,8 +17,10 @@
       "title": "Device Overview",
       "children": [
         {"title": "Bill of Quantity", "type": "table", "table": {"builder": "boq"}, "caption": "Bill of Quantity", "sheet": "BoQ"},
-        {"title": "{vendor} {model}", "repeat": "model", "type": "table", "table": {"builder": "models_spec", "numbered": false},
-         "caption": "{model} Specification", "sheet": "Spec {model}"}
+        {"title": "{vendor} {model}", "repeat": "model", "type": "paragraph", "narrative": "model_description",
+         "blocks": [
+           {"type": "table", "table": {"builder": "models_spec", "numbered": false}, "caption": "{model} Specification", "sheet": "Spec {model}"}
+         ]}
       ]
     },
     {"title": "Device Allocation Per Site", "type": "table", "table": {"builder": "allocation", "numbered": false},

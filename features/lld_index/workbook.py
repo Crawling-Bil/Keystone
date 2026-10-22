@@ -9,7 +9,11 @@ The format is the one the Document Generator's importer.py reads:
 * Tabel: Isi is the name of a sheet with a header row and data rows (a
   table without rows is dropped by the importer, so empty tables carry a
   "TBD" row); Catatan becomes the table caption;
-* Gambar: an empty image block, caption from Catatan.
+* Gambar: an empty image block, caption from Catatan;
+* a row with an empty Judul Heading adds one more block to the heading
+  above it (paragraph + table + image under one heading). The Document
+  Generator reads these with the multi-block importer (feat/multi-block-import); an older
+  importer skips them and keeps the first block only.
 
 Sheet names are unique, at most 31 characters, and free of []:*?/\\ .
 """
@@ -76,7 +80,7 @@ def write(nodes: list, project: dict) -> bytes:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = _HEADER_FILL
     used = {"index"}
-    for number, node in zip(_numbers(nodes), nodes):
+    def content(node):
         kind, isi, note = "", "", ""
         if node.kind == "paragraph":
             kind = "Paragraf"
@@ -108,10 +112,21 @@ def write(nodes: list, project: dict) -> bytes:
         elif node.kind == "image":
             kind = "Gambar"
             note = node.caption or node.title
+        return kind, isi, note
+
+    for number, node in zip(_numbers(nodes), nodes):
+        kind, isi, note = content(node)
         index.append([number, node.title, f"H{max(1, min(node.level, 9))}", kind, _cell(isi), note])
         if node.placeholder or node.kind == "image":
             for cell in index[index.max_row]:
                 cell.fill = _TBD_FILL
+        # extra blocks under the same heading: No / Judul / Level stay empty
+        for extra in node.more:
+            kind, isi, note = content(extra)
+            index.append(["", "", "", kind, _cell(isi), note])
+            if extra.placeholder or extra.kind == "image":
+                for cell in index[index.max_row]:
+                    cell.fill = _TBD_FILL
     for col, width in zip("ABCDEF", (10, 52, 7, 12, 60, 40)):
         index.column_dimensions[col].width = width
     index.freeze_panes = "A5"

@@ -78,6 +78,8 @@ def paragraphs(key: str, project: dict, scope, datasets) -> list[str]:
         items = _lines(project.get("related_documents")) or DEFAULT_RELATED
         return ["The documents below are closely related to this document as part of the project documentation:"] + \
                [BULLET + i for i in items]
+    if key == "model_description":
+        return [model_description(scope)]
     if key == "document_scope":
         return ["__DOCUMENT_SCOPE__"]  # filled once every chapter is known
     return []
@@ -91,3 +93,33 @@ def fill_document_scope(nodes: list, project: dict) -> None:
                                f"{project.get('customer') or 'the customer'}'s network. It explains the following:"] + \
                               [BULLET + c for c in chapters]
             node.placeholder = False
+
+
+def model_description(scope) -> str:
+    """'S5755-H24T4Y2CZ (Fixed 24x ... ) will be used as Core Switch at HO and BR.'"""
+    model = scope.model
+    detail = ""
+    try:
+        from features.configuration_studio.converter_engine.hardware.catalog import get_model
+
+        hw = get_model(model)
+        if hw is not None:
+            detail = hw.summary or hw.label
+    except Exception:
+        hw = None
+    if not detail:
+        try:
+            from features.configuration_studio.converter_engine.translators.firewall.paloalto import PALOALTO_TARGET_MODELS
+
+            detail = next((m["label"].split("(", 1)[-1].rstrip(")") for m in PALOALTO_TARGET_MODELS
+                           if m["model"].upper() == model.upper()), "")
+        except Exception:
+            detail = ""
+    roles = list(dict.fromkeys(d.role or TECH_LABELS.get(d.technology, "device") for d in scope.devices))
+    sites = list(dict.fromkeys(d.site for d in scope.devices))
+    count = len(scope.devices)
+    role_text = " and ".join(roles) if roles else "a network device"
+    site_text = sites[0] if len(sites) == 1 else ", ".join(sites[:-1]) + " and " + sites[-1]
+    head = f"{model} ({detail.rstrip('.')})" if detail else model
+    unit = "unit" if count == 1 else "units"
+    return f"{head}. {count} {unit} will be used as {role_text} at {site_text}."

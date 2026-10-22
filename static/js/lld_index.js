@@ -139,13 +139,15 @@
         <td>${d.config_name ? `${esc(d.config_name)}<small>${d.analyzed ? "read" : "not read"}</small>` : `<span class="li-muted">none</span>`}</td>
         <td>${(d.notes || []).map(n => `<span class="li-note">${esc(n)}</span>`).join("") || "-"}</td></tr>`).join("") +
         (s.unused_files.length ? `<tr><td colspan="6" class="li-warn">Uploaded but not matched to any device: ${esc(s.unused_files.join(", "))}. Put the file name in the Config column.</td></tr>` : "");
-      $("tree").innerHTML = result.tree.map(n => {
-        const badge = n.kind === "table" ? `Table · ${n.rows} rows` : n.kind === "paragraph" ? "Paragraph" : n.kind === "image" ? "Image" : "";
-        return `<li class="li-node lvl-${Math.min(n.level, 4)}${n.placeholder ? " is-todo" : ""}">
-          <span class="li-no">${esc(n.no)}</span><span class="li-title">${esc(n.title)}</span>
-          ${badge ? `<span class="li-kind">${esc(badge)}</span>` : ""}${n.source && n.kind !== "group" ? `<span class="li-src">${esc(n.source)}</span>` : ""}
-          ${n.placeholder ? `<span class="li-todo">${n.kind === "image" ? "add image" : "TBD"}</span>` : ""}</li>`;
-      }).join("");
+      const chips = b => {
+        const badge = b.kind === "table" ? `Table · ${b.rows} rows` : b.kind === "paragraph" ? "Paragraph" : b.kind === "image" ? "Image" : "";
+        return (badge ? `<span class="li-kind">${esc(badge)}</span>` : "") +
+          (b.source && b.kind !== "group" ? `<span class="li-src">${esc(b.source)}</span>` : "") +
+          (b.placeholder ? `<span class="li-todo">${b.kind === "image" ? "add image" : "TBD"}</span>` : "");
+      };
+      $("tree").innerHTML = result.tree.map(n => `<li class="li-node lvl-${Math.min(n.level, 4)}${n.placeholder ? " is-todo" : ""}">
+          <span class="li-no">${esc(n.no)}</span><span class="li-title">${esc(n.title)}</span>${chips(n)}
+          ${(n.more || []).map(m => `<span class="li-plus">+</span>${chips(m)}`).join("")}</li>`).join("");
       $("result").scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }

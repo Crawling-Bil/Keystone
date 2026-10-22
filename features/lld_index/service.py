@@ -77,8 +77,10 @@ def build_index(project: dict, records: list[dict], technologies: list[str], fil
     data = workbook.write(nodes, project)
 
     numbers = workbook._numbers(nodes)
-    tree = [{"no": no, "title": n.title, "level": n.level, "kind": n.kind, "rows": len(n.rows) if n.kind == "table" else 0,
-             "placeholder": n.placeholder or n.kind == "image", "source": n.source}
+    def block(n):
+        return {"kind": n.kind, "rows": len(n.rows) if n.kind == "table" else 0,
+                "placeholder": n.placeholder or n.kind == "image", "source": n.source}
+    tree = [{"no": no, "title": n.title, "level": n.level, **block(n), "more": [block(m) for m in n.more]}
             for no, n in zip(numbers, nodes)]
     used_files = {d.config_name for d in devices if d.config_name}
     device_rows = []
@@ -95,7 +97,7 @@ def build_index(project: dict, records: list[dict], technologies: list[str], fil
     stats = {
         "chapters": sum(1 for n in nodes if n.level == 1),
         "headings": len(nodes),
-        "tables": sum(1 for n in nodes if n.kind == "table"),
+        "tables": sum(1 for n in nodes for b in [n, *n.more] if b.kind == "table"),
         "from_config": sum(1 for n in nodes if n.kind == "table" and n.source == "config" and not n.placeholder),
         "to_fill": sum(1 for n in nodes if n.placeholder or n.kind == "image"),
         "devices": len(devices),
