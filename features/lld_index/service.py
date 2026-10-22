@@ -104,7 +104,33 @@ def build_index(project: dict, records: list[dict], technologies: list[str], fil
         "configs_read": sum(1 for r in device_rows if r["analyzed"]),
         "unused_files": sorted(set(files) - used_files),
     }
-    return {"workbook": data, "tree": tree, "devices": device_rows, "stats": stats, "project": project}
+    return {"workbook": data, "tree": tree, "devices": device_rows, "stats": stats, "project": project,
+            "racks": rack_view(devices)}
+
+
+def rack_view(devices) -> list[dict]:
+    """Racks for the page preview: devices drawn where they fit, problems listed."""
+    racks: dict = {}
+    for device in devices:
+        if device.rack and device.u is not None:
+            racks.setdefault((device.site, device.rack), []).append(device)
+    out = []
+    for (site, rack), members in racks.items():
+        size = max(d.rack_size for d in members)
+        taken: set = set()
+        units, problems = [], []
+        for device in sorted(members, key=lambda d: (d.u, d.hostname)):
+            span = set(range(device.u, device.u + device.u_height))
+            if device.u + device.u_height - 1 > size:
+                problems.append(f"{device.hostname}: U{device.u}-U{device.u + device.u_height - 1} does not fit {size}U.")
+                continue
+            if span & taken:
+                problems.append(f"{device.hostname}: U{device.u}-U{device.u + device.u_height - 1} overlaps another device.")
+                continue
+            taken |= span
+            units.append({"hostname": device.hostname, "model": device.model, "u": device.u, "height": device.u_height})
+        out.append({"site": site, "rack": rack, "size": size, "units": units, "problems": problems})
+    return out
 
 
 def save_export(root: Path, data: bytes) -> str:

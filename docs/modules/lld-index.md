@@ -8,10 +8,14 @@ Page: `/lld-index`. Code: `features/lld_index/`. Templates: `features/lld_index/
 
 1. **Project**: customer, project name, code, company, goals, scope, out of scope, related documents. The Introduction chapter is written from these (`narrative.py`), in the wording of the existing Multipolar LLDs.
 2. **Technologies**: switch, wireless, firewall, router, load balancer. Pick one or more.
-3. **Device inventory**: Site, Hostname, Model, Role, Mgmt IP, SN, Config. Import a CSV/XLSX (template on the page) or type/paste rows. Config names an uploaded file; blank means "match by hostname", or no config at all for a design written before implementation.
+3. **Device inventory**: Site, Hostname, Model, Role, Mgmt IP, SN, Config, Rack, Rack Size, U, U Height. Import a CSV/XLSX (template on the page) or type/paste rows. Config names an uploaded file; blank means "match by hostname", or no config at all for a design written before implementation.
 4. **Config files** (optional): running configs or terminal captures, or one ZIP.
 
 A device's technology comes from its config (the same domain detection Convert uses), then keywords in Role (switch/core/access, WLC/AP, firewall/FW, router/WAN, LB/F5), then the model name.
+
+## Rack layout
+
+Rack (name), Rack Size (24/27/32/36/42/45/47/48U, blank = 42), U (lowest unit the device sits in) and U Height (blank = 1) draw one table per rack under **Rack Layout**, per site: `U | <rack> (<size>U) | U`, top unit first, a device taller than 1U as one merged cell. A device that overlaps another one or does not fit the rack is left out of the table and noted on the page; a site where no device has a rack position keeps an image slot instead. The page shows each rack as a drawing before download.
 
 ## How the index is built
 
@@ -23,12 +27,12 @@ Template node keys:
 | --- | --- |
 | `title` | Heading text; `{site}`, `{hostname}`, `{model}`, `{vendor}`, `{customer}`, `{project}` are filled in |
 | `type` | `group` (default with children), `paragraph`, `table`, `image` |
-| `repeat` | `site`, `device` or `model`: one copy per item in scope |
+| `repeat` | `site`, `device`, `model` or `rack`: one copy per item in scope |
 | `flatten` | with `repeat`: no heading for the item, its children repeat in place (Before/After per site) |
 | `inline_single` | with `repeat: device`: one device in scope means no hostname level |
-| `devices` | narrow the scope: `tech`, `role` (regex), `exclude_role` (regex) |
+| `devices` | narrow the scope: `tech`, `role` (regex), `exclude_role` (regex), `rack` (true = devices with a rack position; false = only when none has one) |
 | `optional` | drop when there is no data; without it an empty table becomes one `TBD` row |
-| `table.builder` | `device` (config tables), `inventory`, `boq`, `allocation`, `models_spec`, `mgmt_ip`, `software`, `config`, `uat`, `static` |
+| `table.builder` | `device` (config tables), `inventory`, `rack`, `boq`, `allocation`, `models_spec`, `mgmt_ip`, `software`, `config`, `uat`, `static` |
 | `table.tables` | candidate dataset tables, first one with rows wins (PAN-OS `security_rules`, FortiGate `policies`) |
 | `table.columns` | `[label, "key1|key2"]`: first key with a value wins |
 | `blocks` | more content under the same heading, each with its own `type`, `text`/`narrative`/`table`, `caption`, `optional` (model heading: description paragraph + spec table) |
@@ -59,4 +63,4 @@ Yellow rows in the Index sheet still need manual content. Document Acceptance is
 
 * Router and Load Balancer templates are drafts until an LLD sample exists for them.
 * Narrative is English, the language of the switch, wireless and Palo Alto LLD samples.
-* Rack layout, topology and map layout are image placeholders.
+* Topology and map layout are image placeholders.

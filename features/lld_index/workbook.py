@@ -103,6 +103,8 @@ def write(nodes: list, project: dict) -> bytes:
                 cell.font = Font(bold=True)
             for row in node.rows:
                 sheet.append([_cell(v) for v in row])
+            for r, c, n_rows, n_cols in node.merges:
+                sheet.merge_cells(start_row=2 + r, start_column=1 + c, end_row=1 + r + n_rows, end_column=c + n_cols)
             for col, header in enumerate(node.headers, start=1):
                 longest = max([len(str(header))] + [min(len(str(r[col - 1])) if col - 1 < len(r) else 0, 60) for r in node.rows[:200]])
                 sheet.column_dimensions[get_column_letter(col)].width = max(8, min(longest + 2, 70))

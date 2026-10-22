@@ -5,15 +5,17 @@
     root.dataset.ready = "1";
     const esc = value => window.NES.escape(value);
     const $ = role => root.querySelector(`[data-role="${role}"]`);
-    const COLS = ["site", "hostname", "model", "role", "mgmt_ip", "serial", "config"];
-    const PLACE = ["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "", "ho-core-sw01.txt"];
+    const COLS = ["site", "hostname", "model", "role", "mgmt_ip", "serial", "config", "rack", "rack_size", "u", "u_height"];
+    const PLACE = ["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "", "ho-core-sw01.txt", "Ruang Server Rack 1", "42", "30", "1"];
+    const NARROW = new Set(["rack_size", "u", "u_height"]);
     let configFiles = [];
 
     // ------------------------------------------------------------ inventory rows
     function addRow(values = {}) {
       const tr = document.createElement("tr");
+      const fresh = !Object.values(values).some(v => String(v ?? "").trim());
       tr.innerHTML = COLS.map((c, i) =>
-        `<td><input class="li-cell" data-col="${c}" value="${esc(values[c] || "")}" placeholder="${esc(PLACE[i])}" aria-label="${c}"></td>`
+        `<td><input class="li-cell${NARROW.has(c) ? " li-narrow" : ""}" data-col="${c}" value="${esc(values[c] ?? "")}" placeholder="${fresh ? esc(PLACE[i]) : ""}" aria-label="${c}"${NARROW.has(c) ? ' inputmode="numeric"' : ""}></td>`
       ).join("") + `<td><button type="button" class="an-icon-btn" data-role="remove" aria-label="Remove device">×</button></td>`;
       tr.querySelector('[data-role="remove"]').addEventListener("click", () => { tr.remove(); if (!rowsBody().children.length) addRow(); });
       // Paste a block copied from Excel into the first cell: one device per line.
@@ -115,6 +117,31 @@
       }
     });
 
+    function renderRacks(racks) {
+      const panel = $("racks-panel");
+      panel.classList.toggle("hidden", !racks.length);
+      $("racks").innerHTML = racks.map(rack => {
+        const cells = [];
+        let u = rack.size;
+        const byTop = new Map(rack.units.map(d => [d.u + d.height - 1, d]));
+        while (u >= 1) {
+          const d = byTop.get(u);
+          if (d) {
+            const span = d.height > 1 ? `${d.u}–${u}` : `${u}`;
+            cells.push(`<div class="li-u is-dev" style="--h:${d.height}" title="${esc(d.hostname)} U${d.u}${d.height > 1 ? "-U" + (d.u + d.height - 1) : ""}">
+              <span class="li-un">${span}</span><span class="li-dev"><strong>${esc(d.hostname)}</strong><small>${esc(d.model || "")} · ${d.height}U</small></span><span class="li-un">${span}</span></div>`);
+            u = d.u - 1;
+          } else {
+            cells.push(`<div class="li-u" style="--h:1"><span class="li-un">${u}</span><span class="li-dev"></span><span class="li-un">${u}</span></div>`);
+            u -= 1;
+          }
+        }
+        return `<figure class="li-rack"><figcaption><strong>${esc(rack.rack)}</strong><small>${esc(rack.site)} · ${rack.size}U · ${rack.units.length} device(s)</small></figcaption>
+          <div class="li-rack-body">${cells.join("")}</div>
+          ${rack.problems.length ? `<ul class="li-rack-warn">${rack.problems.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}</figure>`;
+      }).join("");
+    }
+
     function card(label, value, hint, tone) {
       return `<article class="an-card"${tone ? ` style="--tone: var(--${tone})"` : ""}><span class="an-card-label">${esc(label)}</span>
         <strong class="an-card-value">${esc(value)}</strong><small class="an-hint">${esc(hint || "")}</small></article>`;
@@ -148,6 +175,7 @@
       $("tree").innerHTML = result.tree.map(n => `<li class="li-node lvl-${Math.min(n.level, 4)}${n.placeholder ? " is-todo" : ""}">
           <span class="li-no">${esc(n.no)}</span><span class="li-title">${esc(n.title)}</span>${chips(n)}
           ${(n.more || []).map(m => `<span class="li-plus">+</span>${chips(m)}`).join("")}</li>`).join("");
+      renderRacks(result.racks || []);
       $("result").scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }

@@ -233,3 +233,49 @@ def test_api_refuses_an_empty_request(client):
 def test_page_and_inventory_template_open(client):
     assert 'data-tech="firewall"' in client.get("/lld-index").get_data(as_text=True)
     assert client.get("/lld-index/inventory-template.xlsx").status_code == 200
+
+
+# ------------------------------------------------------------------ rack layout
+
+RACKED = [
+    {"site": "HO", "hostname": "HO-CORE", "model": "S5755-H24T4Y2CZ", "role": "Core Switch", "rack": "Rack 1", "rack_size": "42", "u": "30", "u_height": "1"},
+    {"site": "HO", "hostname": "HO-FW", "model": "PA-1410", "role": "Firewall", "rack": "Rack 1", "u": "24", "u_height": "2"},
+    {"site": "HO", "hostname": "HO-X", "model": "S5735-S24P4XE-V2", "role": "Access Switch", "rack": "Rack 1", "u": "25"},
+    {"site": "HO", "hostname": "HO-WALL", "model": "S5735-S24P4XE-V2", "role": "Access Switch", "rack": "Wallmount", "rack_size": "12", "u": "12", "u_height": "2"},
+    {"site": "BR", "hostname": "BR-CORE", "model": "S5735-S24P4XE-V2", "role": "Core Switch"},
+]
+
+
+def test_rack_columns_are_read_and_problems_noted():
+    devices = {d.hostname: d for d in build_devices(RACKED, {})}
+    assert (devices["HO-FW"].rack, devices["HO-FW"].rack_size, devices["HO-FW"].u, devices["HO-FW"].u_height) == ("Rack 1", 42, 24, 2)
+    assert any("Overlaps HO-FW" in n for n in devices["HO-X"].notes)
+    assert any("does not fit a 12U rack" in n for n in devices["HO-WALL"].notes)
+    assert devices["BR-CORE"].u is None and not devices["BR-CORE"].notes
+
+
+def test_rack_table_puts_each_device_on_its_units_with_merged_cells():
+    devices = build_devices(RACKED, {})
+    datasets = {d.hostname: analyze_device(d) for d in devices}
+    project = dict(PROJECT, technologies=["switch", "firewall"])
+    nodes = builder.build(project, devices, datasets, project["technologies"])
+    titles = [(n.level, n.title, n.kind) for n in nodes]
+    at = titles.index((1, "Rack Layout", "group"))
+    assert titles[at + 1:at + 6] == [(2, "HO", "group"), (3, "Rack 1", "table"), (3, "Wallmount", "table"),
+                                     (2, "BR", "group"), (3, "Rack Layout BR", "image")]
+    rack = next(n for n in nodes if n.title == "Rack 1")
+    assert rack.headers == ["U", "Rack 1 (42U)", "U"] and len(rack.rows) == 42
+    by_unit = {r[0]: r[1] for r in rack.rows}
+    assert by_unit["30"] == "HO-CORE (S5755-H24T4Y2CZ)" and by_unit["25"] == "HO-FW (PA-1410)" and by_unit["24"] == ""
+    assert rack.merges == [[17, 1, 2, 1]]           # U25 is the 18th row from the top
+    wb, rows = _index_rows(workbook.write(nodes, project))
+    sheet = wb[next(r[4] for r in rows if r[1] == "Rack 1")]
+    assert [str(m) for m in sheet.merged_cells.ranges] == ["B19:B20"]
+
+
+def test_api_returns_the_rack_preview(client):
+    payload = {"project": PROJECT, "technologies": ["switch", "firewall"], "inventory": RACKED}
+    result = client.post("/lld-index/api/build", data={"payload": json.dumps(payload)}).get_json()["result"]
+    rack = next(r for r in result["racks"] if r["rack"] == "Rack 1")
+    assert rack["size"] == 42 and {u["hostname"] for u in rack["units"]} == {"HO-CORE", "HO-FW"}
+    assert any("HO-X" in p for p in rack["problems"])

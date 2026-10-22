@@ -18,7 +18,9 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Iterable
 
-COLUMNS = ["Site", "Hostname", "Model", "Role", "Mgmt IP", "SN", "Config"]
+COLUMNS = ["Site", "Hostname", "Model", "Role", "Mgmt IP", "SN", "Config", "Rack", "Rack Size", "U", "U Height"]
+STANDARD_RACK_SIZES = (24, 27, 32, 36, 42, 45, 47, 48)
+DEFAULT_RACK_SIZE = 42
 TECHNOLOGIES = ["switch", "wireless", "firewall", "router", "loadbalancer"]
 TECH_LABELS = {
     "switch": "Switch", "wireless": "Wireless", "firewall": "Firewall",
@@ -34,6 +36,10 @@ _HEADER_ALIASES = {
     "sn": "serial", "serial": "serial", "serial number": "serial", "s/n": "serial",
     "config": "config", "config file": "config", "file": "config", "configuration": "config",
     "technology": "technology", "teknologi": "technology",
+    "rack": "rack", "rack name": "rack", "nama rack": "rack", "cabinet": "rack",
+    "rack size": "rack_size", "rack u": "rack_size", "rack height": "rack_size", "ukuran rack": "rack_size",
+    "u": "u", "u position": "u", "rack position": "u", "posisi u": "u", "start u": "u",
+    "u height": "u_height", "height": "u_height", "u size": "u_height", "tinggi u": "u_height", "ru": "u_height",
 }
 
 _ROLE_HINTS = [
@@ -61,6 +67,10 @@ class Device:
     mgmt_ip: str = ""
     serial: str = ""
     config: str = ""
+    rack: str = ""
+    rack_size: int = DEFAULT_RACK_SIZE
+    u: int | None = None               # lowest U the device occupies
+    u_height: int = 1
     technology: str = ""
     technology_source: str = ""
     config_name: str = ""          # the uploaded file actually matched
@@ -183,6 +193,59 @@ def _match_config(device: Device, files: dict[str, str]) -> str:
     return ""
 
 
+def _int(value) -> int | None:
+    text = str(value or "").strip().upper().rstrip("U").strip()
+    if not text:
+        return None
+    try:
+        return int(float(text))
+    except ValueError:
+        return -1
+
+
+def _place(device: Device, record: dict) -> None:
+    """Rack position: Rack, Rack Size (default 42U), U (lowest unit), U Height (default 1)."""
+    size = _int(record.get("rack_size"))
+    if size is not None:
+        if size <= 0 or size > 60:
+            device.notes.append(f"Rack Size '{record.get('rack_size')}' is not a number of units; 42U is used.")
+        else:
+            device.rack_size = size
+    height = _int(record.get("u_height"))
+    if height is not None:
+        if height <= 0 or height > 20:
+            device.notes.append(f"U Height '{record.get('u_height')}' is not valid; 1U is used.")
+        else:
+            device.u_height = height
+    u = _int(record.get("u"))
+    if u is not None:
+        if u <= 0:
+            device.notes.append(f"U '{record.get('u')}' is not a rack unit number.")
+        else:
+            device.u = u
+    if device.rack and device.u is None:
+        device.notes.append(f"In rack {device.rack} but no U given: not drawn in the rack layout.")
+    if device.u is not None and not device.rack:
+        device.notes.append("U given but no Rack name: not drawn in the rack layout.")
+    if device.rack and device.u is not None and device.u + device.u_height - 1 > device.rack_size:
+        device.notes.append(f"U{device.u}-U{device.u + device.u_height - 1} does not fit a {device.rack_size}U rack.")
+
+
+def check_racks(devices: list) -> None:
+    """Note devices that overlap in the same rack (same site and rack name)."""
+    by_rack: dict = {}
+    for device in devices:
+        if device.rack and device.u is not None:
+            by_rack.setdefault((device.site, device.rack), []).append(device)
+    for members in by_rack.values():
+        for i, a in enumerate(members):
+            for b in members[i + 1:]:
+                a_top, b_top = a.u + a.u_height - 1, b.u + b.u_height - 1
+                if a.u <= b_top and b.u <= a_top:
+                    for x, y in ((a, b), (b, a)):
+                        x.notes.append(f"Overlaps {y.hostname} in {x.rack} (U{max(a.u, b.u)}-U{min(a_top, b_top)}).")
+
+
 def build_devices(records: Iterable[dict[str, Any]], files: dict[str, str] | None = None) -> list[Device]:
     files = files or {}
     devices: list[Device] = []
@@ -199,7 +262,9 @@ def build_devices(records: Iterable[dict[str, Any]], files: dict[str, str] | Non
             mgmt_ip=str(record.get("mgmt_ip") or "").strip(),
             serial=str(record.get("serial") or "").strip(),
             config=str(record.get("config") or "").strip(),
+            rack=str(record.get("rack") or "").strip(),
         )
+        _place(device, record)
         if hostname.lower() in seen:
             device.notes.append("Duplicate hostname in the inventory.")
         seen.add(hostname.lower())
@@ -221,6 +286,7 @@ def build_devices(records: Iterable[dict[str, Any]], files: dict[str, str] | Non
         if not device.technology:
             device.notes.append("Technology unknown: add a Role such as 'Core Switch', 'Firewall' or 'WLC'.")
         devices.append(device)
+    check_racks(devices)
     return devices
 
 
@@ -236,7 +302,7 @@ def template_workbook() -> bytes:
     for cell in sheet[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="0F8A7E")
-    widths = [16, 26, 22, 18, 18, 18, 26]
+    widths = [16, 26, 22, 18, 18, 18, 26, 24, 10, 6, 9]
     for index, width in enumerate(widths):
         sheet.column_dimensions[chr(65 + index)].width = width
     # Examples live on their own sheet, so importing the template back never
@@ -245,13 +311,14 @@ def template_workbook() -> bytes:
     example.append(COLUMNS)
     for cell in example[1]:
         cell.font = Font(bold=True)
-    example.append(["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "2102355XXXX", "ho-core-sw01.txt"])
-    example.append(["HO", "HO-WLC01", "C9800-40", "WLC", "10.10.10.4/24", "", ""])
+    example.append(["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "2102355XXXX", "ho-core-sw01.txt", "Ruang Server Rack 1", 42, 30, 1])
+    example.append(["HO", "HO-WLC01", "C9800-40", "WLC", "10.10.10.4/24", "", "", "Ruang Server Rack 1", 42, 20, 1])
     example.append(["DC", "DC-FW01", "PA-1410", "Firewall", "10.20.10.5/24", "0123456789", "dc-fw01.xml"])
     example.append(["DC", "DC-RTR01", "C8200-1N-4T", "WAN Router", "10.20.10.1/24", "", ""])
     example.append(["DC", "DC-LB01", "BIG-IP i5800", "Load Balancer", "10.20.10.9/24", "", ""])
     example.append([])
     example.append(["Role decides the technology when no config is uploaded: switch/core/access, WLC/AP, firewall/FW, router/WAN, LB/F5."])
+    example.append(["Rack layout: Rack = rack name, Rack Size = 24/27/32/36/42/45/47/48 (blank = 42), U = lowest unit the device sits in, U Height = units it takes (blank = 1)."])
     for index, width in enumerate(widths):
         example.column_dimensions[chr(65 + index)].width = width
     out = io.BytesIO()

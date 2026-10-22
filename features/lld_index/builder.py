@@ -50,6 +50,7 @@ class Node:
     placeholder: bool = False           # table/paragraph has no real data yet
     source: str = ""                    # where the content came from, for the preview
     more: list = field(default_factory=list)  # extra content blocks under the same heading (Node, title "")
+    merges: list = field(default_factory=list)  # [data_row, col, n_rows, n_cols], 0-based over the data rows
 
 
 @dataclass
@@ -59,6 +60,7 @@ class Scope:
     device: Optional[Device] = None
     model: str = ""
     tech: str = ""
+    rack: str = ""
 
 
 def load_template(name: str) -> dict:
@@ -126,6 +128,10 @@ def _values(project: dict, scope: Scope, datasets: dict) -> dict:
         "site": scope.site, "model": scope.model, "tech": TECH_LABELS.get(scope.tech, scope.tech),
         "vendor": _vendor_of(scope.model, scope.devices, datasets) if scope.model else "",
     }
+    if scope.rack:
+        values["rack"] = scope.rack
+        sizes = [d.rack_size for d in scope.devices if d.rack == scope.rack]
+        values["rack_size"] = f"{max(sizes)}U" if sizes else ""
     if scope.device is not None:
         values.update({"hostname": scope.device.hostname, "role": scope.device.role, "site": scope.device.site,
                        "model": scope.device.model or scope.model})
@@ -135,6 +141,12 @@ def _values(project: dict, scope: Scope, datasets: dict) -> dict:
 def _filter(devices: list, spec: Optional[dict]) -> list:
     if not spec:
         return list(devices)
+    if "rack" in spec:
+        placed = [d for d in devices if d.rack and d.u is not None]
+        if spec["rack"] is False:
+            # only when nothing in scope has a rack position (image fallback)
+            return [] if placed else list(devices)
+        devices = placed
     techs = spec.get("tech")
     role = spec.get("role")
     exclude = spec.get("exclude_role")
@@ -285,6 +297,41 @@ def _builder_rows(spec: dict, scope: Scope, datasets: dict, project: dict) -> tu
     return headers, rows, "template"
 
 
+def _rack_rows(scope: Scope) -> tuple[list, list, list]:
+    """One rack, top unit first: U | Device | U. A device taller than 1U
+    is one merged cell over its units; the name sits in its top unit."""
+    members = [d for d in scope.devices if d.rack == scope.rack and d.u is not None]
+    if not members:
+        return [], [], []
+    size = max(d.rack_size for d in members)
+    occupant: dict = {}
+    for device in sorted(members, key=lambda d: (d.u, d.hostname)):
+        units = range(device.u, device.u + device.u_height)
+        if any(u in occupant for u in units) or device.u + device.u_height - 1 > size:
+            continue  # overlap or out of the rack: reported in the device notes
+        for u in units:
+            occupant[u] = device
+    rows, merges = [], []
+    index = 0
+    unit = size
+    while unit >= 1:
+        device = occupant.get(unit)
+        if device is None:
+            rows.append([str(unit), "", str(unit)])
+            unit -= 1
+            index += 1
+            continue
+        top = device.u + device.u_height - 1
+        label = f"{device.hostname} ({device.model})" if device.model else device.hostname
+        for u in range(top, device.u - 1, -1):
+            rows.append([str(u), label if u == top else "", str(u)])
+        if device.u_height > 1:
+            merges.append([index, 1, device.u_height, 1])
+        index += device.u_height
+        unit = device.u - 1
+    return ["U", f"{scope.rack} ({size}U)", "U"], rows, merges
+
+
 def _firewall_label(model: str) -> str:
     try:
         from features.configuration_studio.converter_engine.translators.firewall.paloalto import PALOALTO_TARGET_MODELS
@@ -330,7 +377,7 @@ def _expand_node(spec: dict, scope: Scope, level: int, project: dict, datasets: 
     devices = _filter(scope.devices, spec.get("devices"))
     if spec.get("devices") and not devices:
         return []
-    scope = Scope(devices=devices, site=scope.site, device=scope.device, model=scope.model, tech=scope.tech)
+    scope = Scope(devices=devices, site=scope.site, device=scope.device, model=scope.model, tech=scope.tech, rack=scope.rack)
     repeat = spec.get("repeat")
     if repeat:
         items = []
@@ -339,6 +386,10 @@ def _expand_node(spec: dict, scope: Scope, level: int, project: dict, datasets: 
                      for s in _sites(devices)]
         elif repeat == "device":
             items = [Scope(devices=[d], site=d.site, device=d, model=d.model, tech=scope.tech) for d in devices]
+        elif repeat == "rack":
+            racks = list(dict.fromkeys(d.rack for d in devices if d.rack and d.u is not None))
+            items = [Scope(devices=[d for d in devices if d.rack == r and d.u is not None], site=scope.site, device=None,
+                           model=scope.model, tech=scope.tech, rack=r) for r in racks]
         elif repeat == "model":
             items = [Scope(devices=[d for d in devices if d.model == m], site=scope.site, device=None, model=m, tech=scope.tech)
                      for m in _models(devices)]
@@ -376,6 +427,11 @@ def _fill(node: Node, spec: dict, scope: Scope, project: dict, datasets: dict, v
             if spec.get("optional"):
                 return False
             node.paragraphs = [PLACEHOLDER]
+    elif kind == "table" and (spec.get("table") or {}).get("builder") == "rack":
+        node.headers, node.rows, node.merges = _rack_rows(scope)
+        node.source = "inventory"
+        if not node.rows:
+            return False
     elif kind == "table":
         headers, rows, source = _builder_rows(spec.get("table") or {}, scope, datasets, project)
         if (spec.get("table") or {}).get("numbered", True) and headers and headers[0] != "No":

@@ -25,14 +25,6 @@
       ]
     },
     {
-      "title": "Rack Layout",
-      "children": [
-        {"title": "{site}", "repeat": "site", "children": [
-          {"title": "Rack Layout {site}", "type": "image", "caption": "Rack Layout {site}"}
-        ]}
-      ]
-    },
-    {
       "title": "VLAN and IP Addressing",
       "children": [
         {"title": "{site}", "repeat": "site", "children": [

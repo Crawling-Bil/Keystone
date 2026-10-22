@@ -38,6 +38,16 @@
          "caption": "Software OS Recommendation", "sheet": "Software OS"}
       ]
     },
+    {
+      "title": "Rack Layout",
+      "children": [
+        {"title": "{site}", "repeat": "site", "children": [
+          {"title": "{rack}", "repeat": "rack", "type": "table", "table": {"builder": "rack", "numbered": false},
+           "caption": "Rack Layout {site} {rack}", "sheet": "Rack {rack}"},
+          {"title": "Rack Layout {site}", "type": "image", "devices": {"rack": false}, "caption": "Rack Layout {site}"}
+        ]}
+      ]
+    },
     {"insert": "technology"},
     {
       "title": "Implementation Scenario",
