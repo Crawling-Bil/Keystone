@@ -6,6 +6,7 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ### LLD Index: Document Generator index from the inventory, configs and project goals
 
+- Rack layout tables: device cells light blue, U columns light grey, text centred (Document Generator reads `fills` and `aligns`).
 - New module **LLD Index** (`/lld-index`, new sidebar group "Document"). It builds the "LLD Content Index" workbook the Document Generator imports: chapters per technology, expanded per site, per device and per model, tables filled from the inventory and from the configs, narrative written from the project goals.
 - Inputs: project form (customer, project, code, goals, scope, out of scope, related documents), technologies (switch, wireless, firewall, router, load balancer), device inventory (Site, Hostname, Model, Role, Mgmt IP, SN, Config; CSV/XLSX import, template download, paste from Excel) and optional config files or a ZIP.
 - Templates are JSON files in `features/lld_index/templates/` (common, switch, wireless, firewall, router, loadbalancer), editable without code. Switch, wireless and firewall follow the TAM Switch Replacement, TAM Wireless Network Improvement and Peremajaan Perangkat Firewall Palo Alto LLDs; router and load balancer are drafts until a sample exists.

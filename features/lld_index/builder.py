@@ -35,6 +35,8 @@ from .inventory import Device, TECH_LABELS
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 PLACEHOLDER = "TBD"
+RACK_DEVICE_FILL = "DDEBF7"   # light blue: a device in the rack
+RACK_UNIT_FILL = "F2F2F2"     # light grey: the U number columns
 
 
 @dataclass
@@ -51,6 +53,8 @@ class Node:
     source: str = ""                    # where the content came from, for the preview
     more: list = field(default_factory=list)  # extra content blocks under the same heading (Node, title "")
     merges: list = field(default_factory=list)  # [data_row, col, n_rows, n_cols], 0-based over the data rows
+    fills: list = field(default_factory=list)   # [data_row, col, "RRGGBB"], 0-based over the data rows
+    center: bool = False                         # centre every data cell (rack layout)
 
 
 @dataclass
@@ -302,7 +306,7 @@ def _rack_rows(scope: Scope) -> tuple[list, list, list]:
     is one merged cell over its units; the name sits in its top unit."""
     members = [d for d in scope.devices if d.rack == scope.rack and d.u is not None]
     if not members:
-        return [], [], []
+        return [], [], [], []
     size = max(d.rack_size for d in members)
     occupant: dict = {}
     for device in sorted(members, key=lambda d: (d.u, d.hostname)):
@@ -329,7 +333,9 @@ def _rack_rows(scope: Scope) -> tuple[list, list, list]:
             merges.append([index, 1, device.u_height, 1])
         index += device.u_height
         unit = device.u - 1
-    return ["U", f"{scope.rack} ({size}U)", "U"], rows, merges
+    fills = [[r, c, RACK_UNIT_FILL] for r in range(len(rows)) for c in (0, 2)]
+    fills += [[r, 1, RACK_DEVICE_FILL] for r, row in enumerate(rows) if row[1]]
+    return ["U", f"{scope.rack} ({size}U)", "U"], rows, merges, fills
 
 
 def _firewall_label(model: str) -> str:
@@ -428,7 +434,8 @@ def _fill(node: Node, spec: dict, scope: Scope, project: dict, datasets: dict, v
                 return False
             node.paragraphs = [PLACEHOLDER]
     elif kind == "table" and (spec.get("table") or {}).get("builder") == "rack":
-        node.headers, node.rows, node.merges = _rack_rows(scope)
+        node.headers, node.rows, node.merges, node.fills = _rack_rows(scope)
+        node.center = True
         node.source = "inventory"
         if not node.rows:
             return False

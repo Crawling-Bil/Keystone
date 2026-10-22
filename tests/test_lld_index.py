@@ -279,3 +279,20 @@ def test_api_returns_the_rack_preview(client):
     rack = next(r for r in result["racks"] if r["rack"] == "Rack 1")
     assert rack["size"] == 42 and {u["hostname"] for u in rack["units"]} == {"HO-CORE", "HO-FW"}
     assert any("HO-X" in p for p in rack["problems"])
+
+
+def test_rack_cells_are_coloured_like_the_reference_table():
+    devices = build_devices(RACKED, {})
+    datasets = {d.hostname: analyze_device(d) for d in devices}
+    project = dict(PROJECT, technologies=["switch", "firewall"])
+    nodes = builder.build(project, devices, datasets, project["technologies"])
+    rack = next(n for n in nodes if n.title == "Rack 1")
+    device_fills = [f for f in rack.fills if f[1] == 1]
+    assert device_fills == [[12, 1, "DDEBF7"], [17, 1, "DDEBF7"]]          # U30 and the top of the 2U at U24-25
+    assert sum(1 for f in rack.fills if f[2] == "F2F2F2") == 2 * 42
+    assert not rack.more                                                   # no legend
+    wb, rows = _index_rows(workbook.write(nodes, project))
+    sheet = wb[next(r[4] for r in rows if r[1] == "Rack 1")]
+    assert sheet.cell(row=14, column=2).fill.fgColor.rgb.endswith("DDEBF7")
+    assert sheet.cell(row=2, column=1).fill.fgColor.rgb.endswith("F2F2F2")
+    assert sheet.cell(row=14, column=2).alignment.horizontal == "center"
