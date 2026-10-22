@@ -18,8 +18,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Iterable
 
-COLUMNS = ["Site", "Hostname", "Model", "Role", "Mgmt IP", "SN", "Config", "Rack", "Rack Size", "U", "U Height", "Status"]
-STATUSES = ("New", "Existing", "Replace")
+COLUMNS = ["Site", "Hostname", "Model", "Role", "Mgmt IP", "SN", "Config", "Rack", "Rack Size", "U", "U Height"]
 STANDARD_RACK_SIZES = (24, 27, 32, 36, 42, 45, 47, 48)
 DEFAULT_RACK_SIZE = 42
 TECHNOLOGIES = ["switch", "wireless", "firewall", "router", "loadbalancer"]
@@ -37,7 +36,6 @@ _HEADER_ALIASES = {
     "sn": "serial", "serial": "serial", "serial number": "serial", "s/n": "serial",
     "config": "config", "config file": "config", "file": "config", "configuration": "config",
     "technology": "technology", "teknologi": "technology",
-    "status": "status", "device status": "status", "kondisi": "status", "existing/new": "status",
     "rack": "rack", "rack name": "rack", "nama rack": "rack", "cabinet": "rack",
     "rack size": "rack_size", "rack u": "rack_size", "rack height": "rack_size", "ukuran rack": "rack_size",
     "u": "u", "u position": "u", "rack position": "u", "posisi u": "u", "start u": "u",
@@ -73,7 +71,6 @@ class Device:
     rack_size: int = DEFAULT_RACK_SIZE
     u: int | None = None               # lowest U the device occupies
     u_height: int = 1
-    status: str = "New"                # New | Existing | Replace (rack layout colour)
     technology: str = ""
     technology_source: str = ""
     config_name: str = ""          # the uploaded file actually matched
@@ -196,22 +193,6 @@ def _match_config(device: Device, files: dict[str, str]) -> str:
     return ""
 
 
-def normalize_status(value, device=None) -> str:
-    """Existing / New / Replace (new device in the old one's position); blank = New."""
-    text = str(value or "").strip().lower()
-    if not text:
-        return "New"
-    if "replac" in text or "pengganti" in text or "ganti" in text:
-        return "Replace"
-    if text.startswith(("exist", "old", "lama", "eksis")):
-        return "Existing"
-    if text.startswith(("new", "baru")):
-        return "New"
-    if device is not None:
-        device.notes.append(f"Status '{value}' is not Existing, New or Replace; New is used.")
-    return "New"
-
-
 def _int(value) -> int | None:
     text = str(value or "").strip().upper().rstrip("U").strip()
     if not text:
@@ -284,7 +265,6 @@ def build_devices(records: Iterable[dict[str, Any]], files: dict[str, str] | Non
             rack=str(record.get("rack") or "").strip(),
         )
         _place(device, record)
-        device.status = normalize_status(record.get("status"), device)
         if hostname.lower() in seen:
             device.notes.append("Duplicate hostname in the inventory.")
         seen.add(hostname.lower())
@@ -322,7 +302,7 @@ def template_workbook() -> bytes:
     for cell in sheet[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="0F8A7E")
-    widths = [16, 26, 22, 18, 18, 18, 26, 24, 10, 6, 9, 12]
+    widths = [16, 26, 22, 18, 18, 18, 26, 24, 10, 6, 9]
     for index, width in enumerate(widths):
         sheet.column_dimensions[chr(65 + index)].width = width
     # Examples live on their own sheet, so importing the template back never
@@ -331,14 +311,14 @@ def template_workbook() -> bytes:
     example.append(COLUMNS)
     for cell in example[1]:
         cell.font = Font(bold=True)
-    example.append(["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "2102355XXXX", "ho-core-sw01.txt", "Ruang Server Rack 1", 42, 30, 1, "New"])
-    example.append(["HO", "HO-WLC01", "C9800-40", "WLC", "10.10.10.4/24", "", "", "Ruang Server Rack 1", 42, 20, 1, "Existing"])
+    example.append(["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "2102355XXXX", "ho-core-sw01.txt", "Ruang Server Rack 1", 42, 30, 1])
+    example.append(["HO", "HO-WLC01", "C9800-40", "WLC", "10.10.10.4/24", "", "", "Ruang Server Rack 1", 42, 20, 1])
     example.append(["DC", "DC-FW01", "PA-1410", "Firewall", "10.20.10.5/24", "0123456789", "dc-fw01.xml"])
     example.append(["DC", "DC-RTR01", "C8200-1N-4T", "WAN Router", "10.20.10.1/24", "", ""])
     example.append(["DC", "DC-LB01", "BIG-IP i5800", "Load Balancer", "10.20.10.9/24", "", ""])
     example.append([])
     example.append(["Role decides the technology when no config is uploaded: switch/core/access, WLC/AP, firewall/FW, router/WAN, LB/F5."])
-    example.append(["Rack layout: Rack = rack name, Rack Size = 24/27/32/36/42/45/47/48 (blank = 42), U = lowest unit the device sits in, U Height = units it takes (blank = 1), Status = Existing / New / Replace (blank = New, sets the colour in the rack)."])
+    example.append(["Rack layout: Rack = rack name, Rack Size = 24/27/32/36/42/45/47/48 (blank = 42), U = lowest unit the device sits in, U Height = units it takes (blank = 1)."])
     for index, width in enumerate(widths):
         example.column_dimensions[chr(65 + index)].width = width
     out = io.BytesIO()

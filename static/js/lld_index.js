@@ -5,8 +5,8 @@
     root.dataset.ready = "1";
     const esc = value => window.NES.escape(value);
     const $ = role => root.querySelector(`[data-role="${role}"]`);
-    const COLS = ["site", "hostname", "model", "role", "mgmt_ip", "serial", "config", "rack", "rack_size", "u", "u_height", "status"];
-    const PLACE = ["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "", "ho-core-sw01.txt", "Ruang Server Rack 1", "42", "30", "1", "New"];
+    const COLS = ["site", "hostname", "model", "role", "mgmt_ip", "serial", "config", "rack", "rack_size", "u", "u_height"];
+    const PLACE = ["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "", "ho-core-sw01.txt", "Ruang Server Rack 1", "42", "30", "1"];
     const NARROW = new Set(["rack_size", "u", "u_height"]);
     let configFiles = [];
 
@@ -120,8 +120,7 @@
     function renderRacks(racks) {
       const panel = $("racks-panel");
       panel.classList.toggle("hidden", !racks.length);
-      $("racks").innerHTML = (racks.length ? `<div class="li-legend"><span class="li-sw is-existing"></span>Existing Device
-        <span class="li-sw is-new"></span>New Device<span class="li-sw is-replace"></span>New Device Replace in same position</div>` : "") + racks.map(rack => {
+      $("racks").innerHTML = racks.map(rack => {
         const cells = [];
         let u = rack.size;
         const byTop = new Map(rack.units.map(d => [d.u + d.height - 1, d]));
@@ -129,8 +128,8 @@
           const d = byTop.get(u);
           if (d) {
             const span = d.height > 1 ? `${d.u}–${u}` : `${u}`;
-            cells.push(`<div class="li-u is-dev is-${esc((d.status || "New").toLowerCase())}" style="--h:${d.height}" title="${esc(d.hostname)} U${d.u}${d.height > 1 ? "-U" + (d.u + d.height - 1) : ""}">
-              <span class="li-un">${span}</span><span class="li-dev"><strong>${esc(d.hostname)}</strong><small>${esc(d.model || "")} · ${d.height}U · ${esc(d.status || "New")}</small></span><span class="li-un">${span}</span></div>`);
+            cells.push(`<div class="li-u is-dev" style="--h:${d.height}" title="${esc(d.hostname)} U${d.u}${d.height > 1 ? "-U" + (d.u + d.height - 1) : ""}">
+              <span class="li-un">${span}</span><span class="li-dev"><strong>${esc(d.hostname)}</strong><small>${esc(d.model || "")} · ${d.height}U</small></span><span class="li-un">${span}</span></div>`);
             u = d.u - 1;
           } else {
             cells.push(`<div class="li-u" style="--h:1"><span class="li-un">${u}</span><span class="li-dev"></span><span class="li-un">${u}</span></div>`);

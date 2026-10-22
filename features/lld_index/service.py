@@ -128,8 +128,7 @@ def rack_view(devices) -> list[dict]:
                 problems.append(f"{device.hostname}: U{device.u}-U{device.u + device.u_height - 1} overlaps another device.")
                 continue
             taken |= span
-            units.append({"hostname": device.hostname, "model": device.model, "u": device.u, "height": device.u_height,
-                          "status": device.status})
+            units.append({"hostname": device.hostname, "model": device.model, "u": device.u, "height": device.u_height})
         out.append({"site": site, "rack": rack, "size": size, "units": units, "problems": problems})
     return out
 

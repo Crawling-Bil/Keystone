@@ -72,14 +72,3 @@
 .li-page .li-u.is-dev .li-dev { display: grid; align-content: center; gap: 1px; margin: 1px 0; padding: 2px 8px; border: 1px solid var(--blue); border-radius: 3px; background: var(--accent-wash); color: var(--text); font-size: 11px; line-height: 1.2; overflow: hidden; }
 .li-page .li-u.is-dev .li-dev small { color: var(--muted); font-size: 10px; }
 .li-page .li-rack-warn { margin: 8px 0 0; padding-left: 16px; color: var(--amber); font-size: 12px; }
-/* Rack status colours, the same as the LLD legend (Existing / New / Replace) */
-.li-page { --li-existing: #B3E5A1; --li-new: #83CAEB; --li-replace: #FFC000; }
-.li-page .li-u.is-dev.is-existing .li-dev { background: var(--li-existing); border-color: #6BAF5A; color: #14240f; }
-.li-page .li-u.is-dev.is-new .li-dev { background: var(--li-new); border-color: #3E8FB5; color: #0c2330; }
-.li-page .li-u.is-dev.is-replace .li-dev { background: var(--li-replace); border-color: #B98A00; color: #2b2000; }
-.li-page .li-u.is-dev .li-dev small { color: inherit; opacity: .75; }
-.li-page .li-legend { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; color: var(--text-soft); }
-.li-page .li-sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.25); }
-.li-page .li-sw.is-existing { background: var(--li-existing); }
-.li-page .li-sw.is-new { background: var(--li-new); }
-.li-page .li-sw.is-replace { background: var(--li-replace); margin-left: 0; }

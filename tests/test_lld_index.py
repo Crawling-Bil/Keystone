@@ -279,25 +279,3 @@ def test_api_returns_the_rack_preview(client):
     rack = next(r for r in result["racks"] if r["rack"] == "Rack 1")
     assert rack["size"] == 42 and {u["hostname"] for u in rack["units"]} == {"HO-CORE", "HO-FW"}
     assert any("HO-X" in p for p in rack["problems"])
-
-
-def test_status_colours_the_rack_cell_and_adds_a_legend():
-    records = [dict(RACKED[0], status="existing"), dict(RACKED[1], status="Replace"), dict(RACKED[3], status="")]
-    devices = build_devices(records, {})
-    assert [d.status for d in devices] == ["Existing", "Replace", "New"]
-    datasets = {d.hostname: analyze_device(d) for d in devices}
-    project = dict(PROJECT, technologies=["switch", "firewall"])
-    nodes = builder.build(project, devices, datasets, project["technologies"])
-    rack = next(n for n in nodes if n.title == "Rack 1")
-    assert rack.fills == [[12, 1, "B3E5A1"], [17, 1, "FFC000"]]
-    legend = rack.more[0]
-    assert [r[1] for r in legend.rows] == ["Existing Device", "New Device", "New Device Replace in same position"]
-    wb, rows = _index_rows(workbook.write(nodes, project))
-    sheet = wb[next(r[4] for r in rows if r[1] == "Rack 1")]
-    assert sheet.cell(row=14, column=2).fill.fgColor.rgb.endswith("B3E5A1")   # U30, the 13th data row
-    assert sheet.cell(row=19, column=2).fill.fgColor.rgb.endswith("FFC000")
-
-
-def test_unknown_status_falls_back_to_new_with_a_note():
-    device = build_devices([dict(RACKED[0], status="maybe")], {})[0]
-    assert device.status == "New" and any("Status 'maybe'" in n for n in device.notes)
