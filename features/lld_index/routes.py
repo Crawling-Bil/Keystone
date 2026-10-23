@@ -63,6 +63,7 @@ def build():
     name = download_name(result["project"])
     log_activity("LLD Index", "Index built", f"{name} · {result['stats']['headings']} headings")
     result["download_url"] = f"/lld-index/download/{export_id}?name={name}"
+    result["export_id"] = export_id
     result["download_name"] = name
     return jsonify({"ok": True, "result": result})
 
@@ -75,3 +76,35 @@ def download(export_id: str):
     if not name.lower().endswith(".xlsx"):
         name += ".xlsx"
     return send_from_directory(EXPORT_DIR, f"{export_id}.xlsx", as_attachment=True, download_name=name, mimetype=XLSX)
+
+
+@bp.get("/api/docgen")
+def docgen_overview():
+    from . import docgen_client
+
+    try:
+        return jsonify({"ok": True, **docgen_client.overview(request.args.get("url"))})
+    except docgen_client.DocGenError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@bp.post("/api/docgen/send")
+def docgen_send():
+    from . import docgen_client
+
+    payload = request.get_json(silent=True) or {}
+    export_id = str(payload.get("export_id") or "")
+    path = EXPORT_DIR / f"{export_id}.xlsx"
+    if not SAFE_ID.match(export_id) or not path.exists():
+        return jsonify({"ok": False, "error": "Build the index again: the file is no longer available."}), 404
+    name = re.sub(r"[^A-Za-z0-9 ._-]+", "", payload.get("filename") or "") or "LLD Content Index.xlsx"
+    try:
+        result = docgen_client.send(payload.get("url"), path.read_bytes(), name,
+                                    project_id=payload.get("project_id") or None,
+                                    template_id=payload.get("template_id") or None,
+                                    name=str(payload.get("name") or "")[:200], client=str(payload.get("client") or "")[:200],
+                                    mode=payload.get("mode") or "update")
+    except docgen_client.DocGenError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    log_activity("LLD Index", "Sent to Document Generator", f"project {result['project_id']} · {result['mode']}")
+    return jsonify({"ok": True, **result})

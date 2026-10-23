@@ -296,3 +296,169 @@ def test_rack_cells_are_coloured_like_the_reference_table():
     assert sheet.cell(row=14, column=2).fill.fgColor.rgb.endswith("DDEBF7")
     assert sheet.cell(row=2, column=1).fill.fgColor.rgb.endswith("F2F2F2")
     assert sheet.cell(row=14, column=2).alignment.horizontal == "center"
+
+
+REPLACED = [
+    {"site": "HO", "hostname": "HO-CORE-OLD", "model": "C3850-24T", "role": "Core Switch", "rack": "Rack 1", "u": "30", "status": "Existing"},
+    {"site": "HO", "hostname": "HO-CORE", "model": "S5755-H24T4Y2CZ", "role": "Core Switch", "rack": "Rack 1", "u": "30", "status": "New"},
+    {"site": "HO", "hostname": "HO-PATCH", "model": "Patch Panel 24P", "role": "Patch Panel", "rack": "Rack 1", "u": "40", "status": "keep"},
+    {"site": "HO", "hostname": "HO-ACC", "model": "C9300-48P", "role": "Access Switch", "rack": "Rack 1", "u": "28"},
+]
+
+
+def _replacement_nodes(replacement):
+    devices = build_devices(REPLACED, {})
+    datasets = {d.hostname: analyze_device(d) for d in devices}
+    project = dict(PROJECT, technologies=["switch"], replacement=replacement)
+    return devices, project, builder.build(project, devices, datasets, ["switch"])
+
+
+def test_status_column_is_read_and_phases_share_units():
+    devices = {d.hostname: d for d in build_devices(REPLACED, {})}
+    assert [devices[h].status for h in ("HO-CORE-OLD", "HO-CORE", "HO-PATCH", "HO-ACC")] == ["Existing", "New", "Keep", "New"]
+    # the old core leaves U30 and the new one takes it: not an overlap
+    assert not any("Overlaps" in n for d in devices.values() for n in d.notes)
+    assert not any("Technology unknown" in n for n in devices["HO-PATCH"].notes)
+
+
+def test_replacement_project_draws_each_rack_before_and_after():
+    _, project, nodes = _replacement_nodes(True)
+    titles = [(n.level, n.title) for n in nodes]
+    at = titles.index((1, "Rack Layout"))
+    assert titles[at + 1:at + 4] == [(2, "HO"), (3, "Rack Layout Before - Rack 1"), (3, "Rack Layout After - Rack 1")]
+    before = {r[0]: r[1] for r in next(n for n in nodes if n.title == "Rack Layout Before - Rack 1").rows}
+    after = {r[0]: r[1] for r in next(n for n in nodes if n.title == "Rack Layout After - Rack 1").rows}
+    assert before["30"].startswith("HO-CORE-OLD") and before["40"].startswith("HO-PATCH") and before["28"] == ""
+    assert after["30"].startswith("HO-CORE (") and after["40"].startswith("HO-PATCH") and after["28"].startswith("HO-ACC")
+    names = {n.sheet_hint for n in nodes}
+    assert "Rack Before Rack 1" in names and "Rack After Rack 1" in names
+    workbook.write(nodes, project)                                         # sheet names stay valid
+
+
+def test_existing_devices_stay_out_of_every_other_chapter():
+    for replacement in (True, False):
+        _, _, nodes = _replacement_nodes(replacement)
+        others = [n for n in nodes if "Rack" not in n.title and "Rack" not in n.sheet_hint and n.title != "Implementation Step"]
+        text = json.dumps([[n.title, n.rows] for n in others])
+        assert "HO-CORE-OLD" not in text and "C3850" not in text
+        assert "HO-PATCH" not in text                                      # no technology: rack only
+        assert "HO-CORE" in text
+
+
+def test_without_replacement_the_rack_shows_the_finished_state():
+    _, _, nodes = _replacement_nodes(False)
+    assert not any(n.title.startswith("Rack Layout Before") for n in nodes)
+    rack = {r[0]: r[1] for r in next(n for n in nodes if n.title == "Rack 1").rows}
+    assert rack["30"].startswith("HO-CORE (") and rack["40"].startswith("HO-PATCH")
+
+
+def test_boq_counts_only_new_devices():
+    records = REPLACED + [{"site": "HO", "hostname": "HO-DIST", "model": "C9500-24Y4C", "role": "Distribution Switch", "status": "Keep"}]
+    devices = build_devices(records, {})
+    scope = builder.Scope(devices=devices)
+    _, rows, _ = builder._builder_rows({"builder": "boq"}, scope, {}, PROJECT)
+    assert {r[0] for r in rows} == {"S5755-H24T4Y2CZ", "C9300-48P"}
+
+
+def test_api_rack_preview_has_phases(client):
+    payload = {"project": dict(PROJECT, replacement="true"), "technologies": ["switch"], "inventory": REPLACED}
+    result = client.post("/lld-index/api/build", data={"payload": json.dumps(payload)}).get_json()["result"]
+    assert [(r["rack"], r["phase"]) for r in result["racks"]] == [("Rack 1", "Before"), ("Rack 1", "After")]
+    old = next(d for d in result["devices"] if d["hostname"] == "HO-CORE-OLD")
+    assert old["status"] == "Existing" and any("Before rack" in n for n in old["notes"])
+
+
+def test_replacement_fills_existing_list_scope_and_dismantle_step():
+    records = REPLACED + [
+        {"site": "HO", "hostname": "HO-FW-OLD", "model": "FGT60F", "role": "Firewall", "serial": "FGTX", "status": "Existing"},
+        {"site": "HO", "hostname": "HO-FW01", "model": "PA-1410", "role": "Firewall"},
+        {"site": "DC", "hostname": "DC-FW-OLD", "model": "ASA5516", "role": "Firewall", "status": "Existing"},
+    ]
+    devices = build_devices(records, {})
+    datasets = {d.hostname: analyze_device(d) for d in devices}
+    project = dict(PROJECT, technologies=["switch", "firewall"], replacement=True)
+    nodes = builder.build(project, devices, datasets, project["technologies"])
+    existing = next(n for n in nodes if n.title == "Existing Device List")
+    assert existing.rows == [["1", "HO", "HO-FW-OLD (FGT60F)", "FGTX", "Replaced by HO-FW01"],
+                             ["2", "DC", "DC-FW-OLD (ASA5516)", "", "Removed"]]
+    new = next(n for n in nodes if n.title == "New Device List")
+    assert [r[1] for r in new.rows] == ["HO-FW01"]
+    scope = " ".join(next(n for n in nodes if n.title == "Scope of Work").paragraphs)
+    assert "Installation of C9300-48P, PA-1410, S5755-H24T4Y2CZ." in scope       # Keep is not installed
+    assert "Dismantling of the existing devices (ASA5516, C3850-24T, FGT60F)" in scope
+    intro = " ".join(next(n for n in nodes if n.title == "Project Description").paragraphs)
+    assert "3 existing devices (ASA5516, C3850-24T, FGT60F) will be replaced and removed." in intro
+    steps = next(n for n in nodes if n.title == "Implementation Step").rows
+    assert steps[-1][1] == "Dismantle" and "HO-CORE-OLD, HO-FW-OLD, DC-FW-OLD" in steps[-1][2]
+
+
+def test_project_sheet_carries_the_cover_data_for_the_document_generator():
+    project = dict(PROJECT, project_code="7SINL26010001", prepared_by="Aldi", company="Multipolar Technology")
+    result = build_index(project, INVENTORY, ["switch"], FILES)
+    wb = openpyxl.load_workbook(io.BytesIO(result["workbook"]))
+    assert wb.sheetnames[:2] == ["Index", "Project"]
+    rows = {r[0]: r[1] for r in wb["Project"].iter_rows(min_row=2, values_only=True)}
+    assert rows == {"Project Name": "Network Refresh", "Customer": "PT Contoh", "Project Code": "7SINL26010001",
+                    "Company": "Multipolar Technology", "Prepared by": "Aldi"}
+
+
+def test_docgen_client_accepts_only_this_computer():
+    from features.lld_index import docgen_client
+    assert docgen_client.base_url(None) == "http://127.0.0.1:8003"
+    assert docgen_client.base_url("localhost:9000/") == "http://localhost:9000"
+    for bad in ("http://10.0.0.5:8003", "http://example.com", "ftp://127.0.0.1"):
+        with pytest.raises(docgen_client.DocGenError):
+            docgen_client.base_url(bad)
+
+
+def test_send_to_docgen_creates_a_project_and_imports(client):
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    seen = []
+
+    class Fake(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def _reply(self, payload):
+            body = json.dumps(payload).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            seen.append(("GET", self.path))
+            self._reply([{"id": 3, "name": "Old", "client": "X"}] if self.path == "/api/projects"
+                        else [{"id": 1, "name": "LLD Master Template"}])
+
+        def do_POST(self):
+            data = self.rfile.read(int(self.headers["Content-Length"]))
+            seen.append(("POST", self.path, data))
+            if self.path == "/api/projects":
+                self._reply({"id": 9, **json.loads(data)})
+            else:
+                self._reply({"ok": True, "chapters": 12, "blocks": 10})
+
+    server = HTTPServer(("127.0.0.1", 0), Fake)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_port}"
+    try:
+        overview = client.get(f"/lld-index/api/docgen?url={url}").get_json()
+        assert overview["ok"] and overview["projects"][0]["name"] == "Old" and overview["templates"][0]["id"] == 1
+        payload = {"project": PROJECT, "technologies": ["switch"], "inventory": INVENTORY}
+        built = client.post("/lld-index/api/build", data={"payload": json.dumps(payload)}).get_json()["result"]
+        sent = client.post("/lld-index/api/docgen/send", json={
+            "url": url, "export_id": built["export_id"], "filename": built["download_name"],
+            "template_id": 1, "name": "Network Refresh", "client": "PT Contoh"}).get_json()
+        assert sent["ok"] and sent["created"] and sent["project_id"] == 9 and sent["mode"] == "replace"
+        create = next(s for s in seen if s[:2] == ("POST", "/api/projects"))
+        assert json.loads(create[2]) == {"name": "Network Refresh", "client": "PT Contoh", "template_id": 1}
+        upload = next(s for s in seen if s[1] == "/api/projects/9/import-excel")[2]
+        assert b'name="mode"\r\n\r\nreplace' in upload and b"PK\x03\x04" in upload        # the xlsx itself
+        bad = client.post("/lld-index/api/docgen/send", json={"url": "http://10.1.1.1", "export_id": built["export_id"],
+                                                             "project_id": 3}).get_json()
+        assert not bad["ok"] and "this computer" in bad["error"]
+    finally:
+        server.shutdown()

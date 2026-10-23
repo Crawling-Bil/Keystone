@@ -5,8 +5,15 @@
     root.dataset.ready = "1";
     const esc = value => window.NES.escape(value);
     const $ = role => root.querySelector(`[data-role="${role}"]`);
-    const COLS = ["site", "hostname", "model", "role", "mgmt_ip", "serial", "config", "rack", "rack_size", "u", "u_height"];
-    const PLACE = ["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "", "ho-core-sw01.txt", "Ruang Server Rack 1", "42", "30", "1"];
+    const COLS = ["site", "hostname", "model", "role", "mgmt_ip", "serial", "config", "rack", "rack_size", "u", "u_height", "status"];
+    const STATUS = ["New", "Existing", "Keep"];
+    const statusOf = v => {
+      const t = String(v ?? "").trim().toLowerCase();
+      if (/^(existing|eksisting|old|lama|remove[d]?|dismantle|decommission|replaced)$/.test(t)) return "Existing";
+      if (/^(keep|tetap|retain|stay|unchanged)$/.test(t)) return "Keep";
+      return "New";
+    };
+    const PLACE = ["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "", "ho-core-sw01.txt", "Ruang Server Rack 1", "42", "30", "1", ""];
     const NARROW = new Set(["rack_size", "u", "u_height"]);
     let configFiles = [];
 
@@ -14,8 +21,10 @@
     function addRow(values = {}) {
       const tr = document.createElement("tr");
       const fresh = !Object.values(values).some(v => String(v ?? "").trim());
-      tr.innerHTML = COLS.map((c, i) =>
-        `<td><input class="li-cell${NARROW.has(c) ? " li-narrow" : ""}" data-col="${c}" value="${esc(values[c] ?? "")}" placeholder="${fresh ? esc(PLACE[i]) : ""}" aria-label="${c}"${NARROW.has(c) ? ' inputmode="numeric"' : ""}></td>`
+      tr.innerHTML = COLS.map((c, i) => c === "status"
+        ? `<td><select class="li-cell li-status" data-col="status" aria-label="status">${STATUS.map(s =>
+            `<option${statusOf(values.status) === s ? " selected" : ""}>${s}</option>`).join("")}</select></td>`
+        : `<td><input class="li-cell${NARROW.has(c) ? " li-narrow" : ""}" data-col="${c}" value="${esc(values[c] ?? "")}" placeholder="${fresh ? esc(PLACE[i]) : ""}" aria-label="${c}"${NARROW.has(c) ? ' inputmode="numeric"' : ""}></td>`
       ).join("") + `<td><button type="button" class="an-icon-btn" data-role="remove" aria-label="Remove device">×</button></td>`;
       tr.querySelector('[data-role="remove"]').addEventListener("click", () => { tr.remove(); if (!rowsBody().children.length) addRow(); });
       // Paste a block copied from Excel into the first cell: one device per line.
@@ -35,7 +44,10 @@
       return tr;
     }
     function fillRow(tr, record) {
-      COLS.forEach(c => { const input = tr.querySelector(`[data-col="${c}"]`); if (input) input.value = record[c] || ""; });
+      COLS.forEach(c => {
+        const input = tr.querySelector(`[data-col="${c}"]`);
+        if (input) input.value = c === "status" ? statusOf(record[c]) : (record[c] || "");
+      });
     }
     function rowsBody() { return $("rows"); }
     function readRows() {
@@ -92,7 +104,8 @@
     // ------------------------------------------------------------ build
     $("form").addEventListener("submit", async event => {
       event.preventDefault();
-      const project = Object.fromEntries([...root.querySelectorAll("[data-field]")].map(i => [i.dataset.field, i.value.trim()]));
+      const project = Object.fromEntries([...root.querySelectorAll("[data-field]")].map(i =>
+        [i.dataset.field, i.type === "checkbox" ? (i.checked ? "true" : "") : i.value.trim()]));
       const technologies = [...root.querySelectorAll("[data-tech]:checked")].map(i => i.dataset.tech);
       const inventory = readRows();
       if (!technologies.length) { window.NES.toast("Pick at least one technology.", "error"); return; }
@@ -136,11 +149,71 @@
             u -= 1;
           }
         }
-        return `<figure class="li-rack"><figcaption><strong>${esc(rack.rack)}</strong><small>${esc(rack.site)} · ${rack.size}U · ${rack.units.length} device(s)</small></figcaption>
+        return `<figure class="li-rack"><figcaption><strong>${rack.phase ? `<span class="li-phase">${esc(rack.phase)}</span> ` : ""}${esc(rack.rack)}</strong><small>${esc(rack.site)} · ${rack.size}U · ${rack.units.length} device(s)</small></figcaption>
           <div class="li-rack-body">${cells.join("")}</div>
           ${rack.problems.length ? `<ul class="li-rack-warn">${rack.problems.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}</figure>`;
       }).join("");
     }
+
+    // ------------------------------------------------------------ send to Document Generator
+    let lastResult = null;
+    const DG_KEY = "keystone.lld.docgenUrl";
+    try { const saved = localStorage.getItem(DG_KEY); if (saved) $("dg-url").value = saved; } catch (e) { /* storage blocked */ }
+    function dgStatus(text, tone) { const el = $("dg-status"); el.textContent = text; el.dataset.tone = tone || ""; }
+    function syncDgFields() {
+      const isNew = $("dg-project").value === "new";
+      $("dg-template-field").classList.toggle("hidden", !isNew);
+      $("dg-mode-field").classList.toggle("hidden", isNew);
+    }
+    async function dgConnect() {
+      const url = $("dg-url").value.trim();
+      dgStatus("Connecting…");
+      try {
+        const response = await fetch(`/lld-index/api/docgen?url=${encodeURIComponent(url)}`);
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+        try { localStorage.setItem(DG_KEY, url); } catch (e) { /* storage blocked */ }
+        const name = (lastResult && lastResult.project.project_name || "").toLowerCase();
+        const match = data.projects.find(p => p.name.toLowerCase() === name);
+        $("dg-project").innerHTML = `<option value="new">New project: ${esc(lastResult ? lastResult.project.project_name || "LLD" : "LLD")}</option>` +
+          data.projects.map(p => `<option value="${p.id}"${match && match.id === p.id ? " selected" : ""}>${esc(p.name)}${p.client ? " · " + esc(p.client) : ""}</option>`).join("");
+        $("dg-template").innerHTML = data.templates.map(t => `<option value="${t.id}"${/master/i.test(t.name) ? " selected" : ""}>${esc(t.name)}</option>`).join("")
+          || `<option value="">No template: upload the master template in the Document Generator first</option>`;
+        $("dg-pick").classList.remove("hidden");
+        syncDgFields();
+        dgStatus(`Connected · ${data.projects.length} project(s)`, "ok");
+        return true;
+      } catch (err) { dgStatus(err.message, "error"); return false; }
+    }
+    $("dg-connect").addEventListener("click", dgConnect);
+    $("dg-project").addEventListener("change", syncDgFields);
+    $("dg-send").addEventListener("click", async () => {
+      if (!lastResult) return;
+      const isNew = $("dg-project").value === "new";
+      const body = { url: $("dg-url").value.trim(), export_id: lastResult.export_id, filename: lastResult.download_name,
+        project_id: isNew ? null : Number($("dg-project").value), template_id: isNew ? Number($("dg-template").value) || null : null,
+        name: lastResult.project.project_name || "", client: lastResult.project.customer || "", mode: $("dg-mode").value };
+      $("dg-send").disabled = true;
+      dgStatus("Sending…");
+      try {
+        const response = await fetch("/lld-index/api/docgen/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+        const imp = data.import || {};
+        const what = data.mode === "update"
+          ? `${imp.updated || 0} chapters updated, ${imp.chapters || 0} new, ${imp.kept_blocks || 0} images/manual edits kept`
+          : `${imp.chapters || 0} chapters`;
+        const message = `Sent to ${data.created ? "a new" : "the"} project (#${data.project_id}): ${what}. Open the Document Generator to generate the Word file.`;
+        if (data.created) {
+          await dgConnect();                       // the new project shows up (and is picked) for the next send
+          $("dg-project").value = String(data.project_id);
+          syncDgFields();
+        }
+        dgStatus(message, "ok");
+        window.NES.toast("Index sent to the Document Generator.", "success");
+      } catch (err) { dgStatus(err.message, "error"); }
+      finally { $("dg-send").disabled = false; }
+    });
 
     function card(label, value, hint, tone) {
       return `<article class="an-card"${tone ? ` style="--tone: var(--${tone})"` : ""}><span class="an-card-label">${esc(label)}</span>
@@ -176,6 +249,7 @@
           <span class="li-no">${esc(n.no)}</span><span class="li-title">${esc(n.title)}</span>${chips(n)}
           ${(n.more || []).map(m => `<span class="li-plus">+</span>${chips(m)}`).join("")}</li>`).join("");
       renderRacks(result.racks || []);
+      lastResult = result;
       $("result").scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }

@@ -18,9 +18,29 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Iterable
 
-COLUMNS = ["Site", "Hostname", "Model", "Role", "Mgmt IP", "SN", "Config", "Rack", "Rack Size", "U", "U Height"]
+COLUMNS = ["Site", "Hostname", "Model", "Role", "Mgmt IP", "SN", "Config", "Rack", "Rack Size", "U", "U Height", "Status"]
 STANDARD_RACK_SIZES = (24, 27, 32, 36, 42, 45, 47, 48)
 DEFAULT_RACK_SIZE = 42
+STATUSES = ("New", "Existing", "Keep")
+_STATUS_WORDS = {
+    "existing": "Existing", "old": "Existing", "lama": "Existing", "remove": "Existing", "removed": "Existing",
+    "dismantle": "Existing", "decommission": "Existing", "replaced": "Existing", "eksisting": "Existing",
+    "keep": "Keep", "tetap": "Keep", "retain": "Keep", "stay": "Keep", "unchanged": "Keep",
+    "new": "New", "baru": "New", "replacement": "New", "pengganti": "New", "": "New",
+}
+# Rack phases of a replacement project: Before = what is in the rack today,
+# After = what is in it when the project is done.
+PHASE_STATUSES = {"before": ("Existing", "Keep"), "after": ("New", "Keep")}
+
+
+def normalize_status(value) -> str:
+    return _STATUS_WORDS.get(re.sub(r"\s+", " ", str(value or "")).strip().lower(), "")
+
+
+def in_phase(device, phase: str) -> bool:
+    if not phase:
+        return device.status != "Existing"
+    return device.status in PHASE_STATUSES[phase]
 TECHNOLOGIES = ["switch", "wireless", "firewall", "router", "loadbalancer"]
 TECH_LABELS = {
     "switch": "Switch", "wireless": "Wireless", "firewall": "Firewall",
@@ -40,6 +60,7 @@ _HEADER_ALIASES = {
     "rack size": "rack_size", "rack u": "rack_size", "rack height": "rack_size", "ukuran rack": "rack_size",
     "u": "u", "u position": "u", "rack position": "u", "posisi u": "u", "start u": "u",
     "u height": "u_height", "height": "u_height", "u size": "u_height", "tinggi u": "u_height", "ru": "u_height",
+    "status": "status", "phase": "status", "kondisi": "status", "existing/new": "status", "state": "status",
 }
 
 _ROLE_HINTS = [
@@ -71,6 +92,7 @@ class Device:
     rack_size: int = DEFAULT_RACK_SIZE
     u: int | None = None               # lowest U the device occupies
     u_height: int = 1
+    status: str = "New"               # New / Existing (removed) / Keep (stays)
     technology: str = ""
     technology_source: str = ""
     config_name: str = ""          # the uploaded file actually matched
@@ -236,12 +258,18 @@ def check_racks(devices: list) -> None:
     by_rack: dict = {}
     for device in devices:
         if device.rack and device.u is not None:
-            by_rack.setdefault((device.site, device.rack), []).append(device)
+            # Existing and New devices may share units: one leaves, the other
+            # takes its place. Only clashes within the same phase count.
+            for phase, statuses in PHASE_STATUSES.items():
+                if device.status in statuses:
+                    by_rack.setdefault((device.site, device.rack, phase), []).append(device)
+    reported = set()
     for members in by_rack.values():
         for i, a in enumerate(members):
             for b in members[i + 1:]:
                 a_top, b_top = a.u + a.u_height - 1, b.u + b.u_height - 1
-                if a.u <= b_top and b.u <= a_top:
+                if a.u <= b_top and b.u <= a_top and (a.hostname, b.hostname) not in reported:
+                    reported.add((a.hostname, b.hostname))
                     for x, y in ((a, b), (b, a)):
                         x.notes.append(f"Overlaps {y.hostname} in {x.rack} (U{max(a.u, b.u)}-U{min(a_top, b_top)}).")
 
@@ -265,6 +293,11 @@ def build_devices(records: Iterable[dict[str, Any]], files: dict[str, str] | Non
             rack=str(record.get("rack") or "").strip(),
         )
         _place(device, record)
+        status = normalize_status(record.get("status"))
+        if status:
+            device.status = status
+        else:
+            device.notes.append(f"Status '{record.get('status')}' is not New, Existing or Keep; New is used.")
         if hostname.lower() in seen:
             device.notes.append("Duplicate hostname in the inventory.")
         seen.add(hostname.lower())
@@ -283,7 +316,7 @@ def build_devices(records: Iterable[dict[str, Any]], files: dict[str, str] | Non
                 device.technology, device.technology_source = domain, "config"
         if not device.technology:
             device.technology, device.technology_source = tech_from_text(device.role, device.model)
-        if not device.technology:
+        if not device.technology and device.status == "New":
             device.notes.append("Technology unknown: add a Role such as 'Core Switch', 'Firewall' or 'WLC'.")
         devices.append(device)
     check_racks(devices)
@@ -302,7 +335,7 @@ def template_workbook() -> bytes:
     for cell in sheet[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="0F8A7E")
-    widths = [16, 26, 22, 18, 18, 18, 26, 24, 10, 6, 9]
+    widths = [16, 26, 22, 18, 18, 18, 26, 24, 10, 6, 9, 10]
     for index, width in enumerate(widths):
         sheet.column_dimensions[chr(65 + index)].width = width
     # Examples live on their own sheet, so importing the template back never
@@ -311,14 +344,17 @@ def template_workbook() -> bytes:
     example.append(COLUMNS)
     for cell in example[1]:
         cell.font = Font(bold=True)
-    example.append(["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "2102355XXXX", "ho-core-sw01.txt", "Ruang Server Rack 1", 42, 30, 1])
-    example.append(["HO", "HO-WLC01", "C9800-40", "WLC", "10.10.10.4/24", "", "", "Ruang Server Rack 1", 42, 20, 1])
+    example.append(["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "2102355XXXX", "ho-core-sw01.txt", "Ruang Server Rack 1", 42, 30, 1, "New"])
+    example.append(["HO", "HO-CORE-OLD", "C3850-24T", "Core Switch", "10.10.10.1/24", "FOC1234XXXX", "", "Ruang Server Rack 1", 42, 30, 1, "Existing"])
+    example.append(["HO", "HO-PATCH-01", "Patch Panel 24P", "Patch Panel", "", "", "", "Ruang Server Rack 1", 42, 40, 1, "Keep"])
+    example.append(["HO", "HO-WLC01", "C9800-40", "WLC", "10.10.10.4/24", "", "", "Ruang Server Rack 1", 42, 20, 1, "New"])
     example.append(["DC", "DC-FW01", "PA-1410", "Firewall", "10.20.10.5/24", "0123456789", "dc-fw01.xml"])
     example.append(["DC", "DC-RTR01", "C8200-1N-4T", "WAN Router", "10.20.10.1/24", "", ""])
     example.append(["DC", "DC-LB01", "BIG-IP i5800", "Load Balancer", "10.20.10.9/24", "", ""])
     example.append([])
     example.append(["Role decides the technology when no config is uploaded: switch/core/access, WLC/AP, firewall/FW, router/WAN, LB/F5."])
     example.append(["Rack layout: Rack = rack name, Rack Size = 24/27/32/36/42/45/47/48 (blank = 42), U = lowest unit the device sits in, U Height = units it takes (blank = 1)."])
+    example.append(["Status (replacement project): New = installed by this project (blank = New), Existing = old device that is removed, Keep = stays in place (patch panel, server). Existing goes only to the Before rack layout."])
     for index, width in enumerate(widths):
         example.column_dimensions[chr(65 + index)].width = width
     out = io.BytesIO()
