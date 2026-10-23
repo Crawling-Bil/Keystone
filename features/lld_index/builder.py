@@ -31,7 +31,7 @@ from typing import Any, Optional
 
 from . import narrative
 from .datasets import Dataset, config_blocks
-from .inventory import Device, TECH_LABELS
+from .inventory import in_phase, Device, TECH_LABELS
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 PLACEHOLDER = "TBD"
@@ -249,9 +249,10 @@ def _builder_rows(spec: dict, scope: Scope, datasets: dict, project: dict) -> tu
         return headers, rows, "inventory"
     if builder == "boq":
         rows = []
-        for model in _models(scope.devices):
+        bought = [d for d in scope.devices if d.status == "New"]   # Keep devices are not delivered
+        for model in _models(bought):
             hw = _catalog(model)
-            members = [d for d in scope.devices if d.model == model]
+            members = [d for d in bought if d.model == model]
             rows.append([model, (hw.summary if hw else "") or _firewall_label(model) or PLACEHOLDER, str(len(members)),
                          ", ".join(_sites(members))])
         return ["Model", "Description", "Qty", "Site"], rows, "inventory"
@@ -379,8 +380,42 @@ def expand(nodes: list, scope: Scope, level: int, project: dict, datasets: dict)
     return out
 
 
+def _phases_below(spec: dict) -> set:
+    """Rack phases ("before"/"after") used by this node or anything under it."""
+    found = {spec["phase"]} if spec.get("phase") else set()
+    for child in (spec.get("children") or []) + (spec.get("blocks") or []):
+        if isinstance(child, dict):
+            found |= _phases_below(child)
+    return found
+
+
+def _about_racks(spec: dict) -> bool:
+    """True when this node or anything under it draws or depends on racks."""
+    if spec.get("repeat") == "rack" or (spec.get("table") or {}).get("builder") == "rack" \
+            or "rack" in (spec.get("devices") or {}):
+        return True
+    return any(_about_racks(c) for c in (spec.get("children") or []) if isinstance(c, dict))
+
+
+def _phase_devices(devices: list, spec: dict, project: dict) -> list:
+    """Existing devices (removed by the project) only reach the nodes of a
+    replacement project's Before rack layout; every other chapter sees the
+    devices that are there when the project is done (New and Keep)."""
+    phases = _phases_below(spec) if project.get("replacement") else set()
+    if not phases:
+        # Racks show everything that sits in them (a patch panel, a server);
+        # the other chapters only the devices of the selected technologies.
+        listed = None if _about_racks(spec) else project.get("_listed")
+        return [d for d in devices if in_phase(d, "") and (listed is None or d.hostname in listed)]
+    if spec.get("phase"):
+        return [d for d in devices if in_phase(d, spec["phase"])]
+    return [d for d in devices if any(in_phase(d, p) for p in phases)]
+
+
 def _expand_node(spec: dict, scope: Scope, level: int, project: dict, datasets: dict) -> list:
-    devices = _filter(scope.devices, spec.get("devices"))
+    if "replacement" in spec and bool(spec["replacement"]) != bool(project.get("replacement")):
+        return []
+    devices = _filter(_phase_devices(scope.devices, spec, project), spec.get("devices"))
     if spec.get("devices") and not devices:
         return []
     scope = Scope(devices=devices, site=scope.site, device=scope.device, model=scope.model, tech=scope.tech, rack=scope.rack)
@@ -400,7 +435,7 @@ def _expand_node(spec: dict, scope: Scope, level: int, project: dict, datasets: 
             items = [Scope(devices=[d for d in devices if d.model == m], site=scope.site, device=None, model=m, tech=scope.tech)
                      for m in _models(devices)]
         single = repeat == "device" and spec.get("inline_single") and len(items) == 1
-        body = {k: v for k, v in spec.items() if k not in ("repeat", "devices")}
+        body = {k: v for k, v in spec.items() if k not in ("repeat", "devices", "replacement")}
         out = []
         for item in items:
             if spec.get("flatten"):
@@ -506,7 +541,12 @@ def build(project: dict, devices: list, datasets: dict, technologies: list) -> l
             if node.level == 1 and len(titles.get(node.title, ())) > 1:
                 node.title = f"{node.title} - {TECH_LABELS.get(tech, tech)}"
         tech_nodes += block
-    in_scope = [d for d in devices if any(d.technology in (load_template(t).get("devices") or [t]) for t in technologies)]
+    # Existing and Keep devices are in the rack layout whatever their technology
+    # (an old switch, a patch panel); the phase filter keeps them out of the rest.
+    listed = {d.hostname for d in devices
+              if any(d.technology in (load_template(t).get("devices") or [t]) for t in technologies)}
+    in_scope = [d for d in devices if d.status != "New" or d.hostname in listed]
+    project = {**project, "_listed": listed}
     root = Scope(devices=in_scope)
     nodes: list = []
     for spec in common.get("chapters") or []:

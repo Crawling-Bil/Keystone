@@ -42,8 +42,14 @@
       "title": "Rack Layout",
       "children": [
         {"title": "{site}", "repeat": "site", "children": [
-          {"title": "{rack}", "repeat": "rack", "type": "table", "table": {"builder": "rack", "numbered": false},
+          {"title": "{rack}", "repeat": "rack", "replacement": false, "type": "table", "table": {"builder": "rack", "numbered": false},
            "caption": "Rack Layout {site} {rack}", "sheet": "Rack {rack}"},
+          {"repeat": "rack", "replacement": true, "flatten": true, "children": [
+            {"title": "Rack Layout Before - {rack}", "phase": "before", "type": "table", "table": {"builder": "rack", "numbered": false},
+             "caption": "Rack Layout Before {site} {rack}", "sheet": "Rack Before {rack}"},
+            {"title": "Rack Layout After - {rack}", "phase": "after", "type": "table", "table": {"builder": "rack", "numbered": false},
+             "caption": "Rack Layout After {site} {rack}", "sheet": "Rack After {rack}"}
+          ]},
           {"title": "Rack Layout {site}", "type": "image", "devices": {"rack": false}, "caption": "Rack Layout {site}"}
         ]}
       ]

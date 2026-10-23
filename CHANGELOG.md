@@ -6,6 +6,7 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ### LLD Index: Document Generator index from the inventory, configs and project goals
 
+- Replacement project option: inventory Status column (New / Existing / Keep) and a Before and an After rack table per rack. Existing devices only appear in the Before rack; the BoQ counts New devices only.
 - Rack layout tables: device cells light blue, U columns light grey, text centred (Document Generator reads `fills` and `aligns`).
 - New module **LLD Index** (`/lld-index`, new sidebar group "Document"). It builds the "LLD Content Index" workbook the Document Generator imports: chapters per technology, expanded per site, per device and per model, tables filled from the inventory and from the configs, narrative written from the project goals.
 - Inputs: project form (customer, project, code, goals, scope, out of scope, related documents), technologies (switch, wireless, firewall, router, load balancer), device inventory (Site, Hostname, Model, Role, Mgmt IP, SN, Config; CSV/XLSX import, template download, paste from Excel) and optional config files or a ZIP.

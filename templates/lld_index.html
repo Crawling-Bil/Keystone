@@ -15,6 +15,8 @@
         <label class="an-field"><span class="an-label">Project code</span><input class="li-input" data-field="project_code" placeholder="7TAMO26009001"></label>
         <label class="an-field"><span class="an-label">Implemented by</span><input class="li-input" data-field="company" value="Multipolar Technology"></label>
       </div>
+      <label class="li-check"><input type="checkbox" data-field="replacement">
+        <span><strong>Replacement project</strong><small>Rack Layout gets a Before table (Existing + Keep devices) and an After table (New + Keep) for every rack. Set the Status column in the inventory.</small></span></label>
       <div class="li-grid">
         <label class="an-field"><span class="an-label">Project goals <small>(one per line)</small></span><textarea class="li-text" data-field="goals" rows="4" placeholder="Replace end-of-life core and access switches&#10;Standardise VLAN and management addressing"></textarea></label>
         <label class="an-field"><span class="an-label">Scope of work <small>(one per line, blank = written from the inventory)</small></span><textarea class="li-text" data-field="scope" rows="4"></textarea></label>
@@ -34,7 +36,7 @@
     </div>
 
     <div class="panel li-card">
-      <header class="li-card-head"><span class="li-step">3</span><div><h3>Device inventory</h3><p class="an-hint">One row per device. <strong>Config</strong> names an uploaded file (blank = matched by hostname, or left empty for a design written before configuration). Technology comes from the config, then the Role, then the model. <strong>Rack</strong>, <strong>Rack Size</strong> (24/27/32/36/42/45/47/48U, blank = 42), <strong>U</strong> (lowest unit) and <strong>U Height</strong> (blank = 1) draw the rack layout.</p></div></header>
+      <header class="li-card-head"><span class="li-step">3</span><div><h3>Device inventory</h3><p class="an-hint">One row per device. <strong>Config</strong> names an uploaded file (blank = matched by hostname, or left empty for a design written before configuration). Technology comes from the config, then the Role, then the model. <strong>Rack</strong>, <strong>Rack Size</strong> (24/27/32/36/42/45/47/48U, blank = 42), <strong>U</strong> (lowest unit) and <strong>U Height</strong> (blank = 1) draw the rack layout. <strong>Status</strong>: New (installed by the project), Existing (old device, removed) or Keep (stays, e.g. patch panel); Existing only appears in the Before rack of a replacement project.</p></div></header>
       <div class="an-actions">
         <a class="an-btn small" href="/lld-index/inventory-template.xlsx">Download inventory template</a>
         <label class="an-btn small li-file-btn">Import CSV / XLSX<input type="file" data-role="inventory-file" accept=".csv,.xlsx,.xlsm" hidden></label>

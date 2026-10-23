@@ -76,3 +76,12 @@
 .li-page .li-u .li-un { background: #F2F2F2; color: #555; }
 .li-page .li-u.is-dev .li-dev { background: #DDEBF7; border-color: #9DC3E6; color: #1a1b1c; }
 .li-page .li-u.is-dev .li-dev small { color: #45464a; }
+
+/* Replacement project option and Status column */
+.li-page .li-check { display: flex; gap: .6rem; align-items: flex-start; margin: .2rem 0 .9rem; cursor: pointer; }
+.li-page .li-check input { margin-top: .25rem; accent-color: var(--accent, #0f8a7e); }
+.li-page .li-check span { display: flex; flex-direction: column; gap: .15rem; }
+.li-page .li-check small { color: var(--muted, #6b7280); }
+.li-page select.li-status { min-width: 6.5rem; }
+.li-page .li-phase { display: inline-block; padding: 0 .4rem; margin-right: .2rem; border-radius: 4px;
+  background: #DDEBF7; color: #1f4e79; font-size: .75em; font-weight: 600; vertical-align: middle; }

@@ -12,7 +12,7 @@ from typing import Any
 
 from . import builder, workbook
 from .datasets import analyze_device
-from .inventory import TECH_LABELS, TECHNOLOGIES, build_devices
+from .inventory import TECH_LABELS, TECHNOLOGIES, build_devices, in_phase
 
 CONFIG_EXTENSIONS = {".txt", ".cfg", ".conf", ".config", ".log", ".rsc", ".out", ".cap", ".xml"}
 MAX_CONFIG_BYTES = 20 * 1024 * 1024
@@ -60,6 +60,7 @@ def _clean_project(project: dict) -> dict:
     keys = ("customer", "project_name", "project_code", "company", "goals", "scope", "out_of_scope", "related_documents")
     out = {k: str(project.get(k) or "").strip()[:4000] for k in keys}
     out["company"] = out["company"] or "Multipolar Technology"
+    out["replacement"] = str(project.get("replacement") or "").strip().lower() in ("1", "true", "yes", "on")
     return out
 
 
@@ -91,7 +92,11 @@ def build_index(project: dict, records: list[dict], technologies: list[str], fil
         row["in_scope"] = device.technology in technologies or (device.technology == "switch" and "wireless" in technologies)
         row["analyzed"] = bool(dataset and dataset.analyzed)
         row["notes"] = list(device.notes) + list(dataset.notes if dataset else [])
-        if not row["in_scope"] and device.technology:
+        if device.status == "Existing":
+            row["notes"].append("Existing: removed by the project, only in the Before rack layout."
+                                if project["replacement"] else
+                                "Existing: tick Replacement project to draw it in a Before rack layout.")
+        elif not row["in_scope"] and device.technology and device.status == "New":
             row["notes"].append(f"{TECH_LABELS.get(device.technology)} is not selected; only in the common chapters.")
         device_rows.append(row)
     stats = {
@@ -105,32 +110,42 @@ def build_index(project: dict, records: list[dict], technologies: list[str], fil
         "unused_files": sorted(set(files) - used_files),
     }
     return {"workbook": data, "tree": tree, "devices": device_rows, "stats": stats, "project": project,
-            "racks": rack_view(devices)}
+            "racks": rack_view(devices, project["replacement"])}
 
 
-def rack_view(devices) -> list[dict]:
-    """Racks for the page preview: devices drawn where they fit, problems listed."""
+def rack_view(devices, replacement: bool = False) -> list[dict]:
+    """Racks for the page preview: devices drawn where they fit, problems
+    listed. A replacement project shows each rack Before and After."""
+    phases = ("before", "after") if replacement else ("",)
     racks: dict = {}
     for device in devices:
         if device.rack and device.u is not None:
-            racks.setdefault((device.site, device.rack), []).append(device)
+            for phase in phases:
+                if in_phase(device, phase):
+                    racks.setdefault((device.site, device.rack), {}).setdefault(phase, []).append(device)
     out = []
-    for (site, rack), members in racks.items():
-        size = max(d.rack_size for d in members)
-        taken: set = set()
-        units, problems = [], []
-        for device in sorted(members, key=lambda d: (d.u, d.hostname)):
-            span = set(range(device.u, device.u + device.u_height))
-            if device.u + device.u_height - 1 > size:
-                problems.append(f"{device.hostname}: U{device.u}-U{device.u + device.u_height - 1} does not fit {size}U.")
-                continue
-            if span & taken:
-                problems.append(f"{device.hostname}: U{device.u}-U{device.u + device.u_height - 1} overlaps another device.")
-                continue
-            taken |= span
-            units.append({"hostname": device.hostname, "model": device.model, "u": device.u, "height": device.u_height})
-        out.append({"site": site, "rack": rack, "size": size, "units": units, "problems": problems})
+    for (site, rack), by_phase in racks.items():
+        for phase in phases:
+            if by_phase.get(phase):
+                out.append(_rack_preview(site, rack, by_phase[phase], phase.title()))
     return out
+
+
+def _rack_preview(site: str, rack: str, members: list, phase: str) -> dict:
+    size = max(d.rack_size for d in members)
+    taken: set = set()
+    units, problems = [], []
+    for device in sorted(members, key=lambda d: (d.u, d.hostname)):
+        span = set(range(device.u, device.u + device.u_height))
+        if device.u + device.u_height - 1 > size:
+            problems.append(f"{device.hostname}: U{device.u}-U{device.u + device.u_height - 1} does not fit {size}U.")
+            continue
+        if span & taken:
+            problems.append(f"{device.hostname}: U{device.u}-U{device.u + device.u_height - 1} overlaps another device.")
+            continue
+        taken |= span
+        units.append({"hostname": device.hostname, "model": device.model, "u": device.u, "height": device.u_height})
+    return {"site": site, "rack": rack, "size": size, "units": units, "problems": problems, "phase": phase}
 
 
 def save_export(root: Path, data: bytes) -> str:

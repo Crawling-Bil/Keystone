@@ -5,8 +5,15 @@
     root.dataset.ready = "1";
     const esc = value => window.NES.escape(value);
     const $ = role => root.querySelector(`[data-role="${role}"]`);
-    const COLS = ["site", "hostname", "model", "role", "mgmt_ip", "serial", "config", "rack", "rack_size", "u", "u_height"];
-    const PLACE = ["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "", "ho-core-sw01.txt", "Ruang Server Rack 1", "42", "30", "1"];
+    const COLS = ["site", "hostname", "model", "role", "mgmt_ip", "serial", "config", "rack", "rack_size", "u", "u_height", "status"];
+    const STATUS = ["New", "Existing", "Keep"];
+    const statusOf = v => {
+      const t = String(v ?? "").trim().toLowerCase();
+      if (/^(existing|eksisting|old|lama|remove[d]?|dismantle|decommission|replaced)$/.test(t)) return "Existing";
+      if (/^(keep|tetap|retain|stay|unchanged)$/.test(t)) return "Keep";
+      return "New";
+    };
+    const PLACE = ["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "", "ho-core-sw01.txt", "Ruang Server Rack 1", "42", "30", "1", ""];
     const NARROW = new Set(["rack_size", "u", "u_height"]);
     let configFiles = [];
 
@@ -14,8 +21,10 @@
     function addRow(values = {}) {
       const tr = document.createElement("tr");
       const fresh = !Object.values(values).some(v => String(v ?? "").trim());
-      tr.innerHTML = COLS.map((c, i) =>
-        `<td><input class="li-cell${NARROW.has(c) ? " li-narrow" : ""}" data-col="${c}" value="${esc(values[c] ?? "")}" placeholder="${fresh ? esc(PLACE[i]) : ""}" aria-label="${c}"${NARROW.has(c) ? ' inputmode="numeric"' : ""}></td>`
+      tr.innerHTML = COLS.map((c, i) => c === "status"
+        ? `<td><select class="li-cell li-status" data-col="status" aria-label="status">${STATUS.map(s =>
+            `<option${statusOf(values.status) === s ? " selected" : ""}>${s}</option>`).join("")}</select></td>`
+        : `<td><input class="li-cell${NARROW.has(c) ? " li-narrow" : ""}" data-col="${c}" value="${esc(values[c] ?? "")}" placeholder="${fresh ? esc(PLACE[i]) : ""}" aria-label="${c}"${NARROW.has(c) ? ' inputmode="numeric"' : ""}></td>`
       ).join("") + `<td><button type="button" class="an-icon-btn" data-role="remove" aria-label="Remove device">×</button></td>`;
       tr.querySelector('[data-role="remove"]').addEventListener("click", () => { tr.remove(); if (!rowsBody().children.length) addRow(); });
       // Paste a block copied from Excel into the first cell: one device per line.
@@ -35,7 +44,10 @@
       return tr;
     }
     function fillRow(tr, record) {
-      COLS.forEach(c => { const input = tr.querySelector(`[data-col="${c}"]`); if (input) input.value = record[c] || ""; });
+      COLS.forEach(c => {
+        const input = tr.querySelector(`[data-col="${c}"]`);
+        if (input) input.value = c === "status" ? statusOf(record[c]) : (record[c] || "");
+      });
     }
     function rowsBody() { return $("rows"); }
     function readRows() {
@@ -92,7 +104,8 @@
     // ------------------------------------------------------------ build
     $("form").addEventListener("submit", async event => {
       event.preventDefault();
-      const project = Object.fromEntries([...root.querySelectorAll("[data-field]")].map(i => [i.dataset.field, i.value.trim()]));
+      const project = Object.fromEntries([...root.querySelectorAll("[data-field]")].map(i =>
+        [i.dataset.field, i.type === "checkbox" ? (i.checked ? "true" : "") : i.value.trim()]));
       const technologies = [...root.querySelectorAll("[data-tech]:checked")].map(i => i.dataset.tech);
       const inventory = readRows();
       if (!technologies.length) { window.NES.toast("Pick at least one technology.", "error"); return; }
@@ -136,7 +149,7 @@
             u -= 1;
           }
         }
-        return `<figure class="li-rack"><figcaption><strong>${esc(rack.rack)}</strong><small>${esc(rack.site)} · ${rack.size}U · ${rack.units.length} device(s)</small></figcaption>
+        return `<figure class="li-rack"><figcaption><strong>${rack.phase ? `<span class="li-phase">${esc(rack.phase)}</span> ` : ""}${esc(rack.rack)}</strong><small>${esc(rack.site)} · ${rack.size}U · ${rack.units.length} device(s)</small></figcaption>
           <div class="li-rack-body">${cells.join("")}</div>
           ${rack.problems.length ? `<ul class="li-rack-warn">${rack.problems.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}</figure>`;
       }).join("");

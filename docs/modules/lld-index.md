@@ -8,7 +8,7 @@ Page: `/lld-index`. Code: `features/lld_index/`. Templates: `features/lld_index/
 
 1. **Project**: customer, project name, code, company, goals, scope, out of scope, related documents. The Introduction chapter is written from these (`narrative.py`), in the wording of the existing Multipolar LLDs.
 2. **Technologies**: switch, wireless, firewall, router, load balancer. Pick one or more.
-3. **Device inventory**: Site, Hostname, Model, Role, Mgmt IP, SN, Config, Rack, Rack Size, U, U Height. Import a CSV/XLSX (template on the page) or type/paste rows. Config names an uploaded file; blank means "match by hostname", or no config at all for a design written before implementation.
+3. **Device inventory**: Site, Hostname, Model, Role, Mgmt IP, SN, Config, Rack, Rack Size, U, U Height, Status. Import a CSV/XLSX (template on the page) or type/paste rows. Config names an uploaded file; blank means "match by hostname", or no config at all for a design written before implementation.
 4. **Config files** (optional): running configs or terminal captures, or one ZIP.
 
 A device's technology comes from its config (the same domain detection Convert uses), then keywords in Role (switch/core/access, WLC/AP, firewall/FW, router/WAN, LB/F5), then the model name.
@@ -16,6 +16,12 @@ A device's technology comes from its config (the same domain detection Convert u
 ## Rack layout
 
 Rack (name), Rack Size (24/27/32/36/42/45/47/48U, blank = 42), U (lowest unit the device sits in) and U Height (blank = 1) draw one table per rack under **Rack Layout**, per site: `U | <rack> (<size>U) | U`, top unit first, a device taller than 1U as one merged cell. Device cells are light blue, the U columns light grey, text centred. A device that overlaps another one or does not fit the rack is left out of the table and noted on the page; a site where no device has a rack position keeps an image slot instead. The page shows each rack as a drawing before download.
+
+### Replacement project
+
+Tick **Replacement project** and set **Status** per device: `New` (installed by the project, the default when blank), `Existing` (old device that is removed) or `Keep` (stays in place: patch panel, server, a switch that is not replaced). Every rack then gets two tables under its site: **Rack Layout Before - <rack>** (Existing + Keep) and **Rack Layout After - <rack>** (New + Keep). Existing and New devices may share units; overlaps are only checked within the same phase.
+
+Existing devices appear nowhere else in the index (no VLAN, connectivity or configuration chapters, not in the Device Inventory or BoQ). Keep devices without a selected technology (a patch panel) only appear in the racks. The BoQ counts New devices only. Without the option the rack shows the finished state (New + Keep).
 
 ## How the index is built
 
@@ -31,6 +37,8 @@ Template node keys:
 | `flatten` | with `repeat`: no heading for the item, its children repeat in place (Before/After per site) |
 | `inline_single` | with `repeat: device`: one device in scope means no hostname level |
 | `devices` | narrow the scope: `tech`, `role` (regex), `exclude_role` (regex), `rack` (true = devices with a rack position; false = only when none has one) |
+| `replacement` | `true`: only in a replacement project; `false`: only outside one |
+| `phase` | `before` (Existing + Keep) or `after` (New + Keep) for a rack table; without it a node never sees Existing devices |
 | `optional` | drop when there is no data; without it an empty table becomes one `TBD` row |
 | `table.builder` | `device` (config tables), `inventory`, `rack`, `boq`, `allocation`, `models_spec`, `mgmt_ip`, `software`, `config`, `uat`, `static` |
 | `table.tables` | candidate dataset tables, first one with rows wins (PAN-OS `security_rules`, FortiGate `policies`) |
