@@ -155,6 +155,66 @@
       }).join("");
     }
 
+    // ------------------------------------------------------------ send to Document Generator
+    let lastResult = null;
+    const DG_KEY = "keystone.lld.docgenUrl";
+    try { const saved = localStorage.getItem(DG_KEY); if (saved) $("dg-url").value = saved; } catch (e) { /* storage blocked */ }
+    function dgStatus(text, tone) { const el = $("dg-status"); el.textContent = text; el.dataset.tone = tone || ""; }
+    function syncDgFields() {
+      const isNew = $("dg-project").value === "new";
+      $("dg-template-field").classList.toggle("hidden", !isNew);
+      $("dg-mode-field").classList.toggle("hidden", isNew);
+    }
+    async function dgConnect() {
+      const url = $("dg-url").value.trim();
+      dgStatus("Connecting…");
+      try {
+        const response = await fetch(`/lld-index/api/docgen?url=${encodeURIComponent(url)}`);
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+        try { localStorage.setItem(DG_KEY, url); } catch (e) { /* storage blocked */ }
+        const name = (lastResult && lastResult.project.project_name || "").toLowerCase();
+        const match = data.projects.find(p => p.name.toLowerCase() === name);
+        $("dg-project").innerHTML = `<option value="new">New project: ${esc(lastResult ? lastResult.project.project_name || "LLD" : "LLD")}</option>` +
+          data.projects.map(p => `<option value="${p.id}"${match && match.id === p.id ? " selected" : ""}>${esc(p.name)}${p.client ? " · " + esc(p.client) : ""}</option>`).join("");
+        $("dg-template").innerHTML = data.templates.map(t => `<option value="${t.id}"${/master/i.test(t.name) ? " selected" : ""}>${esc(t.name)}</option>`).join("")
+          || `<option value="">No template: upload the master template in the Document Generator first</option>`;
+        $("dg-pick").classList.remove("hidden");
+        syncDgFields();
+        dgStatus(`Connected · ${data.projects.length} project(s)`, "ok");
+        return true;
+      } catch (err) { dgStatus(err.message, "error"); return false; }
+    }
+    $("dg-connect").addEventListener("click", dgConnect);
+    $("dg-project").addEventListener("change", syncDgFields);
+    $("dg-send").addEventListener("click", async () => {
+      if (!lastResult) return;
+      const isNew = $("dg-project").value === "new";
+      const body = { url: $("dg-url").value.trim(), export_id: lastResult.export_id, filename: lastResult.download_name,
+        project_id: isNew ? null : Number($("dg-project").value), template_id: isNew ? Number($("dg-template").value) || null : null,
+        name: lastResult.project.project_name || "", client: lastResult.project.customer || "", mode: $("dg-mode").value };
+      $("dg-send").disabled = true;
+      dgStatus("Sending…");
+      try {
+        const response = await fetch("/lld-index/api/docgen/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await response.json();
+        if (!data.ok) throw new Error(data.error);
+        const imp = data.import || {};
+        const what = data.mode === "update"
+          ? `${imp.updated || 0} chapters updated, ${imp.chapters || 0} new, ${imp.kept_blocks || 0} images/manual edits kept`
+          : `${imp.chapters || 0} chapters`;
+        const message = `Sent to ${data.created ? "a new" : "the"} project (#${data.project_id}): ${what}. Open the Document Generator to generate the Word file.`;
+        if (data.created) {
+          await dgConnect();                       // the new project shows up (and is picked) for the next send
+          $("dg-project").value = String(data.project_id);
+          syncDgFields();
+        }
+        dgStatus(message, "ok");
+        window.NES.toast("Index sent to the Document Generator.", "success");
+      } catch (err) { dgStatus(err.message, "error"); }
+      finally { $("dg-send").disabled = false; }
+    });
+
     function card(label, value, hint, tone) {
       return `<article class="an-card"${tone ? ` style="--tone: var(--${tone})"` : ""}><span class="an-card-label">${esc(label)}</span>
         <strong class="an-card-value">${esc(value)}</strong><small class="an-hint">${esc(hint || "")}</small></article>`;
@@ -189,6 +249,7 @@
           <span class="li-no">${esc(n.no)}</span><span class="li-title">${esc(n.title)}</span>${chips(n)}
           ${(n.more || []).map(m => `<span class="li-plus">+</span>${chips(m)}`).join("")}</li>`).join("");
       renderRacks(result.racks || []);
+      lastResult = result;
       $("result").scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }

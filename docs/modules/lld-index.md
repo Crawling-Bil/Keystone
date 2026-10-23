@@ -56,6 +56,15 @@ Rules that come from the existing LLDs:
 * Firewall: one chapter per site with the configuration tables the firewall has; sections with no data are left out (a site with DHCP gets DHCP, one without does not).
 * A device belongs to its own technology's chapters. Wireless also takes switches, but only when Switch is not selected, so nothing is written twice. When two technologies produce the same chapter title, the title gets the technology name (`Site DC - Firewall`).
 
+## Send to Document Generator
+
+After a build, **Send to Document Generator** connects to the Document Generator running on this computer (address remembered per browser, default `http://127.0.0.1:8003`), lists its projects and master templates, and imports the index without a download:
+
+* **New project**: created with the project name and customer, on the chosen master template, then imported (replace).
+* **Existing project** (the one with the same name is preselected): imported with **Update** (tables and paragraphs refreshed, uploaded images, manual text and extra chapters kept) or **Replace**.
+
+Keystone calls the Document Generator API from the server (`docgen_client.py`): `GET /api/projects`, `GET /api/templates`, `POST /api/projects`, `POST /api/projects/{id}/import-excel`. Only loopback addresses are accepted, so the index (customer configuration) never leaves the computer through a mistyped address.
+
 ## Output format
 
 The workbook follows `lld_generator/backend/importer.py`:

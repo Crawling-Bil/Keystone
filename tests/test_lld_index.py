@@ -400,3 +400,65 @@ def test_project_sheet_carries_the_cover_data_for_the_document_generator():
     rows = {r[0]: r[1] for r in wb["Project"].iter_rows(min_row=2, values_only=True)}
     assert rows == {"Project Name": "Network Refresh", "Customer": "PT Contoh", "Project Code": "7SINL26010001",
                     "Company": "Multipolar Technology", "Prepared by": "Aldi"}
+
+
+def test_docgen_client_accepts_only_this_computer():
+    from features.lld_index import docgen_client
+    assert docgen_client.base_url(None) == "http://127.0.0.1:8003"
+    assert docgen_client.base_url("localhost:9000/") == "http://localhost:9000"
+    for bad in ("http://10.0.0.5:8003", "http://example.com", "ftp://127.0.0.1"):
+        with pytest.raises(docgen_client.DocGenError):
+            docgen_client.base_url(bad)
+
+
+def test_send_to_docgen_creates_a_project_and_imports(client):
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    seen = []
+
+    class Fake(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def _reply(self, payload):
+            body = json.dumps(payload).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            seen.append(("GET", self.path))
+            self._reply([{"id": 3, "name": "Old", "client": "X"}] if self.path == "/api/projects"
+                        else [{"id": 1, "name": "LLD Master Template"}])
+
+        def do_POST(self):
+            data = self.rfile.read(int(self.headers["Content-Length"]))
+            seen.append(("POST", self.path, data))
+            if self.path == "/api/projects":
+                self._reply({"id": 9, **json.loads(data)})
+            else:
+                self._reply({"ok": True, "chapters": 12, "blocks": 10})
+
+    server = HTTPServer(("127.0.0.1", 0), Fake)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_port}"
+    try:
+        overview = client.get(f"/lld-index/api/docgen?url={url}").get_json()
+        assert overview["ok"] and overview["projects"][0]["name"] == "Old" and overview["templates"][0]["id"] == 1
+        payload = {"project": PROJECT, "technologies": ["switch"], "inventory": INVENTORY}
+        built = client.post("/lld-index/api/build", data={"payload": json.dumps(payload)}).get_json()["result"]
+        sent = client.post("/lld-index/api/docgen/send", json={
+            "url": url, "export_id": built["export_id"], "filename": built["download_name"],
+            "template_id": 1, "name": "Network Refresh", "client": "PT Contoh"}).get_json()
+        assert sent["ok"] and sent["created"] and sent["project_id"] == 9 and sent["mode"] == "replace"
+        create = next(s for s in seen if s[:2] == ("POST", "/api/projects"))
+        assert json.loads(create[2]) == {"name": "Network Refresh", "client": "PT Contoh", "template_id": 1}
+        upload = next(s for s in seen if s[1] == "/api/projects/9/import-excel")[2]
+        assert b'name="mode"\r\n\r\nreplace' in upload and b"PK\x03\x04" in upload        # the xlsx itself
+        bad = client.post("/lld-index/api/docgen/send", json={"url": "http://10.1.1.1", "export_id": built["export_id"],
+                                                             "project_id": 3}).get_json()
+        assert not bad["ok"] and "this computer" in bad["error"]
+    finally:
+        server.shutdown()

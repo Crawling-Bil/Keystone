@@ -85,3 +85,12 @@
 .li-page select.li-status { min-width: 6.5rem; }
 .li-page .li-phase { display: inline-block; padding: 0 .4rem; margin-right: .2rem; border-radius: 4px;
   background: #DDEBF7; color: #1f4e79; font-size: .75em; font-weight: 600; vertical-align: middle; }
+
+/* Send to Document Generator */
+.li-page .li-send { margin: 14px 0 6px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); display: flex; flex-direction: column; gap: 10px; }
+.li-page .li-send-head { display: flex; flex-direction: column; gap: 2px; }
+.li-page .li-send-head small { color: var(--muted); }
+.li-page .li-send-row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.li-page .li-send-row .an-field { flex: 1 1 220px; min-width: 0; }
+.li-page .li-send [data-tone="error"] { color: var(--red, #d9534f); }
+.li-page .li-send [data-tone="ok"] { color: var(--accent, #0f8a7e); }

@@ -74,7 +74,22 @@
         <a class="an-btn primary" data-role="download" href="#">Download Index (.xlsx)</a>
       </header>
       <div class="an-cards" data-role="cards"></div>
-      <p class="an-hint">Import the file in the Document Generator with <strong>Import Excel Index</strong>. Yellow rows in the Index sheet still need manual content: images (topology, rack, map layout) and anything marked TBD.</p>
+      <div class="li-send" data-role="send">
+        <div class="li-send-head"><strong>Send to Document Generator</strong><small>Straight into a project, no download and upload. The Document Generator must be running on this computer.</small></div>
+        <div class="li-send-row">
+          <label class="an-field"><span class="an-label">Address</span><input class="li-input" data-role="dg-url" value="http://127.0.0.1:8003"></label>
+          <button type="button" class="an-btn small" data-role="dg-connect">Connect</button>
+        </div>
+        <div class="li-send-row hidden" data-role="dg-pick">
+          <label class="an-field"><span class="an-label">Project</span><select class="li-input" data-role="dg-project"></select></label>
+          <label class="an-field" data-role="dg-template-field"><span class="an-label">Master template</span><select class="li-input" data-role="dg-template"></select></label>
+          <label class="an-field" data-role="dg-mode-field"><span class="an-label">Import</span><select class="li-input" data-role="dg-mode">
+            <option value="update">Update (keep images and manual edits)</option><option value="replace">Replace everything</option></select></label>
+          <button type="button" class="an-btn primary small" data-role="dg-send">Send</button>
+        </div>
+        <span class="an-status" data-role="dg-status"></span>
+      </div>
+      <p class="an-hint">Or download it and use <strong>Import Excel Index</strong> in the Document Generator. Yellow rows in the Index sheet still need manual content: images (topology, rack, map layout) and anything marked TBD.</p>
     </div>
     <div class="panel li-card">
       <h3>Devices</h3>

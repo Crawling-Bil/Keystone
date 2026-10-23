@@ -6,6 +6,7 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ### LLD Index: Document Generator index from the inventory, configs and project goals
 
+- Send to Document Generator: after a build, connect to the Document Generator on this computer (default http://127.0.0.1:8003) and import the index straight into a new or existing project; Update mode keeps uploaded images and manual edits. Loopback addresses only.
 - Index workbook gets a "Project" sheet (Project Name, Customer, Project Code, Company, Prepared by) that the Document Generator imports into its project record for the master template placeholders; new "Prepared by" field.
 - Replacement project: the firewall Existing Device List is filled from Existing devices (Status "Replaced by <new device>" or "Removed"); Scope of Work installs New devices only and adds dismantling; Project Description names the devices removed; Implementation Step gets a Dismantle row.
 - Sidebar scrolls when the menu is taller than the screen (Document > LLD Index was out of reach on a laptop).
