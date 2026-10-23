@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS lld_gen_projects (
     lld_index_key TEXT DEFAULT '',
     legacy_id INTEGER,
     history TEXT DEFAULT '[]',
+    approvers TEXT DEFAULT '[]',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -69,6 +70,17 @@ CREATE TABLE IF NOT EXISTS lld_gen_blocks (
     order_index INTEGER NOT NULL,
     block_type TEXT NOT NULL,
     content TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS lld_gen_approver_book (
+    customer_key TEXT PRIMARY KEY,
+    approvers TEXT NOT NULL DEFAULT '[]',
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS lld_gen_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS lld_gen_chapters_project ON lld_gen_chapters(project_id, parent_id, order_index);
@@ -92,7 +104,8 @@ def get_conn():
     conn.execute("PRAGMA foreign_keys = ON")
     if path not in _ready:
         conn.executescript(SCHEMA)
-        for stmt in ("ALTER TABLE lld_gen_projects ADD COLUMN history TEXT DEFAULT '[]'",):
+        for stmt in ("ALTER TABLE lld_gen_projects ADD COLUMN history TEXT DEFAULT '[]'",
+                     "ALTER TABLE lld_gen_projects ADD COLUMN approvers TEXT DEFAULT '[]'"):
             try:
                 conn.execute(stmt)                       # databases made before the column existed
             except sqlite3.OperationalError:
@@ -544,3 +557,40 @@ def find_project_by_index_key(key):
         row = conn.execute("SELECT * FROM lld_gen_projects WHERE lld_index_key = ? ORDER BY updated_at DESC LIMIT 1",
                            (key,)).fetchone()
     return row_to_dict(row)
+
+
+# ---------------- approvers ----------------
+
+def customer_key(client):
+    return " ".join(str(client or "").split()).lower()
+
+
+def get_approver_book(client):
+    key = customer_key(client)
+    if not key:
+        return []
+    with db_conn() as conn:
+        row = conn.execute("SELECT approvers FROM lld_gen_approver_book WHERE customer_key = ?", (key,)).fetchone()
+    return json.loads(row["approvers"]) if row else []
+
+
+def set_approver_book(client, approvers):
+    key = customer_key(client)
+    if not key:
+        return
+    with db_conn() as conn:
+        conn.execute("INSERT INTO lld_gen_approver_book (customer_key, approvers, updated_at) VALUES (?, ?, ?) "
+                     "ON CONFLICT(customer_key) DO UPDATE SET approvers = excluded.approvers, updated_at = excluded.updated_at",
+                     (key, json.dumps(approvers), now()))
+
+
+def get_setting(key, default=None):
+    with db_conn() as conn:
+        row = conn.execute("SELECT value FROM lld_gen_settings WHERE key = ?", (key,)).fetchone()
+    return json.loads(row["value"]) if row else default
+
+
+def set_setting(key, value):
+    with db_conn() as conn:
+        conn.execute("INSERT INTO lld_gen_settings (key, value) VALUES (?, ?) "
+                     "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, json.dumps(value)))

@@ -878,11 +878,44 @@
     }
 
     // ---------- project settings + generate ----------
-    function openProjectSettingsDialog() {
+    function approverRow(side, a = {}) {
+      const ph = side === "customer" ? "Company (blank = Client)" : "PT. Multipolar Technology Tbk.";
+      return `<div class="lg-appr-row" data-side="${side}">
+        <input data-k="name" value="${escapeHtml(a.name || "")}" placeholder="Name" aria-label="Name" />
+        <input data-k="title" value="${escapeHtml(a.title || "")}" placeholder="Title / position" aria-label="Title" />
+        <input data-k="company" value="${escapeHtml(a.company || "")}" placeholder="${ph}" aria-label="Company" />
+        <button type="button" class="btn-icon btn-danger js-appr-rm" title="Remove"><span class="lg-ic" aria-hidden="true">×</span></button></div>`;
+    }
+
+    function wireApprovers() {
+      const host = document.querySelector(".lg-dialog-host");
+      const bind = (scope) => scope.querySelectorAll(".js-appr-rm").forEach((b) => { b.onclick = () => b.closest(".lg-appr-row").remove(); });
+      bind(host);
+      host.querySelectorAll(".js-appr-add").forEach((btn) => btn.addEventListener("click", () => {
+        const list = host.querySelector(`.lg-appr-list[data-side="${btn.dataset.side}"]`);
+        list.insertAdjacentHTML("beforeend", approverRow(btn.dataset.side));
+        bind(list);
+        list.lastElementChild.querySelector("input").focus();
+      }));
+    }
+
+    function readApprovers() {
+      const host = document.querySelector(".lg-dialog-host");
+      return [...host.querySelectorAll(".lg-appr-row")].map((row) => ({
+        side: row.dataset.side,
+        ...Object.fromEntries([...row.querySelectorAll("input[data-k]")].map((i) => [i.dataset.k, i.value.trim()])),
+      }));
+    }
+
+    async function openProjectSettingsDialog() {
       const p = state.currentProject;
+      let appr = { approvers: [], from: "project" };
+      try { appr = await apiGet(`/projects/${p.id}/approvers`); } catch (e) { /* section starts empty */ }
+      const people = (side) => appr.approvers.filter((a) => a.side === side).map((a) => approverRow(side, a)).join("");
       openDialog({
         title: "Project settings",
         submitLabel: "Save",
+        wide: true,
         bodyHtml: `
           <div class="field"><label>Project name</label><input name="name" required value="${escapeHtml(p.name)}" /></div>
           <div class="field-row">
@@ -906,6 +939,15 @@
             <select name="template_id">
               ${state.templates.map((t) => `<option value="${t.id}" ${t.id === p.template_id ? "selected" : ""}>${escapeHtml(t.name)}</option>`).join("")}
             </select>
+          </div>
+          <div class="lg-appr">
+            <h3>Approvers <small class="hint">Document Approval page${appr.from === "remembered" ? " · filled from earlier projects, check and save" : ""}</small></h3>
+            <div class="lg-appr-head"><span>Customer</span><button type="button" class="btn btn-text js-appr-add" data-side="customer">+ Add</button></div>
+            <div class="lg-appr-list" data-side="customer">${people("customer")}</div>
+            <div class="lg-appr-head"><span>Multipolar</span><button type="button" class="btn btn-text js-appr-add" data-side="multipolar">+ Add</button></div>
+            <div class="lg-appr-list" data-side="multipolar">${people("multipolar")}</div>
+            <label class="lg-appr-default"><input type="checkbox" name="multipolar_default" /> Use these Multipolar approvers for new projects</label>
+            <p class="hint">Customer approvers are remembered per customer, so the next project for the same customer starts with them. Date and signature stay empty for signing.</p>
           </div>`,
         onSubmit: async (form) => {
           const fd = new FormData(form);
@@ -924,10 +966,12 @@
             change_note: fd.get("change_note") || "",
             company: fd.get("company") || "Multipolar Technology", doc_date: fd.get("doc_date") || "",
           });
+          await apiPut(`/projects/${p.id}/approvers`, { approvers: readApprovers(), multipolar_default: fd.get("multipolar_default") === "on" });
           toast("Settings saved.");
           await renderProjectWorkspace($('[data-ld=\"main\"]'));
         },
       });
+      wireApprovers();
     }
 
     async function handleGenerate() {

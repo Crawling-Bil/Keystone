@@ -134,6 +134,21 @@ def edit_project(project_id: int):
     return jsonify(store.update_project(project_id, **fields))
 
 
+@bp.get("/api/projects/<int:project_id>/approvers")
+def get_approvers(project_id: int):
+    project = _need(store.get_project(project_id), "Project")
+    own = json.loads(project.get("approvers") or "[]")
+    return jsonify({"approvers": service.approvers(project), "from": "project" if own else "remembered"})
+
+
+@bp.put("/api/projects/<int:project_id>/approvers")
+def put_approvers(project_id: int):
+    project = _need(store.get_project(project_id), "Project")
+    body = _body()
+    people = service.save_approvers(project, body.get("approvers") or [], bool(body.get("multipolar_default")))
+    return jsonify({"approvers": people})
+
+
 @bp.delete("/api/projects/<int:project_id>")
 def remove_project(project_id: int):
     _need(store.get_project(project_id), "Project")

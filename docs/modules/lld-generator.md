@@ -31,6 +31,10 @@ The Word engine was moved unchanged (first commit on the branch is the plain cop
 * **Pictures**: drop, paste or choose in a picture block. SVG files are drawn to PNG in the browser (Word takes no SVG). The **Pictures** button takes several files and puts each into the empty picture whose chapter title or caption shares the most words with the file name.
 * **Release History**: changing the version in Project settings adds a row (version, date, writer, Revised, change note); Generate writes all rows into the master template's Release History table.
 
+## Approvers (Document Approval)
+
+Project settings has an **Approvers** list: name, title and company per person, Customer or Multipolar. Generate rebuilds the two Document Approval tables from it, one row per person (company blank = the project's Client, so a client rename follows). Customer approvers are remembered per customer (table `lld_gen_approver_book`): the next project for that customer starts with them. Multipolar approvers come from a default list (Section Head, Network Engineer = Prepared by, Project Manager) that "Use these Multipolar approvers for new projects" replaces. Date and signature stay empty.
+
 ## Update mode (re-import)
 
 Chapters are matched by their title path. Tables and paragraphs take the new data; uploaded pictures stay; text typed by hand stays when the index only has `TBD`; chapters that are not in the new index (an appendix written by hand) stay after the ones from the index. A failure halfway changes nothing.

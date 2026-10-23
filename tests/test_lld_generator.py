@@ -283,3 +283,30 @@ def test_version_changes_fill_the_release_history(client, project):
     rev = next(t for t in d.tables if t.rows[0].cells[0].text.strip().lower().startswith("rev"))
     assert [r.cells[0].text for r in rev.rows[1:]] == ["0.1", "1.0", "1.1"]
     assert rev.rows[2].cells[4].text == "After site survey" and rev.rows[2].cells[2].text == "Mohammad Nur Alkadri"
+
+
+def test_approvers_fill_document_approval_and_are_remembered(client, project):
+    pid = project["id"]
+    _import(client, pid, "replace")
+    first = client.get(f"/lld-generator/api/projects/{pid}/approvers").get_json()
+    assert first["from"] == "remembered" and [a["title"] for a in first["approvers"]] == ["Section Head", "Network Engineer", "Project Manager"]
+    assert first["approvers"][1]["name"] == "Mohammad Nur Alkadri"                    # Prepared by
+    people = [{"side": "customer", "name": "Budi Santoso", "title": "IT Manager"},
+              {"side": "customer", "name": "Sari Dewi", "title": "Network Lead", "company": "PT Sinar Logistik (HO)"},
+              {"side": "multipolar", "name": "Fiqih", "title": "Section Head"},
+              {"side": "multipolar", "name": "Mohammad Nur Alkadri", "title": "Network Engineer"},
+              {"side": "multipolar", "name": "", "title": ""}]                       # empty rows are dropped
+    client.put(f"/lld-generator/api/projects/{pid}/approvers", json={"approvers": people, "multipolar_default": True})
+    res = client.post(f"/lld-generator/api/projects/{pid}/generate").get_json()
+    d = docx.Document(io.BytesIO(client.get(res["download_url"]).data))
+    cust, mp = [t for t in d.tables if t.rows[0].cells[0].text.strip().lower().startswith("name and title")]
+    assert [(r.cells[0].text, r.cells[1].text) for r in cust.rows[1:]] == [
+        ("Budi Santoso\nIT Manager", "PT Sinar Logistik"), ("Sari Dewi\nNetwork Lead", "PT Sinar Logistik (HO)")]
+    assert [r.cells[0].text for r in mp.rows[1:]] == ["Fiqih\nSection Head", "Mohammad Nur Alkadri\nNetwork Engineer"]
+    # a new project for the same customer starts with the same people; Multipolar defaults apply everywhere
+    templates = client.get("/lld-generator/api/templates").get_json()
+    other = client.post("/lld-generator/api/projects", json={"name": "Phase 2", "client": "pt  sinar logistik",
+                                                          "prepared_by": "Rina", "template_id": templates[0]["id"]}).get_json()
+    again = client.get(f"/lld-generator/api/projects/{other['id']}/approvers").get_json()["approvers"]
+    assert [a["name"] for a in again if a["side"] == "customer"] == ["Budi Santoso", "Sari Dewi"]
+    assert [a["name"] for a in again if a["side"] == "multipolar"] == ["Fiqih", "Rina"]

@@ -263,3 +263,12 @@
 .lg-page .chip-warn { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--text); }
 .lg-page .chip-bad { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--text); }
 @media (max-width: 860px) { .lg-page .workspace { height: auto; } .lg-page .lg-stats { grid-template-columns: 1fr; } }
+/* approvers editor in Project settings */
+.lg-page .lg-appr { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.lg-page .lg-appr h3 { margin: 0 0 8px; font-size: 15px; }
+.lg-page .lg-appr h3 small { font-weight: 500; }
+.lg-page .lg-appr-head { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.lg-page .lg-appr-row { display: grid; grid-template-columns: 1.1fr 1.2fr 1.1fr 32px; gap: 6px; margin-top: 6px; align-items: center; }
+.lg-page .lg-appr-row input { min-width: 0; padding: 8px 10px; border: 1px solid var(--md-outline); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
+.lg-page .lg-appr-default { display: flex; gap: 8px; align-items: center; margin: 12px 0 4px; font-size: 13px; }
+@media (max-width: 640px) { .lg-page .lg-appr-row { grid-template-columns: 1fr 1fr; } }

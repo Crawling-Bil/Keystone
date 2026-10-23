@@ -6,6 +6,8 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ### LLD Index and LLD Generator: daily-use fixes
 
+- Approvers in Project settings fill the Document Approval tables (one row per person); customer approvers are remembered per customer, Multipolar approvers have a default list.
+
 - LLD Index saves every build (form, devices, config files) and offers it under "Continue a project": a rebuild needs no re-typing or re-upload.
 - After a build the form folds into a bar and the result is split into Summary, Chapters, Rack layout and Devices tabs; unused config files get a clear warning; Status sits next to Role in the device table (template too) and the hostname stays in view when the table scrolls.
 - LLD Generator Review lists what is left (pictures to upload, tables or text still TBD) and opens the chapter on click; the chapter list marks those with an amber dot.

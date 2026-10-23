@@ -17,6 +17,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import docx
+from docx.oxml.ns import qn
 
 from core.docgen import docgen, importer, placeholders
 from . import store
@@ -246,6 +247,92 @@ def place_pictures(project_id: int, files: list[tuple[str, bytes]]) -> dict:
     return {"placed": placed, "unmatched": unmatched, "empty_left": len(slots)}
 
 
+# ----------------------------------------------------------------- approvers (Document Approval)
+MULTIPOLAR = "PT. Multipolar Technology Tbk."
+DEFAULT_MULTIPOLAR = [{"name": "", "title": "Section Head"}, {"name": "{prepared_by}", "title": "Network Engineer"},
+                      {"name": "", "title": "Project Manager"}]
+
+
+def _clean_people(rows) -> list:
+    out = []
+    for r in rows or []:
+        side = "multipolar" if str(r.get("side") or "").lower().startswith("m") else "customer"
+        person = {k: " ".join(str(r.get(k) or "").split())[:120] for k in ("name", "title", "company")}
+        if person["name"] or person["title"]:
+            out.append({**person, "side": side})
+    return out
+
+
+def approvers(project: dict) -> list:
+    """The people in Document Approval for this project: its own list, else
+    the customer's list from earlier projects plus the Multipolar defaults."""
+    own = json.loads(project.get("approvers") or "[]")
+    if own:
+        return own
+    customer = [{**r, "side": "customer"} for r in store.get_approver_book(project.get("client"))]
+    multipolar = store.get_setting("multipolar_approvers") or DEFAULT_MULTIPOLAR
+    filled = [{"name": (r.get("name") or "").replace("{prepared_by}", project.get("prepared_by") or ""),
+               "title": r.get("title") or "", "company": r.get("company") or MULTIPOLAR, "side": "multipolar"}
+              for r in multipolar]
+    return customer + filled
+
+
+def save_approvers(project: dict, rows, multipolar_default: bool = False) -> list:
+    people = _clean_people(rows)
+    store.update_project(project["id"], approvers=json.dumps(people))
+    customer = [{k: p[k] for k in ("name", "title", "company")} for p in people if p["side"] == "customer"]
+    if customer:
+        store.set_approver_book(project.get("client"), customer)       # next project for this customer starts here
+    if multipolar_default:
+        prepared = project.get("prepared_by") or ""
+        store.set_setting("multipolar_approvers", [
+            {"name": "{prepared_by}" if prepared and p["name"] == prepared else p["name"], "title": p["title"],
+             "company": p["company"]} for p in people if p["side"] == "multipolar"])
+    return people
+
+
+def _set_cell(cell, lines) -> None:
+    paragraph = cell.paragraphs[0]
+    for extra in cell.paragraphs[1:]:
+        extra._p.getparent().remove(extra._p)
+    runs = paragraph.runs
+    first = runs[0] if runs else paragraph.add_run()
+    for run in runs[1:]:
+        run._r.getparent().remove(run._r)
+    for br in first._r.findall(qn("w:br")):
+        first._r.remove(br)
+    first.text = lines[0] if lines else ""
+    for line in lines[1:]:
+        first.add_break()
+        first.add_text(line)
+
+
+def _fill_approvers(document, project: dict) -> None:
+    """Rebuild the two Document Approval tables (customer, then Multipolar)
+    from the approver list: one row per person, name and title in the first
+    column, company in the second, date and signature left for signing."""
+    people = approvers(project)
+    if not people:
+        return
+    tables = [t for t in document.tables if t.rows and t.rows[0].cells[0].text.strip().lower().startswith("name and title")]
+    for table, side in zip(tables, ("customer", "multipolar")):
+        rows = [p for p in people if p["side"] == side]
+        if not rows or len(table.rows) < 2:
+            continue
+        template = deepcopy(table.rows[1]._tr)
+        for row in list(table.rows)[1:]:
+            row._tr.getparent().remove(row._tr)
+        for person in rows:
+            table._tbl.append(deepcopy(template))
+            cells = table.rows[-1].cells
+            company = person.get("company") or (project.get("client") if side == "customer" else MULTIPOLAR) or ""
+            _set_cell(cells[0], [person.get("name") or "", person.get("title") or ""])
+            if len(cells) > 1:
+                _set_cell(cells[1], [company])
+            for cell in cells[2:]:
+                _set_cell(cell, [""])
+
+
 # ----------------------------------------------------------------- release history
 def record_version(project: dict, new_version: str, comment: str = "") -> list:
     """Release History rows: one per version, added when the version changes."""
@@ -329,6 +416,7 @@ def generate(project_id: int) -> dict:
         raise GenError(str(exc)) from None
     document = docx.Document(str(out_path))
     _fill_release_history(document, project)
+    _fill_approvers(document, project)
     missing = placeholders.fill(document, placeholders.project_values(project))
     logo = image_path(project_id, project["logo"]) if project.get("logo") else None
     has_slot = placeholders.fill_logo(document, str(logo) if logo else "")
