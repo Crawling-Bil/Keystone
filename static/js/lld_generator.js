@@ -6,8 +6,10 @@
     if (!page || page.dataset.ready) return;
     page.dataset.ready = "1";
     // ===================== helpers =====================
-    const $ = (sel, root = page) => root.querySelector(sel);
-    const $$ = (sel, root = page) => Array.from(root.querySelectorAll(sel));
+    const host = () => document.querySelector(".lg-dialog-host");
+    const $ = (sel, root) => root ? root.querySelector(sel) : (page.querySelector(sel) || (host() && host().querySelector(sel)));
+    const $$ = (sel, root) => root ? Array.from(root.querySelectorAll(sel))
+      : [...page.querySelectorAll(sel), ...(host() ? host().querySelectorAll(sel) : [])];
 
     async function api(path, opts = {}) {
       const res = await fetch(`/lld-generator/api${path}`, {
@@ -45,7 +47,10 @@
 
     // generic modal dialog. fieldsHtml = inner HTML, onSubmit(formEl) => Promise
     function openDialog({ title, bodyHtml, submitLabel = "Simpan", onSubmit, wide = false }) {
-      const root = $('[data-ld=\"dialog-root\"]');
+      // Dialogs live in a host on <body>: a page container (SPA outlet) can be a
+      // containing block for position:fixed, which pushed the dialog off screen.
+      let root = document.querySelector(".lg-dialog-host");
+      if (!root) { root = document.createElement("div"); root.className = "lg-page lg-dialog-host"; document.body.appendChild(root); }
       root.innerHTML = `
         <div class="dialog-scrim" data-ld="dlg-scrim">
           <div class="dialog-box" style="${wide ? "width:640px" : ""}">
@@ -58,7 +63,7 @@
           </div>
         </div>`;
       const close = () => { root.innerHTML = ""; };
-      $('[data-ld=\"dlg-scrim\"]').addEventListener("click", (e) => { if (e.target.dataset.ld === "dlg-scrim") close(); });
+      root.querySelector('[data-ld="dlg-scrim"]').addEventListener("click", (e) => { if (e.target.dataset.ld === "dlg-scrim") close(); });
       $('[data-ld=\"dlg-cancel\"]').addEventListener("click", close);
       $('[data-ld=\"dlg-form\"]').addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -83,7 +88,7 @@
           submitLabel: "Ya, lanjutkan",
           onSubmit: async () => resolve(true),
         });
-        $('[data-ld=\"dlg-scrim\"]').addEventListener("click", (e) => { if (e.target.dataset.ld === "dlg-scrim") resolve(false); });
+        $('[data-ld="dlg-scrim"]').addEventListener("click", (e) => { if (e.target.dataset.ld === "dlg-scrim") resolve(false); });
         $('[data-ld=\"dlg-cancel\"]').addEventListener("click", () => resolve(false));
       });
     }
@@ -940,7 +945,7 @@
     });
   }
 
-  function boot() { document.querySelectorAll(".lg-page").forEach(init); }
+  function boot() { document.querySelectorAll(".lg-page:not(.lg-dialog-host)").forEach(init); }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
   new MutationObserver(boot).observe(document.body, { childList: true, subtree: true });

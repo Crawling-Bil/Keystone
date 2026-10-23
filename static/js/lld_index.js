@@ -176,7 +176,7 @@
         link.click();                                  // the SPA router takes it (it keeps the path, not the query)
         link.remove();
         for (let i = 0; i < 40; i++) {                 // the LLD Generator page may still be loading
-          const lg = document.querySelector(".lg-page");
+          const lg = document.querySelector(".lg-page:not(.lg-dialog-host)");
           if (lg && lg.lgOpenProject) { lg.lgOpenProject(data.project_id); break; }
           await new Promise(r => setTimeout(r, 100));
         }
