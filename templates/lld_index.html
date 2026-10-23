@@ -7,6 +7,12 @@
 {#- No element ids: the SPA router keeps every visited page mounted; lld_index.js scopes itself to .li-page. -#}
 <section class="an-page li-page" data-api="/lld-index">
   <form class="li-form" data-role="form" novalidate>
+    <div class="li-saved hidden" data-role="saved-bar">
+      <label class="an-field"><span class="an-label">Continue a project</span>
+        <select class="li-input" data-role="saved-select"><option value="">New project</option></select></label>
+      <button type="button" class="an-btn small" data-role="saved-delete" disabled>Delete saved</button>
+      <span class="an-status" data-role="saved-status">Every build is saved here with its devices and configs.</span>
+    </div>
     <div class="panel li-card">
       <header class="li-card-head"><span class="li-step">1</span><div><h3>Project</h3><p class="an-hint">Goes on the cover and into the introduction.</p></div></header>
       <div class="li-grid li-grid-3">
@@ -81,8 +87,19 @@
     </div>
   </form>
 
+  <div class="li-built-bar hidden" data-role="built-bar">
+    <div><strong data-role="built-title"></strong><small data-role="built-sub"></small></div>
+    <button type="button" class="an-btn small" data-role="edit-inputs">Edit inputs</button>
+  </div>
+
   <section class="li-result hidden" data-role="result" aria-live="polite">
-    <div class="panel li-card">
+    <nav class="li-rtabs" aria-label="Result">
+      <button type="button" class="li-rtab active" data-rtab="summary">Summary</button>
+      <button type="button" class="li-rtab" data-rtab="chapters">Chapters</button>
+      <button type="button" class="li-rtab" data-rtab="racks" data-role="racks-tab">Rack layout</button>
+      <button type="button" class="li-rtab" data-rtab="devices">Devices</button>
+    </nav>
+    <div class="panel li-card" data-panel="summary">
       <header class="li-result-head">
         <div><h3>Index ready</h3><p class="an-hint" data-role="summary"></p></div>
         <div class="li-result-actions">
@@ -91,19 +108,20 @@
         </div>
       </header>
       <span class="an-status" data-role="lg-status"></span>
+      <div class="li-alert hidden" data-role="unused"></div>
       <div class="an-cards" data-role="cards"></div>
       <p class="an-hint">Next: in the LLD Generator, upload the topology and rack pictures and fill anything marked TBD, then Generate. Building again later updates the same project and keeps your pictures and edits.</p>
     </div>
-    <div class="panel li-card">
+    <div class="panel li-card hidden" data-panel="devices">
       <h3>Devices</h3>
-      <div class="li-table-wrap"><table class="li-table li-readonly"><thead><tr><th>Site</th><th>Hostname</th><th>Model</th><th>Technology</th><th>Config</th><th>Notes</th></tr></thead><tbody data-role="devices"></tbody></table></div>
+      <div class="li-table-wrap"><table class="li-table li-readonly"><thead><tr><th>Site</th><th>Hostname</th><th>Model</th><th>Status</th><th>Technology</th><th>Config</th><th>Notes</th></tr></thead><tbody data-role="devices"></tbody></table></div>
     </div>
-    <div class="panel li-card hidden" data-role="racks-panel">
+    <div class="panel li-card hidden" data-role="racks-panel" data-panel="racks">
       <h3>Rack layout</h3>
       <p class="an-hint">Preview of the rack tables in the document.</p>
       <div class="li-racks" data-role="racks"></div>
     </div>
-    <div class="panel li-card">
+    <div class="panel li-card hidden" data-panel="chapters">
       <h3>Chapters</h3>
       <ol class="li-tree" data-role="tree"></ol>
     </div>

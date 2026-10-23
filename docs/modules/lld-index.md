@@ -13,6 +13,10 @@ Page: `/lld-index`. Code: `features/lld_index/`. Templates: `features/lld_index/
 
 A device's technology comes from its config (the same domain detection Convert uses), then keywords in Role (switch/core/access, WLC/AP, firewall/FW, router/WAN, LB/F5), then the model name.
 
+## Saved projects
+
+Every build is saved (table `lld_idx_projects` in `data/nes.db`): the form, the technologies, the devices and the config texts, keyed by customer, project name and code. **Continue a project** loads it back; a rebuild uses the saved configs plus any new upload (same name replaces), and a saved config can be removed from the list.
+
 ## Rack layout
 
 Rack (name), Rack Size (24/27/32/36/42/45/47/48U, blank = 42), U (lowest unit the device sits in) and U Height (blank = 1) draw one table per rack under **Rack Layout**, per site: `U | <rack> (<size>U) | U`, top unit first, a device taller than 1U as one merged cell. Device cells are light blue, the U columns light grey, text centred. A device that overlaps another one or does not fit the rack is left out of the table and noted on the page; a site where no device has a rack position keeps an image slot instead. The page shows each rack as a drawing before download.

@@ -13,6 +13,7 @@ import shutil
 import sqlite3
 import time
 import uuid
+from copy import deepcopy
 from pathlib import Path
 
 import docx
@@ -49,7 +50,7 @@ def uploads_dir(project_id: int) -> Path:
 def add_template(name: str, filename: str, data: bytes, closing_heading: str = "", levels=(1, 2),
                  figure_seq_name: str = "Gambar", table_seq_name: str = "Tabel", legacy_id=None) -> dict:
     if not filename.lower().endswith(".docx"):
-        raise GenError("File template harus .docx")
+        raise GenError("The template must be a .docx file")
     stored = f"{uuid.uuid4().hex}_{os.path.basename(filename)}"
     dest = folder("templates") / stored
     dest.write_bytes(data)
@@ -57,11 +58,11 @@ def add_template(name: str, filename: str, data: bytes, closing_heading: str = "
         analysis = docgen.analyze_template(str(dest))
     except Exception as exc:
         dest.unlink(missing_ok=True)
-        raise GenError(f"Gagal membaca template: {exc}") from None
+        raise GenError(f"Could not read the template: {exc}") from None
     if not analysis["has_heading1"]:
         dest.unlink(missing_ok=True)
-        raise GenError("Template tidak punya paragraf ber-style 'Heading 1'. "
-                       "Semua bab di LLD harus pakai built-in heading style Word.")
+        raise GenError("The template has no 'Heading 1' paragraph. "
+                       "Chapters must use Word's built-in heading styles.")
     if not closing_heading:
         for item in analysis["outline"]:
             if item["style"] == "Heading1" and item["text"].strip().lower() in CLOSING_NAMES:
@@ -90,15 +91,15 @@ def ensure_master_template() -> dict | None:
 def delete_template(template_id: int) -> None:
     row = store.get_template(template_id)
     if not row:
-        raise GenError("Template tidak ditemukan", 404)
+        raise GenError("Template not found", 404)
     in_use = store.count_projects_using_template(template_id)
     if in_use:
-        raise GenError(f"Template ini masih dipakai {in_use} project. Ganti template project tersebut dulu "
-                       "(atau hapus project-nya) sebelum menghapus template ini.")
+        raise GenError(f"This template is used by {in_use} project(s). Switch those projects to another template "
+                       "(or delete them) first.")
     try:
         store.delete_template(template_id)
     except sqlite3.IntegrityError:
-        raise GenError("Template ini masih dipakai project lain, tidak bisa dihapus.") from None
+        raise GenError("This template is still used by a project.") from None
     template_path(row).unlink(missing_ok=True)
 
 
@@ -106,7 +107,7 @@ def delete_template(template_id: int) -> None:
 def save_image(project_id: int, filename: str, data: bytes) -> dict:
     ext = os.path.splitext(os.path.basename(filename or ""))[1].lower() or ".png"
     if ext not in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".emf", ".wmf"):
-        raise GenError("Gambar harus PNG, JPG, GIF, BMP, EMF atau WMF")
+        raise GenError("Pictures must be PNG, JPG, GIF, BMP, EMF or WMF")
     target = uploads_dir(project_id)
     target.mkdir(parents=True, exist_ok=True)
     stored = f"{uuid.uuid4().hex}{ext}"
@@ -121,7 +122,7 @@ def image_path(project_id: int, filename: str) -> Path:
 # ----------------------------------------------------------------- import
 def import_workbook(project_id: int, path: str, mode: str) -> dict:
     if mode not in ("append", "replace", "update"):
-        raise GenError("mode harus append, replace atau update")
+        raise GenError("mode must be append, replace or update")
     try:
         items = importer.parse_index_workbook(path)
         info = importer.parse_project_sheet(path)
@@ -130,7 +131,7 @@ def import_workbook(project_id: int, path: str, mode: str) -> dict:
     try:
         stats = store.import_index(project_id, items, mode)
     except Exception as exc:  # one transaction: nothing changed
-        raise GenError(f"Import gagal, struktur project tidak diubah: {exc}") from None
+        raise GenError(f"Import failed, nothing was changed: {exc}") from None
     updated = {k: v for k, v in info.items() if v}
     if updated:
         store.update_project(project_id, **updated)
@@ -158,10 +159,10 @@ def from_index(workbook_path: str, lld_project: dict, template_id: int | None = 
         templates = store.list_templates()
         master = next((t for t in templates if "master" in t["name"].lower()), templates[0] if templates else None)
         if not master:
-            raise GenError("Belum ada master template: upload dulu di tab Templates.")
+            raise GenError("No master template yet: upload one in Templates.")
         template_id = master["id"]
     if not store.get_template(template_id):
-        raise GenError("Template tidak ditemukan", 404)
+        raise GenError("Template not found", 404)
     project = store.create_project(lld_project.get("project_name") or "LLD", lld_project.get("customer") or "", "0.1",
                                    template_id, project_code=lld_project.get("project_code") or "",
                                    company=lld_project.get("company") or "Multipolar Technology",
@@ -171,17 +172,121 @@ def from_index(workbook_path: str, lld_project: dict, template_id: int | None = 
 
 
 # ----------------------------------------------------------------- review / generate
+TODO_LABEL = {"image": "picture to upload", "table": "table still TBD", "paragraph": "text still TBD"}
+
+
+def _needs_work(block: dict) -> bool:
+    """A picture not uploaded, or a table/text with a cell or line that only says TBD."""
+    kind, content = block["block_type"], block["content"]
+    if kind == "image":
+        return not content.get("filename")
+    if kind == "table":
+        return any(str(c).strip() == "TBD" for row in content.get("rows") or [] for c in row)
+    if kind == "paragraph":
+        return any(str(t).strip() == "TBD" for t in content.get("paragraphs") or [])
+    return False
+
+
 def review(project_id: int) -> dict:
+    """Per chapter: its block types and what is still to do (a picture not
+    uploaded, a table or text that only says TBD). A chapter counts as done
+    only when it has content and nothing left to do."""
     chapters = store.list_chapters_flat(project_id)
     parents = {c["parent_id"] for c in chapters if c["parent_id"] is not None}
-    out, filled, empty = [], 0, 0
+    out, filled, empty, todo_total = [], 0, 0, 0
     for chapter in chapters:
-        types = [b["block_type"] for b in store.list_blocks(chapter["id"])]
+        blocks = store.list_blocks(chapter["id"])
+        types = [b["block_type"] for b in blocks]
+        todo = [TODO_LABEL[b["block_type"]] for b in blocks if b["block_type"] in TODO_LABEL and _needs_work(b)]
         is_group = chapter["id"] in parents
-        out.append({**chapter, "block_types": types, "is_group": is_group})
+        out.append({**chapter, "block_types": types, "is_group": is_group, "todo": todo})
         if not is_group:
-            filled, empty = (filled + 1, empty) if types else (filled, empty + 1)
-    return {"chapters": out, "leaf_filled": filled, "leaf_empty": empty}
+            if not types:
+                empty += 1
+            elif todo:
+                todo_total += 1
+            else:
+                filled += 1
+    return {"chapters": out, "leaf_filled": filled, "leaf_empty": empty, "leaf_todo": todo_total}
+
+
+# ----------------------------------------------------------------- pictures in bulk
+def _words(text: str) -> set:
+    return {w for w in re.split(r"[^a-z0-9]+", (text or "").lower()) if w and w not in {"the", "of", "and", "site", "png", "jpg", "jpeg"}}
+
+
+def place_pictures(project_id: int, files: list[tuple[str, bytes]]) -> dict:
+    """Put each picture into the empty image block whose chapter title or
+    caption shares the most words with the file name ("topology-after-ho.png"
+    -> "Physical Topology After Site HO"). Unmatched files are reported."""
+    slots = []
+    for chapter in store.list_chapters_flat(project_id):
+        for block in store.list_blocks(chapter["id"]):
+            if block["block_type"] == "image" and not block["content"].get("filename"):
+                slots.append((block, chapter, _words(chapter["title"]) | _words(block["content"].get("caption", ""))))
+    placed, unmatched = [], []
+    for name, data in files:
+        want = _words(os.path.splitext(name)[0])
+        best, score = None, 0.0
+        for slot in slots:
+            common = len(want & slot[2])
+            if not common:
+                continue
+            s = common / len(want | slot[2]) + common * 0.01
+            if s > score:
+                best, score = slot, s
+        if best is None or score < 0.2:
+            unmatched.append(name)
+            continue
+        slots.remove(best)
+        saved = save_image(project_id, name, data)
+        block, chapter, _ = best
+        store.update_block(block["id"], content={**block["content"], "filename": saved["filename"], "original_name": name})
+        placed.append({"file": name, "chapter": chapter["title"], "chapter_id": chapter["id"]})
+    return {"placed": placed, "unmatched": unmatched, "empty_left": len(slots)}
+
+
+# ----------------------------------------------------------------- release history
+def record_version(project: dict, new_version: str, comment: str = "") -> list:
+    """Release History rows: one per version, added when the version changes."""
+    history = json.loads(project.get("history") or "[]")
+    if not history:
+        history.append({"version": project.get("version") or "0.1", "date": placeholders.project_values(project)["date"],
+                        "by": project.get("prepared_by") or "", "status": "Initial", "comment": "-"})
+    if new_version and new_version != history[-1]["version"]:
+        history.append({"version": new_version, "date": placeholders.project_values({})["date"],
+                        "by": project.get("prepared_by") or "", "status": "Revised", "comment": comment or "-"})
+    return history
+
+
+def _fill_release_history(document, project: dict) -> None:
+    history = json.loads(project.get("history") or "[]")
+    if not history:
+        return
+    for table in document.tables:
+        if not table.rows or table.rows[0].cells[0].text.strip().lower() not in ("rev", "rev."):
+            continue
+        if len(table.rows) < 2:
+            return
+        template = table.rows[1]._tr
+        for row in list(table.rows)[1:]:
+            row._tr.getparent().remove(row._tr)
+        for entry in history:
+            tr = deepcopy(template)
+            table._tbl.append(tr)
+            row = table.rows[-1]
+            for cell, value in zip(row.cells, (entry["version"], entry["date"], entry["by"], entry["status"], entry["comment"])):
+                paragraph = cell.paragraphs[0]
+                for extra in cell.paragraphs[1:]:
+                    extra._p.getparent().remove(extra._p)
+                runs = paragraph.runs
+                if runs:
+                    runs[0].text = str(value)
+                    for run in runs[1:]:
+                        run._r.getparent().remove(run._r)
+                else:
+                    paragraph.add_run(str(value))
+        return
 
 
 def cleanup_outputs(days: int = OUTPUT_TTL_DAYS) -> int:
@@ -200,13 +305,13 @@ def cleanup_outputs(days: int = OUTPUT_TTL_DAYS) -> int:
 def generate(project_id: int) -> dict:
     project = store.get_project(project_id)
     if not project:
-        raise GenError("Project tidak ditemukan", 404)
+        raise GenError("Project not found", 404)
     template = store.get_template(project["template_id"])
     if not template:
-        raise GenError("Template project ini sudah tidak ada")
+        raise GenError("This project's template no longer exists")
     chapters = store.list_chapters_flat(project_id)
     if not chapters:
-        raise GenError("Belum ada bab sama sekali — tambahkan struktur bab dulu")
+        raise GenError("The project has no chapters yet")
     cleanup_outputs()
     blocks = {c["id"]: store.list_blocks(c["id"]) for c in chapters}
     uploads = uploads_dir(project_id)
@@ -223,13 +328,14 @@ def generate(project_id: int) -> dict:
     except docgen.DocGenError as exc:
         raise GenError(str(exc)) from None
     document = docx.Document(str(out_path))
+    _fill_release_history(document, project)
     missing = placeholders.fill(document, placeholders.project_values(project))
     logo = image_path(project_id, project["logo"]) if project.get("logo") else None
     has_slot = placeholders.fill_logo(document, str(logo) if logo else "")
     document.save(str(out_path))
-    warnings = [f"Placeholder {{{{{k}}}}} belum ada isinya: lengkapi di Pengaturan Project." for k in sorted(missing)]
+    warnings = [f"{{{{{k}}}}} is empty: fill it in Project settings." for k in sorted(missing)]
     if has_slot and not (logo and logo.exists()):
-        warnings.append("Logo customer belum diupload: cover dibuat tanpa logo.")
+        warnings.append("No customer logo: the cover has no logo.")
     from urllib.parse import quote
     return {"download_url": f"/lld-generator/api/download/{out_path.name}?name={quote(out_name)}", "filename": out_name,
             "warnings": warnings}
@@ -262,7 +368,7 @@ def legacy_import(hint: str | None = None) -> dict:
     their old id (legacy_id), so a second run only adds what is new."""
     root = find_legacy_folder(hint)
     if root is None:
-        raise GenError("Folder Document Generator lama tidak ketemu (yang berisi backend/storage/app.db).")
+        raise GenError("The old Document Generator folder (with backend/storage/app.db) was not found.")
     storage = root / "backend" / "storage"
     old = sqlite3.connect(f"file:{storage / 'app.db'}?mode=ro", uri=True)
     old.row_factory = sqlite3.Row

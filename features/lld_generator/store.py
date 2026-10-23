@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS lld_gen_projects (
     template_id INTEGER NOT NULL REFERENCES lld_gen_templates(id),
     lld_index_key TEXT DEFAULT '',
     legacy_id INTEGER,
+    history TEXT DEFAULT '[]',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -91,6 +92,11 @@ def get_conn():
     conn.execute("PRAGMA foreign_keys = ON")
     if path not in _ready:
         conn.executescript(SCHEMA)
+        for stmt in ("ALTER TABLE lld_gen_projects ADD COLUMN history TEXT DEFAULT '[]'",):
+            try:
+                conn.execute(stmt)                       # databases made before the column existed
+            except sqlite3.OperationalError:
+                pass
         _ready.add(path)
     return conn
 

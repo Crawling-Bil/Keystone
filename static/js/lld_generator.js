@@ -46,7 +46,7 @@
     }
 
     // generic modal dialog. fieldsHtml = inner HTML, onSubmit(formEl) => Promise
-    function openDialog({ title, bodyHtml, submitLabel = "Simpan", onSubmit, wide = false }) {
+    function openDialog({ title, bodyHtml, submitLabel = "Save", onSubmit, wide = false }) {
       // Dialogs live in a host on <body>: a page container (SPA outlet) can be a
       // containing block for position:fixed, which pushed the dialog off screen.
       let root = document.querySelector(".lg-dialog-host");
@@ -57,7 +57,7 @@
             <h2>${escapeHtml(title)}</h2>
             <form data-ld="dlg-form">${bodyHtml}
             <div class="dialog-actions">
-              <button type="button" class="btn btn-text" data-ld="dlg-cancel">Batal</button>
+              <button type="button" class="btn btn-text" data-ld="dlg-cancel">Cancel</button>
               <button type="submit" class="btn btn-filled" data-ld="dlg-submit">${escapeHtml(submitLabel)}</button>
             </div></form>
           </div>
@@ -83,9 +83,9 @@
     function confirmDialog(message) {
       return new Promise((resolve) => {
         openDialog({
-          title: "Konfirmasi",
+          title: "Confirm",
           bodyHtml: `<p style="margin:0 0 4px;color:var(--md-on-surface-variant)">${escapeHtml(message)}</p>`,
-          submitLabel: "Ya, lanjutkan",
+          submitLabel: "Yes, continue",
           onSubmit: async () => resolve(true),
         });
         $('[data-ld="dlg-scrim"]').addEventListener("click", (e) => { if (e.target.dataset.ld === "dlg-scrim") resolve(false); });
@@ -142,14 +142,14 @@
         <div class="topbar">
           <div>
             <h1>Projects</h1>
-            <div class="subtitle">Semua dokumen LLD yang lagi kamu kerjain</div>
+            <div class="subtitle">Your LLD documents</div>
           </div>
           <button class="btn btn-filled" data-ld="btn-new-project">
             <span class="lg-ic" aria-hidden="true">+</span> Project Baru
           </button>
         </div>
         <div class="content-area">
-          ${state.projects.length === 0 ? emptyStateHtml("folder_off", "Belum ada project", "Bikin project baru untuk mulai nyusun LLD.") : `
+          ${state.projects.length === 0 ? emptyStateHtml("folder_off", "No projects yet", "Open an index from LLD Index, or create a project here.") : `
           <div class="grid-cards">
             ${state.projects.map(projectCardHtml).join("")}
           </div>`}
@@ -165,10 +165,10 @@
       $$(".js-delete-project", main).forEach((el) => {
         el.addEventListener("click", async (e) => {
           e.stopPropagation();
-          const ok = await confirmDialog("Hapus project ini beserta seluruh struktur bab & isinya? Tidak bisa dibatalkan.");
+          const ok = await confirmDialog("Delete this project with all its chapters and content? This cannot be undone.");
           if (!ok) return;
           await apiDel(`/projects/${el.dataset.id}`);
-          toast("Project dihapus");
+          toast("Project deleted.");
           await loadProjects();
           renderProjectsView($('[data-ld=\"main\"]'));
         });
@@ -183,7 +183,7 @@
               <div style="font-weight:500;font-size:15px;margin-bottom:4px">${escapeHtml(p.name)}</div>
               <div class="muted" style="font-size:12.5px">${escapeHtml(p.client || "-")}</div>
             </div>
-            <button class="btn-icon btn-danger js-delete-project" data-id="${p.id}" title="Hapus">
+            <button class="btn-icon btn-danger js-delete-project" data-id="${p.id}" title="Delete">
               <span class="lg-ic" aria-hidden="true">✕</span>
             </button>
           </div>
@@ -204,25 +204,25 @@
 
     function openNewProjectDialog() {
       if (state.templates.length === 0) {
-        toast("Upload template dulu di menu Templates sebelum bikin project", true);
+        toast("Upload a master template in Templates first.", true);
         return;
       }
       openDialog({
-        title: "Project Baru",
-        submitLabel: "Buat",
+        title: "New project",
+        submitLabel: "Create",
         bodyHtml: `
-          <div class="field"><label>Nama Project</label><input name="name" required placeholder="mis. Wireless Network Improvement" /></div>
+          <div class="field"><label>Project name</label><input name="name" required placeholder="Switch Replacement" /></div>
           <div class="field-row">
-            <div class="field"><label>Client</label><input name="client" placeholder="mis. Toyota Astra Motor" /></div>
-            <div class="field"><label>Versi</label><input name="version" value="0.1" /></div>
+            <div class="field"><label>Client</label><input name="client" placeholder="PT Toyota Astra Motor" /></div>
+            <div class="field"><label>Version</label><input name="version" value="0.1" /></div>
           </div>
           <div class="field-row">
-            <div class="field"><label>Kode Project</label><input name="project_code" placeholder="mis. 7TAMO26009001" /></div>
-            <div class="field"><label>Disusun oleh</label><input name="prepared_by" placeholder="Nama penulis dokumen" /></div>
+            <div class="field"><label>Project code</label><input name="project_code" placeholder="7TAMO26009001" /></div>
+            <div class="field"><label>Prepared by</label><input name="prepared_by" placeholder="Document writer" /></div>
           </div>
           <div class="field-row">
-            <div class="field"><label>Perusahaan</label><input name="company" value="Multipolar Technology" /></div>
-            <div class="field"><label>Tanggal Dokumen</label><input name="doc_date" placeholder="kosong = tanggal generate" /></div>
+            <div class="field"><label>Company</label><input name="company" value="Multipolar Technology" /></div>
+            <div class="field"><label>Document date</label><input name="doc_date" placeholder="blank = day of generating" /></div>
           </div>
           <div class="field">
             <label>Master Template</label>
@@ -238,7 +238,7 @@
             project_code: fd.get("project_code") || "", prepared_by: fd.get("prepared_by") || "",
             company: fd.get("company") || "Multipolar Technology", doc_date: fd.get("doc_date") || "",
           });
-          toast("Project dibuat");
+          toast("Project created.");
           state.currentProjectId = p.id;
           switchView("project");
         },
@@ -251,14 +251,14 @@
         <div class="topbar">
           <div>
             <h1>Templates</h1>
-            <div class="subtitle">Master .docx (cover, branding, heading style) yang dipakai project-project kamu</div>
+            <div class="subtitle">Master .docx files (cover, branding, heading styles) for your projects</div>
           </div>
           <button class="btn btn-filled" data-ld="btn-new-template">
             <span class="lg-ic" aria-hidden="true">⤒</span> Upload Template
           </button>
         </div>
         <div class="content-area">
-          ${state.templates.length === 0 ? emptyStateHtml("layers_clear", "Belum ada template", "Upload file .docx master (yang formatnya mau dipakai berulang) dulu.") : `
+          ${state.templates.length === 0 ? emptyStateHtml("layers_clear", "No templates yet", "Upload the master .docx you want to reuse.") : `
           <div class="grid-cards">
             ${state.templates.map(templateCardHtml).join("")}
           </div>`}
@@ -268,10 +268,10 @@
       $$(".js-delete-template", main).forEach((el) => {
         el.addEventListener("click", async (e) => {
           e.stopPropagation();
-          const ok = await confirmDialog("Hapus template ini? Project yang masih pakai template ini nggak akan bisa di-generate lagi.");
+          const ok = await confirmDialog("Delete this template?");
           if (!ok) return;
           await apiDel(`/templates/${el.dataset.id}`);
-          toast("Template dihapus");
+          toast("Template deleted.");
           await loadTemplates();
           renderTemplatesView($('[data-ld=\"main\"]'));
         });
@@ -288,8 +288,8 @@
           <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div style="font-weight:500;font-size:15px">${escapeHtml(t.name)}</div>
             <div style="display:flex">
-              <button class="btn-icon js-edit-template" data-id="${t.id}" title="Edit pengaturan"><span class="lg-ic" aria-hidden="true">⚙</span></button>
-              <button class="btn-icon btn-danger js-delete-template" data-id="${t.id}" title="Hapus"><span class="lg-ic" aria-hidden="true">✕</span></button>
+              <button class="btn-icon js-edit-template" data-id="${t.id}" title="Settings"><span class="lg-ic" aria-hidden="true">⚙</span></button>
+              <button class="btn-icon btn-danger js-delete-template" data-id="${t.id}" title="Delete"><span class="lg-ic" aria-hidden="true">✕</span></button>
             </div>
           </div>
           <div class="muted" style="font-size:12.5px;margin-top:10px;line-height:1.6">
@@ -301,12 +301,12 @@
 
     function openNewTemplateDialog() {
       openDialog({
-        title: "Upload Master Template",
-        submitLabel: "Upload & Analisis",
+        title: "Upload a master template",
+        submitLabel: "Upload",
         bodyHtml: `
-          <div class="field"><label>Nama Template</label><input name="name" required placeholder="mis. Multipolar LLD Master" /></div>
-          <div class="field"><label>File .docx</label><input name="file" type="file" accept=".docx" required /></div>
-          <p class="hint">Setelah upload, file bakal dianalisis otomatis (heading style apa aja yang ada). Pengaturan detail (heading penutup, level auto-number) bisa diedit sesudahnya.</p>`,
+          <div class="field"><label>Template name</label><input name="name" required placeholder="LLD Master Template" /></div>
+          <div class="field"><label>.docx file</label><input name="file" type="file" accept=".docx" required /></div>
+          <p class="hint">The file is checked for heading styles after upload. The closing heading and numbering can be changed afterwards.</p>`,
         onSubmit: async (form) => {
           const fd = new FormData(form);
           const upload = new FormData();
@@ -315,7 +315,7 @@
           upload.append("auto_numbered_levels", "[1,2]");
           upload.append("file", fd.get("file"));
           const t = await apiPost("/templates", upload);
-          toast("Template diupload");
+          toast("Template uploaded.");
           await loadTemplates();
           renderTemplatesView($('[data-ld=\"main\"]'));
           openEditTemplateDialog(t.id);
@@ -330,44 +330,44 @@
       const currentAuto = new Set(t.auto_numbered_levels);
 
       openDialog({
-        title: `Pengaturan: ${t.name}`,
-        submitLabel: "Simpan",
+        title: `Template: ${t.name}`,
+        submitLabel: "Save",
         wide: true,
         bodyHtml: `
-          <div class="field"><label>Nama Template</label><input name="name" value="${escapeHtml(t.name)}" required /></div>
+          <div class="field"><label>Template name</label><input name="name" value="${escapeHtml(t.name)}" required /></div>
 
           <div class="field">
-            <label>Heading penutup (opsional)</label>
+            <label>Closing heading (optional)</label>
             <input name="closing_heading" list="closing-options" value="${escapeHtml(t.closing_heading || "")}"
-              placeholder="mis. Document Acceptance — kosongkan kalau tidak ada" />
+              placeholder="Document Acceptance (blank = none)" />
             <datalist data-ld="closing-options">
               ${[...new Set(outline.filter((o) => o.style === "Heading1").map((o) => o.text))]
                 .map((x) => `<option value="${escapeHtml(x)}">`).join("")}
             </datalist>
-            <span class="hint">Semua konten SETELAH heading ini (kalau ada) akan dipertahankan apa adanya — cocok buat halaman tanda tangan/approval di akhir dokumen.</span>
+            <span class="hint">Everything from this heading on is kept from the template, such as the Document Acceptance page.</span>
           </div>
 
           <div class="field">
-            <label>Level heading yang auto-numbering (dari style Word template ini)</label>
+            <label>Heading levels numbered by Word</label>
             <div style="display:flex;gap:14px;flex-wrap:wrap;padding:8px 0">
               ${availableLevels.map((lvl) => `
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:400">
                   <input type="checkbox" name="auto_level" value="${lvl}" ${currentAuto.has(lvl) ? "checked" : ""} /> Heading ${lvl}
                 </label>`).join("")}
             </div>
-            <span class="hint">Centang level yang nomornya SUDAH otomatis dari Word (biasanya H1/H2 di template korporat). Level yang tidak dicentang akan diberi nomor manual oleh app (format 1.2.3) di depan judulnya.</span>
+            <span class="hint">Tick the levels Word already numbers (usually H1 and H2). Unticked levels get a 1.2.3 number written in front of the title.</span>
           </div>
 
           <div class="field-row">
-            <div class="field"><label>Nama field caption Gambar</label><input name="figure_seq_name" value="${escapeHtml(t.figure_seq_name || "Gambar")}" /></div>
-            <div class="field"><label>Nama field caption Tabel</label><input name="table_seq_name" value="${escapeHtml(t.table_seq_name || "Tabel")}" /></div>
+            <div class="field"><label>Picture caption label</label><input name="figure_seq_name" value="${escapeHtml(t.figure_seq_name || "Picture")}" /></div>
+            <div class="field"><label>Table caption label</label><input name="table_seq_name" value="${escapeHtml(t.table_seq_name || "Table")}" /></div>
           </div>
-          <p class="hint" style="margin-top:-10px">Harus sama persis dengan identifier yang dipakai field "List of Pictures"/"List of Table" di template (default Word: "Figure"/"Table"; kalau template ini pakai istilah Indonesia biasanya "Gambar"/"Tabel").</p>
+          <p class="hint" style="margin-top:-10px">Must match the caption label the template's List of Pictures / List of Tables uses (Word default: Figure / Table).</p>
 
           <div class="field">
-            <label>Outline template (referensi, tidak bisa diedit di sini)</label>
+            <label>Template outline (for reference)</label>
             <div style="max-height:160px;overflow-y:auto;border:1px solid var(--md-outline-variant);border-radius:8px;padding:8px 12px;font-size:12.5px;line-height:1.8">
-              ${outline.length === 0 ? '<span class="muted">Tidak ada heading terdeteksi setelah Heading 1 pertama.</span>' :
+              ${outline.length === 0 ? '<span class="muted">No headings after the first Heading 1.</span>' :
                 outline.map((o) => `<div><span class="level-badge">${o.style.replace("Heading", "H")}</span> ${escapeHtml(o.text)}</div>`).join("")}
             </div>
           </div>`,
@@ -378,10 +378,10 @@
             name: fd.get("name"),
             closing_heading: fd.get("closing_heading") || "",
             auto_numbered_levels: autoLevels,
-            figure_seq_name: fd.get("figure_seq_name") || "Gambar",
-            table_seq_name: fd.get("table_seq_name") || "Tabel",
+            figure_seq_name: fd.get("figure_seq_name") || "Picture",
+            table_seq_name: fd.get("table_seq_name") || "Table",
           });
-          toast("Pengaturan template disimpan");
+          toast("Template saved.");
           await loadTemplates();
           if (state.view === "templates") renderTemplatesView($('[data-ld=\"main\"]'));
         },
@@ -405,13 +405,16 @@
       main.innerHTML = `
         <div class="topbar">
           <div>
-            <button class="btn-text" data-ld="btn-back" style="padding:4px 8px 4px 0"><span class="lg-ic" aria-hidden="true">←</span></button>
-            <span style="font-size:22px;font-weight:500">${escapeHtml(p.name)}</span>
+            <button class="btn btn-text lg-back" data-ld="btn-back"><span class="lg-ic" aria-hidden="true">←</span> Projects</button>
+            <div style="font-size:21px;font-weight:600">${escapeHtml(p.name)}</div>
             <div class="subtitle">${escapeHtml(p.client || "-")} &middot; v${escapeHtml(p.version)}</div>
           </div>
           <div style="display:flex;gap:8px">
+            <label class="btn btn-outlined" title="Upload several pictures; each goes to the empty picture whose chapter matches its file name">
+              <span class="lg-ic" aria-hidden="true">⤒</span> Pictures
+              <input type="file" data-ld="bulk-pictures" accept="image/*,.svg" multiple hidden></label>
             <button class="btn btn-tonal" data-ld="btn-review"><span class="lg-ic" aria-hidden="true">✓</span> Review</button>
-            <button class="btn btn-outlined" data-ld="btn-project-settings"><span class="lg-ic" aria-hidden="true">⚙</span> Pengaturan</button>
+            <button class="btn btn-outlined" data-ld="btn-project-settings"><span class="lg-ic" aria-hidden="true">⚙</span> Settings</button>
             <button class="btn btn-filled" data-ld="btn-generate"><span class="lg-ic" aria-hidden="true">⤓</span> Generate &amp; Download</button>
           </div>
         </div>
@@ -424,6 +427,19 @@
       $('[data-ld=\"btn-generate\"]').addEventListener("click", handleGenerate);
       $('[data-ld=\"btn-project-settings\"]').addEventListener("click", openProjectSettingsDialog);
       $('[data-ld=\"btn-review\"]').addEventListener("click", openReviewDialog);
+      $('[data-ld="bulk-pictures"]').addEventListener("change", async (e) => {
+        const files = [...e.target.files];
+        e.target.value = "";
+        if (!files.length) return;
+        const fd = new FormData();
+        for (const f of files) fd.append("files", await asPicture(f));
+        try {
+          const res = await apiPost(`/projects/${pid}/pictures`, fd);
+          const miss = res.unmatched.length ? ` · not matched: ${res.unmatched.join(", ")} (name the file after its chapter, or drop it in the chapter)` : "";
+          toast(`${res.placed.length} picture(s) placed${miss}`, !!res.unmatched.length && !res.placed.length);
+          await renderProjectWorkspace($('[data-ld="main"]'));
+        } catch (err) { toast(err.message, true); }
+      });
 
       renderTree();
       renderContentPane();
@@ -456,14 +472,14 @@
       const roots = chapterChildren(null);
       pane.innerHTML = `
         <div class="tree-toolbar">
-          <h3>Struktur Bab</h3>
-          <button class="btn-icon" data-ld="btn-add-root" title="Tambah bab utama"><span class="lg-ic" aria-hidden="true">+</span></button>
+          <h3>Chapters</h3>
+          <button class="btn-icon" data-ld="btn-add-root" title="Add a chapter"><span class="lg-ic" aria-hidden="true">+</span></button>
         </div>
         <button class="btn btn-outlined" data-ld="btn-import-excel" style="width:100%;justify-content:center;margin-bottom:14px">
           <span class="lg-ic" aria-hidden="true">⤒</span> Import dari Excel Index
         </button>
         <div data-ld="tree-root"></div>
-        ${roots.length === 0 ? `<div class="muted" style="font-size:12.5px;padding:8px 4px">Belum ada bab. Klik "Import dari Excel Index" kalau udah punya file Excel-nya, atau + di atas buat mulai manual.</div>` : ""}
+        ${roots.length === 0 ? `<div class="muted" style="font-size:12.5px;padding:8px 4px">No chapters yet. Open an index from LLD Index, import an Excel index, or add a chapter with +.</div>` : ""}
       `;
       $('[data-ld=\"btn-add-root\"]').addEventListener("click", () => openChapterDialog({ parent_id: null }));
       $('[data-ld=\"btn-import-excel\"]').addEventListener("click", openImportExcelDialog);
@@ -479,17 +495,18 @@
         row.style.setProperty("--depth", depth);
         const rv = (state.reviewMap || {})[chapter.id];
         const emptyDot = rv && !rv.is_group && rv.block_types.length === 0
-          ? `<span title="Belum diisi" style="width:8px;height:8px;border-radius:50%;background:var(--md-error);flex-shrink:0"></span>` : "";
+          ? `<span class="lg-dot bad" title="Empty"></span>`
+          : rv && !rv.is_group && (rv.todo || []).length ? `<span class="lg-dot warn" title="${escapeHtml([...new Set(rv.todo)].join(", "))}"></span>` : "";
         row.innerHTML = `
           <span class="num">${num}</span>
           <span class="title">${escapeHtml(chapter.title)}</span>
           ${emptyDot}
           <span class="row-actions">
-            <button class="btn-icon js-add-child" title="Tambah sub-bab"><span class="lg-ic" aria-hidden="true">+</span></button>
+            <button class="btn-icon js-add-child" title="Add a sub-chapter"><span class="lg-ic" aria-hidden="true">+</span></button>
             <button class="btn-icon js-edit-ch" title="Rename"><span class="lg-ic" aria-hidden="true">✎</span></button>
-            <button class="btn-icon js-up" title="Naik"><span class="lg-ic" aria-hidden="true">↑</span></button>
-            <button class="btn-icon js-down" title="Turun"><span class="lg-ic" aria-hidden="true">↓</span></button>
-            <button class="btn-icon btn-danger js-del-ch" title="Hapus"><span class="lg-ic" aria-hidden="true">✕</span></button>
+            <button class="btn-icon js-up" title="Move up"><span class="lg-ic" aria-hidden="true">↑</span></button>
+            <button class="btn-icon js-down" title="Move down"><span class="lg-ic" aria-hidden="true">↓</span></button>
+            <button class="btn-icon btn-danger js-del-ch" title="Delete"><span class="lg-ic" aria-hidden="true">✕</span></button>
           </span>`;
         row.addEventListener("click", (e) => {
           if (e.target.closest(".row-actions")) return;
@@ -501,7 +518,7 @@
         row.querySelector(".js-edit-ch").addEventListener("click", (e) => { e.stopPropagation(); openChapterDialog({ chapter }); });
         row.querySelector(".js-del-ch").addEventListener("click", async (e) => {
           e.stopPropagation();
-          const ok = await confirmDialog(`Hapus bab "${chapter.title}" beserta semua sub-bab & isinya?`);
+          const ok = await confirmDialog(`Delete "${chapter.title}" with its sub-chapters and content?`);
           if (!ok) return;
           await apiDel(`/chapters/${chapter.id}`);
           if (state.selectedChapterId === chapter.id) state.selectedChapterId = null;
@@ -522,36 +539,36 @@
 
     function openImportExcelDialog() {
       openDialog({
-        title: "Import dari Excel Index",
+        title: "Import an Excel index",
         submitLabel: "Import",
         bodyHtml: `
-          <div class="field"><label>File Excel Index (.xlsx)</label><input name="file" type="file" accept=".xlsx,.xlsm" required /></div>
+          <div class="field"><label>Excel index (.xlsx)</label><input name="file" type="file" accept=".xlsx,.xlsm" required /></div>
           <div class="field">
             <label>Mode</label>
             <div style="display:flex;flex-direction:column;gap:8px;padding:4px 0">
               <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13.5px">
-                <input type="radio" name="mode" value="update" ${state.chapters && state.chapters.length ? "checked" : ""} /> Perbarui dari Index baru (gambar & isi manual tetap)
+                <input type="radio" name="mode" value="update" ${state.chapters && state.chapters.length ? "checked" : ""} /> Update from the new index (pictures and manual edits stay)
               </label>
               <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13.5px">
-                <input type="radio" name="mode" value="append" ${state.chapters && state.chapters.length ? "" : "checked"} /> Tambahkan ke struktur yang sudah ada
+                <input type="radio" name="mode" value="append" ${state.chapters && state.chapters.length ? "" : "checked"} /> Add to the existing chapters
               </label>
               <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:13.5px">
-                <input type="radio" name="mode" value="replace" /> Ganti semua (hapus struktur & isi lama dulu)
+                <input type="radio" name="mode" value="replace" /> Replace everything
               </label>
             </div>
           </div>
-          <p class="hint">Format yang dibaca: sheet "Index" (kolom No, Judul Heading, Level, Tipe Konten, Isi/Nama Sheet Rujukan). Isi tabel & paragraf dari sheet rujukan ikut ke-import; block gambar dibuat kosong (upload file gambarnya di sini setelah import). Baris contoh "(contoh)" otomatis dilewati. Mode Perbarui nyocokin bab lewat judulnya: tabel & paragraf diganti data baru, gambar yang udah diupload dan isi yang kamu isi manual (Index cuma TBD) tetap. Kalau gagal di tengah, nggak ada yang berubah.</p>`,
+          <p class="hint">An LLD Content Index workbook (sheet "Index"). Update matches chapters by title: tables and text take the new data, uploaded pictures and text you typed (where the index only says TBD) stay. A failed import changes nothing.</p>`,
         onSubmit: async (form) => {
           const fd = new FormData(form);
           const upload = new FormData();
           upload.append("mode", fd.get("mode"));
           upload.append("file", fd.get("file"));
           const res = await apiPost(`/projects/${state.currentProjectId}/import-excel`, upload);
-          const filled = (res.project_fields || []).length ? ` · data project diisi dari Excel` : "";
-          const upd = res.updated ? ` · ${res.updated} bab diperbarui, ${res.kept_blocks} isi lama dipertahankan` : "";
+          const filled = (res.project_fields || []).length ? ` · project details filled from the Excel` : "";
+          const upd = res.updated ? ` · ${res.updated} chapters updated, ${res.kept_blocks} pictures/edits kept` : "";
           const extra = (res.not_in_index || []).length
-            ? ` · ${res.not_in_index.length} bab nggak ada di Index baru, dibiarkan: ${res.not_in_index.slice(0, 5).join(", ")}${res.not_in_index.length > 5 ? ", ..." : ""}` : "";
-          toast(`Import berhasil: ${res.chapters} bab baru, ${res.blocks} block konten${upd}${filled}${extra}`);
+            ? ` · ${res.not_in_index.length} chapters not in the index kept: ${res.not_in_index.slice(0, 5).join(", ")}${res.not_in_index.length > 5 ? ", ..." : ""}` : "";
+          toast(`Imported: ${res.chapters} new chapters, ${res.blocks} blocks${upd}${filled}${extra}`);
           if (filled) { await renderProjectWorkspace($('[data-ld=\"main\"]')); } else { await refreshChapters(); }
         },
       });
@@ -581,9 +598,9 @@
     function openChapterDialog({ parent_id, chapter }) {
       const isEdit = !!chapter;
       openDialog({
-        title: isEdit ? "Edit Judul Bab" : "Bab / Sub-bab Baru",
-        submitLabel: isEdit ? "Simpan" : "Tambah",
-        bodyHtml: `<div class="field"><label>Judul</label><input name="title" required value="${isEdit ? escapeHtml(chapter.title) : ""}" placeholder="mis. Deskripsi Project" /></div>`,
+        title: isEdit ? "Rename chapter" : "New chapter",
+        submitLabel: isEdit ? "Save" : "Add",
+        bodyHtml: `<div class="field"><label>Title</label><input name="title" required value="${isEdit ? escapeHtml(chapter.title) : ""}" placeholder="Project Description" /></div>`,
         onSubmit: async (form) => {
           const title = new FormData(form).get("title");
           if (isEdit) {
@@ -592,7 +609,7 @@
             const c = await apiPost(`/projects/${state.currentProjectId}/chapters`, { parent_id, title });
             state.selectedChapterId = c.id;
           }
-          toast("Tersimpan");
+          toast("Saved.");
           await refreshChapters();
         },
       });
@@ -602,7 +619,7 @@
     async function renderContentPane() {
       const pane = $('[data-ld=\"pane-content\"]');
       if (!state.selectedChapterId) {
-        pane.innerHTML = emptyStateHtml("touch_app", "Pilih bab di kiri", "Atau tambah bab baru dulu buat mulai isi konten.");
+        pane.innerHTML = emptyStateHtml("touch_app", "Pick a chapter on the left", "Or add a chapter to start writing.");
         return;
       }
       const chapter = state.chapters.find((c) => c.id === state.selectedChapterId);
@@ -610,12 +627,12 @@
 
       pane.innerHTML = `
         <h2 class="section-title">${escapeHtml(chapter.title)}</h2>
-        <div class="muted" style="font-size:12.5px;margin-bottom:20px">Level H${chapter.level} &middot; isi konten di bawah ini akan muncul persis di bawah heading-nya di dokumen</div>
+        <div class="muted" style="font-size:12.5px;margin-bottom:20px">Level H${chapter.level} &middot; content below appears under this heading in the document</div>
         <div data-ld="blocks-list"></div>
         <div class="add-block-row">
-          <button class="btn btn-tonal js-add-block" data-type="paragraph"><span class="lg-ic" aria-hidden="true">¶</span> Paragraf</button>
-          <button class="btn btn-tonal js-add-block" data-type="table"><span class="lg-ic" aria-hidden="true">▦</span> Tabel</button>
-          <button class="btn btn-tonal js-add-block" data-type="image"><span class="lg-ic" aria-hidden="true">▣</span> Gambar</button>
+          <button class="btn btn-tonal js-add-block" data-type="paragraph"><span class="lg-ic" aria-hidden="true">¶</span> Text</button>
+          <button class="btn btn-tonal js-add-block" data-type="table"><span class="lg-ic" aria-hidden="true">▦</span> Table</button>
+          <button class="btn btn-tonal js-add-block" data-type="image"><span class="lg-ic" aria-hidden="true">▣</span> Picture</button>
         </div>`;
 
       $$(".js-add-block", pane).forEach((btn) => {
@@ -623,7 +640,7 @@
           const type = btn.dataset.type;
           const defaults = {
             paragraph: { paragraphs: [""] },
-            table: { headers: ["Kolom 1", "Kolom 2"], rows: [["", ""]] },
+            table: { headers: ["Column 1", "Column 2"], rows: [["", ""]] },
             image: { filename: "", caption: "" },
           };
           await apiPost(`/chapters/${chapter.id}/blocks`, { block_type: type, content: defaults[type] });
@@ -638,11 +655,11 @@
     function renderBlock(block) {
       const card = document.createElement("div");
       card.className = "card block-card";
-      const labelMap = { paragraph: "Paragraf", table: "Tabel", image: "Gambar" };
+      const labelMap = { paragraph: "Text", table: "Table", image: "Picture" };
       card.innerHTML = `
         <div class="block-head">
           <span class="block-type-label">${labelMap[block.block_type]}</span>
-          <button class="btn-icon btn-danger js-del-block" title="Hapus block"><span class="lg-ic" aria-hidden="true">✕</span></button>
+          <button class="btn-icon btn-danger js-del-block" title="Remove block"><span class="lg-ic" aria-hidden="true">✕</span></button>
         </div>
         <div class="block-body"></div>`;
       card.querySelector(".js-del-block").addEventListener("click", async () => {
@@ -668,15 +685,15 @@
         paragraphs.forEach((text, i) => {
           const line = document.createElement("div");
           line.className = "paragraph-line";
-          line.innerHTML = `<textarea rows="2" placeholder="Tulis paragraf atau satu poin bullet...">${escapeHtml(text)}</textarea>
-            <button class="btn-icon btn-danger js-rm" title="Hapus baris"><span class="lg-ic" aria-hidden="true">×</span></button>`;
+          line.innerHTML = `<textarea rows="2" placeholder="A paragraph or one bullet point">${escapeHtml(text)}</textarea>
+            <button class="btn-icon btn-danger js-rm" title="Remove row"><span class="lg-ic" aria-hidden="true">×</span></button>`;
           line.querySelector("textarea").addEventListener("input", (e) => { paragraphs[i] = e.target.value; save(); });
           line.querySelector(".js-rm").addEventListener("click", () => { paragraphs.splice(i, 1); if (paragraphs.length === 0) paragraphs.push(""); draw(); save(); });
           wrap.appendChild(line);
         });
         const addBtn = document.createElement("button");
         addBtn.className = "btn btn-text";
-        addBtn.innerHTML = `<span class="lg-ic" aria-hidden="true">+</span> Tambah baris`;
+        addBtn.innerHTML = `<span class="lg-ic" aria-hidden="true">+</span> Add row`;
         addBtn.addEventListener("click", () => { paragraphs.push(""); draw(); save(); });
         wrap.appendChild(addBtn);
       }
@@ -686,7 +703,7 @@
 
     function renderTableBlock(block) {
       const wrap = document.createElement("div");
-      const headers = block.content.headers || ["Kolom 1"];
+      const headers = block.content.headers || ["Column 1"];
       const rows = block.content.rows || [[""]];
       let caption = block.content.caption || "";
       const save = debounce(async () => {
@@ -695,8 +712,8 @@
 
       const capField = document.createElement("div");
       capField.className = "field";
-      capField.innerHTML = `<label>Caption Tabel (opsional — kalau diisi, otomatis masuk List of Table + penomoran "Tabel N")</label>
-        <input class="js-caption" value="${escapeHtml(caption)}" placeholder="mis. BoQ Project" />`;
+      capField.innerHTML = `<label>Table caption (optional, numbered and listed in the List of Tables)</label>
+        <input class="js-caption" value="${escapeHtml(caption)}" placeholder="Bill of Quantity" />`;
       capField.querySelector("input").addEventListener("input", (e) => { caption = e.target.value; save(); });
       wrap.appendChild(capField);
 
@@ -711,7 +728,7 @@
         const htr = document.createElement("tr");
         headers.forEach((h, ci) => {
           const th = document.createElement("th");
-          th.innerHTML = `<input value="${escapeHtml(h)}" placeholder="Judul kolom" />`;
+          th.innerHTML = `<input value="${escapeHtml(h)}" placeholder="Column title" />`;
           th.querySelector("input").addEventListener("input", (e) => { headers[ci] = e.target.value; save(); });
           htr.appendChild(th);
         });
@@ -731,7 +748,7 @@
             tr.appendChild(td);
           });
           const tdAction = document.createElement("td");
-          tdAction.innerHTML = `<button class="btn-icon btn-danger js-rm-row" title="Hapus baris"><span class="lg-ic" aria-hidden="true">×</span></button>`;
+          tdAction.innerHTML = `<button class="btn-icon btn-danger js-rm-row" title="Remove row"><span class="lg-ic" aria-hidden="true">×</span></button>`;
           tdAction.querySelector("button").addEventListener("click", () => { rows.splice(ri, 1); if (rows.length === 0) rows.push(headers.map(() => "")); draw(); save(); });
           tr.appendChild(tdAction);
           tbody.appendChild(tr);
@@ -742,12 +759,12 @@
         const toolbar = document.createElement("div");
         toolbar.style.cssText = "display:flex;gap:8px;margin-top:10px";
         toolbar.innerHTML = `
-          <button class="btn btn-text js-add-row"><span class="lg-ic" aria-hidden="true">+</span> Baris</button>
-          <button class="btn btn-text js-add-col"><span class="lg-ic" aria-hidden="true">+</span> Kolom</button>
-          ${headers.length > 1 ? `<button class="btn btn-text js-rm-col"><span class="lg-ic" aria-hidden="true">−</span> Kolom</button>` : ""}
+          <button class="btn btn-text js-add-row"><span class="lg-ic" aria-hidden="true">+</span> Row</button>
+          <button class="btn btn-text js-add-col"><span class="lg-ic" aria-hidden="true">+</span> Column</button>
+          ${headers.length > 1 ? `<button class="btn btn-text js-rm-col"><span class="lg-ic" aria-hidden="true">−</span> Column</button>` : ""}
         `;
         toolbar.querySelector(".js-add-row").addEventListener("click", () => { rows.push(headers.map(() => "")); draw(); save(); });
-        toolbar.querySelector(".js-add-col").addEventListener("click", () => { headers.push(`Kolom ${headers.length + 1}`); rows.forEach((r) => r.push("")); draw(); save(); });
+        toolbar.querySelector(".js-add-col").addEventListener("click", () => { headers.push(`Column ${headers.length + 1}`); rows.forEach((r) => r.push("")); draw(); save(); });
         const rmColBtn = toolbar.querySelector(".js-rm-col");
         if (rmColBtn) rmColBtn.addEventListener("click", () => { headers.pop(); rows.forEach((r) => r.pop()); draw(); save(); });
         tableHost.appendChild(toolbar);
@@ -756,84 +773,103 @@
       return wrap;
     }
 
+    // SVG (e.g. a Topology Builder diagram) is drawn to a PNG in the browser:
+    // Word does not take SVG pictures, and this needs no extra tool.
+    async function asPicture(file) {
+      if (!/\.svg$/i.test(file.name) && file.type !== "image/svg+xml") return file;
+      const url = URL.createObjectURL(file);
+      try {
+        const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+        const scale = 2, w = img.naturalWidth || 1600, h = img.naturalHeight || 900;
+        const canvas = document.createElement("canvas");
+        canvas.width = w * scale; canvas.height = h * scale;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(ok => canvas.toBlob(ok, "image/png"));
+        return new File([blob], file.name.replace(/\.svg$/i, ".png"), { type: "image/png" });
+      } finally { URL.revokeObjectURL(url); }
+    }
+
     function renderImageBlock(block) {
       const wrap = document.createElement("div");
       const content = { filename: block.content.filename || "", caption: block.content.caption || "", original_name: block.content.original_name || "" };
       const save = async () => { await apiPut(`/blocks/${block.id}`, { content }); };
+      const preview = () => content.filename
+        ? `<img src="/lld-generator/api/projects/${state.currentProjectId}/images/${encodeURIComponent(content.filename)}" alt="" />`
+        : `<span><strong>Drop a picture here, paste it (Ctrl/Cmd+V) or click to choose</strong><small>PNG, JPG or SVG (a Topology Builder diagram works)</small></span>`;
 
       wrap.innerHTML = `
-        <div class="js-preview" style="margin-bottom:10px">${content.filename
-          ? `<img src="/lld-generator/api/projects/${state.currentProjectId}/images/${encodeURIComponent(content.filename)}" style="max-width:100%;max-height:260px;border:1px solid var(--md-outline-variant);border-radius:8px" />`
-          : ""}</div>
-        <div class="field">
-          <label>File Gambar</label>
-          <input type="file" accept="image/*" class="js-file" />
-          <span class="hint js-current">${content.filename ? "Saat ini: " + escapeHtml(content.original_name || content.filename) : "Belum ada file dipilih"}</span>
-        </div>
-        <div class="field"><label>Caption (opsional)</label><input class="js-caption" value="${escapeHtml(content.caption)}" placeholder="mis. Topology Before" /></div>`;
+        <label class="lg-drop${content.filename ? " has-image" : ""}" tabindex="0">
+          <input type="file" accept="image/*,.svg" class="js-file" hidden />
+          <span class="js-preview">${preview()}</span>
+        </label>
+        <div class="hint js-current" style="margin:6px 0 12px">${content.filename ? "Current: " + escapeHtml(content.original_name || content.filename) + " · drop or paste another to replace it" : ""}</div>
+        <div class="field"><label>Caption (optional)</label><input class="js-caption" value="${escapeHtml(content.caption)}" placeholder="Topology Before" /></div>`;
 
-      wrap.querySelector(".js-file").addEventListener("change", async (e) => {
-        const file = e.target.files[0];
+      const zone = wrap.querySelector(".lg-drop");
+      const upload = async (file) => {
         if (!file) return;
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await apiPost(`/projects/${state.currentProjectId}/upload-image`, fd);
-        content.filename = res.filename;
-        content.original_name = res.original_name;
-        wrap.querySelector(".js-current").textContent = "Saat ini: " + res.original_name;
-        wrap.querySelector(".js-preview").innerHTML =
-          `<img src="/lld-generator/api/projects/${state.currentProjectId}/images/${encodeURIComponent(res.filename)}" style="max-width:100%;max-height:260px;border:1px solid var(--md-outline-variant);border-radius:8px" />`;
-        await save();
-        toast("Gambar diupload & tersimpan");
+        try {
+          const picture = await asPicture(file);
+          const fd = new FormData();
+          fd.append("file", picture);
+          const res = await apiPost(`/projects/${state.currentProjectId}/upload-image`, fd);
+          content.filename = res.filename;
+          content.original_name = res.original_name;
+          zone.classList.add("has-image");
+          wrap.querySelector(".js-preview").innerHTML = preview();
+          wrap.querySelector(".js-current").textContent = "Current: " + res.original_name + " · drop or paste another to replace it";
+          await save();
+          toast("Picture saved.");
+        } catch (err) { toast(err.message, true); }
+      };
+      wrap.querySelector(".js-file").addEventListener("change", (e) => upload(e.target.files[0]));
+      ["dragenter", "dragover"].forEach(ev => zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add("is-over"); }));
+      ["dragleave", "drop"].forEach(ev => zone.addEventListener(ev, () => zone.classList.remove("is-over")));
+      zone.addEventListener("drop", (e) => { e.preventDefault(); upload(e.dataTransfer.files[0]); });
+      zone.addEventListener("paste", (e) => {
+        const item = [...((e.clipboardData && e.clipboardData.items) || [])].find(i => i.type.startsWith("image/"));
+        if (!item) return;
+        e.preventDefault();
+        const blob = item.getAsFile();
+        upload(new File([blob], `pasted-${Date.now()}.png`, { type: blob.type || "image/png" }));
       });
+      zone.addEventListener("mouseenter", () => zone.focus({ preventScroll: true }));
       wrap.querySelector(".js-caption").addEventListener("input", debounce((e) => { content.caption = e.target.value; save(); }, 500));
       return wrap;
     }
 
     async function openReviewDialog() {
       const data = await apiGet(`/projects/${state.currentProjectId}/review`);
-      const chapterNumbers = computeChapterNumbers(data.chapters);
-      const rows = data.chapters.map((c) => {
-        const num = chapterNumbers[c.id];
-        let status;
-        if (c.is_group) {
-          status = `<span class="chip" style="background:var(--md-surface-container-highest);color:var(--md-on-surface-variant)">grup</span>`;
-        } else if (c.block_types.length) {
-          const t = {};
-          c.block_types.forEach((x) => (t[x] = (t[x] || 0) + 1));
-          const label = Object.entries(t).map(([k, v]) => `${v} ${k === "paragraph" ? "paragraf" : k === "table" ? "tabel" : "gambar"}`).join(", ");
-          status = `<span class="chip" style="background:#C8E6C9;color:#1B5E20">✓ ${label}</span>`;
-        } else {
-          status = `<span class="chip" style="background:var(--md-error-container);color:var(--md-on-error-container)">belum diisi</span>`;
-        }
-        return `<div style="display:flex;align-items:center;gap:10px;padding:6px 4px 6px ${(c.level - 1) * 18 + 4}px;border-bottom:1px solid var(--md-outline-variant)">
-          <span class="num muted" style="min-width:52px;font-variant-numeric:tabular-nums">${num}</span>
-          <span style="flex:1">${escapeHtml(c.title)}</span>
-          ${status}
-        </div>`;
+      const numbers = computeChapterNumbers(data.chapters);
+      const work = data.chapters.filter((c) => !c.is_group && (!c.block_types.length || c.todo.length));
+      const rows = work.map((c) => {
+        const what = c.block_types.length ? [...new Set(c.todo)].join(", ") : "no content";
+        return `<button type="button" class="lg-todo" data-chapter="${c.id}">
+          <span class="num">${numbers[c.id]}</span><span class="title">${escapeHtml(c.title)}</span>
+          <span class="chip ${c.block_types.length ? "chip-warn" : "chip-bad"}">${escapeHtml(what)}</span></button>`;
       }).join("");
-
-      openDialog({
-        title: "Review Dokumen",
-        submitLabel: "Tutup",
+      const close = openDialog({
+        title: "Review",
+        submitLabel: "Close",
         wide: true,
         bodyHtml: `
-          <div style="display:flex;gap:12px;margin-bottom:16px">
-            <div class="card" style="flex:1;text-align:center;padding:12px">
-              <div style="font-size:24px;font-weight:700;color:#1B5E20">${data.leaf_filled}</div>
-              <div class="hint">bab terisi</div>
-            </div>
-            <div class="card" style="flex:1;text-align:center;padding:12px">
-              <div style="font-size:24px;font-weight:700;color:var(--md-error)">${data.leaf_empty}</div>
-              <div class="hint">bab belum diisi</div>
-            </div>
+          <div class="lg-stats">
+            <div class="card"><b class="ok">${data.leaf_filled}</b><span class="hint">done</span></div>
+            <div class="card"><b class="warn">${data.leaf_todo}</b><span class="hint">to finish (TBD or picture)</span></div>
+            <div class="card"><b class="bad">${data.leaf_empty}</b><span class="hint">empty</span></div>
           </div>
-          <div style="max-height:50vh;overflow-y:auto;border:1px solid var(--md-outline-variant);border-radius:8px;padding:4px 8px;font-size:13px">
-            ${rows || '<div class="muted" style="padding:12px">Belum ada bab.</div>'}
-          </div>
-          <p class="hint" style="margin-top:10px">Baris "grup" = heading pengelompokan yang isinya ada di sub-bab, tidak perlu diisi langsung.</p>`,
+          ${work.length ? `<p class="hint" style="margin:0 0 8px">Click a chapter to open it.</p>
+            <div class="lg-todo-list">${rows}</div>` : `<p class="muted">Nothing left to do. Generate the document.</p>`}`,
         onSubmit: async () => {},
       });
+      document.querySelectorAll(".lg-dialog-host .lg-todo").forEach((el) => el.addEventListener("click", () => {
+        state.selectedChapterId = Number(el.dataset.chapter);
+        close();
+        renderTree();
+        renderContentPane();
+      }));
     }
 
     function debounce(fn, ms) {
@@ -845,25 +881,26 @@
     function openProjectSettingsDialog() {
       const p = state.currentProject;
       openDialog({
-        title: "Pengaturan Project",
-        submitLabel: "Simpan",
+        title: "Project settings",
+        submitLabel: "Save",
         bodyHtml: `
-          <div class="field"><label>Nama Project</label><input name="name" required value="${escapeHtml(p.name)}" /></div>
+          <div class="field"><label>Project name</label><input name="name" required value="${escapeHtml(p.name)}" /></div>
           <div class="field-row">
             <div class="field"><label>Client</label><input name="client" value="${escapeHtml(p.client || "")}" /></div>
-            <div class="field"><label>Versi</label><input name="version" value="${escapeHtml(p.version)}" /></div>
+            <div class="field"><label>Version</label><input name="version" value="${escapeHtml(p.version)}" /></div>
+          </div>
+          <div class="field"><label>Change note <small class="hint">for the Release History when the version changes</small></label><input name="change_note" placeholder="Update after site survey" /></div>
+          <div class="field-row">
+            <div class="field"><label>Project code</label><input name="project_code" value="${escapeHtml(p.project_code || "")}" /></div>
+            <div class="field"><label>Prepared by</label><input name="prepared_by" value="${escapeHtml(p.prepared_by || "")}" /></div>
           </div>
           <div class="field-row">
-            <div class="field"><label>Kode Project</label><input name="project_code" value="${escapeHtml(p.project_code || "")}" /></div>
-            <div class="field"><label>Disusun oleh</label><input name="prepared_by" value="${escapeHtml(p.prepared_by || "")}" /></div>
+            <div class="field"><label>Company</label><input name="company" value="${escapeHtml(p.company || "Multipolar Technology")}" /></div>
+            <div class="field"><label>Document date</label><input name="doc_date" value="${escapeHtml(p.doc_date || "")}" placeholder="blank = day of generating" /></div>
           </div>
-          <div class="field-row">
-            <div class="field"><label>Perusahaan</label><input name="company" value="${escapeHtml(p.company || "Multipolar Technology")}" /></div>
-            <div class="field"><label>Tanggal Dokumen</label><input name="doc_date" value="${escapeHtml(p.doc_date || "")}" placeholder="kosong = tanggal generate" /></div>
-          </div>
-          <div class="field"><label>Logo Customer (cover) ${p.logo ? "· sudah ada, upload lagi buat ganti" : "· belum ada"}</label>
+          <div class="field"><label>Customer logo (cover) ${p.logo ? "· uploaded, pick another to replace it" : "· not uploaded"}</label>
             <input type="file" name="logo_file" accept="image/png,image/jpeg" /></div>
-          <p class="muted" style="font-size:12px;margin:-4px 0 10px">Dipakai buat placeholder master template: {{project_name}}, {{customer}}, {{project_code}}, {{version}}, {{date}}, {{company}}, {{prepared_by}}.</p>
+          <p class="muted" style="font-size:12px;margin:-4px 0 10px">Used for the master template placeholders: {{project_name}}, {{customer}}, {{project_code}}, {{version}}, {{date}}, {{company}}, {{prepared_by}}.</p>
           <div class="field">
             <label>Master Template</label>
             <select name="template_id">
@@ -884,9 +921,10 @@
             name: fd.get("name"), client: fd.get("client") || "", version: fd.get("version") || "0.1",
             template_id: Number(fd.get("template_id")),
             project_code: fd.get("project_code") || "", prepared_by: fd.get("prepared_by") || "",
+            change_note: fd.get("change_note") || "",
             company: fd.get("company") || "Multipolar Technology", doc_date: fd.get("doc_date") || "",
           });
-          toast("Pengaturan disimpan");
+          toast("Settings saved.");
           await renderProjectWorkspace($('[data-ld=\"main\"]'));
         },
       });
@@ -905,9 +943,9 @@
         a.click();
         a.remove();
         if (res.warnings && res.warnings.length) {
-          toast(`Dokumen tergenerate, tapi: ${res.warnings.join(" ")}`, true);
+          toast(`Document generated. Check: ${res.warnings.join(" ")}`, true);
         } else {
-          toast("Dokumen berhasil digenerate!");
+          toast("Document generated.");
         }
       } catch (e) {
         toast(e.message, true);

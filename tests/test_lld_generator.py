@@ -36,6 +36,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(store, "DB_PATH", str(tmp_path / "nes.db"))
     monkeypatch.setattr(service, "DATA_DIR", tmp_path / "lld_generator")
     monkeypatch.setattr(lld_index_routes, "EXPORT_DIR", tmp_path / "exports")
+    from features.lld_index import saved
+    monkeypatch.setattr(saved, "DB_PATH", str(tmp_path / "nes.db"))
     app = create_app()
     app.config["TESTING"] = True
     return app.test_client()
@@ -103,7 +105,7 @@ def test_import_fills_project_and_errors_use_detail(client, project):
     assert (p["name"], p["client"], p["project_code"]) == (
         "Perimeter Firewall and Core Switch Replacement", "PT Sinar Logistik", "7SINL26010001")
     missing = client.get("/lld-generator/api/projects/999")
-    assert missing.status_code == 404 and missing.get_json() == {"detail": "Project tidak ditemukan"}
+    assert missing.status_code == 404 and missing.get_json() == {"detail": "Project not found"}
     bad = client.post("/lld-generator/api/projects", json={"name": "X", "template_id": 999})
     assert bad.status_code == 400 and "template_id" in bad.get_json()["detail"]
 
@@ -144,7 +146,7 @@ def test_update_keeps_images_and_manual_text_and_failure_changes_nothing(client,
 
     monkeypatch.setattr(store, "_merge_blocks", boom)
     res = _import(client, pid, "update")
-    assert res.status_code == 400 and "tidak diubah" in res.get_json()["detail"]
+    assert res.status_code == 400 and "nothing was changed" in res.get_json()["detail"]
     assert _chapters(client, pid) == before
 
 
@@ -152,7 +154,7 @@ def test_generate_fills_master_logo_acceptance_and_cleans_outputs(client, projec
     pid = project["id"]
     _import(client, pid, "replace")
     res = client.post(f"/lld-generator/api/projects/{pid}/generate").get_json()
-    assert res["warnings"] == ["Logo customer belum diupload: cover dibuat tanpa logo."]
+    assert res["warnings"] == ["No customer logo: the cover has no logo."]
     with open(LOGO, "rb") as f:
         logo = client.post(f"/lld-generator/api/projects/{pid}/upload-image", data={"file": (f, "logo.png")},
                            content_type="multipart/form-data").get_json()
@@ -241,3 +243,43 @@ def test_legacy_import_copies_everything_once(client, tmp_path):
     again = client.post("/lld-generator/api/legacy-import", json={"folder": str(folder)}).get_json()
     assert (again["projects"], again["templates"], again["skipped_projects"]) == (0, 0, 1)
     assert sqlite3.connect(folder / "backend" / "storage" / "app.db").execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 1
+
+
+def test_review_lists_what_is_left_to_do(client, project):
+    pid = project["id"]
+    _import(client, pid, "replace")
+    review = client.get(f"/lld-generator/api/projects/{pid}/review").get_json()
+    todo = {c["title"]: c["todo"] for c in review["chapters"] if c["todo"]}
+    assert todo["Physical Topology After Site HO"] == ["picture to upload"]
+    assert "table still TBD" in todo["Hostname Scheme"]
+    assert review["leaf_todo"] == sum(1 for c in review["chapters"] if c["todo"] and not c["is_group"])
+    assert review["leaf_filled"] + review["leaf_todo"] + review["leaf_empty"] == sum(1 for c in review["chapters"] if not c["is_group"])
+
+
+def test_pictures_go_to_the_chapter_their_name_matches(client, project):
+    pid = project["id"]
+    _import(client, pid, "replace")
+    data = LOGO.read_bytes()
+    files = [(io.BytesIO(data), "physical-topology-after-HO.png"), (io.BytesIO(data), "rack layout DC.png"),
+             (io.BytesIO(data), "holiday.png")]
+    res = client.post(f"/lld-generator/api/projects/{pid}/pictures", data={"files": files},
+                      content_type="multipart/form-data").get_json()
+    assert sorted(p["chapter"] for p in res["placed"]) == ["Physical Topology After Site HO", "Rack Layout DC"]
+    assert res["unmatched"] == ["holiday.png"]
+    review = client.get(f"/lld-generator/api/projects/{pid}/review").get_json()
+    assert not next(c for c in review["chapters"] if c["title"] == "Physical Topology After Site HO")["todo"]
+
+
+def test_version_changes_fill_the_release_history(client, project):
+    pid = project["id"]
+    _import(client, pid, "replace")
+    client.put(f"/lld-generator/api/projects/{pid}", json={"version": "1.0", "change_note": "After site survey"})
+    client.put(f"/lld-generator/api/projects/{pid}", json={"version": "1.1"})
+    history = json.loads(client.get(f"/lld-generator/api/projects/{pid}").get_json()["history"])
+    assert [(h["version"], h["status"], h["comment"]) for h in history] == [
+        ("0.1", "Initial", "-"), ("1.0", "Revised", "After site survey"), ("1.1", "Revised", "-")]
+    res = client.post(f"/lld-generator/api/projects/{pid}/generate").get_json()
+    d = docx.Document(io.BytesIO(client.get(res["download_url"]).data))
+    rev = next(t for t in d.tables if t.rows[0].cells[0].text.strip().lower().startswith("rev"))
+    assert [r.cells[0].text for r in rev.rows[1:]] == ["0.1", "1.0", "1.1"]
+    assert rev.rows[2].cells[4].text == "After site survey" and rev.rows[2].cells[2].text == "Mohammad Nur Alkadri"

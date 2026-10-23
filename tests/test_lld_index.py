@@ -206,6 +206,8 @@ def client(tmp_path, monkeypatch):
     from features.lld_index import routes
 
     monkeypatch.setattr(routes, "EXPORT_DIR", tmp_path / "exports")
+    from features.lld_index import saved
+    monkeypatch.setattr(saved, "DB_PATH", str(tmp_path / "nes.db"))
     app = create_app()
     app.config["TESTING"] = True
     return app.test_client()
@@ -400,3 +402,20 @@ def test_project_sheet_carries_the_cover_data_for_the_document_generator():
     rows = {r[0]: r[1] for r in wb["Project"].iter_rows(min_row=2, values_only=True)}
     assert rows == {"Project Name": "Network Refresh", "Customer": "PT Contoh", "Project Code": "7SINL26010001",
                     "Company": "Multipolar Technology", "Prepared by": "Aldi"}
+
+
+def test_builds_are_saved_with_their_configs_and_reload(client):
+    payload = {"project": dict(PROJECT, project_code="S1"), "technologies": ["switch"], "inventory": INVENTORY}
+    data = {"payload": json.dumps(payload), "configs": (io.BytesIO(SWITCH.encode()), "sw1.txt")}
+    first = client.post("/lld-index/api/build", data=data, content_type="multipart/form-data").get_json()["result"]
+    listing = client.get("/lld-index/api/saved").get_json()["projects"]
+    assert [(p["name"], p["devices"], p["configs"]) for p in listing] == [("Network Refresh", len(INVENTORY), 1)]
+    loaded = client.get(f"/lld-index/api/saved/{first['saved_id']}").get_json()
+    assert loaded["config_names"] == ["sw1.txt"] and loaded["inventory"] == INVENTORY and loaded["technologies"] == ["switch"]
+    # rebuild without uploading again: the saved config is used
+    again = client.post("/lld-index/api/build", data={"payload": json.dumps(dict(payload, saved_id=first["saved_id"]))}).get_json()["result"]
+    assert again["saved_id"] == first["saved_id"] and again["stats"]["configs_read"] == first["stats"]["configs_read"] >= 1
+    client.delete(f"/lld-index/api/saved/{first['saved_id']}/configs/sw1.txt")
+    assert client.get(f"/lld-index/api/saved/{first['saved_id']}").get_json()["config_names"] == []
+    client.delete(f"/lld-index/api/saved/{first['saved_id']}")
+    assert client.get("/lld-index/api/saved").get_json()["projects"] == []

@@ -36,7 +36,7 @@ def _body() -> dict:
 
 def _need(row, what: str):
     if not row:
-        raise GenError(f"{what} tidak ditemukan", 404)
+        raise GenError(f"{what} not found", 404)
     return row
 
 
@@ -54,7 +54,7 @@ def page():
 def upload_template():
     upload = request.files.get("file")
     if not upload or not upload.filename:
-        raise GenError("Pilih file template .docx")
+        raise GenError("Choose a .docx template")
     try:
         levels = json.loads(request.form.get("auto_numbered_levels") or "[1,2]")
     except ValueError:
@@ -99,10 +99,10 @@ def remove_template(template_id: int):
 def create_project():
     body = _body()
     if not str(body.get("name") or "").strip():
-        raise GenError("Nama project wajib diisi")
+        raise GenError("A project name is required")
     template_id = body.get("template_id")
     if not template_id or not store.get_template(template_id):
-        raise GenError("template_id tidak valid")
+        raise GenError("Unknown template_id")
     row = store.create_project(body["name"].strip(), body.get("client") or "", body.get("version") or "0.1", int(template_id),
                                project_code=body.get("project_code") or "",
                                company=body.get("company") or "Multipolar Technology",
@@ -122,10 +122,13 @@ def get_project(project_id: int):
 
 @bp.put("/api/projects/<int:project_id>")
 def edit_project(project_id: int):
-    _need(store.get_project(project_id), "Project")
-    fields = _fields(_body(), PROJECT_FIELDS)
+    project = _need(store.get_project(project_id), "Project")
+    body = _body()
+    fields = _fields(body, PROJECT_FIELDS)
+    if "version" in fields and str(fields["version"]) != str(project.get("version")):
+        fields["history"] = json.dumps(service.record_version(project, str(fields["version"]), str(body.get("change_note") or "")))
     if "template_id" in fields and not store.get_template(fields["template_id"]):
-        raise GenError("template_id tidak valid")
+        raise GenError("Unknown template_id")
     if "logo" in fields:
         fields["logo"] = Path(str(fields["logo"])).name
     return jsonify(store.update_project(project_id, **fields))
@@ -151,7 +154,7 @@ def add_chapter(project_id: int):
     body = _body()
     title = str(body.get("title") or "").strip()
     if not title:
-        raise GenError("Judul bab wajib diisi")
+        raise GenError("A chapter title is required")
     try:
         return jsonify(store.create_chapter(project_id, body.get("parent_id"), title))
     except ValueError as exc:
@@ -160,13 +163,13 @@ def add_chapter(project_id: int):
 
 @bp.put("/api/chapters/<int:chapter_id>")
 def edit_chapter(chapter_id: int):
-    _need(store.get_chapter(chapter_id), "Bab")
+    _need(store.get_chapter(chapter_id), "Chapter")
     return jsonify(store.update_chapter(chapter_id, **_fields(_body(), ("title",))))
 
 
 @bp.post("/api/chapters/<int:chapter_id>/move")
 def move_chapter(chapter_id: int):
-    _need(store.get_chapter(chapter_id), "Bab")
+    _need(store.get_chapter(chapter_id), "Chapter")
     body = _body()
     try:
         return jsonify(store.move_chapter(chapter_id, body.get("parent_id"), int(body.get("order_index", 0))))
@@ -176,7 +179,7 @@ def move_chapter(chapter_id: int):
 
 @bp.delete("/api/chapters/<int:chapter_id>")
 def remove_chapter(chapter_id: int):
-    _need(store.get_chapter(chapter_id), "Bab")
+    _need(store.get_chapter(chapter_id), "Chapter")
     store.delete_chapter(chapter_id)
     return jsonify({"ok": True})
 
@@ -184,16 +187,16 @@ def remove_chapter(chapter_id: int):
 # ----------------------------------------------------------------- blocks
 @bp.get("/api/chapters/<int:chapter_id>/blocks")
 def list_blocks(chapter_id: int):
-    _need(store.get_chapter(chapter_id), "Bab")
+    _need(store.get_chapter(chapter_id), "Chapter")
     return jsonify(store.list_blocks(chapter_id))
 
 
 @bp.post("/api/chapters/<int:chapter_id>/blocks")
 def add_block(chapter_id: int):
-    _need(store.get_chapter(chapter_id), "Bab")
+    _need(store.get_chapter(chapter_id), "Chapter")
     body = _body()
     if body.get("block_type") not in ("paragraph", "table", "image"):
-        raise GenError("block_type harus paragraph/table/image")
+        raise GenError("block_type must be paragraph, table or image")
     return jsonify(store.create_block(chapter_id, body["block_type"], body.get("content") or {}))
 
 
@@ -217,15 +220,24 @@ def upload_image(project_id: int):
     _need(store.get_project(project_id), "Project")
     upload = request.files.get("file")
     if not upload or not upload.filename:
-        raise GenError("Pilih file gambar")
+        raise GenError("Choose a picture")
     return jsonify(service.save_image(project_id, upload.filename, upload.read()))
+
+
+@bp.post("/api/projects/<int:project_id>/pictures")
+def place_pictures(project_id: int):
+    _need(store.get_project(project_id), "Project")
+    files = [(f.filename, f.read()) for f in request.files.getlist("files") if f and f.filename]
+    if not files:
+        raise GenError("Choose the pictures first")
+    return jsonify(service.place_pictures(project_id, files))
 
 
 @bp.get("/api/projects/<int:project_id>/images/<path:filename>")
 def get_image(project_id: int, filename: str):
     path = service.image_path(project_id, filename)
     if not path.is_file():
-        raise GenError("Gambar tidak ditemukan", 404)
+        raise GenError("Picture not found", 404)
     return send_file(path)
 
 
@@ -234,7 +246,7 @@ def import_excel(project_id: int):
     _need(store.get_project(project_id), "Project")
     upload = request.files.get("file")
     if not upload or not upload.filename.lower().endswith((".xlsx", ".xlsm")):
-        raise GenError("File harus .xlsx")
+        raise GenError("The file must be .xlsx")
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "index.xlsx"
         upload.save(path)
@@ -260,7 +272,7 @@ def generate(project_id: int):
 def download(stored_name: str):
     path = service.output_path(stored_name)
     if not re.fullmatch(r"\d+_[a-f0-9]{32}\.docx", path.name) or not path.is_file():
-        raise GenError("File tidak ditemukan", 404)
+        raise GenError("File not found", 404)
     name = re.sub(r"[^A-Za-z0-9 ._\-\[\]]+", "", request.args.get("name") or "") or "LLD_generated.docx"
     return send_file(path, as_attachment=True, download_name=name, mimetype=DOCX)
 

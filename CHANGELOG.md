@@ -4,6 +4,16 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ## Unreleased
 
+### LLD Index and LLD Generator: daily-use fixes
+
+- LLD Index saves every build (form, devices, config files) and offers it under "Continue a project": a rebuild needs no re-typing or re-upload.
+- After a build the form folds into a bar and the result is split into Summary, Chapters, Rack layout and Devices tabs; unused config files get a clear warning; Status sits next to Role in the device table (template too) and the hostname stays in view when the table scrolls.
+- LLD Generator Review lists what is left (pictures to upload, tables or text still TBD) and opens the chapter on click; the chapter list marks those with an amber dot.
+- Pictures: drop, paste (Ctrl/Cmd+V) or choose; SVG (e.g. a Topology Builder diagram) is turned into PNG in the browser; "Pictures" places several files into the chapters their names match.
+- Release History fills itself: a version change in Project settings adds a row with date, writer and change note.
+- LLD Generator in English with Keystone buttons and file pickers; the workspace fits the window; chapter actions no longer cut the title.
+- Dashboard: tools that need no network are labelled "Local" instead of "Offline".
+
 ### LLD Generator: the Document Generator inside Keystone
 
 - New module **LLD Generator** (`/lld-generator`, sidebar group Document): master templates, projects, chapter tree, paragraph/table/image blocks, review, Generate Word. Same features and API as Document Generator v1.0.5, now a Flask blueprint with tables `lld_gen_*` in `data/nes.db` and files in `data/lld_generator/`.

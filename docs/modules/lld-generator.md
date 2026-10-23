@@ -25,6 +25,12 @@ Excel stays an option: **Import dari Excel Index** reads any LLD Content Index w
 
 The Word engine was moved unchanged (first commit on the branch is the plain copy). A golden check generated the same index with the old app and with Keystone: every XML part of the two documents is identical apart from relationship ids.
 
+## Review, pictures, release history
+
+* **Review** counts chapters done, to finish and empty, and lists every picture still to upload and every table or text that still says TBD; a click opens the chapter.
+* **Pictures**: drop, paste or choose in a picture block. SVG files are drawn to PNG in the browser (Word takes no SVG). The **Pictures** button takes several files and puts each into the empty picture whose chapter title or caption shares the most words with the file name.
+* **Release History**: changing the version in Project settings adds a row (version, date, writer, Revised, change note); Generate writes all rows into the master template's Release History table.
+
 ## Update mode (re-import)
 
 Chapters are matched by their title path. Tables and paragraphs take the new data; uploaded pictures stay; text typed by hand stays when the index only has `TBD`; chapters that are not in the new index (an appendix written by hand) stay after the ones from the index. A failure halfway changes nothing.

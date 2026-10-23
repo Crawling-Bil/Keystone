@@ -227,3 +227,39 @@
   font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px;
   background: var(--md-surface-container-highest); color: var(--md-on-surface-variant);
 }
+
+/* ---- Keystone look for the ported parts ---- */
+.lg-page input[type="file"]::file-selector-button { margin-right: 10px; padding: 7px 14px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--panel-2); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+.lg-page .lg-back { padding: 2px 0; margin-bottom: 2px; font-size: 12.5px; color: var(--muted); }
+.lg-page .btn { border-radius: 8px; padding: 9px 16px; }
+.lg-page label.btn { cursor: pointer; }
+/* workspace fits the window: chapter list and editor scroll on their own */
+.lg-page .workspace { height: calc(100vh - 300px); min-height: 440px; }
+.lg-page .pane-tree, .lg-page .pane-content { overscroll-behavior: contain; }
+/* tree: actions float over the end of the row instead of squeezing the title */
+.lg-page .tree-row { position: relative; }
+.lg-page .tree-row .row-actions { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 2px 4px; border-radius: 8px; background: var(--panel); box-shadow: var(--shadow-soft); }
+.lg-page .tree-row .title { white-space: normal; overflow: visible; line-height: 1.35; }
+.lg-page .lg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.lg-page .lg-dot.bad { background: var(--red); }
+.lg-page .lg-dot.warn { background: var(--amber); }
+/* picture drop zone */
+.lg-page .lg-drop { display: grid; place-items: center; min-height: 150px; padding: 16px; border: 2px dashed var(--border-strong); border-radius: 10px; background: var(--panel-2); text-align: center; cursor: pointer; outline: none; }
+.lg-page .lg-drop:hover, .lg-page .lg-drop:focus, .lg-page .lg-drop.is-over { border-color: var(--blue); background: var(--accent-wash); }
+.lg-page .lg-drop.has-image { min-height: 0; border-style: solid; }
+.lg-page .lg-drop img { max-width: 100%; max-height: 300px; border-radius: 6px; }
+.lg-page .lg-drop strong { display: block; font-size: 13.5px; }
+.lg-page .lg-drop small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+/* review */
+.lg-page .lg-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.lg-page .lg-stats .card { padding: 12px; text-align: center; }
+.lg-page .lg-stats b { display: block; font-size: 24px; }
+.lg-page .lg-stats .ok { color: var(--green); } .lg-page .lg-stats .warn { color: var(--amber); } .lg-page .lg-stats .bad { color: var(--red); }
+.lg-page .lg-todo-list { max-height: 48vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.lg-page .lg-todo { display: flex; width: 100%; gap: 10px; align-items: center; padding: 9px 12px; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.lg-page .lg-todo:hover { background: var(--accent-wash); }
+.lg-page .lg-todo .num { min-width: 52px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lg-page .lg-todo .title { flex: 1; }
+.lg-page .chip-warn { background: color-mix(in srgb, var(--amber) 16%, transparent); color: var(--text); }
+.lg-page .chip-bad { background: color-mix(in srgb, var(--red) 14%, transparent); color: var(--text); }
+@media (max-width: 860px) { .lg-page .workspace { height: auto; } .lg-page .lg-stats { grid-template-columns: 1fr; } }

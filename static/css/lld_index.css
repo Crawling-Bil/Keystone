@@ -119,3 +119,20 @@
 .li-page .li-draft { margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--panel-3); color: var(--faint); font-size: 10.5px; font-style: normal; font-weight: 700; vertical-align: 1px; }
 .li-page .li-result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .li-page .li-result-actions .an-btn { min-height: 40px; padding: 0 18px; }
+.li-page .li-saved { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.li-page .li-saved .an-field { flex: 1 1 320px; min-width: 0; }
+.li-page .li-saved .an-status { flex: 1 1 100%; color: var(--muted); font-size: 12.5px; }
+
+/* After a build: the form folds into a bar, the result is split into tabs */
+.li-page.is-built .li-form { display: none; }
+.li-page .li-built-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; margin-bottom: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.li-page .li-built-bar small { color: var(--muted); font-size: 13px; }
+.li-page .li-built-bar.hidden { display: none; }
+.li-page .li-rtabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 2px; overflow-x: auto; }
+.li-page .li-rtab { border: 0; background: transparent; color: var(--muted); padding: 10px 14px; font: inherit; font-weight: 650; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.li-page .li-rtab.active { color: var(--text); border-bottom-color: var(--blue); }
+.li-page .li-rtab.hidden { display: none; }
+.li-page .li-alert { padding: 10px 14px; border: 1px solid var(--amber); border-radius: 9px; background: color-mix(in srgb, var(--amber) 10%, transparent); color: var(--text); font-size: 13px; }
+/* Device table: hostname stays in view while scrolling sideways */
+.li-page .li-table:not(.li-readonly) td:nth-child(2), .li-page .li-table:not(.li-readonly) th:nth-child(2) { position: sticky; left: 0; z-index: 2; background: var(--panel); }
+.li-page .li-table:not(.li-readonly) th:nth-child(2) { background: var(--panel-3); z-index: 3; }

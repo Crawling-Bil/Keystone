@@ -25,7 +25,7 @@ GROUPS = (
 )
 
 RISK_LABELS = {
-    "offline": "Offline",
+    "offline": "Local",
     "read": "Read-only",
     "write": "Writes to devices",
 }
