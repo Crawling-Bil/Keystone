@@ -67,6 +67,24 @@ def _cell(value) -> str:
     return text if len(text) <= _MAX_CELL else text[: _MAX_CELL - 20] + "\n... (truncated)"
 
 
+PROJECT_FIELDS = [("Project Name", "project_name"), ("Customer", "customer"), ("Project Code", "project_code"),
+                  ("Company", "company"), ("Prepared by", "prepared_by")]
+
+
+def _project_sheet(workbook, project: dict) -> None:
+    """Sheet "Project": the Document Generator fills its project record (and
+    the master template placeholders) from it on import."""
+    sheet = workbook.create_sheet("Project", 1)
+    sheet.append(["Field", "Value"])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = _HEADER_FILL
+    for label, key in PROJECT_FIELDS:
+        sheet.append([label, _cell(project.get(key) or "")])
+    sheet.column_dimensions["A"].width = 16
+    sheet.column_dimensions["B"].width = 60
+
+
 def write(nodes: list, project: dict) -> bytes:
     workbook = Workbook()
     index = workbook.active
@@ -81,7 +99,7 @@ def write(nodes: list, project: dict) -> bytes:
     for cell in index[4]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = _HEADER_FILL
-    used = {"index"}
+    used = {"index", "project"}
     def content(node):
         kind, isi, note = "", "", ""
         if node.kind == "paragraph":
@@ -137,6 +155,7 @@ def write(nodes: list, project: dict) -> bytes:
     for col, width in zip("ABCDEF", (10, 52, 7, 12, 60, 40)):
         index.column_dimensions[col].width = width
     index.freeze_panes = "A5"
+    _project_sheet(workbook, project)
     out = io.BytesIO()
     workbook.save(out)
     return out.getvalue()

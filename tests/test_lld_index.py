@@ -390,3 +390,13 @@ def test_replacement_fills_existing_list_scope_and_dismantle_step():
     assert "3 existing devices (ASA5516, C3850-24T, FGT60F) will be replaced and removed." in intro
     steps = next(n for n in nodes if n.title == "Implementation Step").rows
     assert steps[-1][1] == "Dismantle" and "HO-CORE-OLD, HO-FW-OLD, DC-FW-OLD" in steps[-1][2]
+
+
+def test_project_sheet_carries_the_cover_data_for_the_document_generator():
+    project = dict(PROJECT, project_code="7SINL26010001", prepared_by="Aldi", company="Multipolar Technology")
+    result = build_index(project, INVENTORY, ["switch"], FILES)
+    wb = openpyxl.load_workbook(io.BytesIO(result["workbook"]))
+    assert wb.sheetnames[:2] == ["Index", "Project"]
+    rows = {r[0]: r[1] for r in wb["Project"].iter_rows(min_row=2, values_only=True)}
+    assert rows == {"Project Name": "Network Refresh", "Customer": "PT Contoh", "Project Code": "7SINL26010001",
+                    "Company": "Multipolar Technology", "Prepared by": "Aldi"}

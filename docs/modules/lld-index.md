@@ -65,7 +65,8 @@ The workbook follows `lld_generator/backend/importer.py`:
 * `Tabel`: a sheet with a header row and at least one data row (the importer drops a table without rows, so empty tables carry `TBD`); Catatan is the caption;
 * `Gambar`: an empty image block for manual upload;
 * a row with an empty Judul Heading adds one more block to the heading above it. The Document Generator reads these with the multi-block importer (`feat/multi-block-import`); an older importer skips them and keeps the first block;
-* sheet names unique, at most 31 characters.
+* sheet names unique, at most 31 characters;
+* sheet `Project` (`Field | Value`): Project Name, Customer, Project Code, Company, Prepared by. The Document Generator copies them into its project on import and fills the master template placeholders (`{{project_name}}`, `{{customer}}`, ...) on the cover, footer and Document Control.
 
 Yellow rows in the Index sheet still need manual content. Document Acceptance is not in the index: the Document Generator keeps it from the master template.
 

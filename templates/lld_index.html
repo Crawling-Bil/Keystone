@@ -8,12 +8,13 @@
 <section class="an-page li-page" data-api="/lld-index">
   <form class="li-form" data-role="form" novalidate>
     <div class="panel li-card">
-      <header class="li-card-head"><span class="li-step">1</span><div><h3>Project</h3><p class="an-hint">The narrative chapters (Project Description, Scope of Work, Out of Scope, Related Document) are written from these fields.</p></div></header>
+      <header class="li-card-head"><span class="li-step">1</span><div><h3>Project</h3><p class="an-hint">The narrative chapters (Project Description, Scope of Work, Out of Scope, Related Document) are written from these fields. Customer, project name, code, company and writer also go to the Document Generator (sheet "Project"), which puts them on the cover, footer and Document Control of the master template.</p></div></header>
       <div class="li-grid">
         <label class="an-field"><span class="an-label">Customer</span><input class="li-input" data-field="customer" placeholder="Toyota Astra Motor"></label>
         <label class="an-field"><span class="an-label">Project name</span><input class="li-input" data-field="project_name" placeholder="Switch Replacement"></label>
         <label class="an-field"><span class="an-label">Project code</span><input class="li-input" data-field="project_code" placeholder="7TAMO26009001"></label>
         <label class="an-field"><span class="an-label">Implemented by</span><input class="li-input" data-field="company" value="Multipolar Technology"></label>
+        <label class="an-field"><span class="an-label">Prepared by</span><input class="li-input" data-field="prepared_by" placeholder="Document writer"></label>
       </div>
       <label class="li-check"><input type="checkbox" data-field="replacement">
         <span><strong>Replacement project</strong><small>Rack Layout gets a Before table (Existing + Keep devices) and an After table (New + Keep) for every rack. Set the Status column in the inventory.</small></span></label>

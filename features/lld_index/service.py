@@ -57,7 +57,7 @@ def read_config_uploads(uploads: list[tuple[str, bytes]]) -> dict[str, str]:
 
 
 def _clean_project(project: dict) -> dict:
-    keys = ("customer", "project_name", "project_code", "company", "goals", "scope", "out_of_scope", "related_documents")
+    keys = ("customer", "project_name", "project_code", "company", "prepared_by", "goals", "scope", "out_of_scope", "related_documents")
     out = {k: str(project.get(k) or "").strip()[:4000] for k in keys}
     out["company"] = out["company"] or "Multipolar Technology"
     out["replacement"] = str(project.get("replacement") or "").strip().lower() in ("1", "true", "yes", "on")
