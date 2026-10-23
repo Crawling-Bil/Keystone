@@ -63,6 +63,10 @@
     outlet.querySelectorAll(":scope > [data-spa-page]").forEach(node => {
       node.hidden = node !== entry.container;
     });
+    // replay the entrance animation (css/motion.css) each time a page shows
+    entry.container.classList.remove("spa-enter");
+    void entry.container.offsetWidth;
+    entry.container.classList.add("spa-enter");
     if (actionsSlot) {
       actionsSlot.querySelectorAll(":scope > [data-spa-page-actions]").forEach(node => {
         node.hidden = node !== entry.actionsContainer;
