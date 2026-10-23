@@ -182,10 +182,44 @@
         $("dg-pick").classList.remove("hidden");
         syncDgFields();
         dgStatus(`Connected · ${data.projects.length} project(s)`, "ok");
+        showOpen(true);
         return true;
       } catch (err) { dgStatus(err.message, "error"); return false; }
     }
     $("dg-connect").addEventListener("click", dgConnect);
+    function showOpen(running) {
+      const open = $("dg-open");
+      open.href = $("dg-url").value.trim() || "http://127.0.0.1:8003";
+      open.classList.toggle("hidden", !running);
+    }
+    async function pollStart() {
+      for (let i = 0; i < 600; i++) {                 // up to 15 minutes (first-time setup installs packages)
+        await new Promise(r => setTimeout(r, 1500));
+        const response = await fetch(`/lld-index/api/docgen/status?url=${encodeURIComponent($("dg-url").value.trim())}`);
+        const data = await response.json();
+        if (!data.ok) { dgStatus(data.error, "error"); return; }
+        if (data.running) { showOpen(true); dgStatus(data.message || "Document Generator is running.", "ok"); await dgConnect(); return; }
+        if (data.job === "error") { dgStatus(data.message, "error"); return; }
+        dgStatus(data.message || "Starting…");
+      }
+    }
+    $("dg-start").addEventListener("click", async () => {
+      $("dg-start").disabled = true;
+      dgStatus("Starting…");
+      try {
+        const body = { url: $("dg-url").value.trim(), folder: $("dg-folder").value.trim() || null };
+        const response = await fetch("/lld-index/api/docgen/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const data = await response.json();
+        if (!data.ok) {
+          $("dg-folder-row").classList.toggle("hidden", !data.need_folder);
+          throw new Error(data.error);
+        }
+        $("dg-folder-row").classList.add("hidden");
+        if (data.running) { showOpen(true); dgStatus(data.message || "Document Generator is running.", "ok"); await dgConnect(); }
+        else { dgStatus(data.message || "Starting…"); await pollStart(); }
+      } catch (err) { dgStatus(err.message, "error"); }
+      finally { $("dg-start").disabled = false; }
+    });
     $("dg-project").addEventListener("change", syncDgFields);
     $("dg-send").addEventListener("click", async () => {
       if (!lastResult) return;

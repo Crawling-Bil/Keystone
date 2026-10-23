@@ -108,3 +108,28 @@ def docgen_send():
         return jsonify({"ok": False, "error": str(exc)}), 400
     log_activity("LLD Index", "Sent to Document Generator", f"project {result['project_id']} · {result['mode']}")
     return jsonify({"ok": True, **result})
+
+
+@bp.get("/api/docgen/status")
+def docgen_status():
+    from . import docgen_client, docgen_launcher
+
+    try:
+        return jsonify({"ok": True, **docgen_launcher.status(request.args.get("url"))})
+    except docgen_client.DocGenError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@bp.post("/api/docgen/start")
+def docgen_start():
+    from . import docgen_client, docgen_launcher
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        if payload.get("folder"):
+            docgen_launcher.save_folder(str(payload["folder"]))
+        result = docgen_launcher.start(payload.get("url"))
+    except (docgen_client.DocGenError, docgen_launcher.LaunchError) as exc:
+        return jsonify({"ok": False, "error": str(exc), "need_folder": docgen_launcher.find_app() is None}), 400
+    log_activity("LLD Index", "Document Generator start", result.get("message") or result.get("job", ""))
+    return jsonify({"ok": True, **result})

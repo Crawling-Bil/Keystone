@@ -462,3 +462,31 @@ def test_send_to_docgen_creates_a_project_and_imports(client):
         assert not bad["ok"] and "this computer" in bad["error"]
     finally:
         server.shutdown()
+
+
+def test_launcher_finds_the_document_generator_folder(tmp_path, monkeypatch):
+    from features.lld_index import docgen_launcher
+    app = tmp_path / "Document_Generator" / "lld_generator_v1.0.5"
+    (app / "backend").mkdir(parents=True)
+    (app / "backend" / "main.py").write_text('app = FastAPI(title="LLD Generator")\n')
+    other = tmp_path / "other"
+    (other / "backend").mkdir(parents=True)
+    (other / "backend" / "main.py").write_text("print('not it')\n")
+    monkeypatch.setattr(docgen_launcher, "CONFIG", tmp_path / "docgen.json")
+    monkeypatch.setenv("KEYSTONE_DOCGEN_DIR", str(app / "backend"))
+    assert docgen_launcher.find_app() == app
+    monkeypatch.delenv("KEYSTONE_DOCGEN_DIR")
+    monkeypatch.setattr(docgen_launcher, "BASE_DIR", tmp_path / "Keystone")
+    assert docgen_launcher.find_app() == app                               # ../Document_Generator/lld_generator_v*
+    with pytest.raises(docgen_launcher.LaunchError):
+        docgen_launcher.save_folder(str(other))
+    assert docgen_launcher.save_folder(str(app)) == app
+    assert json.loads((tmp_path / "docgen.json").read_text()) == {"folder": str(app)}
+
+
+def test_start_reports_a_missing_folder(client, monkeypatch):
+    from features.lld_index import docgen_launcher
+    monkeypatch.setattr(docgen_launcher, "find_app", lambda: None)
+    monkeypatch.setattr(docgen_launcher, "_running", lambda url: False)
+    res = client.post("/lld-index/api/docgen/start", json={"url": "http://127.0.0.1:8003"}).get_json()
+    assert not res["ok"] and res["need_folder"] and "folder" in res["error"]

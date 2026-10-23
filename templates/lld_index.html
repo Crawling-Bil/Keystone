@@ -75,10 +75,15 @@
       </header>
       <div class="an-cards" data-role="cards"></div>
       <div class="li-send" data-role="send">
-        <div class="li-send-head"><strong>Send to Document Generator</strong><small>Straight into a project, no download and upload. The Document Generator must be running on this computer.</small></div>
+        <div class="li-send-head"><strong>Send to Document Generator</strong><small>Straight into a project, no download and upload. Not running yet? Start it from here.</small></div>
         <div class="li-send-row">
           <label class="an-field"><span class="an-label">Address</span><input class="li-input" data-role="dg-url" value="http://127.0.0.1:8003"></label>
+          <button type="button" class="an-btn small" data-role="dg-start">Start Document Generator</button>
           <button type="button" class="an-btn small" data-role="dg-connect">Connect</button>
+          <a class="an-btn small hidden" data-role="dg-open" target="_blank" rel="noopener">Open</a>
+        </div>
+        <div class="li-send-row hidden" data-role="dg-folder-row">
+          <label class="an-field"><span class="an-label">Document Generator folder (the one with backend/main.py)</span><input class="li-input" data-role="dg-folder" placeholder="/Volumes/Work/Tools/Document_Generator/lld_generator_v1.0.5"></label>
         </div>
         <div class="li-send-row hidden" data-role="dg-pick">
           <label class="an-field"><span class="an-label">Project</span><select class="li-input" data-role="dg-project"></select></label>

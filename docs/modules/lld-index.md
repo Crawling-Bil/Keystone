@@ -63,6 +63,8 @@ After a build, **Send to Document Generator** connects to the Document Generator
 * **New project**: created with the project name and customer, on the chosen master template, then imported (replace).
 * **Existing project** (the one with the same name is preselected): imported with **Update** (tables and paragraphs refreshed, uploaded images, manual text and extra chapters kept) or **Replace**.
 
+**Start Document Generator** starts it when it is not running (`docgen_launcher.py`). The folder comes from `KEYSTONE_DOCGEN_DIR`, the folder saved on the page (`data/docgen.json`), or the newest `../Document_Generator/lld_generator_v*/` next to Keystone. Python: the app's own `.venv`, then `python3` on PATH, whichever can import fastapi, uvicorn, python-docx and openpyxl; when none can, a `backend/.venv` is created and `requirements.txt` installed (first time only, needs internet). It runs `uvicorn main:app` on 127.0.0.1 at the port of the address, detached, logging to `backend/storage/server.log`, and keeps running after Keystone stops.
+
 Keystone calls the Document Generator API from the server (`docgen_client.py`): `GET /api/projects`, `GET /api/templates`, `POST /api/projects`, `POST /api/projects/{id}/import-excel`. Only loopback addresses are accepted, so the index (customer configuration) never leaves the computer through a mistyped address.
 
 ## Output format
