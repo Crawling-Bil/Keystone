@@ -4,6 +4,14 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ## Unreleased
 
+### LLD Generator: the Document Generator inside Keystone
+
+- New module **LLD Generator** (`/lld-generator`, sidebar group Document): master templates, projects, chapter tree, paragraph/table/image blocks, review, Generate Word. Same features and API as Document Generator v1.0.5, now a Flask blueprint with tables `lld_gen_*` in `data/nes.db` and files in `data/lld_generator/`.
+- The Word engine moved unchanged to `core/docgen/` (docgen, importer, placeholders) for reuse by later generators; a golden check gives identical documents to the old app.
+- LLD Index: **Open in LLD Generator** replaces the Send and Start Document Generator buttons; a rebuild updates the same project (images and manual edits kept).
+- Bundled LLD Master Template, registered on first use. One-time import from the old Document Generator (read-only, repeatable without duplicates).
+- New dependency: python-docx.
+
 ### LLD Index: Document Generator index from the inventory, configs and project goals
 
 - Start Document Generator button: finds the Document Generator next to Keystone (or a saved folder / KEYSTONE_DOCGEN_DIR), sets up its .venv on first use when no Python can run it, and starts it in the background on 127.0.0.1.

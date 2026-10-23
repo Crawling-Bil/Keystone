@@ -45,7 +45,7 @@ REQUIRED = (
     "templates/wireless.html",
     "static/css/app.css",
 )
-DEPENDENCIES = ("flask", "waitress", "openpyxl", "netmiko", "scp", "paramiko", "pyftpdlib")
+DEPENDENCIES = ("flask", "waitress", "openpyxl", "docx", "netmiko", "scp", "paramiko", "pyftpdlib")
 
 
 def suite_python() -> Path | None:

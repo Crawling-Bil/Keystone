@@ -155,98 +155,33 @@
       }).join("");
     }
 
-    // ------------------------------------------------------------ send to Document Generator
+    // ------------------------------------------------------------ open in LLD Generator
     let lastResult = null;
-    const DG_KEY = "keystone.lld.docgenUrl";
-    try { const saved = localStorage.getItem(DG_KEY); if (saved) $("dg-url").value = saved; } catch (e) { /* storage blocked */ }
-    function dgStatus(text, tone) { const el = $("dg-status"); el.textContent = text; el.dataset.tone = tone || ""; }
-    function syncDgFields() {
-      const isNew = $("dg-project").value === "new";
-      $("dg-template-field").classList.toggle("hidden", !isNew);
-      $("dg-mode-field").classList.toggle("hidden", isNew);
-    }
-    async function dgConnect() {
-      const url = $("dg-url").value.trim();
-      dgStatus("Connecting…");
-      try {
-        const response = await fetch(`/lld-index/api/docgen?url=${encodeURIComponent(url)}`);
-        const data = await response.json();
-        if (!data.ok) throw new Error(data.error);
-        try { localStorage.setItem(DG_KEY, url); } catch (e) { /* storage blocked */ }
-        const name = (lastResult && lastResult.project.project_name || "").toLowerCase();
-        const match = data.projects.find(p => p.name.toLowerCase() === name);
-        $("dg-project").innerHTML = `<option value="new">New project: ${esc(lastResult ? lastResult.project.project_name || "LLD" : "LLD")}</option>` +
-          data.projects.map(p => `<option value="${p.id}"${match && match.id === p.id ? " selected" : ""}>${esc(p.name)}${p.client ? " · " + esc(p.client) : ""}</option>`).join("");
-        $("dg-template").innerHTML = data.templates.map(t => `<option value="${t.id}"${/master/i.test(t.name) ? " selected" : ""}>${esc(t.name)}</option>`).join("")
-          || `<option value="">No template: upload the master template in the Document Generator first</option>`;
-        $("dg-pick").classList.remove("hidden");
-        syncDgFields();
-        dgStatus(`Connected · ${data.projects.length} project(s)`, "ok");
-        showOpen(true);
-        return true;
-      } catch (err) { dgStatus(err.message, "error"); return false; }
-    }
-    $("dg-connect").addEventListener("click", dgConnect);
-    function showOpen(running) {
-      const open = $("dg-open");
-      open.href = $("dg-url").value.trim() || "http://127.0.0.1:8003";
-      open.classList.toggle("hidden", !running);
-    }
-    async function pollStart() {
-      for (let i = 0; i < 600; i++) {                 // up to 15 minutes (first-time setup installs packages)
-        await new Promise(r => setTimeout(r, 1500));
-        const response = await fetch(`/lld-index/api/docgen/status?url=${encodeURIComponent($("dg-url").value.trim())}`);
-        const data = await response.json();
-        if (!data.ok) { dgStatus(data.error, "error"); return; }
-        if (data.running) { showOpen(true); dgStatus(data.message || "Document Generator is running.", "ok"); await dgConnect(); return; }
-        if (data.job === "error") { dgStatus(data.message, "error"); return; }
-        dgStatus(data.message || "Starting…");
-      }
-    }
-    $("dg-start").addEventListener("click", async () => {
-      $("dg-start").disabled = true;
-      dgStatus("Starting…");
-      try {
-        const body = { url: $("dg-url").value.trim(), folder: $("dg-folder").value.trim() || null };
-        const response = await fetch("/lld-index/api/docgen/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-        const data = await response.json();
-        if (!data.ok) {
-          $("dg-folder-row").classList.toggle("hidden", !data.need_folder);
-          throw new Error(data.error);
-        }
-        $("dg-folder-row").classList.add("hidden");
-        if (data.running) { showOpen(true); dgStatus(data.message || "Document Generator is running.", "ok"); await dgConnect(); }
-        else { dgStatus(data.message || "Starting…"); await pollStart(); }
-      } catch (err) { dgStatus(err.message, "error"); }
-      finally { $("dg-start").disabled = false; }
-    });
-    $("dg-project").addEventListener("change", syncDgFields);
-    $("dg-send").addEventListener("click", async () => {
+    function lgStatus(text, tone) { const el = $("lg-status"); el.textContent = text; el.dataset.tone = tone || ""; }
+    $("lg-open").addEventListener("click", async () => {
       if (!lastResult) return;
-      const isNew = $("dg-project").value === "new";
-      const body = { url: $("dg-url").value.trim(), export_id: lastResult.export_id, filename: lastResult.download_name,
-        project_id: isNew ? null : Number($("dg-project").value), template_id: isNew ? Number($("dg-template").value) || null : null,
-        name: lastResult.project.project_name || "", client: lastResult.project.customer || "", mode: $("dg-mode").value };
-      $("dg-send").disabled = true;
-      dgStatus("Sending…");
+      $("lg-open").disabled = true;
+      lgStatus("Opening…");
       try {
-        const response = await fetch("/lld-index/api/docgen/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const response = await fetch("/lld-generator/api/from-index", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ export_id: lastResult.export_id, project: lastResult.project }) });
         const data = await response.json();
-        if (!data.ok) throw new Error(data.error);
+        if (!response.ok || !data.ok) throw new Error(data.detail || data.error || "Could not open the index.");
         const imp = data.import || {};
-        const what = data.mode === "update"
-          ? `${imp.updated || 0} chapters updated, ${imp.chapters || 0} new, ${imp.kept_blocks || 0} images/manual edits kept`
-          : `${imp.chapters || 0} chapters`;
-        const message = `Sent to ${data.created ? "a new" : "the"} project (#${data.project_id}): ${what}. Open the Document Generator to generate the Word file.`;
-        if (data.created) {
-          await dgConnect();                       // the new project shows up (and is picked) for the next send
-          $("dg-project").value = String(data.project_id);
-          syncDgFields();
+        lgStatus(data.created ? `New project with ${imp.chapters || 0} chapters.`
+          : `Project updated: ${imp.updated || 0} chapters refreshed, ${imp.kept_blocks || 0} images/manual edits kept.`, "ok");
+        const link = document.createElement("a");
+        link.href = data.url;
+        document.body.appendChild(link);
+        link.click();                                  // the SPA router takes it (it keeps the path, not the query)
+        link.remove();
+        for (let i = 0; i < 40; i++) {                 // the LLD Generator page may still be loading
+          const lg = document.querySelector(".lg-page");
+          if (lg && lg.lgOpenProject) { lg.lgOpenProject(data.project_id); break; }
+          await new Promise(r => setTimeout(r, 100));
         }
-        dgStatus(message, "ok");
-        window.NES.toast("Index sent to the Document Generator.", "success");
-      } catch (err) { dgStatus(err.message, "error"); }
-      finally { $("dg-send").disabled = false; }
+      } catch (err) { lgStatus(err.message, "error"); }
+      finally { $("lg-open").disabled = false; }
     });
 
     function card(label, value, hint, tone) {
