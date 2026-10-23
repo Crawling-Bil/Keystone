@@ -55,7 +55,7 @@
         <span class="an-status" data-role="inventory-status"></span>
       </div>
       <div class="li-table-wrap"><table class="li-table">
-        <thead><tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}<th aria-label="Remove"></th></tr></thead>
+        <thead><tr data-role="head">{% for c in columns %}<th>{{ c }}</th>{% endfor %}<th aria-label="Remove"></th></tr></thead>
         <tbody data-role="rows"></tbody>
       </table></div>
       <details class="li-more">

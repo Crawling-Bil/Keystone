@@ -15,6 +15,10 @@
     };
     const PLACE = ["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "", "10.10.10.1/24", "", "ho-core-sw01.txt", "Ruang Server Rack 1", "42", "30", "1"];
     const NARROW = new Set(["rack_size", "u", "u_height"]);
+    const LABELS = { site: "Site", hostname: "Hostname", model: "Model", role: "Role", status: "Status", mgmt_ip: "Mgmt IP",
+      serial: "SN", config: "Config", rack: "Rack", rack_size: "Rack Size", u: "U", u_height: "U Height" };
+    // The header comes from the same list as the inputs, so the two always line up.
+    $("head").innerHTML = COLS.map(c => `<th>${LABELS[c]}</th>`).join("") + `<th aria-label="Remove"></th>`;
     let configFiles = [];
 
     // ------------------------------------------------------------ inventory rows
