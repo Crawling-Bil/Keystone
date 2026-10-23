@@ -338,7 +338,7 @@ def test_replacement_project_draws_each_rack_before_and_after():
 def test_existing_devices_stay_out_of_every_other_chapter():
     for replacement in (True, False):
         _, _, nodes = _replacement_nodes(replacement)
-        others = [n for n in nodes if "Rack" not in n.title and "Rack" not in n.sheet_hint]
+        others = [n for n in nodes if "Rack" not in n.title and "Rack" not in n.sheet_hint and n.title != "Implementation Step"]
         text = json.dumps([[n.title, n.rows] for n in others])
         assert "HO-CORE-OLD" not in text and "C3850" not in text
         assert "HO-PATCH" not in text                                      # no technology: rack only
@@ -366,3 +366,27 @@ def test_api_rack_preview_has_phases(client):
     assert [(r["rack"], r["phase"]) for r in result["racks"]] == [("Rack 1", "Before"), ("Rack 1", "After")]
     old = next(d for d in result["devices"] if d["hostname"] == "HO-CORE-OLD")
     assert old["status"] == "Existing" and any("Before rack" in n for n in old["notes"])
+
+
+def test_replacement_fills_existing_list_scope_and_dismantle_step():
+    records = REPLACED + [
+        {"site": "HO", "hostname": "HO-FW-OLD", "model": "FGT60F", "role": "Firewall", "serial": "FGTX", "status": "Existing"},
+        {"site": "HO", "hostname": "HO-FW01", "model": "PA-1410", "role": "Firewall"},
+        {"site": "DC", "hostname": "DC-FW-OLD", "model": "ASA5516", "role": "Firewall", "status": "Existing"},
+    ]
+    devices = build_devices(records, {})
+    datasets = {d.hostname: analyze_device(d) for d in devices}
+    project = dict(PROJECT, technologies=["switch", "firewall"], replacement=True)
+    nodes = builder.build(project, devices, datasets, project["technologies"])
+    existing = next(n for n in nodes if n.title == "Existing Device List")
+    assert existing.rows == [["1", "HO", "HO-FW-OLD (FGT60F)", "FGTX", "Replaced by HO-FW01"],
+                             ["2", "DC", "DC-FW-OLD (ASA5516)", "", "Removed"]]
+    new = next(n for n in nodes if n.title == "New Device List")
+    assert [r[1] for r in new.rows] == ["HO-FW01"]
+    scope = " ".join(next(n for n in nodes if n.title == "Scope of Work").paragraphs)
+    assert "Installation of C9300-48P, PA-1410, S5755-H24T4Y2CZ." in scope       # Keep is not installed
+    assert "Dismantling of the existing devices (ASA5516, C3850-24T, FGT60F)" in scope
+    intro = " ".join(next(n for n in nodes if n.title == "Project Description").paragraphs)
+    assert "3 existing devices (ASA5516, C3850-24T, FGT60F) will be replaced and removed." in intro
+    steps = next(n for n in nodes if n.title == "Implementation Step").rows
+    assert steps[-1][1] == "Dismantle" and "HO-CORE-OLD, HO-FW-OLD, DC-FW-OLD" in steps[-1][2]

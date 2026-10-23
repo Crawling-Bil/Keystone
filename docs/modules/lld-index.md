@@ -21,7 +21,7 @@ Rack (name), Rack Size (24/27/32/36/42/45/47/48U, blank = 42), U (lowest unit th
 
 Tick **Replacement project** and set **Status** per device: `New` (installed by the project, the default when blank), `Existing` (old device that is removed) or `Keep` (stays in place: patch panel, server, a switch that is not replaced). Every rack then gets two tables under its site: **Rack Layout Before - <rack>** (Existing + Keep) and **Rack Layout After - <rack>** (New + Keep). Existing and New devices may share units; overlaps are only checked within the same phase.
 
-Existing devices appear nowhere else in the index (no VLAN, connectivity or configuration chapters, not in the Device Inventory or BoQ). Keep devices without a selected technology (a patch panel) only appear in the racks. The BoQ counts New devices only. Without the option the rack shows the finished state (New + Keep).
+Existing devices appear nowhere else in the index (no VLAN, connectivity or configuration chapters, not in the Device Inventory or BoQ). Keep devices without a selected technology (a patch panel) only appear in the racks. The BoQ counts New devices only. The firewall Existing Device List lists the Existing devices with "Replaced by <New device of the same site and technology>" or "Removed"; Scope of Work, Project Description and Implementation Step (Dismantle row) mention them. Without the option the rack shows the finished state (New + Keep).
 
 ## How the index is built
 
@@ -39,6 +39,8 @@ Template node keys:
 | `devices` | narrow the scope: `tech`, `role` (regex), `exclude_role` (regex), `rack` (true = devices with a rack position; false = only when none has one) |
 | `replacement` | `true`: only in a replacement project; `false`: only outside one |
 | `phase` | `before` (Existing + Keep) or `after` (New + Keep) for a rack table; without it a node never sees Existing devices |
+| `status` | list of statuses the node works with, e.g. `["Existing"]` for the Existing Device List |
+| `replacement_rows` | static table: rows added in a replacement project (`{existing}` = the Existing hostnames) |
 | `optional` | drop when there is no data; without it an empty table becomes one `TBD` row |
 | `table.builder` | `device` (config tables), `inventory`, `rack`, `boq`, `allocation`, `models_spec`, `mgmt_ip`, `software`, `config`, `uat`, `static` |
 | `table.tables` | candidate dataset tables, first one with rows wins (PAN-OS `security_rules`, FortiGate `policies`) |

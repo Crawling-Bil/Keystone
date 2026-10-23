@@ -64,7 +64,8 @@
            ["Installation", "Rack, cable and power on the new devices", ""],
            ["Configuration", "Apply the configuration in this document", ""],
            ["Migration", "Move links and services in the agreed maintenance window", ""],
-           ["Verification", "Run the UAT scenario and monitor the network", ""]]}},
+           ["Verification", "Run the UAT scenario and monitor the network", ""]],
+           "replacement_rows": [["Dismantle", "Power off, unrack and hand over the existing devices: {existing}", ""]]}},
         {"title": "Implementation Anticipation", "type": "table", "caption": "Implementation Anticipation", "sheet": "Implementation Anticipation",
          "table": {"builder": "static", "headers": ["Risk", "Solution"], "rows": [
            ["A device fails during migration", "Roll back to the existing device and configuration"],

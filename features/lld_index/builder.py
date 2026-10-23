@@ -31,7 +31,7 @@ from typing import Any, Optional
 
 from . import narrative
 from .datasets import Dataset, config_blocks
-from .inventory import in_phase, Device, TECH_LABELS
+from .inventory import PHASE_STATUSES, in_phase, Device, TECH_LABELS
 
 TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 PLACEHOLDER = "TBD"
@@ -214,7 +214,16 @@ def _device_rows(spec: dict, scope: Scope, datasets: dict) -> tuple[list, list, 
     return headers, rows, any_config
 
 
-def _inventory_rows(spec: dict, scope: Scope, datasets: dict) -> tuple[list, list]:
+def _replaced_by(device: Device, everyone: list) -> str:
+    """For an Existing device: the New devices of the same site and technology."""
+    if device.status != "Existing":
+        return ""
+    new = [d.hostname for d in everyone if d.status == "New" and d.site == device.site
+           and d.technology and d.technology == device.technology]
+    return f"Replaced by {', '.join(new)}" if new else "Removed"
+
+
+def _inventory_rows(spec: dict, scope: Scope, datasets: dict, everyone: list = ()) -> tuple[list, list]:
     columns = spec.get("columns") or [["Hostname", "hostname"], ["Model", "model"], ["Site", "site"]]
     rows = []
     for device in scope.devices:
@@ -223,7 +232,9 @@ def _inventory_rows(spec: dict, scope: Scope, datasets: dict) -> tuple[list, lis
                   "role": device.role, "mgmt_ip": device.mgmt_address, "mgmt_cidr": device.mgmt_ip,
                   "netmask": device.mgmt_netmask, "serial": device.serial or facts.get("serial", ""),
                   "version": facts.get("version", ""), "vendor": facts.get("vendor", ""),
-                  "technology": TECH_LABELS.get(device.technology, device.technology)}
+                  "technology": TECH_LABELS.get(device.technology, device.technology),
+                  "status": device.status, "replaced_by": _replaced_by(device, list(everyone)),
+                  "device": f"{device.hostname} ({device.model})" if device.model else device.hostname}
         rows.append([_pick(record, c[1]) for c in columns])
     return [c[0] for c in columns], rows
 
@@ -245,7 +256,7 @@ def _builder_rows(spec: dict, scope: Scope, datasets: dict, project: dict) -> tu
         headers, rows, analyzed = _device_rows(spec, scope, datasets)
         return headers, rows, "config" if analyzed else "config (none uploaded)"
     if builder == "inventory":
-        headers, rows = _inventory_rows(spec, scope, datasets)
+        headers, rows = _inventory_rows(spec, scope, datasets, project.get("_devices") or [])
         return headers, rows, "inventory"
     if builder == "boq":
         rows = []
@@ -298,7 +309,13 @@ def _builder_rows(spec: dict, scope: Scope, datasets: dict, project: dict) -> tu
         return ["Hostname", "Test Item", "Expected Result", "Result"], rows, "template"
     # static
     headers = spec.get("headers") or []
-    rows = [[_fmt(cell, _values(project, scope, datasets)) for cell in row] for row in spec.get("rows") or []]
+    values = _values(project, scope, datasets)
+    existing = [d.hostname for d in project.get("_devices") or [] if d.status == "Existing"]
+    values["existing"] = ", ".join(existing) or "the existing devices"
+    source = spec.get("rows") or []
+    if project.get("replacement") and spec.get("replacement_rows"):
+        source = source + spec["replacement_rows"]
+    rows = [[_fmt(cell, values) for cell in row] for row in source]
     return headers, rows, "template"
 
 
@@ -397,19 +414,37 @@ def _about_racks(spec: dict) -> bool:
     return any(_about_racks(c) for c in (spec.get("children") or []) if isinstance(c, dict))
 
 
+FINISHED = {"New", "Keep"}
+
+
+def _wanted(spec: dict, project: dict) -> set:
+    """Statuses a node (and everything under it) works with. Default: the
+    finished network (New + Keep). "status": [...] asks for others (the
+    Existing Device List); "phase" picks a replacement rack's Before/After."""
+    if spec.get("status"):
+        return set(spec["status"])
+    if spec.get("phase") and project.get("replacement"):
+        return set(PHASE_STATUSES[spec["phase"]])
+    children = [c for c in (spec.get("children") or []) if isinstance(c, dict)]
+    if not children:
+        return set(FINISHED)
+    out: set = set()
+    for child in children:
+        out |= _wanted(child, project)
+    return out
+
+
 def _phase_devices(devices: list, spec: dict, project: dict) -> list:
-    """Existing devices (removed by the project) only reach the nodes of a
-    replacement project's Before rack layout; every other chapter sees the
-    devices that are there when the project is done (New and Keep)."""
-    phases = _phases_below(spec) if project.get("replacement") else set()
-    if not phases:
-        # Racks show everything that sits in them (a patch panel, a server);
-        # the other chapters only the devices of the selected technologies.
-        listed = None if _about_racks(spec) else project.get("_listed")
-        return [d for d in devices if in_phase(d, "") and (listed is None or d.hostname in listed)]
-    if spec.get("phase"):
-        return [d for d in devices if in_phase(d, spec["phase"])]
-    return [d for d in devices if any(in_phase(d, p) for p in phases)]
+    """Existing devices (removed by the project) only reach the nodes that
+    ask for them: a replacement project's Before rack layout and the
+    Existing Device List. Everything else sees New and Keep devices."""
+    wanted = _wanted(spec, project)
+    # Racks show everything that sits in them (a patch panel, a server); the
+    # other chapters only the devices of the selected technologies (an
+    # Existing device listed for what it is, whatever its technology).
+    listed = None if _about_racks(spec) else project.get("_listed")
+    return [d for d in devices if d.status in wanted
+            and (listed is None or d.hostname in listed or d.status == "Existing")]
 
 
 def _expand_node(spec: dict, scope: Scope, level: int, project: dict, datasets: dict) -> list:
@@ -519,6 +554,10 @@ def build(project: dict, devices: list, datasets: dict, technologies: list) -> l
     """Full tree: common chapters with each technology's chapters inserted
     where the common template has {"insert": "technology"}."""
     common = load_template("common")
+    listed = {d.hostname for d in devices
+              if any(d.technology in (load_template(t).get("devices") or [t]) for t in technologies)}
+    in_scope = [d for d in devices if d.status != "New" or d.hostname in listed]
+    project = {**project, "_listed": listed, "_devices": list(devices)}
     tech_nodes = []
     blocks = []
     for tech in technologies:
@@ -543,10 +582,6 @@ def build(project: dict, devices: list, datasets: dict, technologies: list) -> l
         tech_nodes += block
     # Existing and Keep devices are in the rack layout whatever their technology
     # (an old switch, a patch panel); the phase filter keeps them out of the rest.
-    listed = {d.hostname for d in devices
-              if any(d.technology in (load_template(t).get("devices") or [t]) for t in technologies)}
-    in_scope = [d for d in devices if d.status != "New" or d.hostname in listed]
-    project = {**project, "_listed": listed}
     root = Scope(devices=in_scope)
     nodes: list = []
     for spec in common.get("chapters") or []:

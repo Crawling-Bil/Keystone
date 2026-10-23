@@ -6,6 +6,8 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ### LLD Index: Document Generator index from the inventory, configs and project goals
 
+- Replacement project: the firewall Existing Device List is filled from Existing devices (Status "Replaced by <new device>" or "Removed"); Scope of Work installs New devices only and adds dismantling; Project Description names the devices removed; Implementation Step gets a Dismantle row.
+- Sidebar scrolls when the menu is taller than the screen (Document > LLD Index was out of reach on a laptop).
 - Replacement project option: inventory Status column (New / Existing / Keep) and a Before and an After rack table per rack. Existing devices only appear in the Before rack; the BoQ counts New devices only.
 - Rack layout tables: device cells light blue, U columns light grey, text centred (Document Generator reads `fills` and `aligns`).
 - New module **LLD Index** (`/lld-index`, new sidebar group "Document"). It builds the "LLD Content Index" workbook the Document Generator imports: chapters per technology, expanded per site, per device and per model, tables filled from the inventory and from the configs, narrative written from the project goals.

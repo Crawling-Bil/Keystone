@@ -833,6 +833,9 @@ input, select, textarea, button { caret-color: var(--blue); }
 
 .suite-sidebar {
   padding: 24px 14px 16px;
+  overflow-y: auto;            /* the menu is taller than a laptop screen */
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   border-right: 1px solid var(--border);
   background: var(--sidebar);
   backdrop-filter: none;
