@@ -78,10 +78,6 @@
 .li-page .li-u.is-dev .li-dev small { color: #45464a; }
 
 /* Replacement project option and Status column */
-.li-page .li-check { display: flex; gap: .6rem; align-items: flex-start; margin: .2rem 0 .9rem; cursor: pointer; }
-.li-page .li-check input { margin-top: .25rem; accent-color: var(--accent, #0f8a7e); }
-.li-page .li-check span { display: flex; flex-direction: column; gap: .15rem; }
-.li-page .li-check small { color: var(--muted, #6b7280); }
 .li-page select.li-status { min-width: 6.5rem; }
 .li-page .li-phase { display: inline-block; padding: 0 .4rem; margin-right: .2rem; border-radius: 4px;
   background: #DDEBF7; color: #1f4e79; font-size: .75em; font-weight: 600; vertical-align: middle; }
@@ -94,3 +90,32 @@
 .li-page .li-send-row .an-field { flex: 1 1 220px; min-width: 0; }
 .li-page .li-send [data-tone="error"] { color: var(--red, #d9534f); }
 .li-page .li-send [data-tone="ok"] { color: var(--accent, #0f8a7e); }
+
+/* Simpler form (Oct 2026): 3-column fields, switch, collapsible extras */
+.li-page .li-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .li-page .li-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .li-page .li-grid-3 { grid-template-columns: 1fr; } }
+.li-page .li-switch { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); cursor: pointer; }
+.li-page .li-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.li-page .li-switch-box { position: relative; flex: 0 0 auto; width: 36px; height: 20px; border-radius: 999px; background: var(--border-strong); transition: background .15s; }
+.li-page .li-switch-box::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.li-page .li-switch input:checked + .li-switch-box { background: var(--blue); }
+.li-page .li-switch input:checked + .li-switch-box::after { transform: translateX(16px); }
+.li-page .li-switch input:focus-visible + .li-switch-box { outline: 2px solid var(--focus); outline-offset: 2px; }
+.li-page .li-switch:has(input:checked) { border-color: var(--blue); background: var(--accent-wash); }
+.li-page .li-switch strong { display: block; font-size: 14px; }
+.li-page .li-switch small { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; }
+.li-page .li-more { border-top: 1px solid var(--border); padding-top: 12px; }
+.li-page .li-more summary { cursor: pointer; color: var(--text-soft); font-weight: 650; font-size: 13px; }
+.li-page .li-more summary small, .li-page .li-optional { color: var(--faint); font-weight: 500; font-size: 12px; }
+.li-page .li-more[open] summary { margin-bottom: 12px; }
+.li-page .li-cols { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 12.5px; }
+.li-page .li-cols dt { font-weight: 700; color: var(--text-soft); }
+.li-page .li-cols dd { margin: 0; color: var(--muted); }
+@media (max-width: 560px) { .li-page .li-cols { grid-template-columns: 1fr; } .li-page .li-cols dd { margin-bottom: 6px; } }
+.li-page .li-techs { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.li-page .li-tech { align-items: center; padding: 12px; }
+.li-page .li-tech small { margin-top: 2px; }
+.li-page .li-draft { margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--panel-3); color: var(--faint); font-size: 10.5px; font-style: normal; font-weight: 700; vertical-align: 1px; }
+.li-page .li-result-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.li-page .li-result-actions .an-btn { min-height: 40px; padding: 0 18px; }

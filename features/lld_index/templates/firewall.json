@@ -1,6 +1,7 @@
 {
   "technology": "firewall",
   "label": "Firewall",
+  "short": "Zones, policies, NAT and VPN per site",
   "summary": "Device summary, topology and design, then one chapter per site with every configuration table the firewall has (Palo Alto and FortiGate). Sections with no data are left out.",
   "based_on": "LLD - Peremajaan Perangkat Firewall Palo Alto v1.0; [LLD] Enterprise Network Regional 3 HO - Firewall",
   "devices": ["firewall"],

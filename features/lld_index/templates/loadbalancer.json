@@ -1,6 +1,7 @@
 {
   "technology": "loadbalancer",
   "label": "Load Balancer",
+  "short": "Virtual servers and pools (draft)",
   "summary": "Draft (no load balancer LLD sample yet): topology, then per site and device the network, high availability, virtual servers, pools, monitors and profiles (F5 BIG-IP). Sections with no data are left out.",
   "based_on": "Draft from the firewall LLD structure and the Load Balancer Analyzer tables; replace once an LB LLD sample exists",
   "devices": ["loadbalancer"],
