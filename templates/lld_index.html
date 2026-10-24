@@ -1,62 +1,82 @@
 {% extends "base.html" %}
 {% block title %}LLD Index · Keystone{% endblock %}
 {% block page_title %}LLD Index{% endblock %}
-{% block page_subtitle %}Build the LLD Content Index for the Document Generator from the device inventory, the configs and the project goals.{% endblock %}
+{% block page_subtitle %}Fill in the project, the devices and their configs. Keystone writes the LLD index, then you open it in the LLD Generator.{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/analyzer_kit.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/lld_index.css') }}">{% endblock %}
 {% block content %}
 {#- No element ids: the SPA router keeps every visited page mounted; lld_index.js scopes itself to .li-page. -#}
 <section class="an-page li-page" data-api="/lld-index">
   <form class="li-form" data-role="form" novalidate>
+    <div class="li-saved hidden" data-role="saved-bar">
+      <label class="an-field"><span class="an-label">Continue a project</span>
+        <select class="li-input" data-role="saved-select"><option value="">New project</option></select></label>
+      <button type="button" class="an-btn small" data-role="saved-delete" disabled>Delete saved</button>
+      <span class="an-status" data-role="saved-status">Every build is saved here with its devices and configs.</span>
+    </div>
     <div class="panel li-card">
-      <header class="li-card-head"><span class="li-step">1</span><div><h3>Project</h3><p class="an-hint">The narrative chapters (Project Description, Scope of Work, Out of Scope, Related Document) are written from these fields. Customer, project name, code, company and writer also go to the Document Generator (sheet "Project"), which puts them on the cover, footer and Document Control of the master template.</p></div></header>
-      <div class="li-grid">
-        <label class="an-field"><span class="an-label">Customer</span><input class="li-input" data-field="customer" placeholder="Toyota Astra Motor"></label>
+      <header class="li-card-head"><span class="li-step">1</span><div><h3>Project</h3><p class="an-hint">Goes on the cover and into the introduction.</p></div></header>
+      <div class="li-grid li-grid-3">
+        <label class="an-field"><span class="an-label">Customer</span><input class="li-input" data-field="customer" placeholder="PT Toyota Astra Motor"></label>
         <label class="an-field"><span class="an-label">Project name</span><input class="li-input" data-field="project_name" placeholder="Switch Replacement"></label>
         <label class="an-field"><span class="an-label">Project code</span><input class="li-input" data-field="project_code" placeholder="7TAMO26009001"></label>
+        <label class="an-field"><span class="an-label">Prepared by</span><input class="li-input" data-field="prepared_by" placeholder="Your name"></label>
         <label class="an-field"><span class="an-label">Implemented by</span><input class="li-input" data-field="company" value="Multipolar Technology"></label>
-        <label class="an-field"><span class="an-label">Prepared by</span><input class="li-input" data-field="prepared_by" placeholder="Document writer"></label>
       </div>
-      <label class="li-check"><input type="checkbox" data-field="replacement">
-        <span><strong>Replacement project</strong><small>Rack Layout gets a Before table (Existing + Keep devices) and an After table (New + Keep) for every rack. Set the Status column in the inventory.</small></span></label>
-      <div class="li-grid">
-        <label class="an-field"><span class="an-label">Project goals <small>(one per line)</small></span><textarea class="li-text" data-field="goals" rows="4" placeholder="Replace end-of-life core and access switches&#10;Standardise VLAN and management addressing"></textarea></label>
-        <label class="an-field"><span class="an-label">Scope of work <small>(one per line, blank = written from the inventory)</small></span><textarea class="li-text" data-field="scope" rows="4"></textarea></label>
-        <label class="an-field"><span class="an-label">Out of scope <small>(one per line, blank = standard list)</small></span><textarea class="li-text" data-field="out_of_scope" rows="3"></textarea></label>
-        <label class="an-field"><span class="an-label">Related documents <small>(one per line)</small></span><textarea class="li-text" data-field="related_documents" rows="3" placeholder="Kick Off Meeting (KOM) document&#10;Bill of Quantity (BoQ)"></textarea></label>
-      </div>
+      <label class="an-field"><span class="an-label">Project goals <small>one per line</small></span><textarea class="li-text" data-field="goals" rows="3" placeholder="Replace end-of-life core and access switches&#10;Standardise VLAN and management addressing"></textarea></label>
+      <label class="li-switch"><input type="checkbox" data-field="replacement"><span class="li-switch-box" aria-hidden="true"></span>
+        <span><strong>Replacement project</strong><small>Old devices get their own "Before" rack layout. Mark them Existing in the device list.</small></span></label>
+      <details class="li-more">
+        <summary>More text for the introduction <small>optional</small></summary>
+        <div class="li-grid li-grid-3">
+          <label class="an-field"><span class="an-label">Scope of work <small>blank = from the devices</small></span><textarea class="li-text" data-field="scope" rows="3"></textarea></label>
+          <label class="an-field"><span class="an-label">Out of scope <small>blank = standard list</small></span><textarea class="li-text" data-field="out_of_scope" rows="3"></textarea></label>
+          <label class="an-field"><span class="an-label">Related documents</span><textarea class="li-text" data-field="related_documents" rows="3" placeholder="Kick Off Meeting (KOM) document&#10;Bill of Quantity (BoQ)"></textarea></label>
+        </div>
+      </details>
     </div>
 
     <div class="panel li-card">
-      <header class="li-card-head"><span class="li-step">2</span><div><h3>Technologies</h3><p class="an-hint">Each technology adds its own chapters between Access Management and Implementation Scenario. Chapters per site and per device repeat for every site and device in the inventory.</p></div></header>
+      <header class="li-card-head"><span class="li-step">2</span><div><h3>Technologies</h3><p class="an-hint">Pick what this LLD covers. Each one adds its own chapters.</p></div></header>
       <div class="li-techs">
         {% for t in templates %}
-        <label class="li-tech"><input type="checkbox" data-tech="{{ t.key }}"><span class="li-tech-box" aria-hidden="true"></span>
-          <span><strong>{{ t.label }}</strong><small>{{ t.summary }}</small><small class="li-based">Based on: {{ t.based_on }}</small></span></label>
+        <label class="li-tech" title="{{ t.summary }} Based on: {{ t.based_on }}"><input type="checkbox" data-tech="{{ t.key }}"><span class="li-tech-box" aria-hidden="true"></span>
+          <span><strong>{{ t.label }}{% if t.draft %} <em class="li-draft">draft</em>{% endif %}</strong><small>{{ t.short|replace(" (draft)", "") }}</small></span></label>
         {% endfor %}
       </div>
     </div>
 
     <div class="panel li-card">
-      <header class="li-card-head"><span class="li-step">3</span><div><h3>Device inventory</h3><p class="an-hint">One row per device. <strong>Config</strong> names an uploaded file (blank = matched by hostname, or left empty for a design written before configuration). Technology comes from the config, then the Role, then the model. <strong>Rack</strong>, <strong>Rack Size</strong> (24/27/32/36/42/45/47/48U, blank = 42), <strong>U</strong> (lowest unit) and <strong>U Height</strong> (blank = 1) draw the rack layout. <strong>Status</strong>: New (installed by the project), Existing (old device, removed) or Keep (stays, e.g. patch panel); Existing only appears in the Before rack of a replacement project.</p></div></header>
+      <header class="li-card-head"><span class="li-step">3</span><div><h3>Devices</h3><p class="an-hint">One row per device. Import the Excel template or type the rows here.</p></div></header>
       <div class="an-actions">
-        <a class="an-btn small" href="/lld-index/inventory-template.xlsx">Download inventory template</a>
-        <label class="an-btn small li-file-btn">Import CSV / XLSX<input type="file" data-role="inventory-file" accept=".csv,.xlsx,.xlsm" hidden></label>
+        <label class="an-btn small primary li-file-btn">Import CSV / XLSX<input type="file" data-role="inventory-file" accept=".csv,.xlsx,.xlsm" hidden></label>
+        <a class="an-btn small" href="/lld-index/inventory-template.xlsx">Download template</a>
         <button type="button" class="an-btn small" data-role="add-row">Add device</button>
         <button type="button" class="an-btn small" data-role="clear-rows">Clear</button>
         <span class="an-status" data-role="inventory-status"></span>
       </div>
       <div class="li-table-wrap"><table class="li-table">
-        <thead><tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}<th aria-label="Remove"></th></tr></thead>
+        <thead><tr data-role="head">{% for c in columns %}<th>{{ c }}</th>{% endfor %}<th aria-label="Remove"></th></tr></thead>
         <tbody data-role="rows"></tbody>
       </table></div>
+      <details class="li-more">
+        <summary>What goes in each column</summary>
+        <dl class="li-cols">
+          <dt>Site, Hostname, Model</dt><dd>Required. Site groups the chapters, hostname names them.</dd>
+          <dt>Role</dt><dd>Core Switch, Access Switch, Firewall, WLC, Router, Load Balancer. Decides the technology when there is no config.</dd>
+          <dt>Mgmt IP, SN</dt><dd>Shown in the management and device tables. Mgmt IP like 10.10.10.1/24.</dd>
+          <dt>Config</dt><dd>The config file name for this device. Blank = matched by hostname.</dd>
+          <dt>Rack, Rack Size, U, U Height</dt><dd>Draws the rack layout. U = lowest unit the device sits in. Size blank = 42, height blank = 1.</dd>
+          <dt>Status</dt><dd>New (installed now), Existing (old, removed) or Keep (stays, like a patch panel).</dd>
+        </dl>
+      </details>
     </div>
 
     <div class="panel li-card">
-      <header class="li-card-head"><span class="li-step">4</span><div><h3>Config files <small>(optional)</small></h3><p class="an-hint">Running configs or terminal captures, one per device, or one ZIP. VLAN, interfaces, routing, policy and configuration tables are filled from them with the same parsers as the analyzers.</p></div></header>
+      <header class="li-card-head"><span class="li-step">4</span><div><h3>Config files <small class="li-optional">optional</small></h3><p class="an-hint">Fills the VLAN, interface, routing and policy tables. Without configs those tables stay TBD.</p></div></header>
       <label class="an-drop" data-role="drop">
         <input type="file" data-role="config-files" multiple accept=".txt,.cfg,.conf,.config,.log,.rsc,.out,.cap,.xml,.zip">
         <span class="an-drop-icon"><svg class="an-icon" aria-hidden="true"><use href="/static/icons/nes-icons.svg#upload"></use></svg></span>
-        <span><strong>Select or drop config files</strong><small>TXT, CFG, CONF, LOG, RSC or ZIP. Nothing leaves this computer.</small></span>
+        <span><strong>Select or drop config files</strong><small>Running configs or captures, one per device, or one ZIP. Nothing leaves this computer.</small></span>
       </label>
       <ul class="an-file-list hidden" data-role="file-list" aria-label="Selected config files"></ul>
     </div>
@@ -67,40 +87,41 @@
     </div>
   </form>
 
+  <div class="li-built-bar hidden" data-role="built-bar">
+    <div><strong data-role="built-title"></strong><small data-role="built-sub"></small></div>
+    <button type="button" class="an-btn small" data-role="edit-inputs">Edit inputs</button>
+  </div>
+
   <section class="li-result hidden" data-role="result" aria-live="polite">
-    <div class="panel li-card">
+    <nav class="li-rtabs" aria-label="Result">
+      <button type="button" class="li-rtab active" data-rtab="summary">Summary</button>
+      <button type="button" class="li-rtab" data-rtab="chapters">Chapters</button>
+      <button type="button" class="li-rtab" data-rtab="racks" data-role="racks-tab">Rack layout</button>
+      <button type="button" class="li-rtab" data-rtab="devices">Devices</button>
+    </nav>
+    <div class="panel li-card" data-panel="summary">
       <header class="li-result-head">
-        <div><h3>LLD Content Index</h3><p class="an-hint" data-role="summary"></p></div>
-        <a class="an-btn primary" data-role="download" href="#">Download Index (.xlsx)</a>
+        <div><h3>Index ready</h3><p class="an-hint" data-role="summary"></p></div>
+        <div class="li-result-actions">
+          <button type="button" class="an-btn primary" data-role="lg-open">Open in LLD Generator</button>
+          <a class="an-btn" data-role="download" href="#">Download Excel</a>
+        </div>
       </header>
+      <span class="an-status" data-role="lg-status"></span>
+      <div class="li-alert hidden" data-role="unused"></div>
       <div class="an-cards" data-role="cards"></div>
-      <div class="li-send" data-role="send">
-        <div class="li-send-head"><strong>Send to Document Generator</strong><small>Straight into a project, no download and upload. The Document Generator must be running on this computer.</small></div>
-        <div class="li-send-row">
-          <label class="an-field"><span class="an-label">Address</span><input class="li-input" data-role="dg-url" value="http://127.0.0.1:8003"></label>
-          <button type="button" class="an-btn small" data-role="dg-connect">Connect</button>
-        </div>
-        <div class="li-send-row hidden" data-role="dg-pick">
-          <label class="an-field"><span class="an-label">Project</span><select class="li-input" data-role="dg-project"></select></label>
-          <label class="an-field" data-role="dg-template-field"><span class="an-label">Master template</span><select class="li-input" data-role="dg-template"></select></label>
-          <label class="an-field" data-role="dg-mode-field"><span class="an-label">Import</span><select class="li-input" data-role="dg-mode">
-            <option value="update">Update (keep images and manual edits)</option><option value="replace">Replace everything</option></select></label>
-          <button type="button" class="an-btn primary small" data-role="dg-send">Send</button>
-        </div>
-        <span class="an-status" data-role="dg-status"></span>
-      </div>
-      <p class="an-hint">Or download it and use <strong>Import Excel Index</strong> in the Document Generator. Yellow rows in the Index sheet still need manual content: images (topology, rack, map layout) and anything marked TBD.</p>
+      <p class="an-hint">Next: in the LLD Generator, upload the topology and rack pictures and fill anything marked TBD, then Generate. Building again later updates the same project and keeps your pictures and edits.</p>
     </div>
-    <div class="panel li-card">
+    <div class="panel li-card hidden" data-panel="devices">
       <h3>Devices</h3>
-      <div class="li-table-wrap"><table class="li-table li-readonly"><thead><tr><th>Site</th><th>Hostname</th><th>Model</th><th>Technology</th><th>Config</th><th>Notes</th></tr></thead><tbody data-role="devices"></tbody></table></div>
+      <div class="li-table-wrap"><table class="li-table li-readonly"><thead><tr><th>Site</th><th>Hostname</th><th>Model</th><th>Status</th><th>Technology</th><th>Config</th><th>Notes</th></tr></thead><tbody data-role="devices"></tbody></table></div>
     </div>
-    <div class="panel li-card hidden" data-role="racks-panel">
+    <div class="panel li-card hidden" data-role="racks-panel" data-panel="racks">
       <h3>Rack layout</h3>
-      <p class="an-hint">From the Rack, Rack Size, U and U Height columns. Each rack becomes a table under Rack Layout, per site.</p>
+      <p class="an-hint">Preview of the rack tables in the document.</p>
       <div class="li-racks" data-role="racks"></div>
     </div>
-    <div class="panel li-card">
+    <div class="panel li-card hidden" data-panel="chapters">
       <h3>Chapters</h3>
       <ol class="li-tree" data-role="tree"></ol>
     </div>

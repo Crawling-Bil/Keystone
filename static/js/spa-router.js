@@ -16,7 +16,7 @@
  * alone and behaves like a normal link/request.
  */
 (() => {
-  const ROUTES = ["/", "/lld-index", "/wireless", "/switch-analyzer", "/router-analyzer", "/firewall-analyzer", "/load-balancer-analyzer", "/lifecycle/", "/ztp/", "/lifecycle/config-push", "/about"];
+  const ROUTES = ["/", "/lld-index", "/lld-generator", "/wireless", "/switch-analyzer", "/router-analyzer", "/firewall-analyzer", "/load-balancer-analyzer", "/lifecycle/", "/ztp/", "/lifecycle/config-push", "/about"];
 
   const outlet = document.getElementById("spa-outlet");
   if (!outlet) return; // base.html not on this page (shouldn't happen) — fail safe to normal navigation
@@ -63,6 +63,10 @@
     outlet.querySelectorAll(":scope > [data-spa-page]").forEach(node => {
       node.hidden = node !== entry.container;
     });
+    // replay the entrance animation (css/motion.css) each time a page shows
+    entry.container.classList.remove("spa-enter");
+    void entry.container.offsetWidth;
+    entry.container.classList.add("spa-enter");
     if (actionsSlot) {
       actionsSlot.querySelectorAll(":scope > [data-spa-page-actions]").forEach(node => {
         node.hidden = node !== entry.actionsContainer;

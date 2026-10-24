@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}LLD Generator · Keystone{% endblock %}
+{% block page_title %}LLD Generator{% endblock %}
+{% block page_subtitle %}Write the Word LLD from the index: master template, chapters, tables, images and project placeholders.{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/lld_generator.css') }}">{% endblock %}
+{% block content %}
+{#- No element ids: the SPA router keeps every visited page mounted; lld_generator.js scopes itself to .lg-page (data-ld). -#}
+<section class="lg-page">
+  <div class="lg-shell">
+    <nav class="lg-tabs" aria-label="LLD Generator">
+      <button type="button" class="lg-tab active" data-view="projects">Projects</button>
+      <button type="button" class="lg-tab" data-view="templates">Templates</button>
+      <button type="button" class="btn btn-text lg-legacy" data-ld="legacy">Import from the old Document Generator</button>
+    </nav>
+    <main class="lg-main" data-ld="main"></main>
+  </div>
+  <div data-ld="dialog-root"></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/lld_generator.js') }}"></script>{% endblock %}

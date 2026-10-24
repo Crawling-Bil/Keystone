@@ -6,6 +6,7 @@
     <title>{% block title %}Keystone{% endblock %}</title>
     <script>(function(){try{var t=localStorage.getItem("nes-theme")||"dark";document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/motion.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -67,6 +68,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
 <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/spa-router.js') }}"></script>
+<script src="{{ url_for('static', filename='js/motion.js') }}"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

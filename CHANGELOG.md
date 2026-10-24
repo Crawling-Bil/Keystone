@@ -4,8 +4,29 @@ Newest first. Module versions are listed in `core/modules.py`.
 
 ## Unreleased
 
+### LLD Index and LLD Generator: daily-use fixes
+
+- Approvers in Project settings fill the Document Approval tables (one row per person); customer approvers are remembered per customer, Multipolar approvers have a default list.
+
+- LLD Index saves every build (form, devices, config files) and offers it under "Continue a project": a rebuild needs no re-typing or re-upload.
+- After a build the form folds into a bar and the result is split into Summary, Chapters, Rack layout and Devices tabs; unused config files get a clear warning; Status sits next to Role in the device table (template too) and the hostname stays in view when the table scrolls.
+- LLD Generator Review lists what is left (pictures to upload, tables or text still TBD) and opens the chapter on click; the chapter list marks those with an amber dot.
+- Pictures: drop, paste (Ctrl/Cmd+V) or choose; SVG (e.g. a Topology Builder diagram) is turned into PNG in the browser; "Pictures" places several files into the chapters their names match.
+- Release History fills itself: a version change in Project settings adds a row with date, writer and change note.
+- LLD Generator in English with Keystone buttons and file pickers; the workspace fits the window; chapter actions no longer cut the title.
+- Dashboard: tools that need no network are labelled "Local" instead of "Offline".
+
+### LLD Generator: the Document Generator inside Keystone
+
+- New module **LLD Generator** (`/lld-generator`, sidebar group Document): master templates, projects, chapter tree, paragraph/table/image blocks, review, Generate Word. Same features and API as Document Generator v1.0.5, now a Flask blueprint with tables `lld_gen_*` in `data/nes.db` and files in `data/lld_generator/`.
+- The Word engine moved unchanged to `core/docgen/` (docgen, importer, placeholders) for reuse by later generators; a golden check gives identical documents to the old app.
+- LLD Index: **Open in LLD Generator** replaces the Send and Start Document Generator buttons; a rebuild updates the same project (images and manual edits kept).
+- Bundled LLD Master Template, registered on first use. One-time import from the old Document Generator (read-only, repeatable without duplicates).
+- New dependency: python-docx.
+
 ### LLD Index: Document Generator index from the inventory, configs and project goals
 
+- Start Document Generator button: finds the Document Generator next to Keystone (or a saved folder / KEYSTONE_DOCGEN_DIR), sets up its .venv on first use when no Python can run it, and starts it in the background on 127.0.0.1.
 - Send to Document Generator: after a build, connect to the Document Generator on this computer (default http://127.0.0.1:8003) and import the index straight into a new or existing project; Update mode keeps uploaded images and manual edits. Loopback addresses only.
 - Index workbook gets a "Project" sheet (Project Name, Customer, Project Code, Company, Prepared by) that the Document Generator imports into its project record for the master template placeholders; new "Prepared by" field.
 - Replacement project: the firewall Existing Device List is filled from Existing devices (Status "Replaced by <new device>" or "Removed"); Scope of Work installs New devices only and adds dismantling; Project Description names the devices removed; Implementation Step gets a Dismantle row.

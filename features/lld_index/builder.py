@@ -78,7 +78,8 @@ def available_templates() -> list[dict]:
         data = json.loads(path.read_text(encoding="utf-8"))
         if data.get("technology"):
             out.append({"key": data["technology"], "label": data.get("label") or data["technology"],
-                        "summary": data.get("summary", ""), "based_on": data.get("based_on", "")})
+                        "summary": data.get("summary", ""), "based_on": data.get("based_on", ""),
+                        "short": data.get("short") or data.get("summary", ""), "draft": "draft" in (data.get("short") or "").lower()})
     order = ["switch", "wireless", "firewall", "router", "loadbalancer"]
     return sorted(out, key=lambda t: order.index(t["key"]) if t["key"] in order else 99)
 

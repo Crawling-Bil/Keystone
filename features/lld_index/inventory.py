@@ -18,7 +18,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Iterable
 
-COLUMNS = ["Site", "Hostname", "Model", "Role", "Mgmt IP", "SN", "Config", "Rack", "Rack Size", "U", "U Height", "Status"]
+COLUMNS = ["Site", "Hostname", "Model", "Role", "Status", "Mgmt IP", "SN", "Config", "Rack", "Rack Size", "U", "U Height"]
 STANDARD_RACK_SIZES = (24, 27, 32, 36, 42, 45, 47, 48)
 DEFAULT_RACK_SIZE = 42
 STATUSES = ("New", "Existing", "Keep")
@@ -335,7 +335,7 @@ def template_workbook() -> bytes:
     for cell in sheet[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="0F8A7E")
-    widths = [16, 26, 22, 18, 18, 18, 26, 24, 10, 6, 9, 10]
+    widths = [16, 26, 22, 18, 10, 18, 18, 26, 24, 10, 6, 9]
     for index, width in enumerate(widths):
         sheet.column_dimensions[chr(65 + index)].width = width
     # Examples live on their own sheet, so importing the template back never
@@ -344,13 +344,13 @@ def template_workbook() -> bytes:
     example.append(COLUMNS)
     for cell in example[1]:
         cell.font = Font(bold=True)
-    example.append(["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "10.10.10.1/24", "2102355XXXX", "ho-core-sw01.txt", "Ruang Server Rack 1", 42, 30, 1, "New"])
-    example.append(["HO", "HO-CORE-OLD", "C3850-24T", "Core Switch", "10.10.10.1/24", "FOC1234XXXX", "", "Ruang Server Rack 1", 42, 30, 1, "Existing"])
-    example.append(["HO", "HO-PATCH-01", "Patch Panel 24P", "Patch Panel", "", "", "", "Ruang Server Rack 1", 42, 40, 1, "Keep"])
-    example.append(["HO", "HO-WLC01", "C9800-40", "WLC", "10.10.10.4/24", "", "", "Ruang Server Rack 1", 42, 20, 1, "New"])
-    example.append(["DC", "DC-FW01", "PA-1410", "Firewall", "10.20.10.5/24", "0123456789", "dc-fw01.xml"])
-    example.append(["DC", "DC-RTR01", "C8200-1N-4T", "WAN Router", "10.20.10.1/24", "", ""])
-    example.append(["DC", "DC-LB01", "BIG-IP i5800", "Load Balancer", "10.20.10.9/24", "", ""])
+    example.append(["HO", "HO-CORE-SW01", "S5755-H24T4Y2CZ", "Core Switch", "New", "10.10.10.1/24", "2102355XXXX", "ho-core-sw01.txt", "Ruang Server Rack 1", 42, 30, 1])
+    example.append(["HO", "HO-CORE-OLD", "C3850-24T", "Core Switch", "Existing", "10.10.10.1/24", "FOC1234XXXX", "", "Ruang Server Rack 1", 42, 30, 1])
+    example.append(["HO", "HO-PATCH-01", "Patch Panel 24P", "Patch Panel", "Keep", "", "", "", "Ruang Server Rack 1", 42, 40, 1])
+    example.append(["HO", "HO-WLC01", "C9800-40", "WLC", "New", "10.10.10.4/24", "", "", "Ruang Server Rack 1", 42, 20, 1])
+    example.append(["DC", "DC-FW01", "PA-1410", "Firewall", "New", "10.20.10.5/24", "0123456789", "dc-fw01.xml"])
+    example.append(["DC", "DC-RTR01", "C8200-1N-4T", "WAN Router", "New", "10.20.10.1/24", "", ""])
+    example.append(["DC", "DC-LB01", "BIG-IP i5800", "Load Balancer", "New", "10.20.10.9/24", "", ""])
     example.append([])
     example.append(["Role decides the technology when no config is uploaded: switch/core/access, WLC/AP, firewall/FW, router/WAN, LB/F5."])
     example.append(["Rack layout: Rack = rack name, Rack Size = 24/27/32/36/42/45/47/48 (blank = 42), U = lowest unit the device sits in, U Height = units it takes (blank = 1)."])

@@ -11,6 +11,7 @@ from flask import Blueprint, Response, jsonify, render_template, request, send_f
 from core.database import log_activity
 from .builder import available_templates
 from .inventory import COLUMNS, read_inventory_file, template_workbook
+from . import saved
 from .service import build_index, download_name, read_config_uploads, save_export
 
 bp = Blueprint("lld_index", __name__, url_prefix="/lld-index")
@@ -51,7 +52,10 @@ def build():
         return jsonify({"ok": False, "error": "The form data could not be read."}), 400
     uploads = [(f.filename, f.read()) for f in request.files.getlist("configs") if f and f.filename]
     try:
-        files = read_config_uploads(uploads)
+        files = {}
+        if payload.get("saved_id"):                      # a loaded project: its saved configs, then the new uploads
+            files.update(saved.configs(int(payload["saved_id"])))
+        files.update(read_config_uploads(uploads))
         result = build_index(payload.get("project") or {}, payload.get("inventory") or [],
                              payload.get("technologies") or [], files)
     except ValueError as exc:
@@ -60,6 +64,11 @@ def build():
         log_activity("LLD Index", "Index build failed", f"{type(exc).__name__}: {exc}", "error")
         return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
     export_id = save_export(EXPORT_DIR, result.pop("workbook"))
+    try:
+        result["saved_id"] = saved.save(payload.get("project") or {}, payload.get("technologies") or [],
+                                        payload.get("inventory") or [], files)
+    except Exception as exc:  # saving is a convenience: the build still counts
+        log_activity("LLD Index", "Project not saved", f"{type(exc).__name__}: {exc}", "error")
     name = download_name(result["project"])
     log_activity("LLD Index", "Index built", f"{name} · {result['stats']['headings']} headings")
     result["download_url"] = f"/lld-index/download/{export_id}?name={name}"
@@ -78,33 +87,27 @@ def download(export_id: str):
     return send_from_directory(EXPORT_DIR, f"{export_id}.xlsx", as_attachment=True, download_name=name, mimetype=XLSX)
 
 
-@bp.get("/api/docgen")
-def docgen_overview():
-    from . import docgen_client
 
-    try:
-        return jsonify({"ok": True, **docgen_client.overview(request.args.get("url"))})
-    except docgen_client.DocGenError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+@bp.get("/api/saved")
+def saved_list():
+    return jsonify({"ok": True, "projects": saved.listing()})
 
 
-@bp.post("/api/docgen/send")
-def docgen_send():
-    from . import docgen_client
+@bp.get("/api/saved/<int:project_id>")
+def saved_load(project_id: int):
+    data = saved.load(project_id)
+    if not data:
+        return jsonify({"ok": False, "error": "Saved project not found."}), 404
+    return jsonify({"ok": True, **data})
 
-    payload = request.get_json(silent=True) or {}
-    export_id = str(payload.get("export_id") or "")
-    path = EXPORT_DIR / f"{export_id}.xlsx"
-    if not SAFE_ID.match(export_id) or not path.exists():
-        return jsonify({"ok": False, "error": "Build the index again: the file is no longer available."}), 404
-    name = re.sub(r"[^A-Za-z0-9 ._-]+", "", payload.get("filename") or "") or "LLD Content Index.xlsx"
-    try:
-        result = docgen_client.send(payload.get("url"), path.read_bytes(), name,
-                                    project_id=payload.get("project_id") or None,
-                                    template_id=payload.get("template_id") or None,
-                                    name=str(payload.get("name") or "")[:200], client=str(payload.get("client") or "")[:200],
-                                    mode=payload.get("mode") or "update")
-    except docgen_client.DocGenError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
-    log_activity("LLD Index", "Sent to Document Generator", f"project {result['project_id']} · {result['mode']}")
-    return jsonify({"ok": True, **result})
+
+@bp.delete("/api/saved/<int:project_id>")
+def saved_delete(project_id: int):
+    saved.delete(project_id)
+    return jsonify({"ok": True})
+
+
+@bp.delete("/api/saved/<int:project_id>/configs/<path:name>")
+def saved_drop_config(project_id: int, name: str):
+    saved.drop_config(project_id, name)
+    return jsonify({"ok": True})

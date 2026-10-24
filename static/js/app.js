@@ -19,8 +19,10 @@ window.NES = {
       button.dataset.originalText = button.innerHTML;
       button.disabled = true;
       button.innerHTML = text;
+      button.setAttribute("aria-busy", "true");
     } else {
       button.disabled = false;
+      button.removeAttribute("aria-busy");
       button.innerHTML = button.dataset.originalText || button.innerHTML;
     }
   },

@@ -25,7 +25,7 @@ GROUPS = (
 )
 
 RISK_LABELS = {
-    "offline": "Offline",
+    "offline": "Local",
     "read": "Read-only",
     "write": "Writes to devices",
 }
@@ -106,8 +106,11 @@ TOOLS: tuple[Tool, ...] = (
          "Upgrade, config push, backup and ZTP activity in real time, across the whole suite.",
          keywords=("jobs", "monitor")),
     Tool("lld_index", "LLD Index", "document", "offline", "0.1", "/lld-index", "folder",
-         "Build the LLD Content Index for the Document Generator: chapters per technology, expanded per site, device and model, tables filled from the inventory and configs, narrative from the project goals.",
-         task="Prepare the LLD index for the document generator", keywords=("lld", "document", "index", "low level design", "docgen", "word")),
+         "Build the LLD Content Index for the LLD Generator: chapters per technology, expanded per site, device and model, tables filled from the inventory and configs, narrative from the project goals.",
+         task="Prepare the LLD index", keywords=("lld", "document", "index", "low level design", "docgen", "word")),
+    Tool("lld_generator", "LLD Generator", "document", "offline", "1.0", "/lld-generator", "folder",
+         "Turn an LLD index into the Word LLD: master template with project placeholders, chapter tree, tables and images, Document Acceptance.",
+         task="Write the LLD Word document", keywords=("lld", "word", "docx", "document generator", "master template", "generate")),
 )
 
 

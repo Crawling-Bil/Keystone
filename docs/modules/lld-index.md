@@ -13,6 +13,10 @@ Page: `/lld-index`. Code: `features/lld_index/`. Templates: `features/lld_index/
 
 A device's technology comes from its config (the same domain detection Convert uses), then keywords in Role (switch/core/access, WLC/AP, firewall/FW, router/WAN, LB/F5), then the model name.
 
+## Saved projects
+
+Every build is saved (table `lld_idx_projects` in `data/nes.db`): the form, the technologies, the devices and the config texts, keyed by customer, project name and code. **Continue a project** loads it back; a rebuild uses the saved configs plus any new upload (same name replaces), and a saved config can be removed from the list.
+
 ## Rack layout
 
 Rack (name), Rack Size (24/27/32/36/42/45/47/48U, blank = 42), U (lowest unit the device sits in) and U Height (blank = 1) draw one table per rack under **Rack Layout**, per site: `U | <rack> (<size>U) | U`, top unit first, a device taller than 1U as one merged cell. Device cells are light blue, the U columns light grey, text centred. A device that overlaps another one or does not fit the rack is left out of the table and noted on the page; a site where no device has a rack position keeps an image slot instead. The page shows each rack as a drawing before download.
@@ -56,14 +60,9 @@ Rules that come from the existing LLDs:
 * Firewall: one chapter per site with the configuration tables the firewall has; sections with no data are left out (a site with DHCP gets DHCP, one without does not).
 * A device belongs to its own technology's chapters. Wireless also takes switches, but only when Switch is not selected, so nothing is written twice. When two technologies produce the same chapter title, the title gets the technology name (`Site DC - Firewall`).
 
-## Send to Document Generator
+## Open in LLD Generator
 
-After a build, **Send to Document Generator** connects to the Document Generator running on this computer (address remembered per browser, default `http://127.0.0.1:8003`), lists its projects and master templates, and imports the index without a download:
-
-* **New project**: created with the project name and customer, on the chosen master template, then imported (replace).
-* **Existing project** (the one with the same name is preselected): imported with **Update** (tables and paragraphs refreshed, uploaded images, manual text and extra chapters kept) or **Replace**.
-
-Keystone calls the Document Generator API from the server (`docgen_client.py`): `GET /api/projects`, `GET /api/templates`, `POST /api/projects`, `POST /api/projects/{id}/import-excel`. Only loopback addresses are accepted, so the index (customer configuration) never leaves the computer through a mistyped address.
+After a build, **Open in LLD Generator** hands the index to the LLD Generator (`/lld-generator`, see [lld-generator.md](lld-generator.md)) without a file: the build's saved workbook goes through the same importer as an Excel upload. The first time it makes a project on the master template; a later build with the same customer, project name and code updates that project (tables and paragraphs refreshed, uploaded images and manual text kept).
 
 ## Output format
 
@@ -75,7 +74,7 @@ The workbook follows `lld_generator/backend/importer.py`:
 * `Gambar`: an empty image block for manual upload;
 * a row with an empty Judul Heading adds one more block to the heading above it. The Document Generator reads these with the multi-block importer (`feat/multi-block-import`); an older importer skips them and keeps the first block;
 * sheet names unique, at most 31 characters;
-* sheet `Project` (`Field | Value`): Project Name, Customer, Project Code, Company, Prepared by. The Document Generator copies them into its project on import and fills the master template placeholders (`{{project_name}}`, `{{customer}}`, ...) on the cover, footer and Document Control.
+* sheet `Project` (`Field | Value`): Project Name, Customer, Project Code, Company, Prepared by. The LLD Generator copies them into its project on import and fills the master template placeholders (`{{project_name}}`, `{{customer}}`, ...) on the cover, footer and Document Control.
 
 Yellow rows in the Index sheet still need manual content. Document Acceptance is not in the index: the Document Generator keeps it from the master template.
 
