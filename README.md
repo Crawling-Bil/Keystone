@@ -1,6 +1,6 @@
 # Keystone
 
-Keystone is a local web tool for network engineers. It reads device captures and builds assessment reports, converts configurations between vendors, and runs firmware and configuration jobs on switches. It runs on your own computer, so customer configurations never leave your machine.
+Keystone is a local web tool for network engineers. It reads device captures and builds assessment reports, converts configurations between vendors, writes the LLD (Low Level Design) Word document of a project, and runs firmware and configuration jobs on switches. It runs on your own computer, so customer configurations never leave your machine.
 
 Current version: 1.11.0. Indonesian guide: [docs/PANDUAN.md](docs/PANDUAN.md).
 
@@ -39,10 +39,12 @@ Keystone only listens on your own computer (`127.0.0.1`), so another machine on 
 | Analyze | Load Balancer Analyzer | F5 BIG-IP `.ucs`, `bigip.conf` or `tmsh` output | Virtual server to pool map, monitors, SSL, HA, DNS (GTM), findings |
 | Analyze | Topology Builder | Captures (or a ZIP) with CDP / LLDP neighbors, optionally MAC / ARP tables | draw.io diagram with physical, vPC and logical IP views (keeps your layout between runs), neighbors from ARP / MAC / descriptions where CDP/LLDP is silent, grouping by site, optional topology name for the file names, link speeds, documentation pack (ZIP / HTML report), Excel, link, bundle and host tables, devices behind uncaptured devices, merge with a previous run, gaps in the discovery |
 | Convert | Convert Switch | Cisco, Huawei or Aruba switch configuration | Configuration for another vendor, interface map, pre-flight summary |
-| Convert | Convert Firewall | MikroTik configuration | Palo Alto (Panorama-ready) configuration |
+| Convert | Convert Firewall | MikroTik configuration | Palo Alto (Panorama-ready) configuration, in one click or step by step (Guided Conversion: target model, interface and VLAN mapping, zones, checked at every step) |
 | Convert | Wireless, Router, Load Balancer | none yet | These pages say what is needed first and link to the matching analyzer |
 | Operate | Lifecycle Manager, Config Push, ZTP Provisioning | Device credentials, firmware, draft configuration | Firmware upgrade, configuration push, zero-touch provisioning (these change real devices) |
 | Operate | Config Backup, Live Logs | Device credentials | Read-only backup bundle, live job log |
+| Document | LLD Index | Project details and goals, device inventory (Excel template), optional configs | The LLD chapter structure per technology (switch, wireless, firewall; router and load balancer as drafts), per site and device, tables filled from the configs, rack layout (Before/After for a replacement project), narrative from the goals. Saved per project |
+| Document | LLD Generator | An index from LLD Index (one click) or an Excel index | The Word LLD on the master template: cover, footer and Document Control filled from the project, customer logo, chapters, tables and pictures, Document Acceptance with your approvers, release history |
 
 ## Requirements
 
@@ -121,6 +123,19 @@ Several files or a ZIP can be converted in one go with **batch conversion**. Det
 
 The pack contains `run-settings.txt`: the options you set, the creation time and the topology name. Send it together with a question or a bug report. Everything else, including finding IDs (TOPO-001 ...) and what each option does, is in [docs/modules/topology.md](docs/modules/topology.md).
 
+## Write an LLD document
+
+1. Open **Document**, then **LLD Index**. Fill in the customer, project name, code, your name and the project goals. Turn on **Replacement project** when old devices are replaced.
+2. Pick the technologies (Switch, Wireless, Firewall, ...).
+3. Add the devices: **Download template**, fill it in Excel (Site, Hostname, Model, Role, Status, Mgmt IP, SN, Config, Rack, Rack Size, U, U Height) and **Import CSV / XLSX**, or type the rows. Status is New, Existing (removed) or Keep.
+4. Optional: drop the running configs (one per device, or a ZIP). VLAN, interface, routing and policy tables are filled from them; without configs those tables stay TBD.
+5. Press **Build LLD index**. The build is saved: next time pick it under **Continue a project**, change what you need and build again without uploading the configs again.
+6. Press **Open in LLD Generator**. The project opens with all chapters. Building again later updates the same project and keeps your pictures and edits.
+7. In the LLD Generator: drop, paste or choose the topology and rack pictures (SVG from Topology Builder works; **Pictures** places several at once by file name), fill what **Review** lists as still to do, and set the customer logo, version and **Approvers** in **Settings**.
+8. Press **Generate & Download**. Open the file in Word and let it update the fields (table of contents, captions).
+
+The first time, open **LLD Generator** and press **Import from the old Document Generator** to bring over projects made with the separate Document Generator app. Details: [docs/modules/lld-index.md](docs/modules/lld-index.md) and [docs/modules/lld-generator.md](docs/modules/lld-generator.md).
+
 ## Tools that change devices
 
 Lifecycle Manager, Config Push and ZTP Provisioning write to real devices. Real runs support Huawei VRP only; other vendors run in demo mode. Firmware upgrade and Config Push run a pre-check and take a configuration backup around the job. Use Demo Mode to rehearse first. Config Backup and Live Logs are read-only. Read [docs/modules/lifecycle-manager.md](docs/modules/lifecycle-manager.md) before the first real job.
@@ -164,6 +179,7 @@ On Windows, open Command Prompt in the Keystone folder, run for example `set NES
 ## Your data
 
 - Uploaded files, exports, logs and generated settings stay in `data/`, `uploads/`, `exports/` and `logs/` inside the Keystone folder. They are ignored by git on purpose.
+- LLD work is kept in `data/nes.db` (saved LLD Index projects, LLD Generator projects, approvers) and `data/lld_generator/` (templates, pictures, generated Word files; generated files older than 7 days are removed). Back up the `data` folder to keep it.
 - Never commit real customer captures or credentials. The tests use synthetic files only.
 - Keystone does not send configurations to any external service.
 
@@ -173,6 +189,8 @@ On Windows, open Command Prompt in the Keystone folder, run for example `set NES
 - [docs/PANDUAN.md](docs/PANDUAN.md): user guide in Bahasa Indonesia
 - [docs/modules/configuration-studio.md](docs/modules/configuration-studio.md): how Convert works, Nexus, stacks, hardware catalog
 - [docs/modules/lifecycle-manager.md](docs/modules/lifecycle-manager.md): upgrade, push, backup and ZTP
+- [docs/modules/lld-index.md](docs/modules/lld-index.md): LLD index templates, inventory columns, rack layout, saved projects
+- [docs/modules/lld-generator.md](docs/modules/lld-generator.md): LLD Generator, master template placeholders, approvers, import from the old Document Generator
 - [CHANGELOG.md](CHANGELOG.md)
 
 ## Development
@@ -182,7 +200,7 @@ pip install -r requirements.txt pytest
 python -m pytest -q
 ```
 
-The tool list lives in `core/modules.py`. To add a module, register its blueprint in `app.py` and add an entry there. Adding a converter is described in `docs/modules/configuration-studio.md`. `core/local_guard.py` is the small guard that keeps other websites from calling Keystone; keep new routes behind the same app so they get it.
+The tool list lives in `core/modules.py`. To add a module, register its blueprint in `app.py` and add an entry there. Adding a converter is described in `docs/modules/configuration-studio.md`. The Word engine shared by the document tools is `core/docgen/` (docgen, importer, placeholders, and the master template in `core/docgen/master/`); change `docgen.py` only together with a test that compares the generated document. `core/local_guard.py` is the small guard that keeps other websites from calling Keystone; keep new routes behind the same app so they get it.
 
 ## License
 
