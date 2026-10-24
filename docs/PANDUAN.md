@@ -71,9 +71,11 @@ Dengan git: `git pull`, lalu jalankan file setup sekali (`setup_windows.bat` ata
 | Membuat diagram topologi (draw.io) | Topology Builder | Capture per perangkat (atau ZIP) berisi `show cdp neighbors detail` / `show lldp neighbors detail`, opsional tabel MAC / ARP; hasil: tampilan fisik, vPC, dan Logical IP, tetangga dari ARP / MAC / description saat CDP/LLDP tidak ada, pengelompokan per site, nama topologi untuk nama file, kecepatan link, paket dokumentasi (ZIP / laporan HTML), gabung dengan hasil sebelumnya |
 | Menilai wireless controller | Wireless Analyzer | Konfigurasi WLC Huawei atau Cisco 9800 |
 | Memindahkan konfigurasi switch ke vendor lain | Convert, Switch | Konfigurasi switch Cisco, Huawei, atau Aruba |
-| Memindahkan firewall MikroTik ke Palo Alto | Convert, Firewall | Konfigurasi MikroTik |
+| Memindahkan firewall MikroTik ke Palo Alto (sekali klik atau Guided Conversion langkah demi langkah) | Convert, Firewall | Konfigurasi MikroTik |
 | Upgrade firmware, push config, onboarding switch baru | Lifecycle Manager, Config Push, ZTP | Kredensial perangkat, firmware, draft config |
 | Backup konfigurasi (hanya baca) | Config Backup | Kredensial perangkat |
+| Menyusun struktur LLD project | LLD Index | Data project dan goals, inventory perangkat (template Excel), config opsional |
+| Membuat dokumen LLD Word | LLD Generator | Index dari LLD Index (satu klik) atau file Excel index |
 
 Halaman Convert untuk Wireless, Router, dan Load Balancer belum punya converter. Halamannya menjelaskan apa yang dibutuhkan dan mengarahkan ke analyzer yang sesuai.
 
@@ -123,6 +125,19 @@ Beberapa file atau satu ZIP bisa dikonversi sekaligus lewat **batch conversion**
 
 Pack berisi `run-settings.txt`: opsi yang Anda pilih, waktu pembuatan, dan nama topologi. Kirimkan bersama pertanyaan atau laporan masalah. Penjelasan lengkap, termasuk ID finding (TOPO-001 ...), ada di [modules/topology.md](modules/topology.md).
 
+## 7c. Membuat dokumen LLD
+
+1. Buka **Document**, lalu **LLD Index**. Isi customer, nama project, kode, nama penulis, dan goals project. Nyalakan **Replacement project** kalau ada perangkat lama yang diganti.
+2. Pilih teknologi (Switch, Wireless, Firewall, ...).
+3. Isi perangkat: **Download template**, isi di Excel (Site, Hostname, Model, Role, Status, Mgmt IP, SN, Config, Rack, Rack Size, U, U Height), lalu **Import CSV / XLSX**, atau ketik langsung. Status: New, Existing (dicabut), atau Keep (tetap).
+4. Opsional: masukkan running config (satu per perangkat, atau satu ZIP). Tabel VLAN, interface, routing, dan policy diisi dari situ; tanpa config tabelnya tetap TBD.
+5. Klik **Build LLD index**. Hasil build tersimpan: lain kali pilih di **Continue a project**, ubah yang perlu, lalu build lagi tanpa upload config ulang.
+6. Klik **Open in LLD Generator**. Project terbuka lengkap dengan babnya. Build ulang nanti memperbarui project yang sama, gambar dan editan tetap.
+7. Di LLD Generator: drop, paste, atau pilih gambar topology dan rack (SVG dari Topology Builder bisa; tombol **Pictures** menaruh banyak gambar sekaligus sesuai nama file), lengkapi yang ada di daftar **Review**, dan atur logo customer, versi, serta **Approvers** di **Settings**.
+8. Klik **Generate & Download**. Buka di Word dan biarkan Word memperbarui field (daftar isi, caption).
+
+Pertama kali pakai, buka **LLD Generator** lalu klik **Import from the old Document Generator** untuk memindahkan project dari aplikasi Document Generator yang lama. Detail: [modules/lld-index.md](modules/lld-index.md) dan [modules/lld-generator.md](modules/lld-generator.md).
+
 ## 8. Tool yang mengubah perangkat
 
 Lifecycle Manager, Config Push, dan ZTP Provisioning menulis ke perangkat asli. Run sungguhan hanya mendukung Huawei VRP; vendor lain berjalan di demo mode. Upgrade firmware dan Config Push menjalankan pre-check dan mengambil backup konfigurasi di sekitar job. Latihan dulu dengan Demo Mode. Config Backup dan Live Logs hanya membaca. Baca [modules/lifecycle-manager.md](modules/lifecycle-manager.md) sebelum job sungguhan pertama.
@@ -167,6 +182,7 @@ Di Windows, buka Command Prompt di folder Keystone, jalankan misalnya `set NES_P
 
 - File unggahan, ekspor, log, dan setting yang dibuat otomatis tersimpan di `data/`, `uploads/`, `exports/`, dan `logs/` di dalam folder Keystone. Folder itu sengaja diabaikan oleh git.
 - Jangan pernah commit capture pelanggan atau kredensial asli. Test memakai file sintetis saja.
+- Pekerjaan LLD tersimpan di `data/nes.db` (project LLD Index dan LLD Generator, approvers) dan `data/lld_generator/` (template, gambar, file Word hasil generate; file hasil generate yang lebih dari 7 hari dihapus). Backup folder `data` untuk menyimpannya.
 - Keystone tidak mengirim konfigurasi ke layanan eksternal.
 
 ## 12. Dokumen lain
@@ -174,4 +190,5 @@ Di Windows, buka Command Prompt di folder Keystone, jalankan misalnya `set NES_P
 - [PRD.md](PRD.md): scope, vendor yang didukung, roadmap
 - [modules/configuration-studio.md](modules/configuration-studio.md): cara kerja Convert, Nexus, stack, katalog hardware
 - [modules/lifecycle-manager.md](modules/lifecycle-manager.md): upgrade, push, backup, ZTP
+- [modules/lld-index.md](modules/lld-index.md) dan [modules/lld-generator.md](modules/lld-generator.md): LLD Index dan LLD Generator
 - [../CHANGELOG.md](../CHANGELOG.md)
