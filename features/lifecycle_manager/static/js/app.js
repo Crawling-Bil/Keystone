@@ -1804,19 +1804,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 [];
 
 
-            if (
-                wizardFirmwares.length === 0
-            ) {
-
-                showToast(
-                    "Upload firmware before creating an upgrade job."
-                );
-
-                return;
-
-            }
-
-
             renderWizardDevices();
 
             renderFirmwareAssignments();
@@ -1979,188 +1966,255 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 
+    // ----------------------------------------------------------------
+    // Firmware step: one picker per model group. Devices of the same
+    // vendor/platform/model get the same image. A missing image can be
+    // uploaded right here; the new image is picked as soon as it lands.
+    // ----------------------------------------------------------------
+
+    const wizardChoice = {};          // group key -> firmware id
+
+    function normVersion(value) {
+        return String(value || "").toLowerCase().replace(/\s+/g, "");
+    }
+
+    function wizardGroups() {
+        const groups = new Map();
+        wizardDevices.forEach(device => {
+            const key = [device.vendor, device.platform, device.model]
+                .map(v => String(v || "").toLowerCase()).join("|");
+            if (!groups.has(key)) {
+                groups.set(key, { key, vendor: device.vendor, platform: device.platform, model: device.model, devices: [] });
+            }
+            groups.get(key).devices.push(device);
+        });
+        return [...groups.values()];
+    }
+
+    // Devices already running the chosen image are left out of the job.
+    function deviceIsOnTarget(device, firmware) {
+        return Boolean(firmware && firmware.version) &&
+            normVersion(device.version) === normVersion(firmware.version);
+    }
+
+    function wizardFirmwareById(id) {
+        return wizardFirmwares.find(firmware => String(firmware.id) === String(id));
+    }
+
     function renderFirmwareAssignments() {
 
-        const container =
-            document.getElementById(
-                "wizard-firmware-assignments"
-            );
+        const container = document.getElementById("wizard-firmware-assignments");
 
+        container.innerHTML = wizardGroups().map(group => {
 
-        container.innerHTML =
-            wizardDevices.map(
-                device => {
+            const compatible = getCompatibleFirmwares(group.devices[0]);
 
-                    const compatible =
-                        getCompatibleFirmwares(
-                            device
-                        );
+            if (!compatible.some(f => String(f.id) === String(wizardChoice[group.key]))) {
+                wizardChoice[group.key] = compatible.length ? compatible[0].id : "";
+            }
 
+            const chosen = wizardFirmwareById(wizardChoice[group.key]);
 
-                    const options =
-                        compatible.map(
-                            firmware => `
-                                <option
-                                    value="${escapeHtml(firmware.id)}"
-                                >
-                                    ${escapeHtml(firmware.version)}
-                                    -
-                                    ${escapeHtml(firmware.filename)}
-                                </option>
-                            `
-                        ).join("");
+            const options = compatible.map(firmware => `
+                <option value="${escapeHtml(firmware.id)}" ${String(firmware.id) === String(wizardChoice[group.key]) ? "selected" : ""}>
+                    ${escapeHtml(firmware.version)} - ${escapeHtml(firmware.filename)}
+                </option>`).join("");
 
+            const rows = group.devices.map(device => {
+                const skip = deviceIsOnTarget(device, chosen);
+                return `
+                    <li class="fw-group-device ${skip ? "is-skipped" : ""}">
+                        <strong>${escapeHtml(device.hostname)}</strong>
+                        <span>${escapeHtml(device.ip)}</span>
+                        <span>Current: ${escapeHtml(device.version)}</span>
+                        ${skip ? '<em>Already on this version, skipped</em>' : ""}
+                    </li>`;
+            }).join("");
 
-                    return `
-                        <div
-                            class="firmware-assignment"
-                        >
-
-                            <div
-                                class="assignment-device"
-                            >
-
-                                <strong>
-                                    ${escapeHtml(device.hostname)}
-                                </strong>
-
-                                <span>
-                                    ${escapeHtml(device.ip)}
-                                </span>
-
-                            </div>
-
-
-                            <div
-                                class="assignment-info"
-                            >
-
-                                <strong>
-                                    ${escapeHtml(device.vendor)}
-                                </strong>
-
-                                <span>
-                                    ${escapeHtml(device.platform)}
-                                </span>
-
-                            </div>
-
-
-                            <div
-                                class="assignment-info"
-                            >
-
-                                <strong>
-                                    ${escapeHtml(device.model)}
-                                </strong>
-
-                                <span>
-                                    Current:
-                                    ${escapeHtml(device.version)}
-                                </span>
-
-                            </div>
-
-
-                            <div>
-
-                                ${
-                                    compatible.length
-                                        ?
-                                        `
-                                            <div
-                                                class="compatibility-ok"
-                                            >
-                                                Compatible firmware found
-                                            </div>
-
-                                            <select
-                                                class="firmware-assignment-select"
-                                                data-device-ip="${escapeHtml(device.ip)}"
-                                            >
-                                                ${options}
-                                            </select>
-                                        `
-                                        :
-                                        `
-                                            <div
-                                                class="compatibility-warning"
-                                            >
-                                                No compatible firmware found
-                                            </div>
-                                        `
-                                }
-
-                            </div>
-
+            return `
+                <div class="firmware-assignment fw-group" data-group="${escapeHtml(group.key)}">
+                    <div class="fw-group-head">
+                        <div>
+                            <strong>${escapeHtml(group.model || "Unknown model")} × ${group.devices.length}</strong>
+                            <span>${escapeHtml(group.vendor)} · ${escapeHtml(group.platform)}</span>
                         </div>
-                    `;
+                        <div class="fw-group-pick">
+                            ${compatible.length
+                                ? `<select class="firmware-group-select" data-group="${escapeHtml(group.key)}">${options}</select>`
+                                : `<div class="compatibility-warning">No image for this model yet</div>`}
+                            <button type="button" class="button button-secondary fw-upload-here" data-group="${escapeHtml(group.key)}">Upload image</button>
+                            <button type="button" class="button button-secondary fw-drop-group" data-group="${escapeHtml(group.key)}" title="Leave these devices out of this job">Remove</button>
+                        </div>
+                    </div>
+                    <ul class="fw-group-devices">${rows}</ul>
+                </div>`;
 
-                }
+        }).join("") || '<div class="empty-state">No devices selected.</div>';
 
-            ).join("");
+        container.querySelectorAll(".firmware-group-select").forEach(select => {
+            select.addEventListener("change", () => {
+                wizardChoice[select.dataset.group] = select.value;
+                renderFirmwareAssignments();
+            });
+        });
+
+        container.querySelectorAll(".fw-drop-group").forEach(button => {
+            button.addEventListener("click", () => {
+                const group = wizardGroups().find(g => g.key === button.dataset.group);
+                if (!group) return;
+                wizardDevices = wizardDevices.filter(device => !group.devices.includes(device));
+                delete wizardChoice[group.key];
+                renderWizardDevices();
+                renderFirmwareAssignments();
+            });
+        });
+
+        container.querySelectorAll(".fw-upload-here").forEach(button => {
+            button.addEventListener("click", () => {
+                const group = wizardGroups().find(g => g.key === button.dataset.group);
+                if (group) openQuickUpload(group);
+            });
+        });
 
     }
 
 
     function validateFirmwareAssignments() {
 
-        for (
-            const device
-            of wizardDevices
-        ) {
+        const missing = wizardGroups().filter(group => !wizardFirmwareById(wizardChoice[group.key]));
 
-            const selector =
-                document.querySelector(
-                    `.firmware-assignment-select[data-device-ip="${device.ip}"]`
-                );
-
-
-            if (
-                !selector ||
-                !selector.value
-            ) {
-
-                showToast(
-                    `No compatible firmware selected for ${device.hostname}.`
-                );
-
-                return false;
-
-            }
-
+        if (missing.length) {
+            showToast(`No image picked for ${missing.map(g => g.model || "unknown model").join(", ")}. Upload an image or remove that group.`);
+            return false;
         }
 
+        if (!wizardJobDevices().length) {
+            showToast("Every selected device already runs the chosen image. Nothing to upgrade.");
+            return false;
+        }
 
         return true;
 
     }
 
 
+    // Devices that actually need the upgrade (on-target ones are left out).
+    function wizardJobDevices() {
+        const groups = wizardGroups();
+        return wizardDevices.filter(device => {
+            const group = groups.find(g => g.devices.includes(device));
+            return !deviceIsOnTarget(device, wizardFirmwareById(wizardChoice[group.key]));
+        });
+    }
+
+
     function getWizardAssignments() {
 
+        const groups = wizardGroups();
         const assignments = {};
 
-
-        document
-            .querySelectorAll(
-                ".firmware-assignment-select"
-            )
-            .forEach(
-                selector => {
-
-                    assignments[
-                        selector.dataset.deviceIp
-                    ] =
-                        selector.value;
-
-                }
-            );
-
+        wizardJobDevices().forEach(device => {
+            const group = groups.find(g => g.devices.includes(device));
+            assignments[device.ip] = wizardChoice[group.key];
+        });
 
         return assignments;
 
     }
+
+
+    // ----------------------------------------------------------------
+    // Quick upload from inside the wizard
+    // ----------------------------------------------------------------
+
+    let quickUploadGroup = null;
+
+    function openQuickUpload(group) {
+        quickUploadGroup = group;
+        const modal = document.getElementById("fw-quick-upload");
+        const vendor = String(group.vendor || "").toLowerCase();
+        const vendorSelect = document.getElementById("fwq-vendor");
+        if ([...vendorSelect.options].some(o => o.value === vendor)) vendorSelect.value = vendor;
+        document.getElementById("fwq-platform").value = group.platform || "";
+        document.getElementById("fwq-model").value = group.model || "";
+        document.getElementById("fwq-version").value = "";
+        document.getElementById("fwq-file").value = "";
+        document.getElementById("fwq-patch").value = "";
+        document.getElementById("fwq-progress").textContent = "";
+        document.getElementById("fwq-title").textContent = `Upload image for ${group.model || "this model"}`;
+        modal.classList.remove("hidden");
+    }
+
+    function closeQuickUpload() {
+        document.getElementById("fw-quick-upload").classList.add("hidden");
+        quickUploadGroup = null;
+    }
+
+    document.getElementById("fwq-cancel").addEventListener("click", closeQuickUpload);
+    document.getElementById("fwq-close").addEventListener("click", closeQuickUpload);
+
+    document.getElementById("fwq-form").addEventListener("submit", event => {
+
+        event.preventDefault();
+
+        const file = document.getElementById("fwq-file").files[0];
+        const version = document.getElementById("fwq-version").value.trim();
+        if (!file || !version) {
+            showToast("Pick the image file and type its version.");
+            return;
+        }
+
+        const data = new FormData();
+        data.append("vendor", document.getElementById("fwq-vendor").value);
+        data.append("platform", document.getElementById("fwq-platform").value.trim());
+        data.append("model", document.getElementById("fwq-model").value.trim());
+        data.append("version", version);
+        data.append("file", file);
+        const patch = document.getElementById("fwq-patch").files[0];
+        if (patch) data.append("patch_file", patch);
+
+        const submit = document.getElementById("fwq-submit");
+        const progress = document.getElementById("fwq-progress");
+        submit.disabled = true;
+
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener("progress", e => {
+            if (e.lengthComputable) progress.textContent = `Uploading ${Math.round(e.loaded / e.total * 100)}%`;
+        });
+        xhr.addEventListener("load", async () => {
+            submit.disabled = false;
+            let body = {};
+            try { body = JSON.parse(xhr.responseText); } catch (error) { body = {}; }
+            if (xhr.status < 200 || xhr.status >= 300 || !body.firmware) {
+                progress.textContent = body.error || "Upload failed.";
+                return;
+            }
+            const group = quickUploadGroup;
+            try {
+                const firmwareData = await apiRequest("/lifecycle/api/firmware");
+                wizardFirmwares = firmwareData.firmwares || [];
+            } catch (error) {
+                wizardFirmwares.push(body.firmware);
+            }
+            if (group) {
+                const fits = getCompatibleFirmwares(group.devices[0]).some(f => String(f.id) === String(body.firmware.id));
+                if (fits) wizardChoice[group.key] = body.firmware.id;
+                else showToast("Uploaded, but vendor/platform/model don't match these devices, so it was not picked.");
+            }
+            closeQuickUpload();
+            renderFirmwareAssignments();
+            loadFirmware();
+            loadDashboard();
+            showToast(`${body.firmware.filename} uploaded.`);
+        });
+        xhr.addEventListener("error", () => {
+            submit.disabled = false;
+            progress.textContent = "Upload failed.";
+        });
+        xhr.open("POST", "/lifecycle/api/firmware/upload");
+        xhr.send(data);
+
+    });
 
 
     function renderWizardReview() {
@@ -2186,8 +2240,11 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
 
+        const skipped = wizardDevices.length - wizardJobDevices().length;
+
         container.innerHTML =
-            wizardDevices.map(
+            (skipped ? `<div class="compatibility-warning">${skipped} device(s) already on the chosen version, left out of this job.</div>` : "") +
+            wizardJobDevices().map(
                 device => {
 
                     const firmware =
@@ -2497,7 +2554,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                         jobName,
 
                                     devices:
-                                        wizardDevices.map(
+                                        wizardJobDevices().map(
                                             device =>
                                                 device.ip
                                         ),

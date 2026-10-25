@@ -2867,3 +2867,20 @@ body { font-family: "Atkinson NES", -apple-system, BlinkMacSystemFont, sans-seri
 .live-logs-job-type.type-backup { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
 .live-logs-console-head { background: var(--panel-2); border-bottom-color: var(--border); color: var(--text); }
 .live-logs-console-head strong { color: var(--text); }
+
+/* Upgrade wizard: one firmware picker per model group */
+.fw-group { display: block; }
+.fw-group-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.fw-group-head > div:first-child { display: grid; gap: 2px; }
+.fw-group-head span { color: var(--muted); font-size: 12px; }
+.fw-group-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fw-group-pick select { min-width: 280px; }
+.fw-group-devices { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.fw-group-device { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-soft); }
+.fw-group-device span { color: var(--muted); }
+.fw-group-device.is-skipped { opacity: .65; }
+.fw-group-device em { color: var(--amber, #d9a441); font-style: normal; }
+.fwq-modal { max-width: 720px; }
+.fwq-body .modal-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 0 0; }
+#fw-quick-upload { z-index: 2100; }
+#toast { z-index: 3000; }

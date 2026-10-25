@@ -13,8 +13,8 @@
     <button class="nav-item" data-page="backup"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#folder"></use></svg></span><span>2 · Backup</span></button>
     <button class="nav-item" data-page="push"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span>3 · Config Push</span></button>
     <button class="nav-item" data-page="jobs"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#jobs"></use></svg></span><span>3 · Upgrade</span></button>
-    <button class="nav-item" data-page="firmware"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#firmware"></use></svg></span><span>Firmware</span></button>
     <button class="nav-item" data-page="logs"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#pulse"></use></svg></span><span>Live Logs</span></button>
+    <button class="nav-item" data-page="firmware"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#firmware"></use></svg></span><span>Firmware</span></button>
     <button class="nav-item" data-page="settings"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#settings"></use></svg></span><span>Settings</span></button>
 </div>
 
@@ -615,10 +615,12 @@
                         </h3>
 
                         <p>
-                            Monitor firmware upgrade operations.
+                            Tick devices on the Devices tab, then Stage Upgrade. A missing image can be uploaded inside that dialog.
                         </p>
 
                     </div>
+
+                    <button class="button button-primary" type="button" data-go-page="discovery">Pick devices</button>
 
                 </div>
 
@@ -884,6 +886,37 @@
 
 
 
+
+
+<div id="fw-quick-upload" class="modal-overlay hidden">
+    <div class="upgrade-modal fwq-modal">
+        <div class="modal-header">
+            <div>
+                <h3 id="fwq-title">Upload image</h3>
+                <p>Stored in the Firmware library, then picked for these devices.</p>
+            </div>
+            <button id="fwq-close" type="button" class="modal-close">×</button>
+        </div>
+        <form id="fwq-form" class="modal-body fwq-body">
+            <div class="form-grid">
+                <div class="form-group"><label for="fwq-vendor">Vendor</label>
+                    <select id="fwq-vendor"><option value="cisco">Cisco</option><option value="huawei">Huawei</option><option value="aruba">Aruba</option></select></div>
+                <div class="form-group"><label for="fwq-platform">Platform</label><input id="fwq-platform" type="text"></div>
+                <div class="form-group"><label for="fwq-model">Model</label><input id="fwq-model" type="text"></div>
+                <div class="form-group"><label for="fwq-version">Version</label><input id="fwq-version" type="text" placeholder="V600R025C00SPC500" required></div>
+                <div class="form-group"><label for="fwq-file">Image file</label><input id="fwq-file" type="file" required></div>
+                <div class="form-group"><label for="fwq-patch">Patch file (.pat, optional)</label><input id="fwq-patch" type="file"></div>
+            </div>
+            <div class="modal-footer">
+                <span id="fwq-progress" class="field-hint"></span>
+                <div class="modal-footer-right">
+                    <button id="fwq-cancel" type="button" class="button button-secondary">Cancel</button>
+                    <button id="fwq-submit" type="submit" class="button button-primary">Upload and use</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 
 <div
     id="upgrade-wizard-modal"
