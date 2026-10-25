@@ -287,3 +287,5 @@
 .lg-page .lg-sign-head { margin-bottom: 8px; font-size: 13px; font-weight: 600; }
 @media (max-width: 900px) { .lg-page .lg-sign { grid-template-columns: 1fr; } }
 .lg-page .lg-rows td input { padding: 8px 10px; border: 1px solid var(--md-outline-variant); border-radius: 6px; background: transparent; color: inherit; }
+.lg-page .lg-doc-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--md-outline-variant); }
+.lg-page .lg-doc-row .btn { min-height: 32px; padding: 4px 12px; font-size: 12.5px; }

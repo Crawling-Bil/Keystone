@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Document Generator · Keystone{% endblock %}
 {% block page_title %}Document Generator{% endblock %}
-{% block page_subtitle %}Write a project's LLD, Work Plan and Work Report onto the Multipolar Word templates. Open a project to see its documents.{% endblock %}
+{% block page_subtitle %}Write a project's LLD, Work Plan and Work Report onto the Multipolar Word templates. Each project card has buttons for its documents.{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/lld_generator.css') }}">{% endblock %}
 {% block content %}
 {#- No element ids: the SPA router keeps every visited page mounted; lld_generator.js scopes itself to .lg-page (data-ld). -#}

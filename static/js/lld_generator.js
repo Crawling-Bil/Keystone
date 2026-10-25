@@ -144,10 +144,10 @@
         <div class="topbar">
           <div>
             <h1>Projects</h1>
-            <div class="subtitle">Your LLD documents</div>
+            <div class="subtitle">Each project has an LLD, a Work Plan and a Work Report</div>
           </div>
           <button class="btn btn-filled" data-ld="btn-new-project">
-            <span class="lg-ic" aria-hidden="true">+</span> Project Baru
+            <span class="lg-ic" aria-hidden="true">+</span> New project
           </button>
         </div>
         <div class="content-area">
@@ -162,6 +162,15 @@
         el.addEventListener("click", () => {
           state.currentProjectId = Number(el.dataset.id);
           switchView("project");
+        });
+      });
+      $$(".js-open-doc", main).forEach((el) => {
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          state.currentProjectId = Number(el.dataset.id);
+          if (el.dataset.kind === "lld") { switchView("project"); return; }
+          state.formKind = el.dataset.kind;
+          switchView("form");
         });
       });
       $$(".js-delete-project", main).forEach((el) => {
@@ -192,6 +201,11 @@
           <div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap">
             <span class="chip">v${escapeHtml(p.version)}</span>
             <span class="chip">${escapeHtml(p.template_name || "template?")}</span>
+          </div>
+          <div class="lg-doc-row">
+            <button type="button" class="btn btn-tonal js-open-doc" data-id="${p.id}" data-kind="lld">LLD</button>
+            <button type="button" class="btn btn-outlined js-open-doc" data-id="${p.id}" data-kind="wpd" title="Work Plan Document (FM-Impl-039)">Work Plan</button>
+            <button type="button" class="btn btn-outlined js-open-doc" data-id="${p.id}" data-kind="wrd" title="Work Report (FM-HW-005)">Work Report</button>
           </div>
         </div>`;
     }
@@ -1047,7 +1061,8 @@
       let info;
       try { info = await apiGet(`/projects/${pid}/forms/${kind}`); }
       catch (e) { toast(e.message, true); switchView("project"); return; }
-      const p = state.currentProject || (await apiGet(`/projects/${pid}`));
+      const p = await apiGet(`/projects/${pid}`);
+      state.currentProject = p;
       const d = info.data, sh = info.shared, t = sh.team;
       const support = ["", "hw", "silver", "gold"].map((v) => `<option value="${v}" ${sh.support_type === v ? "selected" : ""}>${{ "": "-", hw: "Hardware Warranty", silver: "Silver Maintenance", gold: "Gold Maintenance" }[v]}</option>`).join("");
       const sharedHtml = `
@@ -1136,6 +1151,7 @@
       }
 
       $('[data-ld="form-back"]').addEventListener("click", () => switchView("project"));
+      $('[data-ld="form-back"]').title = "Back to the LLD of this project";
       $('[data-ld="form-save"]').addEventListener("click", () => save(false).catch((e) => toast(e.message, true)));
       $('[data-ld="form-generate"]').addEventListener("click", async (e) => {
         const btn = e.currentTarget;
