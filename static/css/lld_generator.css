@@ -272,3 +272,18 @@
 .lg-page .lg-appr-row input { min-width: 0; padding: 8px 10px; border: 1px solid var(--md-outline); border-radius: 8px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
 .lg-page .lg-appr-default { display: flex; gap: 8px; align-items: center; margin: 12px 0 4px; font-size: 13px; }
 @media (max-width: 640px) { .lg-page .lg-appr-row { grid-template-columns: 1fr 1fr; } }
+
+/* Work Plan / Work Report forms */
+.lg-page .lg-form { display: grid; gap: 16px; padding: 0 0 24px; }
+.lg-page .lg-form-card { padding: 20px; border: 1px solid var(--md-outline-variant); border-radius: 12px; background: var(--md-surface-container-low, var(--md-surface)); }
+.lg-page .lg-form-card h3 { margin: 0 0 16px; font-size: 16px; font-weight: 600; }
+.lg-page .lg-form-card h3 small { margin-left: 6px; font-size: 12px; font-weight: 400; color: var(--md-on-surface-variant); }
+.lg-page .lg-rows table { width: 100%; border-collapse: collapse; }
+.lg-page .lg-rows th { text-align: left; font-size: 12px; font-weight: 500; color: var(--md-on-surface-variant); padding: 4px 6px; }
+.lg-page .lg-rows td { padding: 3px 4px; }
+.lg-page .lg-rows td input { width: 100%; }
+.lg-page .lg-rows td:last-child { width: 36px; }
+.lg-page .lg-sign { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 8px; }
+.lg-page .lg-sign-head { margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+@media (max-width: 900px) { .lg-page .lg-sign { grid-template-columns: 1fr; } }
+.lg-page .lg-rows td input { padding: 8px 10px; border: 1px solid var(--md-outline-variant); border-radius: 6px; background: transparent; color: inherit; }

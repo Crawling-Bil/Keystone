@@ -95,7 +95,7 @@
 
     // ===================== app state =====================
     const state = {
-      view: "projects",       // 'projects' | 'templates' | 'project'
+      view: "projects",       // 'projects' | 'templates' | 'project' | 'form'
       projects: [],
       templates: [],
       currentProjectId: null,
@@ -116,7 +116,7 @@
 
     function switchView(view) {
       state.view = view;
-      $$(".lg-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === view || (view === "project" && b.dataset.view === "projects")));
+      $$(".lg-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === view || ((view === "project" || view === "form") && b.dataset.view === "projects")));
       render();
     }
 
@@ -130,6 +130,8 @@
         renderTemplatesView(main);
       } else if (state.view === "project") {
         await renderProjectWorkspace(main);
+      } else if (state.view === "form") {
+        await renderFormView(main);
       }
     }
 
@@ -413,6 +415,8 @@
             <label class="btn btn-outlined" title="Upload several pictures; each goes to the empty picture whose chapter matches its file name">
               <span class="lg-ic" aria-hidden="true">⤒</span> Pictures
               <input type="file" data-ld="bulk-pictures" accept="image/*,.svg" multiple hidden></label>
+            <button class="btn btn-outlined" data-ld="btn-form-wpd" title="Work Plan Document (FM-Impl-039)">Work Plan</button>
+            <button class="btn btn-outlined" data-ld="btn-form-wrd" title="Work Report (FM-HW-005)">Work Report</button>
             <button class="btn btn-tonal" data-ld="btn-review"><span class="lg-ic" aria-hidden="true">✓</span> Review</button>
             <button class="btn btn-outlined" data-ld="btn-project-settings"><span class="lg-ic" aria-hidden="true">⚙</span> Settings</button>
             <button class="btn btn-filled" data-ld="btn-generate"><span class="lg-ic" aria-hidden="true">⤓</span> Generate &amp; Download</button>
@@ -427,6 +431,8 @@
       $('[data-ld=\"btn-generate\"]').addEventListener("click", handleGenerate);
       $('[data-ld=\"btn-project-settings\"]').addEventListener("click", openProjectSettingsDialog);
       $('[data-ld=\"btn-review\"]').addEventListener("click", openReviewDialog);
+      $('[data-ld="btn-form-wpd"]').addEventListener("click", () => { state.formKind = "wpd"; switchView("form"); });
+      $('[data-ld="btn-form-wrd"]').addEventListener("click", () => { state.formKind = "wrd"; switchView("form"); });
       $('[data-ld="bulk-pictures"]').addEventListener("change", async (e) => {
         const files = [...e.target.files];
         e.target.value = "";
@@ -1003,6 +1009,147 @@
     const wanted = Number(new URLSearchParams(location.search).get("project"));
     if (wanted) { state.currentProjectId = wanted; state.view = "project"; }
     render();
+
+    // ===================== FORMS view (Work Plan, Work Report) =====================
+    // The project holds what both forms share (description, SoW, team, site);
+    // each form keeps its own fields. The page mirrors the Word form's order.
+    const linesOf = (v) => (Array.isArray(v) ? v.join("\n") : String(v || ""));
+    const toLines = (v) => String(v || "").split("\n").map((x) => x.trim()).filter(Boolean);
+
+    function rowsEditor(key, cols, rows) {
+      const head = cols.map(([, label]) => `<th>${escapeHtml(label)}</th>`).join("");
+      const body = (rows.length ? rows : [{}]).map((r) => `<tr>${cols.map(([c]) =>
+        `<td><input data-col="${c}" value="${escapeHtml(r[c] || "")}"></td>`).join("")}
+        <td><button type="button" class="btn btn-text lg-row-del" title="Remove row">×</button></td></tr>`).join("");
+      return `<div class="lg-rows" data-rows="${key}"><table class="editable-table"><thead><tr>${head}<th></th></tr></thead>
+        <tbody>${body}</tbody></table><button type="button" class="btn btn-text lg-row-add">+ Add row</button></div>`;
+    }
+
+    function readRows(root, key) {
+      const box = root.querySelector(`[data-rows="${key}"]`);
+      return [...box.querySelectorAll("tbody tr")].map((tr) => Object.fromEntries(
+        [...tr.querySelectorAll("input[data-col]")].map((i) => [i.dataset.col, i.value.trim()])))
+        .filter((r) => Object.values(r).some(Boolean));
+    }
+
+    const fld = (name, label, value, opts = {}) => opts.area
+      ? `<div class="field"><label>${escapeHtml(label)}</label><textarea name="${name}" rows="${opts.rows || 3}" placeholder="${escapeHtml(opts.ph || "")}">${escapeHtml(value || "")}</textarea></div>`
+      : `<div class="field"><label>${escapeHtml(label)}</label><input name="${name}" value="${escapeHtml(value || "")}" placeholder="${escapeHtml(opts.ph || "")}"></div>`;
+
+    function signaturesHtml(d) {
+      return `<div class="lg-sign">${[["prepared", "Prepared by"], ["acknowledged", "Acknowledged by"], ["customer", "Customer"]].map(([k, label]) => `
+        <div><div class="lg-sign-head">${label}</div>${fld(`${k}_name`, "Name", d[`${k}_name`])}${fld(`${k}_title`, "Title", d[`${k}_title`])}${fld(`${k}_date`, "Date", d[`${k}_date`])}</div>`).join("")}</div>`;
+    }
+
+    async function renderFormView(main) {
+      const pid = state.currentProjectId;
+      const kind = state.formKind;
+      let info;
+      try { info = await apiGet(`/projects/${pid}/forms/${kind}`); }
+      catch (e) { toast(e.message, true); switchView("project"); return; }
+      const p = state.currentProject || (await apiGet(`/projects/${pid}`));
+      const d = info.data, sh = info.shared, t = sh.team;
+      const support = ["", "hw", "silver", "gold"].map((v) => `<option value="${v}" ${sh.support_type === v ? "selected" : ""}>${{ "": "-", hw: "Hardware Warranty", silver: "Silver Maintenance", gold: "Gold Maintenance" }[v]}</option>`).join("");
+      const sharedHtml = `
+        <section class="lg-form-card"><h3>Project <small>shared by every document of this project</small></h3>
+          <div class="field-row">${kind === "wpd" ? fld("city", "City (under the customer)", sh.city, { ph: "Jakarta" }) : ""}${fld("site_address", "Site address", sh.site_address)}</div>
+          ${fld("description", "Project description", sh.description, { area: true })}
+          ${fld("sow", "Statement of Work, one per line", linesOf(sh.sow), { area: true, rows: 4, ph: "Instalasi dan Konfigurasi 2 unit Switch ..." })}
+          <div class="field-row"><div class="field"><label>Type of service support</label><select name="support_type">${support}</select></div>
+            ${fld("support_period", "Period of service support", sh.support_period, { ph: "3 Years After BAST Date" })}</div>
+          <div class="field-row">${fld("pm_mlpt", "Project Manager (Multipolar)", t.pm_mlpt)}${fld("pm_customer", "Project Manager (Customer)", t.pm_customer)}</div>
+          <div class="field-row">${fld("team_mlpt", "Team members (Multipolar), one per line", linesOf(t.mlpt), { area: true, rows: 4 })}
+            ${fld("team_customer", "Team members (Customer), one per line", linesOf(t.customer), { area: true, rows: 4 })}</div>
+          ${kind === "wpd" ? fld("ops_pic", "Operation PIC (Customer)", t.ops_pic) : ""}
+        </section>`;
+      const own = kind === "wpd" ? `
+        <section class="lg-form-card"><h3>Work Plan</h3>
+          ${fld("doc_date", "Date", d.doc_date)}
+          ${fld("assumption", "Assumption, one per line", linesOf(d.assumption), { area: true })}
+          <div class="field"><label>Risk assessment</label>${rowsEditor("risk", [["issue", "Issue"], ["level", "Level"], ["mitigation", "Mitigation"], ["owner", "Owner"]], d.risk)}</div>
+          ${fld("csf", "Critical success factor, one per line", linesOf(d.csf), { area: true })}
+          <div class="field"><label>High level project plan</label>${rowsEditor("plan", [["task", "Task"], ["start", "Start"], ["finish", "Finish"]], d.plan)}</div>
+          <div class="field"><label>Resource</label>${rowsEditor("resource", [["name", "Name"], ["skill", "Skill level"]], d.resource)}</div>
+          ${signaturesHtml(d)}
+        </section>` : `
+        <section class="lg-form-card"><h3>Work Report <small>${info.saved ? "" : "filled from the Work Plan"}</small></h3>
+          <div class="field-row">${fld("doc_date", "Date", d.doc_date)}${fld("start", "Start", d.start)}${fld("completed", "Completed", d.completed)}</div>
+          ${fld("deliverables", "Completed deliverables, one per line", linesOf(d.deliverables), { area: true, rows: 4 })}
+          ${fld("lessons", "Lesson learned, one per line", linesOf(d.lessons), { area: true })}
+          <div class="field"><label>Project schedule report</label>${rowsEditor("schedule", [["task", "Task"], ["plan_start", "Planned start"], ["plan_finish", "Planned finish"], ["actual_start", "Actual start"], ["actual_finish", "Actual finish"]], d.schedule)}</div>
+          <div class="field"><label>Project schedule note</label>${rowsEditor("notes", [["task", "Task"], ["text", "Note"]], d.notes)}</div>
+          <div class="field-row">${fld("training_date", "Training / knowledge transfer date", d.training_date)}${fld("attendees", "Attendees, one per line", linesOf(d.attendees), { area: true })}</div>
+          <div class="field"><label>Documentation handed over</label>${rowsEditor("documents", [["type", "Document type"], ["date", "Received date"], ["by", "Received by"]], d.documents)}</div>
+          ${fld("support_signer", "Support service signature (Multipolar)", d.support_signer)}
+          ${signaturesHtml(d)}
+        </section>`;
+      main.innerHTML = `
+        <div class="topbar">
+          <div>
+            <button class="btn btn-text lg-back" data-ld="form-back"><span class="lg-ic" aria-hidden="true">←</span> ${escapeHtml(p.name)}</button>
+            <div style="font-size:21px;font-weight:600">${escapeHtml(info.label)}</div>
+            <div class="subtitle">${escapeHtml(p.client || "-")} &middot; ${escapeHtml(p.project_code || "no project code")}${info.generated_at ? ` &middot; last generated ${escapeHtml(info.generated_at.slice(0, 10))}` : ""}</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outlined" data-ld="form-save">Save</button>
+            <button class="btn btn-filled" data-ld="form-generate"><span class="lg-ic" aria-hidden="true">⤓</span> Generate &amp; Download</button>
+          </div>
+        </div>
+        <form class="lg-form" data-ld="form-body">${sharedHtml}${own}</form>`;
+
+      const form = $('[data-ld="form-body"]');
+      form.addEventListener("click", (e) => {
+        if (e.target.classList.contains("lg-row-add")) {
+          const tbody = e.target.parentElement.querySelector("tbody");
+          const row = tbody.lastElementChild.cloneNode(true);
+          row.querySelectorAll("input").forEach((i) => { i.value = ""; });
+          tbody.appendChild(row);
+          row.querySelector("input").focus();
+        } else if (e.target.classList.contains("lg-row-del")) {
+          const tr = e.target.closest("tr");
+          if (tr.parentElement.children.length > 1) tr.remove(); else tr.querySelectorAll("input").forEach((i) => { i.value = ""; });
+        }
+      });
+
+      function collect() {
+        const v = (n) => (form.elements[n] ? form.elements[n].value.trim() : "");
+        const shared = { site_address: v("site_address"), description: v("description"), sow: toLines(v("sow")),
+          support_type: v("support_type"), support_period: v("support_period"),
+          team: { pm_mlpt: v("pm_mlpt"), pm_customer: v("pm_customer"), mlpt: toLines(v("team_mlpt")),
+                  customer: toLines(v("team_customer")), ops_pic: kind === "wpd" ? v("ops_pic") : t.ops_pic } };
+        if (kind === "wpd") shared.city = v("city");
+        const sig = Object.fromEntries(["prepared", "acknowledged", "customer"].flatMap((k) =>
+          ["name", "title", "date"].map((f) => [`${k}_${f}`, v(`${k}_${f}`)])));
+        const data = kind === "wpd"
+          ? { doc_date: v("doc_date"), assumption: toLines(v("assumption")), risk: readRows(form, "risk"), csf: toLines(v("csf")),
+              plan: readRows(form, "plan"), resource: readRows(form, "resource"), ...sig }
+          : { doc_date: v("doc_date"), start: v("start"), completed: v("completed"), deliverables: toLines(v("deliverables")),
+              lessons: toLines(v("lessons")), schedule: readRows(form, "schedule"), notes: readRows(form, "notes"),
+              training_date: v("training_date"), attendees: toLines(v("attendees")), documents: readRows(form, "documents"),
+              support_signer: v("support_signer"), ...sig };
+        return { shared, data };
+      }
+
+      async function save(quiet) {
+        await apiPut(`/projects/${pid}/forms/${kind}`, collect());
+        if (!quiet) toast(`${info.label} saved`);
+      }
+
+      $('[data-ld="form-back"]').addEventListener("click", () => switchView("project"));
+      $('[data-ld="form-save"]').addEventListener("click", () => save(false).catch((e) => toast(e.message, true)));
+      $('[data-ld="form-generate"]').addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+          await save(true);
+          const res = await apiPost(`/projects/${pid}/forms/${kind}/generate`, {});
+          window.location.href = res.download_url;
+          toast(res.warnings.length ? `Downloaded. ${res.warnings.join(" ")}` : `${res.filename} downloaded`);
+        } catch (err) { toast(err.message, true); }
+        btn.disabled = false;
+      });
+    }
+
     page.lgOpenProject = (id) => { state.currentProjectId = id; switchView("project"); };
 
     // ---------- import from the old Document Generator (one time) ----------

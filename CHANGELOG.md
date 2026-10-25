@@ -2,6 +2,12 @@
 
 Newest first. Module versions are listed in `core/modules.py`.
 
+## Unreleased: Work Plan and Work Report
+
+- LLD Generator projects produce the Work Plan Document (FM-Impl-039) and the Work Report (FM-HW-005), filled onto the original Multipolar Word forms.
+- New shared project data (site, description, Statement of Work, service support, team) used by every document of the project.
+- A Work Report starts from the Work Plan: deliverables, planned schedule and team are already in.
+
 ## Unreleased: Device Operations
 
 - Lifecycle Manager, Config Push, Config Backup and Live Logs are now one menu, Device Operations, with tabs in workflow order: Devices, Backup, Config Push / Upgrade, Firmware, Live Logs, Settings. Old URLs redirect to the matching tab; `?tab=` deep-links work.

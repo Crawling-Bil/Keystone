@@ -15,7 +15,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, render_template, request, send_file
 
 from core.database import log_activity
-from . import service, store
+from . import forms_service, service, store
 from .service import GenError
 
 bp = Blueprint("lld_generator", __name__, url_prefix="/lld-generator")
@@ -290,6 +290,30 @@ def download(stored_name: str):
         raise GenError("File not found", 404)
     name = re.sub(r"[^A-Za-z0-9 ._\-\[\]]+", "", request.args.get("name") or "") or "LLD_generated.docx"
     return send_file(path, as_attachment=True, download_name=name, mimetype=DOCX)
+
+
+# ----------------------------------------------------------------- Work Plan, Work Report
+@bp.get("/api/projects/<int:project_id>/documents")
+def list_documents(project_id: int):
+    _need(store.get_project(project_id), "Project")
+    return jsonify(store.list_documents(project_id))
+
+
+@bp.get("/api/projects/<int:project_id>/forms/<kind>")
+def get_form(project_id: int, kind: str):
+    return jsonify(forms_service.load(project_id, kind))
+
+
+@bp.put("/api/projects/<int:project_id>/forms/<kind>")
+def put_form(project_id: int, kind: str):
+    return jsonify(forms_service.save(project_id, kind, _body()))
+
+
+@bp.post("/api/projects/<int:project_id>/forms/<kind>/generate")
+def generate_form(project_id: int, kind: str):
+    result = forms_service.generate(project_id, kind)
+    log_activity("LLD Generator", f"{forms_service.KINDS.get(kind, kind)} generated", result["filename"])
+    return jsonify(result)
 
 
 # ----------------------------------------------------------------- LLD Index hand-off, legacy import

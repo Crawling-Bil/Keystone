@@ -54,3 +54,13 @@ Chapters are matched by their title path. Tables and paragraphs take the new dat
 ## Not cached
 
 Single user, local SQLite, a few hundred rows per project: every request reads the database directly and nothing is cached, so there is nothing to invalidate. Generated files are the only derived data; they are kept 7 days for the download and removed on the next Generate after that.
+
+## Work Plan and Work Report
+
+A project also produces the two Multipolar forms: **Work Plan Document** (FM-Impl-039, before the project starts) and **Work Report** (FM-HW-005, after it closes). Open a project and click **Work Plan** or **Work Report**.
+
+- The **Project** card holds what every document of the project shares: city, site address, description, Statement of Work, service support (type and period), project managers and team. Change it once; the next document generated uses it.
+- The Work Plan card adds assumptions, risks, critical success factors, the high-level plan, resources and the three signatures.
+- A Work Report opened after the Work Plan starts filled: Completed Deliverables from the Statement of Work, the Planned columns from the plan (Actual copies them until you change it), "As scheduled" notes, and the documentation list. What is left: actual dates, lessons learned, training and the support signer.
+- **Generate & Download** writes the form onto the original Word template (`core/docgen/forms/`), so the layout matches the printed form. List rows grow with the data; empty rows are dropped. Blank signatures fall back to the prepared-by name and the two project managers.
+- When Multipolar revises a form, convert the new `.doc` to `.docx` and run `python core/docgen/forms/make_forms.py WorkPlan.docx WorkReport.docx`.

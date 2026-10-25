@@ -83,10 +83,25 @@ CREATE TABLE IF NOT EXISTS lld_gen_settings (
     value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS lld_gen_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL REFERENCES lld_gen_projects(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '{}',
+    generated_at TEXT DEFAULT '',
+    updated_at TEXT NOT NULL,
+    UNIQUE(project_id, kind)
+);
+
 CREATE INDEX IF NOT EXISTS lld_gen_chapters_project ON lld_gen_chapters(project_id, parent_id, order_index);
 CREATE INDEX IF NOT EXISTS lld_gen_blocks_chapter ON lld_gen_blocks(chapter_id, order_index);
 """
 
+
+# Shared project data used by the Work Plan, Work Report and Implementation
+# documents (column, default). Lists and the team are JSON text.
+PROJECT_EXTRA = (("site_address", ""), ("city", ""), ("description", ""), ("sow", "[]"),
+                 ("support_type", ""), ("support_period", ""), ("team", "{}"))
 
 _ready = set()
 
@@ -105,7 +120,9 @@ def get_conn():
     if path not in _ready:
         conn.executescript(SCHEMA)
         for stmt in ("ALTER TABLE lld_gen_projects ADD COLUMN history TEXT DEFAULT '[]'",
-                     "ALTER TABLE lld_gen_projects ADD COLUMN approvers TEXT DEFAULT '[]'"):
+                     "ALTER TABLE lld_gen_projects ADD COLUMN approvers TEXT DEFAULT '[]'",
+                     *(f"ALTER TABLE lld_gen_projects ADD COLUMN {col} TEXT DEFAULT '{default}'"
+                       for col, default in PROJECT_EXTRA)):
             try:
                 conn.execute(stmt)                       # databases made before the column existed
             except sqlite3.OperationalError:
@@ -600,3 +617,39 @@ def set_setting(key, value):
     with db_conn() as conn:
         conn.execute("INSERT INTO lld_gen_settings (key, value) VALUES (?, ?) "
                      "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, json.dumps(value)))
+
+
+# ---------------- form documents (Work Plan, Work Report) ----------------
+def get_document(project_id, kind):
+    with db_conn() as conn:
+        row = conn.execute("SELECT * FROM lld_gen_documents WHERE project_id = ? AND kind = ?",
+                           (project_id, kind)).fetchone()
+    if not row:
+        return None
+    doc = row_to_dict(row)
+    doc["data"] = json.loads(doc["data"] or "{}")
+    return doc
+
+
+def list_documents(project_id):
+    with db_conn() as conn:
+        rows = conn.execute("SELECT id, kind, generated_at, updated_at FROM lld_gen_documents WHERE project_id = ?",
+                            (project_id,)).fetchall()
+    return [row_to_dict(r) for r in rows]
+
+
+def save_document(project_id, kind, data, generated=False):
+    stamp = now()
+    with db_conn() as conn:
+        conn.execute(
+            "INSERT INTO lld_gen_documents (project_id, kind, data, generated_at, updated_at) VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(project_id, kind) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at"
+            + (", generated_at = excluded.generated_at" if generated else ""),
+            (project_id, kind, json.dumps(data), stamp if generated else "", stamp))
+    return get_document(project_id, kind)
+
+
+def mark_generated(project_id, kind):
+    with db_conn() as conn:
+        conn.execute("UPDATE lld_gen_documents SET generated_at = ? WHERE project_id = ? AND kind = ?",
+                     (now(), project_id, kind))
