@@ -149,7 +149,7 @@
     });
     $("saved-delete").addEventListener("click", async () => {
       const id = $("saved-select").value;
-      if (!id || !window.confirm("Delete this saved project? The LLD Generator project stays.")) return;
+      if (!id || !window.confirm("Delete this saved project? The Document Generator project stays.")) return;
       await fetch(`/lld-index/api/saved/${id}`, { method: "DELETE" });
       clearForm(); await refreshSaved();
     });

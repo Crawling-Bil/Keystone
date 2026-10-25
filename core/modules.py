@@ -100,9 +100,9 @@ TOOLS: tuple[Tool, ...] = (
     Tool("lld_index", "LLD Index", "document", "offline", "0.1", "/lld-index", "folder",
          "Build the LLD Content Index for the LLD Generator: chapters per technology, expanded per site, device and model, tables filled from the inventory and configs, narrative from the project goals.",
          task="Prepare the LLD index", keywords=("lld", "document", "index", "low level design", "docgen", "word")),
-    Tool("lld_generator", "LLD Generator", "document", "offline", "1.0", "/lld-generator", "folder",
-         "Turn an LLD index into the Word LLD: master template with project placeholders, chapter tree, tables and images, Document Acceptance.",
-         task="Write the LLD Word document", keywords=("lld", "word", "docx", "document generator", "master template", "generate")),
+    Tool("lld_generator", "Document Generator", "document", "offline", "1.0", "/lld-generator", "folder",
+         "Project documents on the Multipolar Word templates: the LLD from its index, plus the Work Plan (FM-Impl-039) and Work Report (FM-HW-005).",
+         task="Write the LLD, Work Plan or Work Report", keywords=("lld", "word", "docx", "document generator", "master template", "generate", "work plan", "work report", "wpd", "wrd")),
 )
 
 

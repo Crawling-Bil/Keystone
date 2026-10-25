@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}LLD Index · Keystone{% endblock %}
 {% block page_title %}LLD Index{% endblock %}
-{% block page_subtitle %}Fill in the project, the devices and their configs. Keystone writes the LLD index, then you open it in the LLD Generator.{% endblock %}
+{% block page_subtitle %}Fill in the project, the devices and their configs. Keystone writes the LLD index, then you open it in the Document Generator.{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/analyzer_kit.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/lld_index.css') }}">{% endblock %}
 {% block content %}
 {#- No element ids: the SPA router keeps every visited page mounted; lld_index.js scopes itself to .li-page. -#}
@@ -103,14 +103,14 @@
       <header class="li-result-head">
         <div><h3>Index ready</h3><p class="an-hint" data-role="summary"></p></div>
         <div class="li-result-actions">
-          <button type="button" class="an-btn primary" data-role="lg-open">Open in LLD Generator</button>
+          <button type="button" class="an-btn primary" data-role="lg-open">Open in Document Generator</button>
           <a class="an-btn" data-role="download" href="#">Download Excel</a>
         </div>
       </header>
       <span class="an-status" data-role="lg-status"></span>
       <div class="li-alert hidden" data-role="unused"></div>
       <div class="an-cards" data-role="cards"></div>
-      <p class="an-hint">Next: in the LLD Generator, upload the topology and rack pictures and fill anything marked TBD, then Generate. Building again later updates the same project and keeps your pictures and edits.</p>
+      <p class="an-hint">Next: in the Document Generator, upload the topology and rack pictures and fill anything marked TBD, then Generate. Building again later updates the same project and keeps your pictures and edits.</p>
     </div>
     <div class="panel li-card hidden" data-panel="devices">
       <h3>Devices</h3>

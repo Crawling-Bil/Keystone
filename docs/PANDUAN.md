@@ -75,7 +75,7 @@ Dengan git: `git pull`, lalu jalankan file setup sekali (`setup_windows.bat` ata
 | Upgrade firmware, push config, onboarding switch baru | Device Operations, ZTP | Kredensial perangkat, firmware, draft config |
 | Backup konfigurasi (hanya baca) | Config Backup | Kredensial perangkat |
 | Menyusun struktur LLD project | LLD Index | Data project dan goals, inventory perangkat (template Excel), config opsional |
-| Membuat dokumen LLD Word | LLD Generator | Index dari LLD Index (satu klik) atau file Excel index |
+| Membuat dokumen LLD, Work Plan, Work Report | Document Generator | Index dari LLD Index (satu klik) atau file Excel index |
 
 Halaman Convert untuk Wireless, Router, dan Load Balancer belum punya converter. Halamannya menjelaskan apa yang dibutuhkan dan mengarahkan ke analyzer yang sesuai.
 
@@ -132,11 +132,11 @@ Pack berisi `run-settings.txt`: opsi yang Anda pilih, waktu pembuatan, dan nama 
 3. Isi perangkat: **Download template**, isi di Excel (Site, Hostname, Model, Role, Status, Mgmt IP, SN, Config, Rack, Rack Size, U, U Height), lalu **Import CSV / XLSX**, atau ketik langsung. Status: New, Existing (dicabut), atau Keep (tetap).
 4. Opsional: masukkan running config (satu per perangkat, atau satu ZIP). Tabel VLAN, interface, routing, dan policy diisi dari situ; tanpa config tabelnya tetap TBD.
 5. Klik **Build LLD index**. Hasil build tersimpan: lain kali pilih di **Continue a project**, ubah yang perlu, lalu build lagi tanpa upload config ulang.
-6. Klik **Open in LLD Generator**. Project terbuka lengkap dengan babnya. Build ulang nanti memperbarui project yang sama, gambar dan editan tetap.
-7. Di LLD Generator: drop, paste, atau pilih gambar topology dan rack (SVG dari Topology Builder bisa; tombol **Pictures** menaruh banyak gambar sekaligus sesuai nama file), lengkapi yang ada di daftar **Review**, dan atur logo customer, versi, serta **Approvers** di **Settings**.
+6. Klik **Open in Document Generator**. Project terbuka lengkap dengan babnya. Build ulang nanti memperbarui project yang sama, gambar dan editan tetap.
+7. Di Document Generator: drop, paste, atau pilih gambar topology dan rack (SVG dari Topology Builder bisa; tombol **Pictures** menaruh banyak gambar sekaligus sesuai nama file), lengkapi yang ada di daftar **Review**, dan atur logo customer, versi, serta **Approvers** di **Settings**.
 8. Klik **Generate & Download**. Buka di Word dan biarkan Word memperbarui field (daftar isi, caption).
 
-Pertama kali pakai, buka **LLD Generator** lalu klik **Import from the old Document Generator** untuk memindahkan project dari aplikasi Document Generator yang lama. Detail: [modules/lld-index.md](modules/lld-index.md) dan [modules/lld-generator.md](modules/lld-generator.md).
+Pertama kali pakai, buka **Document Generator** lalu klik **Import from the old Document Generator** untuk memindahkan project dari aplikasi Document Generator yang lama. Detail: [modules/lld-index.md](modules/lld-index.md) dan [modules/lld-generator.md](modules/lld-generator.md).
 
 ## 8. Tool yang mengubah perangkat
 

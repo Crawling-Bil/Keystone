@@ -7,6 +7,7 @@ Newest first. Module versions are listed in `core/modules.py`.
 - LLD Generator projects produce the Work Plan Document (FM-Impl-039) and the Work Report (FM-HW-005), filled onto the original Multipolar Word forms.
 - New shared project data (site, description, Statement of Work, service support, team) used by every document of the project.
 - A Work Report starts from the Work Plan: deliverables, planned schedule and team are already in.
+- The LLD Generator menu is now called Document Generator. Its address (/lld-generator) and data stay the same.
 
 ## Unreleased: Device Operations
 
