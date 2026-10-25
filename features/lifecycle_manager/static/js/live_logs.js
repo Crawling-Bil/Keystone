@@ -106,13 +106,13 @@
         if (status === "pending") {
             return {
                 rail: "Needs Pre-Check",
-                console: "This job hasn't started yet. Go to <strong>Upgrade Jobs</strong> and click <strong>Run Pre-Check</strong> on this job's card to begin.",
+                console: "This job hasn't started yet. Open its tab (<strong>Upgrade</strong>, <strong>Config Push</strong> or <strong>Backup</strong>) and click <strong>Run Pre-Check</strong> on this job's card to begin.",
             };
         }
         if (status === "precheck_failed") {
             return {
                 rail: "Pre-Check failed",
-                console: "Pre-Check failed for this job. Go to <strong>Upgrade Jobs</strong>, check what failed, and click <strong>Run Pre-Check</strong> again.",
+                console: "Pre-Check failed for this job. Open the job's tab, check what failed, and click <strong>Run Pre-Check</strong> again.",
             };
         }
         if (status === "ready") {

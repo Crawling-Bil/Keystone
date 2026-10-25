@@ -3,11 +3,12 @@
 {% block page_title %}Device Operations{% endblock %}
 {% block page_subtitle %}Discover devices, back them up, push config or upgrade firmware, and watch every job live.{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('lifecycle.static', filename='css/style.css') }}">{% endblock %}
-{% block topbar_actions %}
+{% block topbar_actions %}<div class="ops-css ops-topbar">
 <div id="demo-badge" class="demo-badge">DEMO MODE</div>
 <button id="refresh-button" class="button button-secondary">Refresh</button>
-{% endblock %}
+</div>{% endblock %}
 {% block content %}
+<div class="ops-css">
 <div class="lifecycle-tabs" role="tablist">
     <button class="nav-item active" data-page="discovery"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#discovery"></use></svg></span><span>1 · Devices</span></button>
     <button class="nav-item" data-page="backup"><span class="nav-icon"><svg><use href="/static/icons/nes-icons.svg#folder"></use></svg></span><span>2 · Backup</span></button>
@@ -1124,6 +1125,7 @@
 
 </div>
 
+</div>
 </div>
 {% endblock %}
 {% block scripts %}

@@ -11,6 +11,7 @@ Newest first. Module versions are listed in `core/modules.py`.
 - Upgrade wizard picks firmware per model group instead of per device, with an Upload image button that stores the image in the Firmware library and selects it. Devices already on the chosen version are left out of the job; a group without an image can be removed from the wizard. The wizard opens even when the library is empty.
 - The Firmware tab sits next to Settings: it is a library, not a step.
 - Convert pages: the Conversion Settings panel folds away once a result or the guided wizard is on screen, so the result gets the full width. A bar on top shows the loaded source and brings the panel back.
+- Fixed: after opening Device Operations or ZTP, other pages (LLD Index tables, buttons, inputs) picked up their white table background and form styles. The Operate stylesheet is now scoped to its own pages.
 - Click feedback across the suite: ripple on buttons, tabs and nav items, tab panels slide in, module dialogs pop, ticked checkboxes spring and their row flashes. Off when the OS asks for reduced motion.
 - Fixed: empty "Notification" toast on load, unreadable selected item in Live Logs, backup jobs labelled "Upgrade" in Live Logs, references to a missing "Discovery page" and "Configuration Studio".
 
