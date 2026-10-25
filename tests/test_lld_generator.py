@@ -310,3 +310,29 @@ def test_approvers_fill_document_approval_and_are_remembered(client, project):
     again = client.get(f"/lld-generator/api/projects/{other['id']}/approvers").get_json()["approvers"]
     assert [a["name"] for a in again if a["side"] == "customer"] == ["Budi Santoso", "Sari Dewi"]
     assert [a["name"] for a in again if a["side"] == "multipolar"] == ["Fiqih", "Rina"]
+
+
+def test_update_keeps_siblings_with_the_same_title_apart(tmp_path, monkeypatch):
+    monkeypatch.setattr(store, "DB_PATH", str(tmp_path / "dup.db"))
+    t = store.create_template("M", "f.docx", "", [1, 2], 4)
+    p = store.create_project("P", "C", "0.1", t["id"])
+    def items(a, b):
+        return [{"level": 1, "title": "Site HO", "blocks": []},
+                {"level": 2, "title": "SW1", "blocks": [{"block_type": "paragraph", "content": {"paragraphs": [a]}}]},
+                {"level": 2, "title": "SW1", "blocks": [{"block_type": "paragraph", "content": {"paragraphs": [b]}}]}]
+    store.import_index(p["id"], items("first", "second"), "replace")
+    res = store.import_index(p["id"], items("first v2", "second v2"), "update")
+    chapters = store.list_chapters_flat(p["id"])
+    assert res["chapters"] == 0 and res["updated"] == 3 and len(chapters) == 3
+    assert [store.list_blocks(c["id"])[0]["content"]["paragraphs"] for c in chapters[1:]] == [["first v2"], ["second v2"]]
+
+
+def test_pictures_skip_files_word_cannot_take(client, project):
+    pid = project["id"]
+    _import(client, pid, "replace")
+    files = [(io.BytesIO(b"<svg/>"), "rack layout DC.svg"), (io.BytesIO(LOGO.read_bytes()), "rack layout DC.png")]
+    res = client.post(f"/lld-generator/api/projects/{pid}/pictures", data={"files": files},
+                      content_type="multipart/form-data")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["unmatched"] == ["rack layout DC.svg"] and [p["chapter"] for p in body["placed"]] == ["Rack Layout DC"]
