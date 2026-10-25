@@ -1918,7 +1918,6 @@ html[data-theme="dark"] tbody tr:hover { background: rgba(36, 180, 205, .09); }
 .cv-source-bar.hidden { display: none; }
 .cv-source-bar #cv-source-summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-source-bar .button-icon { width: 16px; height: 16px; color: var(--blue); flex: none; }
-.convert-panel { position: relative; }
 .cv-settings-hide { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
 .cv-settings-hide:hover { color: var(--text); border-color: var(--blue); }
 .cv-settings-hide.hidden { display: none; }
