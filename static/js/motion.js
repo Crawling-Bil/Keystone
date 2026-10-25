@@ -69,5 +69,34 @@
   }).observe(document.body, { childList: true, subtree: true });
 
   document.addEventListener("DOMContentLoaded", () => scan(document.body));
+
+  // Click feedback: a ripple from the pointer on buttons, tabs and nav
+  // items, and a short flash on a table row whose checkbox gets ticked.
+  const RIPPLE = "button, .btn, .an-btn, a.button, .suite-nav-item, .nav-item, .lg-tab, .li-rtab";
+  document.addEventListener("pointerdown", event => {
+    if (event.button !== 0) return;
+    const host = event.target.closest(RIPPLE);
+    if (!host || host.disabled || host.matches(".modal-close")) return;
+    const rect = host.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height) * 2.2;
+    const dot = document.createElement("span");
+    dot.className = "m-ripple";
+    dot.style.width = dot.style.height = `${size}px`;
+    dot.style.left = `${event.clientX - rect.left - size / 2}px`;
+    dot.style.top = `${event.clientY - rect.top - size / 2}px`;
+    host.classList.add("m-ripple-host");
+    host.appendChild(dot);
+    dot.addEventListener("animationend", () => dot.remove(), { once: true });
+  }, { passive: true });
+
+  document.addEventListener("change", event => {
+    const box = event.target;
+    if (!box.matches || !box.matches('input[type="checkbox"]') || !box.checked) return;
+    const row = box.closest("tr");
+    if (!row) return;
+    row.classList.remove("m-picked");
+    void row.offsetWidth;   // restart the animation on a quick re-tick
+    row.classList.add("m-picked");
+  });
   window.NESMotion = { stagger, countUp, scan };
 })();

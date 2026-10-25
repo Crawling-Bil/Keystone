@@ -101,3 +101,32 @@ details[open] > :not(summary) { animation: m-rise var(--m-mid) var(--m-ease) bot
 .suite-nav-item.active { background-image: linear-gradient(90deg, color-mix(in srgb, var(--blue) 12%, transparent), transparent 70%); }
 .panel { transition: border-color var(--m-mid) var(--m-ease), box-shadow var(--m-mid) var(--m-ease); }
 .li-card:focus-within { border-color: color-mix(in srgb, var(--blue) 45%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 8%, transparent), var(--shadow); }
+
+/* ---- click feedback ---- */
+/* ripple: motion.js drops a .m-ripple span where the pointer went down */
+.m-ripple-host { position: relative; overflow: hidden; isolation: isolate; }
+.m-ripple { position: absolute; border-radius: 50%; pointer-events: none; z-index: -1;
+  background: currentColor; opacity: .28; transform: scale(0);
+  animation: m-ripple 520ms var(--m-ease) forwards; }
+@keyframes m-ripple { to { transform: scale(1); opacity: 0; } }
+
+/* tab panels slide in when they become active */
+#lifecycle-scope > .page.active, .lg-tabpanel.active, .li-result-panel.active { animation: m-rise var(--m-mid) var(--m-ease) both; }
+.lifecycle-tabs .nav-item.active .nav-icon { animation: m-tick 360ms var(--m-spring); }
+
+/* module dialogs pop like the suite's own */
+.modal-overlay:not(.hidden) { animation: m-fade var(--m-mid) var(--m-ease) both; backdrop-filter: blur(3px); }
+.modal-overlay:not(.hidden) > * { animation: m-pop var(--m-mid) var(--m-spring) both; }
+
+/* checkboxes and radios tick with a little spring */
+input[type="checkbox"]:checked, input[type="radio"]:checked { animation: m-tick 300ms var(--m-spring); }
+@keyframes m-tick { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+/* a row you pick lights up briefly */
+tr.m-picked > td { animation: m-flash 700ms var(--m-ease); }
+@keyframes m-flash { from { background-color: color-mix(in srgb, var(--blue) 18%, transparent); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .m-ripple, #lifecycle-scope > .page.active, .modal-overlay:not(.hidden), .modal-overlay:not(.hidden) > *,
+  input:checked, tr.m-picked > td, .lifecycle-tabs .nav-item.active .nav-icon { animation: none !important; }
+}
