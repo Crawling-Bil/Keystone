@@ -16,8 +16,14 @@
     group.classList.add("m-stagger");
   }
 
+  // Only plain numbers ("12", "1,234", "99.5") count up. Anything with a unit,
+  // a slash or a prefix ("45%", "3/4", "v17.9", "1.2 GB") stays as written:
+  // stripping it to digits would show a different value.
+  const PLAIN_NUMBER = /^\s*(\d{1,3}(,\d{3})+|\d+)(\.\d+)?\s*$/;
   function countUp(el) {
-    const target = Number(String(el.textContent).replace(/[^\d.-]/g, ""));
+    const text = String(el.textContent);
+    if (!PLAIN_NUMBER.test(text)) return;
+    const target = Number(text.replace(/,/g, ""));
     if (!Number.isFinite(target) || target === 0 || el.dataset.mCounted === String(target)) return;
     el.dataset.mCounted = String(target);
     const start = performance.now(), dur = 600, whole = Number.isInteger(target);
