@@ -17,7 +17,7 @@
     <input type="hidden" name="target_device_type" id="target-device-type" value="">
     <aside class="workflow-sidebar panel convert-panel">
         <div class="panel-heading cv-heading">
-            <div><h3>Conversion Settings</h3><p>{% if off %}Controls unlock when a {{ domain.label|lower }} converter exists.{% else %}Upload or paste the source config.{% endif %}</p></div>
+            <button type="button" class="cv-settings-hide hidden" id="cv-settings-hide" title="Hide settings">×</button><div><h3>Conversion Settings</h3><p>{% if off %}Controls unlock when a {{ domain.label|lower }} converter exists.{% else %}Upload or paste the source config.{% endif %}</p></div>
             {% if off %}<span class="cv-badge" title="No converter is registered for this device type">Not available yet</span>{% endif %}
         </div>
         <fieldset class="cv-fieldset"{% if off %} disabled{% endif %}>
@@ -70,6 +70,11 @@
     </aside>
 
     <section class="workflow-main">
+        <div class="cv-source-bar hidden" id="cv-source-bar">
+            <svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>
+            <span id="cv-source-summary">Source config</span>
+            <button type="button" class="secondary-button" id="cv-settings-open">Change source &amp; settings</button>
+        </div>
         {% if off %}
         <div class="panel cv-status" id="convert-unavailable" data-domain="{{ domain.key }}">
             <div class="cv-status-head">
