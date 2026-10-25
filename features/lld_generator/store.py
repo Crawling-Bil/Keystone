@@ -482,8 +482,10 @@ def import_index(project_id, items, mode="append"):
                     ch = by_id.get(ch["parent_id"])
                 return tuple(reversed(parts))
 
-            for ch in by_id.values():
-                existing.setdefault(path_of(ch), ch)
+            # siblings can share a title (two devices with the same hostname):
+            # keep every chapter per path, in order, and hand them out one by one
+            for ch in sorted(by_id.values(), key=lambda c: c["order_index"]):
+                existing.setdefault(path_of(ch), []).append(ch)
             seen_ids = set()
 
         stack = []          # [(level, chapter_id, path)]
@@ -495,7 +497,9 @@ def import_index(project_id, items, mode="append"):
             parent_id = stack[-1][1] if stack else None
             parent_path = stack[-1][2] if stack else ()
             path = parent_path + (item["title"].strip().lower(),)
-            match = existing.get(path) if mode == "update" else None
+            match = None
+            if mode == "update":
+                match = next((c for c in existing.get(path, []) if c["id"] not in seen_ids), None)
             if match is not None:
                 cid = match["id"]
                 seen_ids.add(cid)
@@ -506,7 +510,8 @@ def import_index(project_id, items, mode="append"):
                 conn.execute("DELETE FROM lld_gen_blocks WHERE chapter_id = ?", (cid,))
                 idx = order.get(parent_id, 0)
                 order[parent_id] = idx + 1
-                conn.execute("UPDATE lld_gen_chapters SET order_index = ?, title = ? WHERE id = ?", (idx, item["title"], cid))
+                conn.execute("UPDATE lld_gen_chapters SET order_index = ?, title = ?, parent_id = ? WHERE id = ?",
+                             (idx, item["title"], parent_id, cid))
                 stats["updated"] += 1
             else:
                 if mode == "update":
@@ -531,7 +536,8 @@ def import_index(project_id, items, mode="append"):
 
         if mode == "update":
             # bab lama yang nggak ada di Index: tetap ada, ditaruh setelah yang dari Index
-            for path, ch in sorted(existing.items(), key=lambda kv: (len(kv[0]), kv[1]["order_index"])):
+            leftovers = [(path, ch) for path, chs in existing.items() for ch in chs]
+            for path, ch in sorted(leftovers, key=lambda kv: (len(kv[0]), kv[1]["order_index"])):
                 if ch["id"] in seen_ids:
                     continue
                 idx = order.get(ch["parent_id"], 0)

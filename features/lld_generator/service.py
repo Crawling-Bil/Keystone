@@ -105,9 +105,12 @@ def delete_template(template_id: int) -> None:
 
 
 # ----------------------------------------------------------------- images
+PICTURE_TYPES = (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".emf", ".wmf")
+
+
 def save_image(project_id: int, filename: str, data: bytes) -> dict:
     ext = os.path.splitext(os.path.basename(filename or ""))[1].lower() or ".png"
-    if ext not in (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".emf", ".wmf"):
+    if ext not in PICTURE_TYPES:
         raise GenError("Pictures must be PNG, JPG, GIF, BMP, EMF or WMF")
     target = uploads_dir(project_id)
     target.mkdir(parents=True, exist_ok=True)
@@ -227,6 +230,9 @@ def place_pictures(project_id: int, files: list[tuple[str, bytes]]) -> dict:
                 slots.append((block, chapter, _words(chapter["title"]) | _words(block["content"].get("caption", ""))))
     placed, unmatched = [], []
     for name, data in files:
+        if os.path.splitext(name)[1].lower() not in PICTURE_TYPES:
+            unmatched.append(name)                       # not a picture Word can take: report it, keep going
+            continue
         want = _words(os.path.splitext(name)[0])
         best, score = None, 0.0
         for slot in slots:
