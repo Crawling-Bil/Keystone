@@ -2,6 +2,14 @@
 
 Newest first. Module versions are listed in `core/modules.py`.
 
+## Unreleased: Device Operations
+
+- Lifecycle Manager, Config Push, Config Backup and Live Logs are now one menu, Device Operations, with tabs in workflow order: Devices, Backup, Config Push / Upgrade, Firmware, Live Logs, Settings. Old URLs redirect to the matching tab; `?tab=` deep-links work.
+- The duplicate Dashboard tab is gone; its counters sit on top of Devices.
+- Backup and Push refresh their device list when opened, so a fresh scan shows up without a reload.
+- ZTP Provisioning has a "Scan in Device Operations" shortcut.
+- Fixed: empty "Notification" toast on load, unreadable selected item in Live Logs, backup jobs labelled "Upgrade" in Live Logs, references to a missing "Discovery page" and "Configuration Studio".
+
 ## Unreleased
 
 ### LLD Index and LLD Generator: daily-use fixes

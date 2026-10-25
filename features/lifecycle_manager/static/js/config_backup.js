@@ -131,7 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             checklistContainer.innerHTML = `
                 <div class="empty-state">
-                    No devices discovered yet. Run a scan on the Discovery page first.
+                    No devices yet. Scan a subnet on the Devices tab first.
                 </div>
             `;
 

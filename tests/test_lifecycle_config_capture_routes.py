@@ -236,16 +236,19 @@ class ConfigCaptureRoutesTests(unittest.TestCase):
     # page route
     # ---------------------------------------------------------------
 
-    def test_config_backup_page_renders_and_is_self_contained(self):
-        response = self.client.get("/lifecycle/config-backup")
-        self.assertEqual(response.status_code, 200)
-        body = response.get_data(as_text=True)
-        self.assertIn("config-backup-job-list", body)
-        # Never points the operator anywhere else -- this page must be
-        # fully self-sufficient, same requirement Config Push already
-        # had to meet.
-        self.assertNotIn("Upgrade Jobs", body)
+    def test_old_operate_urls_redirect_to_device_operations_tabs(self):
+        for old, tab in (("/lifecycle/config-backup", "backup"), ("/lifecycle/config-push", "push"), ("/lifecycle/live-logs", "logs")):
+            response = self.client.get(old)
+            self.assertEqual(response.status_code, 302)
+            self.assertTrue(response.headers["Location"].endswith(f"/lifecycle/?tab={tab}"))
 
+    def test_device_operations_page_holds_every_tab(self):
+        body = self.client.get("/lifecycle/").get_data(as_text=True)
+        for marker in ("page-discovery", "page-backup", "config-backup-job-list", "page-push",
+                       "config-push-job-list", "page-jobs", "page-logs", "live-logs-job-rail"):
+            self.assertIn(marker, body)
+        self.assertNotIn("page-dashboard", body)
+        self.assertEqual(body.count('id="lifecycle-scope"'), 1)
 
 if __name__ == "__main__":
     unittest.main()

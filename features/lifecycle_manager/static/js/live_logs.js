@@ -28,6 +28,13 @@
     // instead of sharing app.js's.
     // ------------------------------------------------------------------
 
+    // Badge per job type. Backup jobs are "config_capture" in the API.
+    function jobKind(job) {
+        if (job.type === "config_push") return { cls: "type-config-push", label: "Config Push" };
+        if (job.type === "config_capture") return { cls: "type-backup", label: "Backup" };
+        return { cls: "type-upgrade", label: "Upgrade" };
+    }
+
     async function apiRequest(url, options = {}) {
         const response = await fetch(url, {
             headers: { "Content-Type": "application/json" },
@@ -111,7 +118,7 @@
         if (status === "ready") {
             return {
                 rail: "Ready -- not started",
-                console: "Pre-Check passed, but this job hasn't been started yet. Go to <strong>Upgrade Jobs</strong> and click <strong>Start Upgrade</strong> / <strong>Start Config Push</strong> on this job's card to begin.",
+                console: "Ready, not started yet. Start it from its card on the <strong>Backup</strong>, <strong>Config Push</strong> or <strong>Upgrade</strong> tab.",
             };
         }
         return null;
@@ -343,8 +350,8 @@
                         class="live-logs-job-item ${isSelected ? "active" : ""}"
                         data-source-id="${escapeHtml(job.id)}"
                     >
-                        <span class="live-logs-job-type ${isConfigPush ? "type-config-push" : "type-upgrade"}">
-                            ${isConfigPush ? "Config Push" : "Upgrade"}
+                        <span class="live-logs-job-type ${jobKind(job).cls}">
+                            ${jobKind(job).label}
                         </span>
                         <strong class="live-logs-job-name">${escapeHtml(job.name)}</strong>
                         ${hint ? `<span class="live-logs-job-hint">${escapeHtml(hint.rail)}</span>` : ""}
@@ -454,8 +461,8 @@
             <div class="live-logs-console-head">
                 <div>
                     <strong>${escapeHtml(job.name)}</strong>
-                    <span class="live-logs-job-type ${isConfigPush ? "type-config-push" : "type-upgrade"}">
-                        ${isConfigPush ? "Config Push" : "Upgrade"}
+                    <span class="live-logs-job-type ${jobKind(job).cls}">
+                        ${jobKind(job).label}
                     </span>
                 </div>
                 <span class="status-badge ${getJobStatusClass(job.status)}">${escapeHtml(job.status)}</span>

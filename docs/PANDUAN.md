@@ -72,7 +72,7 @@ Dengan git: `git pull`, lalu jalankan file setup sekali (`setup_windows.bat` ata
 | Menilai wireless controller | Wireless Analyzer | Konfigurasi WLC Huawei atau Cisco 9800 |
 | Memindahkan konfigurasi switch ke vendor lain | Convert, Switch | Konfigurasi switch Cisco, Huawei, atau Aruba |
 | Memindahkan firewall MikroTik ke Palo Alto (sekali klik atau Guided Conversion langkah demi langkah) | Convert, Firewall | Konfigurasi MikroTik |
-| Upgrade firmware, push config, onboarding switch baru | Lifecycle Manager, Config Push, ZTP | Kredensial perangkat, firmware, draft config |
+| Upgrade firmware, push config, onboarding switch baru | Device Operations, ZTP | Kredensial perangkat, firmware, draft config |
 | Backup konfigurasi (hanya baca) | Config Backup | Kredensial perangkat |
 | Menyusun struktur LLD project | LLD Index | Data project dan goals, inventory perangkat (template Excel), config opsional |
 | Membuat dokumen LLD Word | LLD Generator | Index dari LLD Index (satu klik) atau file Excel index |
@@ -140,7 +140,7 @@ Pertama kali pakai, buka **LLD Generator** lalu klik **Import from the old Docum
 
 ## 8. Tool yang mengubah perangkat
 
-Lifecycle Manager, Config Push, dan ZTP Provisioning menulis ke perangkat asli. Run sungguhan hanya mendukung Huawei VRP; vendor lain berjalan di demo mode. Upgrade firmware dan Config Push menjalankan pre-check dan mengambil backup konfigurasi di sekitar job. Latihan dulu dengan Demo Mode. Config Backup dan Live Logs hanya membaca. Baca [modules/lifecycle-manager.md](modules/lifecycle-manager.md) sebelum job sungguhan pertama.
+Device Operations dan ZTP Provisioning menulis ke perangkat asli. Run sungguhan hanya mendukung Huawei VRP; vendor lain berjalan di demo mode. Upgrade firmware dan Config Push menjalankan pre-check dan mengambil backup konfigurasi di sekitar job. Latihan dulu dengan Demo Mode. Tab Backup dan Live Logs hanya membaca. Baca [modules/lifecycle-manager.md](modules/lifecycle-manager.md) sebelum job sungguhan pertama.
 
 ## 9. Pengaturan (opsional)
 

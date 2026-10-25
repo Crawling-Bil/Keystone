@@ -2855,3 +2855,15 @@ body { font-family: "Atkinson NES", -apple-system, BlinkMacSystemFont, sans-seri
 .live-logs-not-started-notice strong {
     color: var(--amber, #d99a2b);
 }
+/* Device Operations: one page, several tabs */
+#toast.toast:not(.show) { opacity: 0; visibility: hidden; animation: none; }
+.live-logs-job-item { border-bottom-color: var(--border); }
+.live-logs-job-item:hover { background: var(--panel-2); }
+.live-logs-job-item.active { background: var(--accent-wash); box-shadow: inset 3px 0 0 var(--blue); }
+.live-logs-job-item.active .live-logs-job-name { color: var(--text); }
+.ops-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+.ops-toolbar-note { color: var(--muted); font-size: 12px; }
+.lifecycle-tabs { flex-wrap: wrap; }
+.live-logs-job-type.type-backup { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+.live-logs-console-head { background: var(--panel-2); border-bottom-color: var(--border); color: var(--text); }
+.live-logs-console-head strong { color: var(--text); }

@@ -41,7 +41,7 @@ Keystone only listens on your own computer (`127.0.0.1`), so another machine on 
 | Convert | Convert Switch | Cisco, Huawei or Aruba switch configuration | Configuration for another vendor, interface map, pre-flight summary |
 | Convert | Convert Firewall | MikroTik configuration | Palo Alto (Panorama-ready) configuration, in one click or step by step (Guided Conversion: target model, interface and VLAN mapping, zones, checked at every step) |
 | Convert | Wireless, Router, Load Balancer | none yet | These pages say what is needed first and link to the matching analyzer |
-| Operate | Lifecycle Manager, Config Push, ZTP Provisioning | Device credentials, firmware, draft configuration | Firmware upgrade, configuration push, zero-touch provisioning (these change real devices) |
+| Operate | Device Operations (Devices, Backup, Config Push, Upgrade, Live Logs), ZTP Provisioning | Device credentials, firmware, draft configuration | Firmware upgrade, configuration push, zero-touch provisioning (these change real devices) |
 | Operate | Config Backup, Live Logs | Device credentials | Read-only backup bundle, live job log |
 | Document | LLD Index | Project details and goals, device inventory (Excel template), optional configs | The LLD chapter structure per technology (switch, wireless, firewall; router and load balancer as drafts), per site and device, tables filled from the configs, rack layout (Before/After for a replacement project), narrative from the goals. Saved per project |
 | Document | LLD Generator | An index from LLD Index (one click) or an Excel index | The Word LLD on the master template: cover, footer and Document Control filled from the project, customer logo, chapters, tables and pictures, Document Acceptance with your approvers, release history |
@@ -138,7 +138,7 @@ The first time, open **LLD Generator** and press **Import from the old Document 
 
 ## Tools that change devices
 
-Lifecycle Manager, Config Push and ZTP Provisioning write to real devices. Real runs support Huawei VRP only; other vendors run in demo mode. Firmware upgrade and Config Push run a pre-check and take a configuration backup around the job. Use Demo Mode to rehearse first. Config Backup and Live Logs are read-only. Read [docs/modules/lifecycle-manager.md](docs/modules/lifecycle-manager.md) before the first real job.
+Device Operations and ZTP Provisioning write to real devices. Real runs support Huawei VRP only; other vendors run in demo mode. Firmware upgrade and Config Push run a pre-check and take a configuration backup around the job. Use Demo Mode to rehearse first. The Backup and Live Logs tabs are read-only. Read [docs/modules/lifecycle-manager.md](docs/modules/lifecycle-manager.md) before the first real job.
 
 ## Settings (optional)
 

@@ -4,8 +4,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // ELEMENTS
     // ========================================================
 
-    const pages = document.querySelectorAll(".page");
-    const navItems = document.querySelectorAll(".nav-item");
+    const opsRoot = document.getElementById("lifecycle-scope");
+    const pages = opsRoot ? opsRoot.querySelectorAll(":scope > .page") : [];
+    const navItems = document.querySelectorAll(".lifecycle-tabs .nav-item");
 
     const pageTitle = document.getElementById("page-title");
     const pageDescription = document.getElementById("page-description");
@@ -63,16 +64,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const pageConfig = {
 
-        dashboard: {
-            title: "Dashboard",
+        discovery: {
+            title: "Devices",
             description:
-                "Overview of your switch staging environment."
+                "Scan a subnet to build the inventory every other step works on."
         },
 
-        discovery: {
-            title: "Device Discovery",
+        backup: {
+            title: "Backup",
             description:
-                "Discover and inventory switches on the staging network."
+                "Read-only snapshot of the selected devices. Take one before any change."
+        },
+
+        push: {
+            title: "Config Push",
+            description:
+                "Apply a prepared config over SSH. A before and after snapshot is saved with the job."
+        },
+
+        logs: {
+            title: "Live Logs",
+            description:
+                "Every upgrade, push and backup job, plus the ZTP feed, command by command."
         },
 
         firmware: {
@@ -82,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
         },
 
         jobs: {
-            title: "Upgrade Jobs",
+            title: "Upgrade",
             description:
                 "Monitor switch firmware deployment operations."
         },
@@ -138,13 +151,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
         }
 
-        if (pageName === "dashboard") {
+        if (pageName === "discovery") {
             loadDashboard();
             loadDevices();
         }
 
-        if (pageName === "discovery") {
-            loadDevices();
+        // Backup and Push keep their own device list; refresh it on entry
+        // so a scan done on the Devices tab shows up without a reload.
+        const refreshOnEntry = {
+            backup: "config-backup-refresh-devices",
+            push: "config-push-refresh-devices"
+        }[pageName];
+
+        if (refreshOnEntry) {
+            document.getElementById(refreshOnEntry)?.click();
+        }
+
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.set("tab", pageName);
+            window.history.replaceState(window.history.state, "", url);
+        } catch (error) {
+            // address bar sync is a convenience only
         }
 
         if (pageName === "firmware") {
@@ -482,6 +510,10 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderDashboardDevices(
         devices
     ) {
+
+        if (!dashboardTable) {
+            return;
+        }
 
         if (!devices.length) {
 
@@ -3673,5 +3705,11 @@ document.addEventListener("DOMContentLoaded", () => {
     loadDevices();
 
     loadSettings();
+
+    const startTab = new URLSearchParams(window.location.search).get("tab");
+
+    if (startTab && pageConfig[startTab]) {
+        navigateToPage(startTab);
+    }
 
 });
