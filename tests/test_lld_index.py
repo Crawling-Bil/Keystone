@@ -206,6 +206,8 @@ def client(tmp_path, monkeypatch):
     from features.lld_index import routes
 
     monkeypatch.setattr(routes, "EXPORT_DIR", tmp_path / "exports")
+    from features.lld_index import saved
+    monkeypatch.setattr(saved, "DB_PATH", str(tmp_path / "nes.db"))
     app = create_app()
     app.config["TESTING"] = True
     return app.test_client()
@@ -296,3 +298,124 @@ def test_rack_cells_are_coloured_like_the_reference_table():
     assert sheet.cell(row=14, column=2).fill.fgColor.rgb.endswith("DDEBF7")
     assert sheet.cell(row=2, column=1).fill.fgColor.rgb.endswith("F2F2F2")
     assert sheet.cell(row=14, column=2).alignment.horizontal == "center"
+
+
+REPLACED = [
+    {"site": "HO", "hostname": "HO-CORE-OLD", "model": "C3850-24T", "role": "Core Switch", "rack": "Rack 1", "u": "30", "status": "Existing"},
+    {"site": "HO", "hostname": "HO-CORE", "model": "S5755-H24T4Y2CZ", "role": "Core Switch", "rack": "Rack 1", "u": "30", "status": "New"},
+    {"site": "HO", "hostname": "HO-PATCH", "model": "Patch Panel 24P", "role": "Patch Panel", "rack": "Rack 1", "u": "40", "status": "keep"},
+    {"site": "HO", "hostname": "HO-ACC", "model": "C9300-48P", "role": "Access Switch", "rack": "Rack 1", "u": "28"},
+]
+
+
+def _replacement_nodes(replacement):
+    devices = build_devices(REPLACED, {})
+    datasets = {d.hostname: analyze_device(d) for d in devices}
+    project = dict(PROJECT, technologies=["switch"], replacement=replacement)
+    return devices, project, builder.build(project, devices, datasets, ["switch"])
+
+
+def test_status_column_is_read_and_phases_share_units():
+    devices = {d.hostname: d for d in build_devices(REPLACED, {})}
+    assert [devices[h].status for h in ("HO-CORE-OLD", "HO-CORE", "HO-PATCH", "HO-ACC")] == ["Existing", "New", "Keep", "New"]
+    # the old core leaves U30 and the new one takes it: not an overlap
+    assert not any("Overlaps" in n for d in devices.values() for n in d.notes)
+    assert not any("Technology unknown" in n for n in devices["HO-PATCH"].notes)
+
+
+def test_replacement_project_draws_each_rack_before_and_after():
+    _, project, nodes = _replacement_nodes(True)
+    titles = [(n.level, n.title) for n in nodes]
+    at = titles.index((1, "Rack Layout"))
+    assert titles[at + 1:at + 4] == [(2, "HO"), (3, "Rack Layout Before - Rack 1"), (3, "Rack Layout After - Rack 1")]
+    before = {r[0]: r[1] for r in next(n for n in nodes if n.title == "Rack Layout Before - Rack 1").rows}
+    after = {r[0]: r[1] for r in next(n for n in nodes if n.title == "Rack Layout After - Rack 1").rows}
+    assert before["30"].startswith("HO-CORE-OLD") and before["40"].startswith("HO-PATCH") and before["28"] == ""
+    assert after["30"].startswith("HO-CORE (") and after["40"].startswith("HO-PATCH") and after["28"].startswith("HO-ACC")
+    names = {n.sheet_hint for n in nodes}
+    assert "Rack Before Rack 1" in names and "Rack After Rack 1" in names
+    workbook.write(nodes, project)                                         # sheet names stay valid
+
+
+def test_existing_devices_stay_out_of_every_other_chapter():
+    for replacement in (True, False):
+        _, _, nodes = _replacement_nodes(replacement)
+        others = [n for n in nodes if "Rack" not in n.title and "Rack" not in n.sheet_hint and n.title != "Implementation Step"]
+        text = json.dumps([[n.title, n.rows] for n in others])
+        assert "HO-CORE-OLD" not in text and "C3850" not in text
+        assert "HO-PATCH" not in text                                      # no technology: rack only
+        assert "HO-CORE" in text
+
+
+def test_without_replacement_the_rack_shows_the_finished_state():
+    _, _, nodes = _replacement_nodes(False)
+    assert not any(n.title.startswith("Rack Layout Before") for n in nodes)
+    rack = {r[0]: r[1] for r in next(n for n in nodes if n.title == "Rack 1").rows}
+    assert rack["30"].startswith("HO-CORE (") and rack["40"].startswith("HO-PATCH")
+
+
+def test_boq_counts_only_new_devices():
+    records = REPLACED + [{"site": "HO", "hostname": "HO-DIST", "model": "C9500-24Y4C", "role": "Distribution Switch", "status": "Keep"}]
+    devices = build_devices(records, {})
+    scope = builder.Scope(devices=devices)
+    _, rows, _ = builder._builder_rows({"builder": "boq"}, scope, {}, PROJECT)
+    assert {r[0] for r in rows} == {"S5755-H24T4Y2CZ", "C9300-48P"}
+
+
+def test_api_rack_preview_has_phases(client):
+    payload = {"project": dict(PROJECT, replacement="true"), "technologies": ["switch"], "inventory": REPLACED}
+    result = client.post("/lld-index/api/build", data={"payload": json.dumps(payload)}).get_json()["result"]
+    assert [(r["rack"], r["phase"]) for r in result["racks"]] == [("Rack 1", "Before"), ("Rack 1", "After")]
+    old = next(d for d in result["devices"] if d["hostname"] == "HO-CORE-OLD")
+    assert old["status"] == "Existing" and any("Before rack" in n for n in old["notes"])
+
+
+def test_replacement_fills_existing_list_scope_and_dismantle_step():
+    records = REPLACED + [
+        {"site": "HO", "hostname": "HO-FW-OLD", "model": "FGT60F", "role": "Firewall", "serial": "FGTX", "status": "Existing"},
+        {"site": "HO", "hostname": "HO-FW01", "model": "PA-1410", "role": "Firewall"},
+        {"site": "DC", "hostname": "DC-FW-OLD", "model": "ASA5516", "role": "Firewall", "status": "Existing"},
+    ]
+    devices = build_devices(records, {})
+    datasets = {d.hostname: analyze_device(d) for d in devices}
+    project = dict(PROJECT, technologies=["switch", "firewall"], replacement=True)
+    nodes = builder.build(project, devices, datasets, project["technologies"])
+    existing = next(n for n in nodes if n.title == "Existing Device List")
+    assert existing.rows == [["1", "HO", "HO-FW-OLD (FGT60F)", "FGTX", "Replaced by HO-FW01"],
+                             ["2", "DC", "DC-FW-OLD (ASA5516)", "", "Removed"]]
+    new = next(n for n in nodes if n.title == "New Device List")
+    assert [r[1] for r in new.rows] == ["HO-FW01"]
+    scope = " ".join(next(n for n in nodes if n.title == "Scope of Work").paragraphs)
+    assert "Installation of C9300-48P, PA-1410, S5755-H24T4Y2CZ." in scope       # Keep is not installed
+    assert "Dismantling of the existing devices (ASA5516, C3850-24T, FGT60F)" in scope
+    intro = " ".join(next(n for n in nodes if n.title == "Project Description").paragraphs)
+    assert "3 existing devices (ASA5516, C3850-24T, FGT60F) will be replaced and removed." in intro
+    steps = next(n for n in nodes if n.title == "Implementation Step").rows
+    assert steps[-1][1] == "Dismantle" and "HO-CORE-OLD, HO-FW-OLD, DC-FW-OLD" in steps[-1][2]
+
+
+def test_project_sheet_carries_the_cover_data_for_the_document_generator():
+    project = dict(PROJECT, project_code="7SINL26010001", prepared_by="Aldi", company="Multipolar Technology")
+    result = build_index(project, INVENTORY, ["switch"], FILES)
+    wb = openpyxl.load_workbook(io.BytesIO(result["workbook"]))
+    assert wb.sheetnames[:2] == ["Index", "Project"]
+    rows = {r[0]: r[1] for r in wb["Project"].iter_rows(min_row=2, values_only=True)}
+    assert rows == {"Project Name": "Network Refresh", "Customer": "PT Contoh", "Project Code": "7SINL26010001",
+                    "Company": "Multipolar Technology", "Prepared by": "Aldi"}
+
+
+def test_builds_are_saved_with_their_configs_and_reload(client):
+    payload = {"project": dict(PROJECT, project_code="S1"), "technologies": ["switch"], "inventory": INVENTORY}
+    data = {"payload": json.dumps(payload), "configs": (io.BytesIO(SWITCH.encode()), "sw1.txt")}
+    first = client.post("/lld-index/api/build", data=data, content_type="multipart/form-data").get_json()["result"]
+    listing = client.get("/lld-index/api/saved").get_json()["projects"]
+    assert [(p["name"], p["devices"], p["configs"]) for p in listing] == [("Network Refresh", len(INVENTORY), 1)]
+    loaded = client.get(f"/lld-index/api/saved/{first['saved_id']}").get_json()
+    assert loaded["config_names"] == ["sw1.txt"] and loaded["inventory"] == INVENTORY and loaded["technologies"] == ["switch"]
+    # rebuild without uploading again: the saved config is used
+    again = client.post("/lld-index/api/build", data={"payload": json.dumps(dict(payload, saved_id=first["saved_id"]))}).get_json()["result"]
+    assert again["saved_id"] == first["saved_id"] and again["stats"]["configs_read"] == first["stats"]["configs_read"] >= 1
+    client.delete(f"/lld-index/api/saved/{first['saved_id']}/configs/sw1.txt")
+    assert client.get(f"/lld-index/api/saved/{first['saved_id']}").get_json()["config_names"] == []
+    client.delete(f"/lld-index/api/saved/{first['saved_id']}")
+    assert client.get("/lld-index/api/saved").get_json()["projects"] == []

@@ -1,0 +1,132 @@
+/* Motion layer for the whole suite: page entrances, staggered cards, hover
+   and press feedback, dialogs and toasts. Quick and quiet (120-360 ms, one
+   easing), and switched off for people who ask the OS for reduced motion. */
+:root {
+  --m-ease: cubic-bezier(.2, .8, .2, 1);
+  --m-spring: cubic-bezier(.34, 1.4, .64, 1);
+  --m-fast: 140ms;
+  --m-mid: 240ms;
+  --m-slow: 380ms;
+}
+
+@keyframes m-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes m-pop { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes m-slide-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes m-shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+@keyframes m-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+
+/* ---- page entrance (the SPA router adds .spa-enter when a page shows) ---- */
+.spa-enter .page-content > *, .spa-enter > section, .spa-enter .an-page > * {
+  animation: m-rise var(--m-slow) var(--m-ease) both;
+}
+.spa-enter .an-page > *:nth-child(2), .spa-enter > section > *:nth-child(2) { animation-delay: 40ms; }
+.spa-enter .an-page > *:nth-child(3), .spa-enter > section > *:nth-child(3) { animation-delay: 80ms; }
+.spa-enter .an-page > *:nth-child(4) { animation-delay: 120ms; }
+.spa-enter .an-page > *:nth-child(n+5) { animation-delay: 160ms; }
+
+/* staggered entrance for groups that appear (results, card grids, forms) */
+.m-stagger > * { animation: m-rise var(--m-mid) var(--m-ease) both; animation-delay: calc(var(--m-i, 0) * 45ms); }
+
+/* ---- surfaces: soft hover lift ---- */
+.an-card, .card, .li-tech, .li-switch, .module-card, .tool-row, .lg-page .card-clickable, .li-rack {
+  transition: transform var(--m-mid) var(--m-ease), box-shadow var(--m-mid) var(--m-ease),
+              border-color var(--m-fast) var(--m-ease), background-color var(--m-fast) var(--m-ease);
+}
+.an-card:hover, .lg-page .card-clickable:hover, .module-card:hover, .li-rack:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.li-tech:hover, .li-switch:hover { transform: translateY(-1px); }
+.li-tech:active, .li-switch:active { transform: scale(.985); }
+
+/* ---- controls: hover, press, focus ---- */
+button, .an-btn, .btn, a.btn, .an-icon-btn, .btn-icon, .suite-nav-item, .lg-tab, .li-rtab, .tree-row, .lg-todo {
+  transition: background-color var(--m-fast) var(--m-ease), color var(--m-fast) var(--m-ease),
+              border-color var(--m-fast) var(--m-ease), box-shadow var(--m-fast) var(--m-ease),
+              transform var(--m-fast) var(--m-ease), opacity var(--m-fast) var(--m-ease);
+}
+.an-btn:active, .btn:active, button:active:not(:disabled) { transform: scale(.97); }
+.an-btn.primary:hover, .lg-page .btn-filled:hover { box-shadow: 0 6px 18px color-mix(in srgb, var(--blue) 32%, transparent); transform: translateY(-1px); }
+:focus-visible { transition: outline-offset var(--m-fast) var(--m-ease); }
+input, select, textarea { transition: border-color var(--m-fast) var(--m-ease), box-shadow var(--m-fast) var(--m-ease), background-color var(--m-fast) var(--m-ease); }
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 22%, transparent); }
+
+/* sidebar: the active item slides its marker in */
+.suite-nav-item { position: relative; }
+.suite-nav-item:hover { transform: translateX(2px); }
+
+/* tabs: the underline grows from the middle */
+.lg-tab, .li-rtab { position: relative; }
+.lg-tab::after, .li-rtab::after { content: ""; position: absolute; left: 50%; right: 50%; bottom: -1px; height: 2px; border-radius: 2px; background: var(--blue); transition: left var(--m-mid) var(--m-ease), right var(--m-mid) var(--m-ease); }
+.lg-tab.active, .li-rtab.active { border-bottom-color: transparent !important; }
+.lg-tab.active::after, .li-rtab.active::after { left: 10px; right: 10px; }
+
+/* switch knob springs */
+.li-switch-box::after { transition: transform var(--m-mid) var(--m-spring) !important; }
+
+/* status dot breathes */
+.server-pill i, .status-dot-label i { animation: m-pulse 2.4s ease-in-out infinite; }
+
+/* ---- dialogs, toasts, panels that open ---- */
+.dialog-scrim { animation: m-fade var(--m-mid) var(--m-ease) both; backdrop-filter: blur(3px); }
+.dialog-box { animation: m-pop var(--m-mid) var(--m-spring) both; }
+.toast { animation: m-slide-in var(--m-mid) var(--m-spring) both !important; }
+details > summary { transition: color var(--m-fast) var(--m-ease); }
+details[open] > :not(summary) { animation: m-rise var(--m-mid) var(--m-ease) both; }
+.an-file-list li, .lg-todo, .li-node { animation: m-rise var(--m-mid) var(--m-ease) both; }
+
+/* loading buttons get a moving sheen */
+.is-loading, [aria-busy="true"] {
+  background-image: linear-gradient(90deg, transparent 0%, color-mix(in srgb, #fff 22%, transparent) 50%, transparent 100%) !important;
+  background-size: 200% 100% !important;
+  animation: m-shimmer 1.2s linear infinite;
+}
+
+/* drop zones invite the file in */
+.an-drop, .lg-drop { transition: border-color var(--m-fast) var(--m-ease), background-color var(--m-fast) var(--m-ease), transform var(--m-mid) var(--m-spring); }
+.an-drop.is-over, .lg-drop.is-over { transform: scale(1.01); }
+
+/* table rows highlight under the pointer */
+.li-table tbody tr, .lg-page table.editable-table tr { transition: background-color var(--m-fast) var(--m-ease); }
+.li-table tbody tr:hover { background: color-mix(in srgb, var(--blue) 5%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 1ms !important; }
+}
+
+/* ---- a little depth, same palette ---- */
+.an-btn.primary, .lg-page .btn-filled { background-image: linear-gradient(180deg, color-mix(in srgb, #fff 10%, transparent), transparent); }
+.li-step { box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue) 10%, transparent); }
+.an-card { position: relative; overflow: hidden; }
+.an-card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--tone, var(--blue)); opacity: 0; transform: scaleX(.3); transform-origin: left; transition: opacity var(--m-mid) var(--m-ease), transform var(--m-slow) var(--m-ease); }
+.an-card:hover::before { opacity: .9; transform: none; }
+.suite-nav-item.active { background-image: linear-gradient(90deg, color-mix(in srgb, var(--blue) 12%, transparent), transparent 70%); }
+.panel { transition: border-color var(--m-mid) var(--m-ease), box-shadow var(--m-mid) var(--m-ease); }
+.li-card:focus-within { border-color: color-mix(in srgb, var(--blue) 45%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 8%, transparent), var(--shadow); }
+
+/* ---- click feedback ---- */
+/* ripple: motion.js drops a .m-ripple span where the pointer went down */
+.m-ripple-host { position: relative; overflow: hidden; isolation: isolate; }
+.m-ripple { position: absolute; border-radius: 50%; pointer-events: none; z-index: -1;
+  background: currentColor; opacity: .28; transform: scale(0);
+  animation: m-ripple 520ms var(--m-ease) forwards; }
+@keyframes m-ripple { to { transform: scale(1); opacity: 0; } }
+
+/* tab panels slide in when they become active */
+#lifecycle-scope > .page.active, .lg-tabpanel.active, .li-result-panel.active { animation: m-rise var(--m-mid) var(--m-ease) both; }
+.lifecycle-tabs .nav-item.active .nav-icon { animation: m-tick 360ms var(--m-spring); }
+
+/* module dialogs pop like the suite's own */
+.modal-overlay:not(.hidden) { animation: m-fade var(--m-mid) var(--m-ease) both; backdrop-filter: blur(3px); }
+.modal-overlay:not(.hidden) > * { animation: m-pop var(--m-mid) var(--m-spring) both; }
+
+/* checkboxes and radios tick with a little spring */
+input[type="checkbox"]:checked, input[type="radio"]:checked { animation: m-tick 300ms var(--m-spring); }
+@keyframes m-tick { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+/* a row you pick lights up briefly */
+tr.m-picked > td { animation: m-flash 700ms var(--m-ease); }
+@keyframes m-flash { from { background-color: color-mix(in srgb, var(--blue) 18%, transparent); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .m-ripple, #lifecycle-scope > .page.active, .modal-overlay:not(.hidden), .modal-overlay:not(.hidden) > *,
+  input:checked, tr.m-picked > td, .lifecycle-tabs .nav-item.active .nav-icon { animation: none !important; }
+}

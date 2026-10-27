@@ -1,6 +1,7 @@
 {
   "technology": "wireless",
   "label": "Wireless",
+  "short": "Controller, SSIDs and APs per site",
   "summary": "Layout and topology; IP scheme and SSIDs from the controller; connectivity and configuration per site, then per device (access points are listed, not given a chapter each).",
   "based_on": "[LLD] 7TAMO23010001 - TAM Wireless Network Improvement (Refreshment for 20 site)",
   "devices": ["wireless", "switch"],

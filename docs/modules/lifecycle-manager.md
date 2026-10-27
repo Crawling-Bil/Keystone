@@ -1,4 +1,6 @@
-# Lifecycle Manager and ZTP
+# Device Operations and ZTP
+
+Device Operations (`/lifecycle/`) is one page for devices that already run: **1 · Devices** (scan), **2 · Backup**, **3 · Config Push** or **3 · Upgrade**, plus Firmware, Live Logs and Settings tabs. `?tab=backup|push|jobs|firmware|logs|settings` opens a tab directly. The old addresses `/lifecycle/config-push`, `/lifecycle/config-backup` and `/lifecycle/live-logs` redirect to their tab. ZTP stays separate: it onboards factory-default switches, and a scan in Device Operations marks them provisioned.
 
 Operating notes for the write-to-device tools. Risk classes and required safeguards are defined in [docs/PRD.md](../PRD.md).
 
@@ -25,7 +27,7 @@ Operating notes for the write-to-device tools. Risk classes and required safegua
 
 ## Live Logs & Device Reachability
 
-- Live Logs (`/lifecycle/live-logs`) is a suite-wide, top-level page that merges Lifecycle Manager's Upgrade, Config Push, and Config Backup jobs with ZTP's activity feed into one real-time console, regardless of which module created the job.
+- Live Logs (the Live Logs tab, `/lifecycle/?tab=logs`) that merges Lifecycle Manager's Upgrade, Config Push, and Config Backup jobs with ZTP's activity feed into one real-time console, regardless of which module created the job.
 - Device Reachability check (topbar action on Config Backup) is a fast, credential-free TCP/SSH-port probe an operator can run on demand against already-discovered devices. Discovery's own "online" status is a snapshot from whenever that IP range was last scanned, with no timestamp recorded, so this adds an explicit, timestamped "reachable right now" signal instead.
 
 ## Lifecycle Manager: ZTP Provisioning

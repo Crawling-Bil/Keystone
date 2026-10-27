@@ -2,6 +2,26 @@
 
 Newest first. Module versions are listed in `core/modules.py`.
 
+## Unreleased: Work Plan and Work Report
+
+- LLD Generator projects produce the Work Plan Document (FM-Impl-039) and the Work Report (FM-HW-005), filled onto the original Multipolar Word forms.
+- New shared project data (site, description, Statement of Work, service support, team) used by every document of the project.
+- A Work Report starts from the Work Plan: deliverables, planned schedule and team are already in.
+- The LLD Generator menu is now called Document Generator. Its address (/lld-generator) and data stay the same.
+
+## Unreleased: Device Operations
+
+- Lifecycle Manager, Config Push, Config Backup and Live Logs are now one menu, Device Operations, with tabs in workflow order: Devices, Backup, Config Push / Upgrade, Firmware, Live Logs, Settings. Old URLs redirect to the matching tab; `?tab=` deep-links work.
+- The duplicate Dashboard tab is gone; its counters sit on top of Devices.
+- Backup and Push refresh their device list when opened, so a fresh scan shows up without a reload.
+- ZTP Provisioning has a "Scan in Device Operations" shortcut.
+- Upgrade wizard picks firmware per model group instead of per device, with an Upload image button that stores the image in the Firmware library and selects it. Devices already on the chosen version are left out of the job; a group without an image can be removed from the wizard. The wizard opens even when the library is empty.
+- The Firmware tab sits next to Settings: it is a library, not a step.
+- Convert pages: the Conversion Settings panel folds away once a result or the guided wizard is on screen, so the result gets the full width. A bar on top shows the loaded source and brings the panel back.
+- Fixed: after opening Device Operations or ZTP, other pages (LLD Index tables, buttons, inputs) picked up their white table background and form styles. The Operate stylesheet is now scoped to its own pages.
+- Click feedback across the suite: ripple on buttons, tabs and nav items, tab panels slide in, module dialogs pop, ticked checkboxes spring and their row flashes. Off when the OS asks for reduced motion.
+- Fixed: empty "Notification" toast on load, unreadable selected item in Live Logs, backup jobs labelled "Upgrade" in Live Logs, references to a missing "Discovery page" and "Configuration Studio".
+
 ## Unreleased
 
 ### Topology Builder 1.5: access points framed under their switch with or without the end-point option, unrelated switches kept apart, lanes of neighbouring switches separated
@@ -189,9 +209,34 @@ Newest first. Module versions are listed in `core/modules.py`.
 - Sheet names are cut at a word and lose a trailing bracket note when they exceed the 31 characters Excel allows: "Customised system settings (sys" is now "Customised system settings", "Address and port lists (network / AFM)" is "Address and port lists", "License: active and time-limited modules" is "License modules".
 - Collect lists: `collect-firewall-fortigate.txt` and `collect-firewall-paloalto.txt` add the neighbor and ARP commands the Topology Builder will need (`diagnose lldprx neighbor details` up to FortiOS 7.6.2, `diagnose lldp rx neighbor details` from 7.6.3, `get system arp`; PAN-OS `show lldp neighbors all` and `show arp all`, to be confirmed on your PAN-OS version). The Firewall Analyzer ignores their output.
 - Tests: `tests/test_export_sheets.py` (3).
+### LLD Index and LLD Generator: daily-use fixes
+
+- Approvers in Project settings fill the Document Approval tables (one row per person); customer approvers are remembered per customer, Multipolar approvers have a default list.
+
+- LLD Index saves every build (form, devices, config files) and offers it under "Continue a project": a rebuild needs no re-typing or re-upload.
+- After a build the form folds into a bar and the result is split into Summary, Chapters, Rack layout and Devices tabs; unused config files get a clear warning; Status sits next to Role in the device table (template too) and the hostname stays in view when the table scrolls.
+- LLD Generator Review lists what is left (pictures to upload, tables or text still TBD) and opens the chapter on click; the chapter list marks those with an amber dot.
+- Pictures: drop, paste (Ctrl/Cmd+V) or choose; SVG (e.g. a Topology Builder diagram) is turned into PNG in the browser; "Pictures" places several files into the chapters their names match.
+- Release History fills itself: a version change in Project settings adds a row with date, writer and change note.
+- LLD Generator in English with Keystone buttons and file pickers; the workspace fits the window; chapter actions no longer cut the title.
+- Dashboard: tools that need no network are labelled "Local" instead of "Offline".
+
+### LLD Generator: the Document Generator inside Keystone
+
+- New module **LLD Generator** (`/lld-generator`, sidebar group Document): master templates, projects, chapter tree, paragraph/table/image blocks, review, Generate Word. Same features and API as Document Generator v1.0.5, now a Flask blueprint with tables `lld_gen_*` in `data/nes.db` and files in `data/lld_generator/`.
+- The Word engine moved unchanged to `core/docgen/` (docgen, importer, placeholders) for reuse by later generators; a golden check gives identical documents to the old app.
+- LLD Index: **Open in LLD Generator** replaces the Send and Start Document Generator buttons; a rebuild updates the same project (images and manual edits kept).
+- Bundled LLD Master Template, registered on first use. One-time import from the old Document Generator (read-only, repeatable without duplicates).
+- New dependency: python-docx.
 
 ### LLD Index: Document Generator index from the inventory, configs and project goals
 
+- Start Document Generator button: finds the Document Generator next to Keystone (or a saved folder / KEYSTONE_DOCGEN_DIR), sets up its .venv on first use when no Python can run it, and starts it in the background on 127.0.0.1.
+- Send to Document Generator: after a build, connect to the Document Generator on this computer (default http://127.0.0.1:8003) and import the index straight into a new or existing project; Update mode keeps uploaded images and manual edits. Loopback addresses only.
+- Index workbook gets a "Project" sheet (Project Name, Customer, Project Code, Company, Prepared by) that the Document Generator imports into its project record for the master template placeholders; new "Prepared by" field.
+- Replacement project: the firewall Existing Device List is filled from Existing devices (Status "Replaced by <new device>" or "Removed"); Scope of Work installs New devices only and adds dismantling; Project Description names the devices removed; Implementation Step gets a Dismantle row.
+- Sidebar scrolls when the menu is taller than the screen (Document > LLD Index was out of reach on a laptop).
+- Replacement project option: inventory Status column (New / Existing / Keep) and a Before and an After rack table per rack. Existing devices only appear in the Before rack; the BoQ counts New devices only.
 - Rack layout tables: device cells light blue, U columns light grey, text centred (Document Generator reads `fills` and `aligns`).
 - New module **LLD Index** (`/lld-index`, new sidebar group "Document"). It builds the "LLD Content Index" workbook the Document Generator imports: chapters per technology, expanded per site, per device and per model, tables filled from the inventory and from the configs, narrative written from the project goals.
 - Inputs: project form (customer, project, code, goals, scope, out of scope, related documents), technologies (switch, wireless, firewall, router, load balancer), device inventory (Site, Hostname, Model, Role, Mgmt IP, SN, Config; CSV/XLSX import, template download, paste from Excel) and optional config files or a ZIP.

@@ -575,3 +575,61 @@
     }
   });
 })();
+
+
+// Settings panel folds away once a conversion is on screen, so the result
+// gets the full width. A slim bar above the result tells which source is
+// loaded and brings the panel back.
+(function () {
+  const form = document.getElementById("converter-form");
+  const bar = document.getElementById("cv-source-bar");
+  if (!form || !bar) return;
+  const $ = id => document.getElementById(id);
+  const hide = $("cv-settings-hide");
+
+  function summary() {
+    const file = $("config-file")?.files?.[0];
+    const text = ($("config-text")?.value || "").trim();
+    const source = file ? file.name : text ? `Pasted config (${text.split("\n").length} lines)` : "No source yet";
+    const from = $("source-vendor")?.value || "Auto Detect";
+    const to = $("target-vendor")?.value || "";
+    const model = $("target-model")?.selectedOptions?.[0]?.value ? ` · ${$("target-model").selectedOptions[0].textContent.trim()}` : "";
+    return `${source} · ${from} → ${to}${model}`;
+  }
+
+  function collapse() {
+    $("cv-source-summary").textContent = summary();
+    form.classList.add("settings-collapsed");
+    bar.classList.remove("hidden");
+    $("cv-settings-open").textContent = "Change source & settings";
+    hide?.classList.remove("hidden");
+  }
+
+  function expand() {
+    form.classList.remove("settings-collapsed");
+    $("cv-settings-open").textContent = "Hide settings";
+  }
+
+  function reset() {
+    form.classList.remove("settings-collapsed");
+    bar.classList.add("hidden");
+  }
+
+  window.NES = window.NES || {};
+  window.NES.convertSettings = { collapse, expand, reset };
+
+  $("cv-settings-open")?.addEventListener("click", () => {
+    if (form.classList.contains("settings-collapsed")) expand(); else collapse();
+  });
+  hide?.addEventListener("click", collapse);
+
+  // Fold after a result shows up (wizard, conversion, mapping preview).
+  ["wizard-result", "converter-result", "mapping-result", "batch-result"].forEach(id => {
+    const el = $(id);
+    if (!el) return;
+    new MutationObserver(() => {
+      if (!el.classList.contains("hidden") && el.offsetParent !== null) collapse();
+    }).observe(el, { attributes: true, attributeFilter: ["class"] });
+  });
+  $("wizard-restart")?.addEventListener("click", reset);
+})();

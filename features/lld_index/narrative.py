@@ -61,14 +61,22 @@ def paragraphs(key: str, project: dict, scope, datasets) -> list[str]:
         summary = _device_summary(scope.devices)
         if summary:
             out.append(summary)
+        existing = [d for d in project.get("_devices") or [] if d.status == "Existing"]
+        if existing:
+            models = sorted({d.model for d in existing if d.model})
+            out.append(f"{len(existing)} existing device{'s' if len(existing) > 1 else ''}"
+                       + (f" ({', '.join(models)})" if models else "") + " will be replaced and removed.")
         return out
     if key == "scope_of_work":
         items = _lines(project.get("scope"))
         if not items:
-            models = sorted({d.model for d in scope.devices if d.model})
+            models = sorted({d.model for d in scope.devices if d.model and d.status == "New"})
             items = [f"Installation of {', '.join(models)}." if models else "Installation of the devices in the BoQ.",
                      "Configuration of the devices according to this document.",
                      "Migration and verification (UAT) of the services in scope."]
+            old = sorted({d.model or d.hostname for d in project.get("_devices") or [] if d.status == "Existing"})
+            if old:
+                items.append(f"Dismantling of the existing devices ({', '.join(old)}).")
         return [f"{company} will implement this project to fulfil {customer}'s requirements. The scope of work is:"] + \
                [BULLET + _sentence(i) for i in items]
     if key == "out_of_scope":

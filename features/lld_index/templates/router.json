@@ -1,6 +1,7 @@
 {
   "technology": "router",
   "label": "Router",
+  "short": "Interfaces and routing (draft)",
   "summary": "Draft (no router LLD sample yet): topology, then per site and device the interfaces, VRF, static and BGP routing and the configuration. Sections with no data are left out.",
   "based_on": "Draft from the switch and firewall LLD structure; replace once a router LLD sample exists",
   "devices": ["router"],

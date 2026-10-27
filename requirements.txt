@@ -2,6 +2,7 @@ Flask>=3.1,<4
 Waitress>=3.0,<4
 Werkzeug>=3.1,<4
 openpyxl>=3.1,<4
+python-docx>=1.1,<2
 netmiko>=4.7,<5
 scp>=0.16,<1
 pyftpdlib>=2.0,<3

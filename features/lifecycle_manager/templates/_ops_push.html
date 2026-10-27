@@ -1,14 +1,10 @@
-{% extends "base.html" %}
-{% block title %}Config Push · Keystone{% endblock %}
-{% block page_title %}Config Push{% endblock %}
-{% block page_subtitle %}Push a prepared draft config to an already-discovered device over SSH — no firmware, no reload.{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('lifecycle.static', filename='css/style.css') }}">{% endblock %}
-{% block topbar_actions %}
-<div id="config-push-demo-badge" class="demo-badge">DEMO MODE</div>
-<button id="config-push-refresh-devices" class="button button-secondary">Refresh Devices</button>
-{% endblock %}
-{% block content %}
-<div id="lifecycle-scope">
+{# Device Operations · push tab (included by index.html) #}
+<section id="page-push" class="page">
+    <div class="ops-toolbar">
+        <button id="config-push-refresh-devices" class="button button-secondary">Refresh Devices</button>
+        <span class="ops-toolbar-note" id="ops-push-note"></span>
+    </div>
+
 
     <div class="content-card">
 
@@ -36,7 +32,7 @@
         <div class="card-header">
             <div>
                 <h3>Assign Draft Configs</h3>
-                <p>Pick a saved draft (from Configuration Studio, or an earlier Config Push) or paste one in — one per selected device.</p>
+                <p>Pick a draft saved by an earlier push, or paste one in. One config per device.</p>
             </div>
         </div>
 
@@ -48,11 +44,7 @@
             <button id="config-push-create-job-button" type="button" class="button button-primary" disabled>Create Config Push Job</button>
         </div>
 
-        <p class="field-hint">
-            Independent of ZTP and firmware upgrades — the device stays online throughout, applied line by line via
-            <code>system-view</code>, with a before/after config snapshot saved for audit. Once created, run its
-            Pre-Check and start it right below — this page is all you need.
-        </p>
+        <p class="field-hint">Applied line by line in <code>system-view</code>. The device stays online. Run the job's Pre-Check, then start it below.</p>
 
     </div>
 
@@ -71,8 +63,4 @@
 
     </div>
 
-</div>
-{% endblock %}
-{% block scripts %}
-<script src="{{ url_for('lifecycle.static', filename='js/config_push.js') }}"></script>
-{% endblock %}
+</section>

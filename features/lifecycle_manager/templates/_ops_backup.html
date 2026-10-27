@@ -1,0 +1,53 @@
+{# Device Operations · backup tab (included by index.html) #}
+<section id="page-backup" class="page">
+    <div class="ops-toolbar">
+        <button id="config-backup-check-reachability" class="button button-secondary">Check Reachability</button>
+<button id="config-backup-refresh-devices" class="button button-secondary">Refresh Devices</button>
+        <span class="ops-toolbar-note" id="ops-backup-note"></span>
+    </div>
+
+
+    <div class="content-card">
+
+        <div class="card-header">
+
+            <div>
+                <h3>Select Devices</h3>
+                <p id="config-backup-devices-status">Loading devices…</p>
+            </div>
+
+            <div class="card-actions">
+                <span id="config-backup-reachability-status"></span>
+                <span id="config-backup-selected-count">0 devices selected</span>
+            </div>
+
+        </div>
+
+        <div id="config-backup-device-checklist" class="config-push-device-list">
+            <div class="empty-state">Loading devices…</div>
+        </div>
+
+        <div class="form-actions">
+            <button id="config-backup-create-job-button" type="button" class="button button-primary" disabled>Capture Config</button>
+        </div>
+
+        <p class="field-hint">Read-only: about 40 <code>display</code> commands, saved as one downloadable bundle. No pre-check needed.</p>
+
+    </div>
+
+    <div class="content-card">
+
+        <div class="card-header">
+            <div>
+                <h3>Config Backup Jobs</h3>
+                <p id="config-backup-jobs-status">Jobs you create above show up here — capture, then download the bundle.</p>
+            </div>
+        </div>
+
+        <div id="config-backup-job-list" class="job-list">
+            <div class="empty-state">No config backup jobs yet.</div>
+        </div>
+
+    </div>
+
+</section>

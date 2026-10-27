@@ -3,11 +3,12 @@
 {% block page_title %}ZTP Provisioning{% endblock %}
 {% block page_subtitle %}Zero-touch bootstrap for new switches — DHCP, file server, and per-device provisioning.{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('lifecycle.static', filename='css/style.css') }}">{% endblock %}
-{% block topbar_actions %}
+{% block topbar_actions %}<div class="ops-css ops-topbar">
 <div id="ztp-demo-badge" class="demo-badge">DEMO MODE</div>
 <button id="ztp-refresh-button" class="button button-secondary">Refresh</button>
-{% endblock %}
+</div>{% endblock %}
 {% block content %}
+<div class="ops-css">
 <div id="lifecycle-scope">
 
     <div class="ztp-tabs" role="tablist">
@@ -167,6 +168,7 @@
                         <h3>Pre-Registered Devices</h3>
                         <p id="ztp-devices-status">Ready.</p>
                     </div>
+                    <a class="button button-secondary" href="/lifecycle/?tab=discovery" title="A device is marked provisioned once a scan finds it">Scan in Device Operations</a>
 
                 </div>
 
@@ -484,6 +486,7 @@
 
     </div>
 
+</div>
 </div>
 {% endblock %}
 {% block scripts %}

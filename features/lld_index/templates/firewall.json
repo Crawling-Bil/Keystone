@@ -1,6 +1,7 @@
 {
   "technology": "firewall",
   "label": "Firewall",
+  "short": "Zones, policies, NAT and VPN per site",
   "summary": "Device summary, topology and design, then one chapter per site with every configuration table the firewall has (Palo Alto and FortiGate). Sections with no data are left out.",
   "based_on": "LLD - Peremajaan Perangkat Firewall Palo Alto v1.0; [LLD] Enterprise Network Regional 3 HO - Firewall",
   "devices": ["firewall"],
@@ -9,7 +10,8 @@
       "title": "Device Summary",
       "children": [
         {"title": "Existing Device List", "type": "table", "caption": "Existing Device List", "sheet": "Existing Devices",
-         "table": {"builder": "static", "headers": ["Site Name", "Existing Device", "Status"], "rows": [["TBD", "", ""]]}},
+         "status": ["Existing"],
+         "table": {"builder": "inventory", "columns": [["Site Name", "site"], ["Existing Device", "device"], ["Serial Number", "serial"], ["Status", "replaced_by"]]}},
         {"title": "New Device List", "type": "table", "caption": "New Device List", "sheet": "New Devices",
          "table": {"builder": "inventory", "columns": [["Hostname", "hostname"], ["Model", "model"], ["Site Name", "site"], ["Role", "role"],
                                                        ["IP Management", "mgmt_cidr"], ["Serial Number", "serial"]]}}

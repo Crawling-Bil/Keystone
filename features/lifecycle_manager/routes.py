@@ -22,6 +22,7 @@ from flask import (
     Blueprint,
     Response,
     jsonify,
+    redirect,
     render_template,
     request,
     send_file,
@@ -375,53 +376,21 @@ def index():
     )
 
 
+# Config Push, Config Backup and Live Logs are tabs of Device Operations
+# now. The old addresses still work and land on the right tab.
 @app.route("/config-push")
 def config_push_page():
-
-    settings = read_json(
-        SETTINGS_FILE,
-        DEFAULT_SETTINGS
-    )
-
-    return render_template(
-        "config_push.html",
-        settings=settings,
-        active_page="config_push"
-    )
+    return redirect("/lifecycle/?tab=push")
 
 
 @app.route("/config-backup")
 def config_backup_page():
-    settings = read_json(
-        SETTINGS_FILE,
-        DEFAULT_SETTINGS
-    )
-
-    return render_template(
-        "config_backup.html",
-        settings=settings,
-        active_page="config_backup"
-    )
+    return redirect("/lifecycle/?tab=backup")
 
 
 @app.route("/live-logs")
 def live_logs_page():
-    # Suite-wide page, not scoped to one module -- shows Lifecycle
-    # Manager's upgrade + config push jobs (this module's own
-    # /api/jobs + /api/jobs/<id>/stream, unchanged) side by side with
-    # ZTP's activity feed (fetched client-side straight from ZTP's own
-    # /ztp/api/activity -- see live_logs.js). No new backend endpoints
-    # needed for either source; this route only serves the page shell.
-    settings = read_json(
-        SETTINGS_FILE,
-        DEFAULT_SETTINGS
-    )
-
-    return render_template(
-        "live_logs.html",
-        settings=settings,
-        active_page="live_logs"
-    )
+    return redirect("/lifecycle/?tab=logs")
 
 
 # ============================================================
