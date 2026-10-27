@@ -22,6 +22,8 @@ def speed_style(graph: Graph, conn: Connection) -> tuple[str, float]:
 
 def line_look(graph: Graph, conn: Connection, line_style: str) -> tuple[str, float, bool]:
     """(colour, width, dashed) of one line for the chosen styling ('state' or 'speed')."""
+    if conn.l3.get("role") == "under":                          # L3 over L2: a cable is thick in the colour of the L3 link it carries, thin grey otherwise
+        return conn.l3["colour"], conn.l3["width"], False
     if conn.kind == "peer-link":
         if line_style == "speed":                              # blue would be mistaken for the 10G colour
             colour, width = speed_style(graph, conn)
@@ -33,6 +35,9 @@ def line_look(graph: Graph, conn: Connection, line_style: str) -> tuple[str, flo
         return "#8FAADC", 1.5, True
     if conn.kind == "routed":
         return "#0070c0", 2, True
+    if conn.kind == "l3r":
+        from .l3page import edge_look
+        return edge_look(conn)
     if conn.kind in ("l3", "l3seg"):
         return ("#3C6E47", 2.5, False) if conn.kind == "l3" else ("#C58F00", 1.5, False)
     if conn.kind == "inferred":

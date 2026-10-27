@@ -4,8 +4,8 @@ Read from the ``gtm`` stanzas of ``bigip_gtm.conf`` / a ``tmsh list gtm`` captur
 the name (``gtm wideip a /Common/www.example.com``, ``gtm pool a /Common/pool_www``); ``tree.named`` handles one trailing name
 token only, so this module matches the prefix itself.
 
-Written from the documented TMSH syntax (clouddocs.f5.com, gtm_* pages).  Not yet checked against a configuration captured from
-a DNS/GTM device - ``bigip_sections_gtm`` says so on the tab.
+Written from the documented TMSH syntax (clouddocs.f5.com, gtm_* pages) and checked against the saved ``bigip_gtm.conf`` of two
+BIG-IP DNS units (TMOS 17.1).  The live ``show gtm`` output (``bigip_runtime``) was checked against captures of a BIG-IP DNS pair (TMOS 17.1.3).
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from .bigip_extract import canon, short
+from .netutil import parse_destination
 from .tmsh_tree import TmshTree, TNode
 
 DEFAULT_LB = "round-robin"
@@ -51,8 +52,16 @@ def _servers(tree: TmshTree) -> list[dict[str, Any]]:
             continue
         vs = n.child("virtual-servers")
         vs_items = [c for c in vs.children if c.tokens] if vs is not None else []
+        detail = []
+        for c in vs_items:
+            dest = c.val("destination")
+            ip, port, _ = parse_destination(dest) if dest else ("", 0, "")
+            detail.append({"name": canon(c.tokens[0]), "raw": c.tokens[0], "destination": ip, "port": port, "disabled": c.has("disabled")})
+        dev = n.child("devices")
         out.append({"name": _name(n), "datacenter": canon(n.val("datacenter")), "product": n.val("product"), "monitor": n.val("monitor"), "addresses": _addresses(n),
-                    "virtual_servers": [c.tokens[0] for c in vs_items], "vs_monitored": any(c.has("monitor") for c in vs_items), "disabled": _flag_off(n)})
+                    "devices": [c.tokens[0] for c in (dev.children if dev is not None else []) if c.tokens],
+                    "discovery": n.val("virtual-server-discovery"), "prober": n.val("prober-preference"),
+                    "virtual_servers": [c.tokens[0] for c in vs_items], "vs_detail": detail, "vs_monitored": any(c.has("monitor") for c in vs_items), "disabled": _flag_off(n)})
     return out
 
 
@@ -91,11 +100,61 @@ def _listeners(tree: TmshTree) -> list[dict[str, Any]]:
             for n in tree.all_with_prefix("gtm", "listener") if len(n.tokens) == 3]
 
 
+def _global_settings(tree: TmshTree) -> dict[str, dict[str, str]]:
+    """``gtm global-settings <group>`` -> ``{group: {option: value}}``; ``tmsh list`` prints only the values that differ from the default."""
+    out: dict[str, dict[str, str]] = {}
+    for n in tree.all_with_prefix("gtm", "global-settings"):
+        if len(n.tokens) != 3:
+            continue
+        options = {}
+        for c in n.children:
+            if c.tokens:
+                options[c.key] = " ".join(c.names()) if c.block else " ".join(c.tokens[1:])
+        out[n.tokens[2]] = options
+    return out
+
+
+def _topology_records(tree: TmshTree) -> list[dict[str, Any]]:
+    """``gtm topology ldns: <spec> server: <spec> { score N }``: one record per stanza (an older ``records { }`` wrapper is read as well)."""
+    out: list[dict[str, Any]] = []
+
+    def one(tokens: list[str], node: TNode) -> None:
+        if "ldns:" not in tokens or "server:" not in tokens:
+            return
+        a, b = tokens.index("ldns:"), tokens.index("server:")
+        if a > b:
+            return
+        out.append({"ldns": " ".join(tokens[a + 1:b]), "server": " ".join(tokens[b + 1:]),
+                    "score": node.val("score") or "1", "order": node.val("order"), "description": node.val("description")})
+
+    for n in tree.all_with_prefix("gtm", "topology"):
+        one(n.tokens[2:], n)
+        for wrapper in n.kids("records"):
+            for rec in wrapper.children:
+                one(rec.tokens, rec)
+    return out
+
+
+def _region_records(tree: TmshTree) -> list[dict[str, Any]]:
+    """``gtm region <name> { region-members { <type> <value> { } ... } }``; a member can be negated with ``not``."""
+    out: list[dict[str, Any]] = []
+    for n in tree.all_with_prefix("gtm", "region"):
+        if len(n.tokens) != 3:
+            continue
+        members = n.child("region-members")
+        out.append({"name": canon(n.tokens[2]), "members": [" ".join(m.tokens) for m in (members.children if members is not None else []) if m.tokens],
+                    "description": n.val("description")})
+    return out
+
+
 def extract(tree: TmshTree) -> dict[str, Any] | None:
-    """``None`` when the capture holds no GTM object at all (the normal case for an LTM-only unit)."""
+    """``None`` when the capture holds no GTM object at all (the normal case for an LTM-only unit, which still prints ``gtm global-settings`` stanzas)."""
     if not tree.has_prefix("gtm"):
         return None
     dcs, servers, pools, wideips = _datacenters(tree), _servers(tree), _pools(tree), _wideips(tree)
+    listeners = _listeners(tree)
+    if not (dcs or servers or pools or wideips or listeners or tree.has_prefix("gtm", "topology") or tree.has_prefix("gtm", "region")):
+        return None        # an LTM-only unit still carries 'gtm global-settings metrics' stanzas: no DNS tabs for that
     by_pool = {(p["type"] or "a", p["name"]): p for p in pools}
     for w in wideips:
         for ref in w["pool_refs"] + ([w["last_resort"]] if w["last_resort"] else []):
@@ -106,11 +165,31 @@ def extract(tree: TmshTree) -> dict[str, Any] | None:
     for s in servers:
         if s["datacenter"] in by_dc:
             by_dc[s["datacenter"]]["servers"].append(short(s["name"]))
-    return {"datacenters": dcs, "servers": servers, "pools": pools, "wideips": wideips, "listeners": _listeners(tree),
-            "topology": len(tree.all_with_prefix("gtm", "topology")), "regions": len(tree.all_with_prefix("gtm", "region")),
+    return {"datacenters": dcs, "servers": servers, "pools": pools, "wideips": wideips, "listeners": listeners,
+            "settings": _global_settings(tree), "topology": len(tree.all_with_prefix("gtm", "topology")), "regions": len(tree.all_with_prefix("gtm", "region")),
+            "topology_records": _topology_records(tree), "region_records": _region_records(tree),
             "dns_virtuals": _dns_virtuals(tree)}
 
 
 def _dns_virtuals(tree: TmshTree) -> list[str]:
     """LTM virtual servers with a DNS profile: they can also answer GTM queries (``enable-gtm``), so a missing ``gtm listener`` is not an error."""
     return [short(n.tokens[-1]) for n in tree.named("ltm", "virtual") if any("dns" in p.lower() for p in n.names("profiles"))]
+
+
+def ltm_matches(gtm: dict[str, Any], virtuals: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    """GTM server virtual server -> the LTM virtual server of THIS configuration that listens on the same address and port.
+
+    A DNS unit that also runs LTM carries both halves, so the match shows which application a wide IP member really reaches.  A GTM
+    virtual server for a remote LTM, or one behind NAT, has no match here; that is normal and never a finding by itself.
+    Key: ``(server name, GTM virtual server name)``.
+    """
+    index: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    for v in virtuals:
+        index.setdefault((v.get("destination", ""), v.get("port", 0)), []).append(v)
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for s in gtm["servers"]:
+        for d in s["vs_detail"]:
+            hits = index.get((d["destination"], d["port"])) or []
+            if hits:
+                out[(s["name"], d["name"])] = hits[0]
+    return out

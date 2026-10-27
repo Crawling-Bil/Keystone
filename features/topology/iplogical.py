@@ -129,7 +129,7 @@ def _place_tables(page: Page, tables: list[TableBox], top: float) -> None:
         page.height = y + row_h + MARGIN
 
 
-def ip_page(graph: Graph) -> Page | None:
+def ip_page(graph: Graph, curved: bool = False) -> Page | None:
     """The IP view of the whole network, or None when no captured device owns a routed interface address."""
     nets = _networks(graph)
     conns: list[Connection] = []
@@ -176,7 +176,7 @@ def ip_page(graph: Graph) -> Page | None:
         return None
     sub = Graph(nodes=nodes, links=links, connections=conns, hidden_kinds=set())
     placed, width, height = layered(sub, list(nodes))
-    page = Page(VIEW_NAME, placed, set(), [], conns, {}, width, height, view="ip", graph=sub)
+    page = Page(VIEW_NAME, placed, set(), [], conns, {}, width, height, view="ip", graph=sub, curved=curved)
     _route(page)
     place_labels(page, sub, True)
     tables = _interface_tables(graph, [k for k in nodes if k in graph.nodes and graph.nodes[k].captured])

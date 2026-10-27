@@ -1,11 +1,9 @@
 """``show`` output that complements the BIG-IP configuration.
 
-These parsers follow the output layout documented for ``show sys version``,
-``show cm sync-status``, ``show cm failover-status``, ``show ltm virtual``,
-``show ltm pool`` and, for BIG-IP DNS, ``show gtm wideip / pool / server /
-datacenter / iquery / listener``.  They have not been run against a captured BIG-IP yet, so
-the service lists whichever of them produced data in the result's warnings.
-Everything is optional: the analysis works from the configuration alone.
+These parsers follow the output of ``show sys version``, ``show cm sync-status``, ``show cm failover-status``, ``show ltm virtual / pool / node``
+and, for BIG-IP DNS, ``show gtm wideip / pool / server / datacenter / iquery / listener``.  They were checked against interactive tmsh captures of
+TMOS 17.1.3 (an LTM+ASM pair and a BIG-IP DNS pair), where nested objects are printed behind ``| `` (see ``unpipe``).  The system, network and
+traffic commands live in ``bigip_runtime_sys``.  Everything is optional: the analysis works from the configuration alone.
 """
 
 from __future__ import annotations
@@ -14,6 +12,7 @@ import re
 from typing import Any
 
 from ..analyzer_core import capture as cap
+from . import bigip_runtime_sys as sysout
 
 COMMANDS = (
     ("show sys version", "TMOS version, build and edition."),
@@ -24,6 +23,19 @@ COMMANDS = (
     ("show ltm pool", "Availability and available / total members for every pool."),
     ("show ltm pool members", "Availability, state, reason and monitor status of every pool member (feeds the Visualization tab)."),
     ("show ltm node", "Availability, state and reason of every node (feeds the Visualization tab)."),
+    ("show net interface", "Port status, traffic and error counters."),
+    ("show net arp", "Neighbors the unit has resolved per VLAN; incomplete entries point at hosts that do not answer."),
+    ("show sys performance all-stats", "CPU, memory, connection and throughput load."),
+    ("show ltm virtual-address", "Availability and traffic per virtual address."),
+    ("show ltm rule", "Execution, failure and abort counters of every iRule event."),
+    ("show ltm profile client-ssl", "Negotiated TLS versions and handshake counters per client SSL profile (also server-ssl)."),
+)
+
+SYS_COMMANDS = (
+    ("show sys license", "Platform, licence dates and time-limited modules (the registration key is ignored)."),
+    ("show sys provision", "Provisioned modules and their resource use."),
+    ("show sys ha-status", "HA conditions and whether one has triggered."),
+    ("show cm device", "HA state, sync and failover addresses of every device in the trust domain."),
 )
 
 GTM_COMMANDS = (
@@ -205,7 +217,10 @@ def parse_nodes(text: str) -> list[dict[str, Any]]:
 
 # ---------------------------------------------------------------- BIG-IP DNS (GTM)
 _GTM_HEAD = re.compile(r"^Gtm::(?P<kind>[A-Za-z][A-Za-z0-9 \-]*?):\s*(?P<name>.*?)\s*$")
-_GTM_KINDS = {"wideip": "wideip", "pool": "pool", "poolmember": "member", "member": "member", "server": "server", "virtualserver": "virtual", "datacenter": "datacenter", "iquery": "iquery", "listener": "listener", "link": "link"}
+# TMOS 17.1 prints the record type behind a double colon (``Gtm::WideIp::A www.example.com``, ``Gtm::Pool::A pool1``), which the generic form above does not read
+_GTM_HEAD_TYPED = re.compile(r"^Gtm::(?P<kind>WideIp|Pool Member|Pool|Server|Device|Virtual Server|Datacenter|IQuery|Listener|Link)(?:::(?P<rtype>[A-Za-z0-9]+))?:?[ \t]+(?P<name>\S.*?)\s*$")
+_POOL_TYPE = re.compile(r"^(?P<pool>.+):(?P<rtype>a|aaaa|cname|mx|naptr|srv)$", re.I)
+_GTM_KINDS = {"wideip": "wideip", "device": "device", "pool": "pool", "poolmember": "member", "member": "member", "server": "server", "virtualserver": "virtual", "datacenter": "datacenter", "iquery": "iquery", "listener": "listener", "link": "link"}
 _RECORD_TYPES = {"a", "aaaa", "cname", "mx", "naptr", "srv"}
 _PARENT_OF = {"member": "pool", "pool": "wideip", "virtual": "server"}
 
@@ -294,32 +309,82 @@ def parse_gtm(text: str) -> list[dict[str, Any]]:
             records.append(current)
         current, buffer = None, []
 
+    context = ""                                            # kind of the object whose children are being read: a virtual server under a pool member is that member's detail, under a server it is the server's own
     for line in text.splitlines():
-        head = _GTM_HEAD.match(line)
+        typed = _GTM_HEAD_TYPED.match(line)
+        head = typed or _GTM_HEAD.match(line)
         if head:
             flush()
             kind = _gtm_kind(head["kind"])
-            name, rtype, pool = _gtm_name(kind, head["name"], last.get("pool", ""))
+            if typed:
+                rtype, rest = (typed["rtype"] or "").lower(), typed["name"]
+                if kind == "member":
+                    pool, member = _split_member_head(rest, last.get("pool", ""))
+                    split = _POOL_TYPE.match(pool)
+                    if split:                                # 'api.example.com:A vs1:server1': the pool name carries its record type
+                        pool, rtype = split["pool"], rtype or split["rtype"].lower()
+                    name = member
+                else:
+                    first, _, tail = rest.partition(" ")
+                    if not rtype and kind in ("wideip", "pool") and first.lower() in _RECORD_TYPES and tail.strip():
+                        rtype, rest = first.lower(), tail.strip()          # the older layout: 'Gtm::WideIp: aaaa www.example.com'
+                    name = _clean_name(rest) or rest
+                    pool = ""
+            else:
+                name, rtype, pool = _gtm_name(kind, head["name"], last.get("pool", ""))
             if not name:
                 continue
             parent = pool if kind == "member" else last.get(_PARENT_OF.get(kind, ""), "")
+            if kind == "device":
+                parent = last.get("server", "")
             if kind in ("wideip", "server", "datacenter", "iquery"):
                 last = {}                                   # a new top-level object ends the previous one's children
-            last[kind] = name
-            current = {"kind": kind, "name": name, "type": rtype, "parent": parent, "address": name if re.match(r"^\d+\.\d+\.\d+\.\d+$|^[0-9a-f:]+:[0-9a-f:]+$", name, re.I) else ""}
+            if kind == "virtual" and context == "member":
+                parent = last.get("member", "")             # the member's own virtual server: detail of that member, merged below
+            else:
+                last[kind] = name
+                context = kind
+            if kind == "pool":
+                last.pop("member", None)
+            current = {"kind": kind, "name": name, "type": rtype, "parent": parent, "address": name if re.match(r"^\d+\.\d+\.\d+\.\d+$|^[0-9a-f:]+:[0-9a-f:]+$", name, re.I) else "",
+                       "of_member": kind == "virtual" and context == "member"}
         elif line.startswith(("Ltm::", "Sys::", "CM::")):
             flush()
+            context = ""
         elif current is not None:
             buffer.append(line)
     flush()
-    return records
+    return _fold_member_virtuals(records)
+
+
+def _fold_member_virtuals(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A virtual server printed inside a pool member is the member's own: its destination and state become fields of the member instead of a second row."""
+    out = []
+    member: dict[str, Any] | None = None
+    for rec in records:
+        if rec["kind"] == "member":
+            member = rec
+        if rec["kind"] == "virtual" and rec.pop("of_member", False):
+            if member is not None:
+                vs = rec["name"]
+                member["fields"]["virtual server"] = vs
+                for key in ("destination", "up time"):
+                    if rec["fields"].get(key):
+                        member["fields"].setdefault(key, rec["fields"][key])
+                member["virtual_availability"] = rec["availability"]
+                if member["name"].startswith(vs + ":"):                         # the live header reads 'virtual_server:server', the configuration names the member 'server:virtual_server'
+                    member["name"] = f"{member['name'][len(vs) + 1:]}:{vs}"
+            continue
+        rec.pop("of_member", None)
+        out.append(rec)
+    return out
 
 
 def merge_gtm(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The same object shown by several commands (a pool inside a wide IP and in ``show gtm pool``): keep the record that knows most."""
     best: dict[tuple[str, str, str], dict[str, Any]] = {}
     for rec in records:
-        key = (rec["kind"], rec["name"].lower(), rec["parent"].lower())
+        key = (rec["kind"], rec["name"].lower(), "" if rec["kind"] in ("pool", "wideip") else rec["parent"].lower())      # a pool listed inside a wide IP and in ``show gtm pool`` is one pool
         old = best.get(key)
         if old is None or (bool(rec["availability"]), len(rec["stats"]), len(rec["fields"])) > (bool(old["availability"]), len(old["stats"]), len(old["fields"])):
             best[key] = rec
@@ -329,6 +394,18 @@ def merge_gtm(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 CONFIG_COMMANDS = ("list ...", "tmsh list ...", "show running-config ...", "tmsh show running-config ...", "cat bigip.conf", "cat bigip_base.conf", "cat /config/bigip.conf", "cat /config/bigip_base.conf")
 
 
+_PIPE = re.compile(r"^[ \t]*\|[ \t]?")
+
+
+def unpipe(text: str) -> str:
+    """tmsh draws an object that sits inside another one (a pool member in a pool, a virtual server in a GTM server) behind ``| `` at the start of every line.
+
+    Removing the prefix gives the same layout as a top-level object, so one reader serves both.  Seen on TMOS 17.1 in ``show ltm pool members``,
+    ``show ltm node`` and ``show gtm pool / server / wideip``.
+    """
+    return "\n".join(_PIPE.sub("", line) for line in text.splitlines()) if "|" in text else text
+
+
 def _is_config_block(block: cap.Block) -> bool:
     norm = re.sub(r"^tmsh\s+", "", block.norm).strip()
     if "|" in norm:                                                  # a filtered view is a fragment, not the configuration
@@ -336,6 +413,24 @@ def _is_config_block(block: cap.Block) -> bool:
     if norm.startswith(("list ", "show running-config", "cat ")) and not block.error:
         return not norm.startswith("cat ") or "bigip" in norm
     return norm in ("list", "show running-config")
+
+
+SYS_PARSERS = (
+    ("interfaces", "show net interface", sysout.parse_interfaces),
+    ("trunks", "show net trunk", sysout.parse_interfaces),
+    ("arp", "show net arp", sysout.parse_arp),
+    ("lldp", "show net lldp-neighbors", sysout.parse_lldp),
+    ("performance", "show sys performance all-stats", sysout.parse_performance),
+    ("license", "show sys license", sysout.parse_license),
+    ("provision", "show sys provision", sysout.parse_provision),
+    ("ha_status", "show sys ha-status", sysout.parse_ha_status),
+    ("cm_devices", "show cm device", sysout.parse_cm_devices),
+    ("cm_groups", "show cm device-group", sysout.parse_cm_groups),
+    ("virtual_addresses", "show ltm virtual-address", sysout.parse_virtual_addresses),
+    ("rules", "show ltm rule", sysout.parse_rules),
+    ("client_ssl", "show ltm profile client-ssl", sysout.parse_ssl_profiles),
+    ("server_ssl", "show ltm profile server-ssl", sysout.parse_ssl_profiles),
+)
 
 
 def gather(content: str) -> dict[str, Any]:
@@ -348,7 +443,13 @@ def gather(content: str) -> dict[str, Any]:
 
     def block_text(*templates: str) -> str:
         found = capture.first(*[t for t in templates] + ["tmsh " + t for t in templates])
-        return found.text if found else ""
+        return unpipe(found.text) if found else ""
+
+    def exact_text(*commands: str) -> str:
+        """Output of the command typed exactly (tmsh prefix allowed): a template match would let ``show cm device`` pick the longer ``show cm device-group``."""
+        wanted = {c for command in commands for c in (command, "tmsh " + command)}
+        found = [b for b in capture.blocks if b.norm in wanted and b.is_helpful]
+        return unpipe(max(found, key=lambda b: b.line_count).text) if found else ""
 
     data["config_text"] = "\n".join(b.text for b in capture.blocks if _is_config_block(b))
     version = block_text("show sys version")
@@ -376,9 +477,17 @@ def gather(content: str) -> dict[str, Any]:
         parsed_nodes = parse_nodes(nodes)
         if parsed_nodes:
             data["nodes"] = parsed_nodes
+    for key, command, parser in SYS_PARSERS:
+        text = exact_text(command)
+        parsed = parser(text) if text else None
+        if parsed:
+            data[key] = parsed
+    connections = sysout.parse_failover_connections(exact_text("show cm failover-status"))
+    if connections:
+        data["failover"] = dict(data.get("failover") or {}, connections=connections)
     gtm_blocks = capture.find(*[t for template in ("show gtm wideip ...", "show gtm pool ...", "show gtm server ...", "show gtm datacenter ...", "show gtm iquery ...", "show gtm listener ...", "show gtm link ...") for t in (template, "tmsh " + template)])
     if gtm_blocks:
-        records = merge_gtm([rec for block in gtm_blocks for rec in parse_gtm(block.text)])
+        records = merge_gtm([rec for block in gtm_blocks for rec in parse_gtm(unpipe(block.text))])
         for kind, key in (("wideip", "gtm_wideips"), ("pool", "gtm_pools"), ("member", "gtm_members"), ("server", "gtm_servers"), ("virtual", "gtm_virtuals"), ("datacenter", "gtm_datacenters"), ("iquery", "gtm_iquery"), ("listener", "gtm_listeners")):
             found = [rec for rec in records if rec["kind"] == kind]
             if found:

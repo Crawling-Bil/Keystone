@@ -13,7 +13,8 @@ import zipfile
 from typing import Any
 
 from . import labels
-from .findings import DOC_CDP, DOC_LACP, DOC_LLDP, DOC_VPC
+from .findings import DOC_CDP, DOC_LACP, DOC_LLDP, DOC_VPC, findings_by_device
+from .howto import html as howto_html
 from .graph import Graph, connection_speeds, link_speed
 from .names import port_sort_key, speed_text
 
@@ -31,7 +32,7 @@ table{border-collapse:collapse;width:100%;font-size:12px;margin:6px 0 14px}th,td
 th{background:#005073;color:#fff;font-weight:600}tr:nth-child(even) td{background:#f5f7fa}
 .cards{display:flex;flex-wrap:wrap;gap:10px}.card{border:1px solid #cbd2d9;border-radius:8px;padding:8px 14px;min-width:120px}
 .card b{display:block;font-size:22px}.card span{font-size:11px;color:#52606d}
-.sev-medium{background:#f8cbad!important}.sev-low{background:#ffe699!important}.sev-info{background:#ddebf7!important}
+.l3-working{background:#e2f0d9!important}.l3-configured{background:#fff2cc!important}.l3-broken{background:#f8cbad!important}.sev-medium{background:#f8cbad!important}.sev-low{background:#ffe699!important}.sev-info{background:#ddebf7!important}
 .diagram{border:1px solid #cbd2d9;border-radius:8px;padding:8px;margin:8px 0 18px;overflow:auto}.diagram svg{width:100%;height:auto;display:block}
 .device{page-break-before:always}.note{font-size:12px;color:#52606d}code{background:#eef1f4;padding:1px 4px;border-radius:3px}
 @media print{@page{size:A4 landscape;margin:12mm}body{padding:0}.diagram{break-inside:avoid}tr{break-inside:avoid}}
@@ -85,7 +86,7 @@ def device_ports(graph: Graph, key: str) -> list[list[str]]:
 
 def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], devices: list[dict], links: list[dict], hosts: list[dict],
                  behind: list[dict], svgs: list[dict], skipped: list[dict], title: str = "Network topology documentation",
-                 settings: dict[str, Any] | None = None) -> str:
+                 settings: dict[str, Any] | None = None, l3: dict[str, list[dict]] | None = None) -> str:
     now = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     cards = [("captured", "Devices captured"), ("seen_only", "Seen by neighbors only"), ("connections", "Connections"), ("confirmed", "Links confirmed both ends"),
              ("single_sided", "Links one end only"), ("vpc_pairs", "vPC pairs"), ("hosts", "Hosts in MAC tables"), ("findings", "Findings")]
@@ -100,12 +101,45 @@ def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], de
     out.append("<p class='note'>Physical view: every cable. vPC view: each vPC pair is one frame and each bundle that spans a pair is one line. IP view: devices that share a subnet, with the address at each end and a table of every interface address. "
                "Black = confirmed from both ends, orange dashed = reported by one end only, red = the ends disagree, blue = vPC peer-link, grey box = seen by a neighbor but not captured.</p>")
     for page in svgs:
-        kind = {"logical": "vPC view", "ip": "IP view"}.get(page.get("view"), "Physical view")
+        kind = {"logical": "vPC view", "ip": "IP view", "l3route": "L3 route view", "l3over2": "L3 over L2", "f5map": "F5 map (virtual servers, pools, members, nodes)"}.get(page.get("view"), "Physical view")
         out.append(f"<h3>{_e(page['name'])} <span class='note'>({kind})</span></h3><div class='diagram'>{page['svg']}</div>")
+    if l3 and l3.get("links"):
+        out.append("<h3>L3 links</h3><p class='note'>One row per line of the L3 picture. Solid = something in the captures shows it working, dashed = configured only, red = broken. "
+                   "This is routing intent (interface state, routing tables and neighbors), not measured traffic. Click a line in Keystone, or read the meaning column here.</p>")
+        out.append(_table(["ID", "Kind", "Device A", "Interface A", "Address A", "Device B", "Interface B", "Address B", "Subnet", "VRF", "State", "Meaning"],
+                          [[r["id"], r["kind"], r["device_a"], r["interface_a"], r["address_a"], r["device_b"], r["interface_b"], r["address_b"], r["subnet"], r["vrf"], r["state"], r["meaning"]]
+                           for r in l3["links"]], [f"l3-{r['state'].split()[0]}" for r in l3["links"]]))
+        if l3.get("routes"):
+            out.append("<h3>L3 routes by link</h3>")
+            out.append(_table(["Link", "Device", "VRF", "Protocol", "Next hop", "Prefixes", "Default", "Prefix list"],
+                              [[r["link"], r["device"], r["vrf"], r["protocol"], r["next_hop"], r["prefixes"], r["default_route"], r["prefix_list"]] for r in l3["routes"]]))
+        if l3.get("overlay"):
+            out.append("<h3>SD-WAN overlay sessions</h3><p class='note'>One row per BFD session read from the captures: both ends, transport colours, state.</p>")
+            out.append(_table(["Device", "Site", "System IP", "Local colour", "Remote device", "Remote site", "Remote system IP", "Remote colour", "State"],
+                              [[r["device"], r["site_id"], r["system_ip"], r["local_colour"], r["remote_device"], r["remote_site_id"], r["remote_system_ip"], r["remote_colour"], r["state"]] for r in l3["overlay"][:1500]]))
+            if len(l3["overlay"]) > 1500:
+                out.append(f"<p class='note'>The first 1500 of {len(l3['overlay'])} sessions are shown here; l3-sdwan-overlay.csv and the workbook list all of them.</p>")
+        if l3.get("sites"):
+            out.append("<h3>SD-WAN sites seen in the BFD tables</h3><p class='note'>One row per remote site. 'On the picture' says whether the site is drawn with the options of this run (captured sites, or the list typed under SD-WAN sites on the L3 pages).</p>")
+            out.append(_table(["Site", "System IP", "Captured as", "Seen by", "Sessions up", "Sessions", "Colours", "On the picture"],
+                              [[r["site_id"], r["system_ip"], r["captured_as"], r["seen_by"], r["sessions_up"], r["sessions"], r["colours"], r["on_the_picture"]] for r in l3["sites"][:400]]))
+            if len(l3["sites"]) > 400:
+                out.append(f"<p class='note'>The first 400 of {len(l3['sites'])} sites are shown here; l3-sdwan-sites.csv and the workbook list all of them.</p>")
+        if l3.get("unresolved"):
+            out.append("<h3>Next hops and neighbors that no capture explains</h3><p class='note'>Capture the device that owns the address, or add a provider hint, to draw them.</p>")
+            out.append(_table(["Device", "What", "Address"], [[r["device"], r["what"], r["address"]] for r in l3["unresolved"]]))
+    if l3 and l3.get("links"):
+        out.append("<h3>How to read the L3 diagrams</h3>" + howto_html(True))
     out.append("<h2>2. Findings</h2>")
     out.append(_table(["ID", "Severity", "Finding", "Detail", "Next step", "Reference"],
                       [[f["id"], f["severity"], f["title"], f["detail"], f["recommendation"], f.get("reference", "")] for f in findings],
                       [f"sev-{f['severity']}" for f in findings]))
+    rolled = findings_by_device(graph, findings)
+    out.append("<h3>Findings by device</h3>")
+    clean = sum(1 for node in graph.nodes.values() if node.captured) - sum(1 for r in rolled if r["captured"] == "yes")
+    out.append(f"<p class='note'>One row per device that is named in at least one finding, worst first; a link finding counts for both ends. {max(clean, 0)} captured device(s) have no finding.</p>")
+    out.append(_table(["Device", "Captured", "Role", "Medium", "Low", "Info", "Total", "Findings"],
+                      [[r["device"], r["captured"], r["role"], r["medium"], r["low"], r["info"], r["total"], r["findings"]] for r in rolled]))
     out.append("<h2>3. Device inventory</h2>")
     cols = ["device", "captured", "role", "vendor", "model", "os_version", "management_ip", "serial", "stack_members", "vpc_domain", "vpc_role", "capture_run"]
     out.append(_table([c.replace("_", " ") for c in cols], [[d.get(c, "") for c in cols] for d in devices]))
@@ -130,6 +164,10 @@ def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], de
         out.append(_table(["Item", "Value"], [[k, v] for k, v in facts if v not in ("", None)]))
         out.append("<p class='note'>Ports with a CDP/LLDP neighbor. Speed is the rating of the transceiver or port, not the negotiated rate.</p>")
         out.append(_table(["Port", "Bundle", "Neighbor", "Neighbor port", "Speed", "Kind", "State", "Protocol"], device_ports(graph, key)))
+        own = [f for f in findings if node.hostname in f["devices"]]
+        if own:
+            out.append("<p class='note'>Findings that name this device:</p>")
+            out.append(_table(["ID", "Severity", "Finding", "Next step"], [[f["id"], f["severity"], f["title"], f["recommendation"]] for f in own], [f"sev-{f['severity']}" for f in own]))
         mine = [b for b in behind if b["switch"] == node.hostname]
         if mine:
             out.append("<p class='note'>Hosts behind uncaptured devices on this switch:</p>")
@@ -143,7 +181,8 @@ def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], de
                "<li>Neighbor tables are a snapshot. Devices marked <i>previous run</i> are as old as the run that saved them.</li></ul>")
     if skipped:
         out.append("<h3>Files that were not used</h3>" + _table(["File", "Reason"], [[s["file"], s["reason"]] for s in skipped]))
-    out.append("<h2>References</h2><ul>" + "".join(f"<li>{_link(url, text)}</li>" for text, url in REFERENCES) + "</ul></body></html>")
+    refs = REFERENCES + (("Cisco: Catalyst SD-WAN command reference (BFD sessions, control connections, OMP)", "https://www.cisco.com/c/en/us/td/docs/routers/sdwan/command/sdwan-cr-book.pdf"),) if l3 and l3.get("links") else REFERENCES
+    out.append("<h2>References</h2><ul>" + "".join(f"<li>{_link(url, text)}</li>" for text, url in refs) + "</ul></body></html>")
     return "".join(out)
 
 
@@ -154,17 +193,21 @@ def slug(name: str) -> str:
 SETTING_LABELS = (
     ("exclude_endpoints", "Exclude IP phones, PCs and servers: draw network devices only (router, firewall, load balancer, switch, access point)"),
     ("collapse_endpoints", "Collapse phones and hosts into one node per switch"),
+    ("group_endpoints", "Group end points under the same switch (one frame per switch, named after it; applies when end points are drawn one by one; access points drawn one by one are framed even when this is off)"),
     ("collapse_aps", "Collapse access points into one node per switch (off = every access point with its own hostname, model and IP address)"),
     ("show_ports", "Show port names on the lines"),
     ("infer_neighbors", "Infer neighbors where CDP/LLDP is silent (order of trust: ARP, then MAC address, then port description)"),
+    ("show_link_ips", "Show the address of routed ports and routed port-channels next to the port name on the lines"),
     ("include_routed", "Add routed /30 and /31 links found in interface addresses"),
     ("hide_mgmt", "Leave out-of-band management links (mgmt0) out of the picture; they stay in links.csv"),
     ("include_hosts", "Draw end hosts learned from MAC tables (up to 3 per port, more become one box)"),
 )
 CHOICE_LABELS = {
-    "group": {"none": "One diagram", "prefix1": "Group by first hostname word (BGR, JKT, DRC)", "prefix2": "Group by first two hostname words (JKT-A02)",
+    "group": {"auto": "Automatic (one page per site when the network is large)", "none": "One diagram", "prefix1": "Group by first hostname word (BGR, JKT, DRC)", "prefix2": "Group by first two hostname words (JKT-A02)",
               "prefix3": "Group by first three hostname words (JKT-GD1-LT1)"},
-    "view": {"both": "Physical and vPC view", "physical": "Physical view only", "logical": "vPC view only", "ip": "Logical IP view only"},
+    "view": {"all": "All views (L3 over L2, L3 route view, IP view, physical view, vPC view, F5 map in one file)", "both": "L2 - Physical and vPC view", "physical": "L2 - Physical view only", "logical": "L2 - vPC view only", "ip": "L3 - Logical view only (shared subnets, interface addresses)", "l3route": "L3 - Logical and Route", "l3over2": "L3 over L2", "f5map": "F5 map only (virtual servers, pools, members, nodes)"},
+    "overlay_sites": {"captured": "Only the sites I captured", "all": "Every site in the BFD tables"},
+    "line_shape": {"angled": "Straight, bent once around a device", "curved": "Curved around a device"},
     "line_style": {"speed": "Rated speed (1G, 10G, 25G, 40G, 100G)", "state": "Link state (confirmed, one end, conflict)"},
 }
 
@@ -180,10 +223,16 @@ def settings_text(settings: dict[str, Any], summary: dict[str, Any] | None = Non
     for key, label in SETTING_LABELS:
         lines.append(f"  [{'on ' if settings.get(key) else 'off'}] {label}")
     lines.append("")
-    for key, title in (("group", "Grouping"), ("view", "Diagram file contains"), ("line_style", "Style lines by")):
+    for key, title in (("group", "Grouping"), ("view", "Diagram file contains"), ("line_style", "Style lines by"), ("line_shape", "Line shape")):
         lines.append(f"{title}: {CHOICE_LABELS[key].get(settings.get(key), settings.get(key, ''))}")
+    if settings.get("group") == "auto":
+        lines.append(f"Grouping applied by Automatic: {CHOICE_LABELS['group'].get(settings.get('group_used'), settings.get('group_used', ''))}")
     lines.append(f"Add to a previous run: {'yes' if settings.get('previous_state') else 'no'}")
     lines.append(f"Keep my layout: {'yes' if settings.get('keep_layout') else 'no'}")
+    lines.append(f"Provider hints typed for the L3 views: {settings.get('provider_hints', 0)} rule(s)")
+    lines.append(f"SD-WAN sites drawn on the L3 pages: {CHOICE_LABELS['overlay_sites'].get(settings.get('overlay_sites'), settings.get('overlay_sites', 'captured'))}")
+    lines.append(f"SD-WAN sites typed in the list (drawn exactly, captured or not): {settings.get('focus_sites') or '(none)'}")
+    lines.append(f"Group uncaptured next-hop routers and parallel subnets on the L3 pages: {'yes' if settings.get('group_gateways', True) else 'no'}")
     return "\r\n".join(lines) + "\r\n"
 
 
@@ -194,7 +243,7 @@ def safe_name(text: str) -> str:
 
 
 def download_name(name: str, topology_name: str) -> str:
-    """'links.csv' -> 'Panin-DC-links.csv' when the engineer named the topology, unchanged otherwise."""
+    """'links.csv' -> 'Lab-DC-links.csv' when the engineer named the topology, unchanged otherwise."""
     return f"{topology_name}-{name}" if topology_name else name
 
 

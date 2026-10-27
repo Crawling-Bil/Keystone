@@ -1,10 +1,11 @@
-!!! collect backup config aruba-cx (v5 2026-10-13)
+!!! collect backup config aruba-cx (v6 2026-10-26)
 !!! ArubaOS-CX 10.x. Every command in the first block ran on real 10.16 captures of VSF stacks (4 and 6 members) with 'show interface' also on a standalone switch.
 !!! Run the commands in this order: show logging comes before show interface, the longest output, so a cut-off paste keeps the log.
 !!! 'show interface status', 'show interface desc', 'show power inline' and 'show run | in ...' are NOT valid on AOS-CX (the switch answered 'Unknown interface' / 'Invalid input' / 'Command not supported'): they are not in this list.
 !!! There is no 'write memory' line: the captures were taken without one. Add it first if your procedure saves the configuration before the backup.
 !!! v4: the UNVERIFIED block at the end gains VSX, NTP, resource, port-access, LLDP and OSPF commands from HPE's ArubaOS-CX 10.x guides. The captured stacks were VSF; show vsx ... only answers on a VSX pair (8xxx / 6400 / 9300 and others). Test on ONE switch first.
 !!! v5: checked against HPE's ArubaOS-CX 10.x CLI guides (opened 2026-10-13). no page moved to the top (it answered without an error in 3 of 3 captures and has to come before the long outputs). show interface brief, show power-over-ethernet (PoE models only: 6000 / 6100 / 6200 / 6300 / 6400), show system, show vsx status / brief, show ntp status / associations, show system resource-utilization, show port-access clients, show lldp configuration, show spanning-tree detail, show ip ospf neighbors and show module are documented; no capture has run them yet.
+!!! v6: six more real 10.16 captures (VSF stacks of 3 to 6 members, no VSX) ran show power-over-ethernet ('PoE not configured'), show system, show ntp status / associations, show system resource-utilization, show module, show port-access clients ('No port-access clients found.'), show lldp configuration, show spanning-tree detail and show ip ospf neighbors ('OSPF Process is not running on VRF default.') without an error. show vsx status / brief answered 'Invalid input: vsx' on those VSF-only switches: harmless there, and only a VSX pair answers it.
 
 no page
 

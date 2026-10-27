@@ -29,6 +29,7 @@ Documentation:
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ..analyzer_core.result import map_section
@@ -68,8 +69,12 @@ ROLLUP = ("available", "unverified", "unknown", "unavailable", "offline")       
 MAX_REASON = 160
 
 
+_PARTITION_AFTER_COLON = re.compile(r"(?<=:)/[^/:]+/")
+
+
 def _key(name: str) -> str:
-    return short(canon(name) or name).lower()
+    """Comparison key of an object name; a GTM pool member is written 'server:virtual' and the configuration puts the partition on both halves ('/Common/GTM:/Common/vs1')."""
+    return _PARTITION_AFTER_COLON.sub("", short(canon(name) or name)).lower()
 
 
 def _by_name(items: list[dict[str, Any]], *fields: str) -> dict[str, dict[str, Any]]:
@@ -349,7 +354,6 @@ def sections(data: dict[str, Any], runtime: dict[str, Any]) -> list[dict[str, An
         if not any(runtime.get(key) for key in ("gtm_wideips", "gtm_pools", "gtm_members")):
             notes.append("No 'show gtm' output in the capture, so wide IPs, GTM pools and members are derived from the configuration. Add 'tmsh show gtm wideip a detail', 'tmsh show gtm pool a detail' and 'tmsh show gtm server detail' for live availability.")
         else:
-            notes.append(f"Live availability applied to {dns['wideips']} of {len(gtm['wideips'])} wide IP(s), {dns['pools']} of {len(gtm['pools'])} GTM pool(s) and {dns['members']} of {sum(len(p['members']) for p in gtm['pools'])} GTM pool member(s). "
-                         "The 'show gtm' layout is documented but not yet validated on a DNS device.")
+            notes.append(f"Live availability applied to {dns['wideips']} of {len(gtm['wideips'])} wide IP(s), {dns['pools']} of {len(gtm['pools'])} GTM pool(s) and {dns['members']} of {sum(len(p['members']) for p in gtm['pools'])} GTM pool member(s).")
     return [map_section(SECTION_ID, "Network map", builder.nodes, statuses=STATUSES, types=types, group=GROUP, hint=hint, empty="No virtual servers, pools or wide IPs in the export.", notes=notes, references=references,
                         live={"virtuals": used["virtuals"], "pools": used["pools"], "members": used["members"], "wideips": dns["wideips"], "gtm_pools": dns["pools"], "gtm_members": dns["members"], "any": have_live})]

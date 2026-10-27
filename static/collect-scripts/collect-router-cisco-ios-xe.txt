@@ -79,11 +79,12 @@ show platform hardware qfp active datapath utilization
 show platform hardware qfp active statistics drop
 show platform hardware qfp active infrastructure exmem statistics
 
-! Licensing (Smart Licensing Using Policy, throughput and HSEC licences; 'show license status' and 'show license all' were also seen on an ASR1002-X with classic right-to-use licensing and on a Catalyst 9300)
+! Licensing (Smart Licensing Using Policy, throughput and HSEC licences; 'show license status' and 'show license all' were also seen on an ASR1002-X with classic right-to-use licensing and on a Catalyst 9300; 'show license detail' is the same classic table on the ASR1002-X, with the store name on each entry)
 show license summary
 show license usage
 show license status
 show license all
+show license detail
 
 ! Time source (seen on an ASR1002-X and a Catalyst 9300 in IOS-XE routing mode)
 show ntp status

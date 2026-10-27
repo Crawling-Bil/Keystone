@@ -109,7 +109,7 @@ Beberapa file atau satu ZIP bisa dikonversi sekaligus lewat **batch conversion**
 ## 7b. Membuat diagram topologi
 
 1. Buka **Analyze**, lalu **Topology Builder**. Pilih atau tarik satu capture per perangkat (atau satu ZIP). Semakin banyak perangkat, semakin banyak link yang terkonfirmasi dari kedua ujung.
-2. Opsional: isi **Topology name**. Semua file unduhan lalu diberi nama itu (`Panin-DC-topology.drawio`, `Panin-DC-links.csv`, ...); kosong berarti nama biasa. File draw.io menampilkan nama dan `Topology Created at Date YYYY:MM:DD - Time HH:MM:SS` di atas diagram.
+2. Opsional: isi **Topology name**. Semua file unduhan lalu diberi nama itu (`Lab-DC-topology.drawio`, `Lab-DC-links.csv`, ...); kosong berarti nama biasa. File draw.io menampilkan nama dan `Topology Created at Date YYYY:MM:DD - Time HH:MM:SS` di atas diagram.
 3. Atur opsi (nilai awal dalam kurung):
    - **Exclude IP phones, PCs and servers** (aktif): hanya perangkat jaringan yang digambar. Selama aktif, opsi phone/host disembunyikan.
    - **Collapse phones and hosts into one node per switch** (aktif) dan **Collapse access points into one node per switch** (aktif: satu kotak per switch; matikan agar setiap access point tampil dengan hostname, model, dan IP sendiri untuk diagram yang lebih detail).

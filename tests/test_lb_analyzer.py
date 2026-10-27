@@ -446,7 +446,7 @@ def test_coverage_lists_missing_runtime_commands(weak):
 
 
 def test_unvalidated_runtime_parsers_are_declared(capture, weak):
-    assert any("not yet validated" in w for w in capture["warnings"])
+    assert any("TMOS 17.1" in w for w in capture["warnings"])
     assert any("synthetic" in w for w in weak["warnings"])
 
 

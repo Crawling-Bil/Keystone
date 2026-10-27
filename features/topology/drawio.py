@@ -78,21 +78,27 @@ def _add_node(root: ET.Element, ident: str, key: str, node, pos, ghost: bool) ->
                                        "width": str(w), "height": str(h), "as": "geometry"})
 
 
-def _edge_style(graph: Graph, conn: Connection, line_style: str) -> str:
+def _edge_style(graph: Graph, conn: Connection, line_style: str, curved: bool = False) -> str:
     if conn.kind == "host":
         return LINE_STYLE + HOST_STYLE
     colour, width, dashed = line_look(graph, conn, line_style)
-    return LINE_STYLE + f"strokeColor={colour};strokeWidth={width:g};" + ("dashed=1;" if dashed else "")
+    return LINE_STYLE + f"strokeColor={colour};strokeWidth={width:g};" + ("dashed=1;" if dashed else "") + ("curved=1;" if curved else "")
 
 
 def _add_edge(root: ET.Element, ident: str, conn: Connection, graph: Graph, ids: dict[str, str], show_ports: bool,
-              waypoints: list[tuple[float, float]] | None = None, line_style: str = "state", spots: dict[str, float] | None = None) -> None:
-    style = _edge_style(graph, conn, line_style)
+              waypoints: list[tuple[float, float]] | None = None, line_style: str = "state", spots: dict[str, float] | None = None, curved: bool = False, comb: bool = False) -> None:
+    if curved and comb:
+        curved = False                                    # a comb line keeps all its corners; draw.io rounds them (rounded=1)
+    if curved and waypoints and len(waypoints) > 2:
+        waypoints = waypoints[2::4]                       # draw.io smooths a few points into one curve
+    style = _edge_style(graph, conn, line_style, curved and bool(waypoints)) + ("rounded=1;arcSize=12;" if comb and waypoints else "")
     members = "; ".join(f"{l.a_port} <-> {l.b_port} [{l.state}]" for l in conn.links)
     obj = ET.SubElement(root, "object", {"label": "", "id": ident, "state": conn.state, "kind": conn.kind,
                                          "protocols": "/".join(sorted(conn.protocols)), "links": members,
                                          "a": conn.a, "b": conn.b, "a_bundle": conn.a_po, "b_bundle": conn.b_po,
-                                         "speed": labels.speed_summary(graph, conn), "vpc_id": conn.vpc_id})
+                                         "speed": labels.speed_summary(graph, conn), "vpc_id": conn.vpc_id,
+                                         **({"l3_id": conn.l3.get("id", ""), "l3_kind": conn.l3.get("kind", ""), "l3_state": conn.l3.get("state", ""), "vrf": conn.l3.get("vrf", "") or "global",
+                                             "meaning": conn.l3.get("meaning", ""), "evidence": " | ".join(conn.l3.get("evidence", []))} if conn.l3 else {})})
     cell = ET.SubElement(obj, "mxCell", {"style": style, "edge": "1", "parent": "1", "source": ids[conn.a], "target": ids[conn.b]})
     geometry = ET.SubElement(cell, "mxGeometry", {"relative": "1", "as": "geometry"})
     if waypoints:
@@ -109,10 +115,55 @@ def _add_edge(root: ET.Element, ident: str, conn: Connection, graph: Graph, ids:
     for n, (text, pos, lab_style) in enumerate(extras):
         if not text:
             continue
+        if lab_style == MID_LABEL and " · " in text:       # a long middle label is broken at its separators (same lines as the preview)
+            text = "<br>".join(_esc(row) for row in labels.wrap_centre(text))
         label = ET.SubElement(root, "mxCell", {"id": f"{ident}-l{n}", "value": text, "style": lab_style, "vertex": "1",
                                                "connectable": "0", "parent": ident})
         geo = ET.SubElement(label, "mxGeometry", {"x": pos, "relative": "1", "as": "geometry"})
         ET.SubElement(geo, "mxPoint", {"as": "offset"})
+
+
+def _shape_style(shape) -> str:
+    from .f5page import style_of
+    fill, border, dashed = style_of(shape.status)
+    dash = "dashed=1;" if dashed else ""
+    if shape.kind == "group":
+        return "rounded=1;arcSize=2;whiteSpace=wrap;html=1;fillColor=#FBFCFD;strokeColor=#B8C4CE;strokeWidth=1.5;dashed=1;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=12;"
+    if shape.kind == "pool":
+        return (f"rounded=1;arcSize=4;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={border};strokeWidth=2;{dash}verticalAlign=top;align=left;spacingLeft=8;spacingTop=3;fontSize=11;opacity=90;")
+    if shape.kind == "node":
+        return f"rounded=0;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={border};strokeWidth=2;{dash}fontSize=10;align=center;verticalAlign=middle;"
+    size = 10 if shape.kind == "member" else 11
+    return f"rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={border};strokeWidth={2 if shape.kind == 'external' else 1.5};{dash}fontSize={size};align=center;verticalAlign=middle;"
+
+
+def _shape_label(shape) -> str:
+    rows = [row for row in shape.lines if row]
+    head = f"<b>{_esc(rows[0])}</b>" if rows else ""
+    return "<br>".join([head] + [f'<font color="#52606d" style="font-size:9px">{_esc(row)}</font>' for row in rows[1:]])
+
+
+def _add_shapes(root: ET.Element, page: Page, index: int, ids: dict[str, str]) -> None:
+    for shape in page.shapes:
+        obj = ET.SubElement(root, "object", {"label": _shape_label(shape), "id": ids[shape.ident], **{k: str(v) for k, v in shape.attrs.items() if v not in ("", None)}})
+        cell = ET.SubElement(obj, "mxCell", {"style": _shape_style(shape), "vertex": "1", "parent": "1"})
+        ET.SubElement(cell, "mxGeometry", {"x": f"{shape.x:.0f}", "y": f"{shape.y:.0f}", "width": f"{shape.w:.0f}", "height": f"{shape.h:.0f}", "as": "geometry"})
+
+
+def _add_shape_edges(root: ET.Element, page: Page, index: int, ids: dict[str, str], node_ids: dict[str, str]) -> None:
+    from .f5page import style_of
+    for n, edge in enumerate(page.shape_edges):
+        source = node_ids.get(edge.a[5:]) if edge.a.startswith("node:") else ids.get(edge.a)
+        target = node_ids.get(edge.b[5:]) if edge.b.startswith("node:") else ids.get(edge.b)
+        if source is None or target is None:
+            continue
+        colour = style_of(edge.status)[1]
+        cell = ET.SubElement(root, "mxCell", {"id": f"{index}-se-{n}", "style": f"{LINE_STYLE}strokeColor={colour};strokeWidth=1.5;opacity=75;", "edge": "1", "parent": "1", "source": source, "target": target})
+        geometry = ET.SubElement(cell, "mxGeometry", {"relative": "1", "as": "geometry"})
+        if edge.points:                                                  # the path between the two shapes: the corners are waypoints
+            array = ET.SubElement(geometry, "Array", {"as": "points"})
+            for px, py in edge.points:
+                ET.SubElement(array, "mxPoint", {"x": f"{px:.0f}", "y": f"{py:.0f}"})
 
 
 def legend_rows(line_style: str, logical: bool | str) -> tuple[tuple[str, str], ...]:
@@ -123,7 +174,25 @@ def legend_rows(line_style: str, logical: bool | str) -> tuple[tuple[str, str], 
         rows = (("#1f1f1f", "Confirmed: both ends report the link"), ("#ED7D31", "Single-sided: only one end reports it"),
                 ("#FF0000", "Conflict: the peer's table says otherwise"), ("#0070c0", "Blue thick: vPC peer-link; blue dashed: routed /30 link"))
     rows += (("#00A3A3", "Teal dashed: neighbor inferred from ARP / port description (not CDP/LLDP)"),)
-    if logical == "ip":
+    if logical == "l3over2":
+        rows = (("#B8B8B8", "Thin grey line: a cable (or bundle) that carries none of the L3 links shown"),
+                ("#1F6FB2", "Thick coloured line: a cable that carries an L3 link, in the colour of that link's VRF"),
+                ("#1F6FB2", "Curved arc: one L3 link (IP address pair and routes in the label), drawn between its two devices"),
+                ("#7B3FA0", "Purple arc: SD-WAN overlay; the cables under it are the transport (WAN) ports"),
+                ("#D32F2F", "Red: a capture shows the link broken; dashed arc: configured only"),
+                ("#7F7F7F", "Grey cloud / oval at the top: provider, gateway, shared subnet or remote SD-WAN site that nobody captured"))
+    elif logical == "l3route":
+        rows = (("#1F6FB2", "Line colour = VRF (every VRF is listed in the VRF legend); dark grey = global table"),
+                ("#3C3C3C", "Solid line: something in the captures shows it working (interface up/up, OSPF FULL, BGP Established, BFD up)"),
+                ("#3C3C3C", "Dashed line: configured, but no capture proves it works"), ("#D32F2F", "Red line: a capture shows it broken (interface down, neighbor not up)"),
+                ("#7B3FA0", "Purple thick line: SD-WAN overlay (BFD sessions between two sites, colours on the label)"), ("#0E8C8C", "Teal line: tunnel (GRE / IPsec) in the global table"),
+                ("#C58F00", "Yellow oval: a subnet shared by more than two devices"),
+                ("#7F7F7F", "Grey cloud / device: a gateway or provider nobody captured, inferred from routes and neighbors"),
+                ("#005073", "Label on a line: IP address of each end, then the routes that use it. The picture shows routing intent, not measured traffic"))
+    elif logical == "f5map":
+        from .f5page import LEGEND
+        return LEGEND
+    elif logical == "ip":
         rows = (("#1f1f1f", "Line: two devices with addresses in the same subnet (interface and address at each end)"),
                 ("#C58F00", "Yellow oval: a subnet shared by more than two devices"), ("#005073", "Tables below: every interface address of a device")
                 ) + (("#00A3A3", "Teal dashed: neighbor inferred from ARP / port description"),)
@@ -132,8 +201,8 @@ def legend_rows(line_style: str, logical: bool | str) -> tuple[tuple[str, str], 
     return rows + (("#7F7F7F", "Grey device: seen by CDP/LLDP, not captured"),)
 
 
-def _legend(root: ET.Element, x: float, y: float, line_style: str = "state", logical: bool | str = False, prefix: str = "") -> None:
-    rows = legend_rows(line_style, logical)
+def _legend(root: ET.Element, x: float, y: float, line_style: str = "state", logical: bool | str = False, prefix: str = "", extra: list[tuple[str, str]] | None = None) -> None:
+    rows = legend_rows(line_style, logical) + tuple(extra or ())
     box = ET.SubElement(root, "mxCell", {"id": f"{prefix}legend-box", "value": "Legend", "style": "rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#BBBBBB;verticalAlign=top;align=left;spacingLeft=8;fontStyle=1;fontSize=11;", "vertex": "1", "parent": "1"})
     ET.SubElement(box, "mxGeometry", {"x": f"{x:.0f}", "y": f"{y:.0f}", "width": "300", "height": str(30 + 22 * len(rows)), "as": "geometry"})
     for i, (colour, text) in enumerate(rows):
@@ -184,6 +253,11 @@ def _diagram(page: Page, graph: Graph, index: int, show_ports: bool, line_style:
                                               "style": "rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;fontStyle=1;fontSize=14;fontColor=#000000;",
                                               "vertex": "1", "parent": "1"})
         ET.SubElement(cell, "mxGeometry", {"x": f"{x:.0f}", "y": f"{y:.0f}", "width": f"{w:.0f}", "height": f"{h:.0f}", "as": "geometry"})
+    for n, (box_title, x, y, w, h) in enumerate(page.end_boxes):          # end points grouped under one switch: a light frame named after the switch
+        cell = ET.SubElement(root, "mxCell", {"id": f"{index}-endbox-{n}", "value": _esc(box_title), "vertex": "1", "parent": "1",
+                                              "style": "rounded=1;arcSize=3;whiteSpace=wrap;html=1;fillColor=#F7F9FB;strokeColor=#8FA0AE;strokeWidth=1.5;"
+                                                       "verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=12;fontColor=#3E4C59;"})
+        ET.SubElement(cell, "mxGeometry", {"x": f"{x:.0f}", "y": f"{y:.0f}", "width": f"{w:.0f}", "height": f"{h:.0f}", "as": "geometry"})
     ids: dict[str, str] = {}
     for n, frame in enumerate(page.pair_boxes.values()):
         ids[frame.key] = f"pb{index}-{n}"
@@ -191,17 +265,45 @@ def _diagram(page: Page, graph: Graph, index: int, show_ports: bool, line_style:
                                               "style": "rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#F2F8FC;strokeColor=#005073;strokeWidth=2;dashed=1;"
                                                        "verticalAlign=top;align=center;fontStyle=1;fontSize=11;fontColor=#005073;"})
         ET.SubElement(cell, "mxGeometry", {"x": f"{frame.x:.0f}", "y": f"{frame.y:.0f}", "width": f"{frame.w:.0f}", "height": f"{frame.h:.0f}", "as": "geometry"})
+    shape_ids = {shape.ident: f"{index}-{shape.ident}" for shape in page.shapes}
     for n, (key, pos) in enumerate(sorted(page.nodes.items(), key=lambda item: (item[1].y, item[1].x))):
         ids[key] = f"n{index}-{n}"
+    _add_shape_edges(root, page, index, shape_ids, ids)          # the lines first: they lie under the boxes (cells later in the file are drawn on top)
+    _add_shapes(root, page, index, shape_ids)
+    for key, pos in sorted(page.nodes.items(), key=lambda item: (item[1].y, item[1].x)):
         _add_node(root, ids[key], key, graph.nodes[key], pos, key in page.ghosts)
     for n, conn in enumerate(page.connections):
         ports_on = show_ports and not (page.view == "logical" and conn.kind == "peer-link")   # the frame already says "peer-link"
         spots = {slot: f"{2 * share - 1:.2f}" for (i, slot), (_, _, share) in page.label_pos.items() if i == n}
-        _add_edge(root, f"e{index}-{n}", conn, graph, ids, ports_on, page.routes.get(n), line_style, spots)
+        _add_edge(root, f"e{index}-{n}", conn, graph, ids, ports_on, page.routes.get(n), line_style, spots, page.curved, page.curved and n in page.comb_source)
     for n, table in enumerate(page.tables):
         _add_table(root, f"{index}-tbl-{n}", table)
     legend_y = max([page.height] + [t.y + t.h for t in page.tables]) + 20
-    _legend(root, 20, legend_y, line_style, page.view if page.view in ("ip", "logical") else False, f"{index}-")
+    _legend(root, 20, legend_y, line_style, page.view if page.view in ("ip", "logical", "l3route", "l3over2", "f5map") else False, f"{index}-", page.legend_extra)
+    return diagram
+
+
+def _howto_page(index: int) -> ET.Element:
+    """An extra page 'How to read this diagram' (plain text boxes, editable) for the L3 files."""
+    from .howto import REFERENCES, sections
+    diagram = ET.Element("diagram", {"id": f"page-{index}", "name": "How to read this diagram"})
+    model = ET.SubElement(diagram, "mxGraphModel", {"dx": "1420", "dy": "942", "grid": "1", "gridSize": "10", "guides": "1", "tooltips": "1", "connect": "1", "arrows": "1",
+                                                    "fold": "1", "page": "1", "pageScale": "1", "pageWidth": "1100", "pageHeight": "1500", "math": "0", "shadow": "0"})
+    root = ET.SubElement(model, "root")
+    ET.SubElement(root, "mxCell", {"id": "0"})
+    ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
+    y = 20.0
+    for n, (heading, paragraphs) in enumerate(sections(True)):
+        text = f"<b>{_esc(heading)}</b><br/><br/>" + "<br/><br/>".join(_esc(p) for p in paragraphs)
+        height = 40 + 17 * (sum(len(p) // 120 + 2 for p in paragraphs))
+        cell = ET.SubElement(root, "mxCell", {"id": f"howto-{n}", "value": text, "vertex": "1", "parent": "1",
+                                              "style": "text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;strokeColor=#BBBBBB;fillColor=#FFFFFF;spacing=10;fontSize=12;"})
+        ET.SubElement(cell, "mxGeometry", {"x": "30", "y": f"{y:.0f}", "width": "1000", "height": f"{height}", "as": "geometry"})
+        y += height + 14
+    links = "<br/>".join(_esc(f"{t}: {u}") for t, u in REFERENCES)
+    cell = ET.SubElement(root, "mxCell", {"id": "howto-refs", "value": "<b>References</b><br/>" + links, "vertex": "1", "parent": "1",
+                                          "style": "text;html=1;whiteSpace=wrap;align=left;verticalAlign=top;strokeColor=none;fillColor=none;spacing=10;fontSize=11;"})
+    ET.SubElement(cell, "mxGeometry", {"x": "30", "y": f"{y:.0f}", "width": "1000", "height": "130", "as": "geometry"})
     return diagram
 
 
@@ -213,5 +315,7 @@ def to_drawio(graph: Graph, group_mode: str = "none", show_ports: bool = True, p
     mxfile = ET.Element("mxfile", {"host": "Keystone Topology Builder", "modified": now, "agent": "Keystone", "version": "21.2.8", "type": "device"})
     for index, page in enumerate(pages):
         mxfile.append(_diagram(page, graph, index, show_ports, line_style, title, created))
+    if any(page.view in ("l3route", "l3over2") for page in pages):
+        mxfile.append(_howto_page(len(pages)))
     ET.indent(mxfile)
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(mxfile, encoding="unicode")

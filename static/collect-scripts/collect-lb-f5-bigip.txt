@@ -10,6 +10,7 @@ tmsh show sys version
 tmsh show sys hardware
 tmsh show sys provision
 tmsh show sys software status
+tmsh show sys license
 tmsh show sys failover
 tmsh show sys ha-status
 tmsh show sys mcp-state field-fmt
@@ -44,3 +45,11 @@ tmsh show ltm node
 # ---- Network state.
 tmsh show net interface
 tmsh show net trunk
+tmsh show net lldp-neighbors
+tmsh show net arp
+tmsh show sys performance all-stats
+
+# ---- Traffic counters: negotiated TLS versions per profile and iRule failures (cumulative since the last reset).
+tmsh show ltm profile client-ssl
+tmsh show ltm profile server-ssl
+tmsh show ltm rule

@@ -81,6 +81,8 @@ def classify(graph: Graph) -> None:
     for key, node in graph.nodes.items():
         if node.role_hint == "cloud" and not node.captured:
             continue                                       # a provider named by a port description keeps its cloud icon
+        if node.role_hint in ("firewall", "loadbalancer") and node.vendor:
+            continue                                       # a FortiGate / PAN-OS / BIG-IP reader knows what the box is, whatever it is called (HQPAIBFW1)
         by_name = _by_rules(_WORD_RULES, node.hostname.upper())
         node.role_from_name = bool(by_name)  # type: ignore[attr-defined]
         role = by_name or _by_rules(_MODEL_RULES, node.model.upper())

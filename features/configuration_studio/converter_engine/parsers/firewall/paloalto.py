@@ -51,6 +51,7 @@ _DNS_SECONDARY_RE = re.compile(r'^deviceconfig system dns-setting servers second
 _NTP_PRIMARY_RE = re.compile(r'^deviceconfig system ntp-servers primary-ntp-server ntp-server-address (\S+)$')
 _NTP_SECONDARY_RE = re.compile(r'^deviceconfig system ntp-servers secondary-ntp-server ntp-server-address (\S+)$')
 _MGMT_SERVICE_RE = re.compile(r'^deviceconfig system service (\S+) (yes|no)$')
+_HA_RE = re.compile(r'^deviceconfig high-availability (.+)$')
 
 _ETH_LAYER2_RE = re.compile(r'^network interface ethernet (\S+) layer2$')
 _ETH_LAYER3_BARE_RE = re.compile(r'^network interface ethernet (\S+) layer3$')
@@ -180,7 +181,18 @@ def _bracket_list(text):
     return [item for item in text.split() if item]
 
 
+_AE_NAME_RE = re.compile(r"^ae\d+$")
+_AGG_LINE_RE = re.compile(r"^network interface aggregate-ethernet (\S+) (.+)$")
+_AGG_LACP_ENABLE_RE = re.compile(r"^layer[23] lacp enable (yes|no)$")
+_AGG_LACP_MODE_RE = re.compile(r"^layer[23] lacp mode (active|passive)$")
+_ETH_AGG_GROUP_RE = re.compile(r"^network interface ethernet (\S+) aggregate-group (\S+)$")
+_ETH_UNIT_IP_RE = re.compile(r"^network interface ethernet (\S+) layer3 units (\S+) ip (\S+)$")
+_ETH_UNIT_COMMENT_RE = re.compile(r'^network interface ethernet (\S+) layer3 units (\S+) comment "(.*)"$')
+
+
 def _infer_interface_type(name):
+    if _AE_NAME_RE.match(name):
+        return "aggregate"
     if name.startswith("vlan."):
         return "vlan"
     if name.startswith("sdwan."):
@@ -425,6 +437,10 @@ class PaloAltoFirewallParser:
             config.ntp_servers[1] = match.group(1)
             return True
 
+        match = _HA_RE.match(rest)
+        if match:
+            return self._apply_ha_line(match.group(1), config)
+
         match = _MGMT_SERVICE_RE.match(rest)
         if match:
             field_name, value = match.group(1), match.group(2)
@@ -503,7 +519,74 @@ class PaloAltoFirewallParser:
         return False
 
     @staticmethod
+    def _apply_ha_line(text, config):
+        """'set deviceconfig high-availability ...': enabled, the group (peer address, mode, priority) and the HA1 / HA2 / HA3 ports."""
+        from features.configuration_studio.converter_engine.models.paloalto_native import PaHa
+        if config.ha is None:
+            config.ha = PaHa()
+        ha = config.ha
+        for pattern, apply in (
+            (r"^enabled (yes|no)$", lambda m: setattr(ha, "enabled", m.group(1) == "yes")),
+            (r"^group group-id (\d+)$", lambda m: setattr(ha, "group_id", m.group(1))),
+            (r"^group peer-ip (\S+)$", lambda m: setattr(ha, "peer_ip", m.group(1))),
+            (r"^group peer-ip-backup (\S+)$", lambda m: setattr(ha, "peer_ip_backup", m.group(1))),
+            (r'^group description "?(.*?)"?$', lambda m: setattr(ha, "description", m.group(1))),
+            (r"^group mode (active-passive|active-active)\b", lambda m: setattr(ha, "mode", m.group(1))),
+            (r"^group election-option device-priority (\d+)$", lambda m: setattr(ha, "priority", int(m.group(1)))),
+            (r"^group election-option preemptive (yes|no)$", lambda m: setattr(ha, "preemptive", m.group(1) == "yes")),
+            (r"^interface ha1 port (\S+)$", lambda m: setattr(ha, "ha1_port", m.group(1))),
+            (r"^interface ha1 ip-address (\S+)$", lambda m: setattr(ha, "ha1_ip", m.group(1))),
+            (r"^interface ha1-backup port (\S+)$", lambda m: setattr(ha, "ha1_backup_port", m.group(1))),
+            (r"^interface ha1-backup ip-address (\S+)$", lambda m: setattr(ha, "ha1_backup_ip", m.group(1))),
+            (r"^interface ha2 port (\S+)$", lambda m: setattr(ha, "ha2_port", m.group(1))),
+            (r"^interface ha2-backup port (\S+)$", lambda m: setattr(ha, "ha2_backup_port", m.group(1))),
+            (r"^interface ha3 port (\S+)$", lambda m: setattr(ha, "ha3_port", m.group(1))),
+        ):
+            found = re.match(pattern, text)
+            if found:
+                apply(found)
+                return True
+        return False
+
+    @staticmethod
     def _apply_interface_line(rest, config, get_interface):
+        # aggregate-ethernet groups (ae1) are written like a physical port: 'set network interface aggregate-ethernet ae1 layer3 ip ...'
+        # (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/configure-interfaces/configure-an-aggregate-interface-group)
+        match = _AGG_LINE_RE.match(rest)
+        if match:
+            name, tail = match.group(1), match.group(2)
+            group = get_interface(name, "aggregate")
+            flag = _AGG_LACP_ENABLE_RE.match(tail)
+            if flag:
+                group.lacp_enabled = flag.group(1) == "yes"
+                return True
+            mode = _AGG_LACP_MODE_RE.match(tail)
+            if mode:
+                group.lacp_mode = mode.group(1)
+                return True
+            return PaloAltoFirewallParser._apply_interface_line(f"network interface ethernet {name} {tail}", config, get_interface)
+
+        match = _ETH_AGG_GROUP_RE.match(rest)
+        if match:
+            get_interface(match.group(1), "ethernet").aggregate_group = match.group(2)
+            return True
+
+        match = _ETH_UNIT_IP_RE.match(rest)
+        if match:
+            sub = get_interface(match.group(2), "subinterface")
+            sub.parent_interface = sub.parent_interface or match.group(1)
+            sub.mode = "layer3"
+            if match.group(3) not in sub.ip_addresses:
+                sub.ip_addresses.append(match.group(3))
+            return True
+
+        match = _ETH_UNIT_COMMENT_RE.match(rest)
+        if match:
+            sub = get_interface(match.group(2), "subinterface")
+            sub.parent_interface = sub.parent_interface or match.group(1)
+            sub.comment = match.group(3)
+            return True
+
         match = _ETH_LAYER2_RE.match(rest)
         if match:
             get_interface(match.group(1), "ethernet").mode = "layer2"

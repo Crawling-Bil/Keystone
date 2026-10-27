@@ -43,6 +43,7 @@ from features.configuration_studio.converter_engine.models.paloalto_native impor
     PaAdministrator,
     PaApplicationGroup,
     PaDeviceInfo,
+    PaHa,
     PaDhcpServerBinding,
     PaIkeCryptoProfile,
     PaIkeGateway,
@@ -219,6 +220,7 @@ class PaloAltoXmlConfigParser:
         deviceconfig = dev_entry.find("deviceconfig")
 
         self._parse_device_info(config, deviceconfig)
+        self._parse_high_availability(config, deviceconfig)
         self._parse_administrators(config, root)
         if network is not None:
             self._parse_interfaces(config, network)
@@ -291,6 +293,36 @@ class PaloAltoXmlConfigParser:
                 "No deviceconfig/system/hostname found in this export; hostname left blank."
             )
         return config
+
+    # -- deviceconfig/high-availability --------------------------------------
+
+    def _parse_high_availability(self, config: PaloAltoNativeConfig, deviceconfig: Optional[ET.Element]) -> None:
+        ha = deviceconfig.find("high-availability") if deviceconfig is not None else None
+        if ha is None:
+            return
+        group, link = ha.find("group"), ha.find("interface")
+        mode_node = group.find("mode") if group is not None else None
+        mode = ""
+        if mode_node is not None:
+            mode = next((child.tag for child in mode_node if child.tag in ("active-passive", "active-active")), "")
+        priority = _text(group, "election-option/device-priority")
+        config.ha = PaHa(
+            enabled=_is_yes(ha, "enabled"),
+            mode=mode,
+            group_id=_text(group, "group-id"),
+            description=_text(group, "description"),
+            peer_ip=_text(group, "peer-ip"),
+            peer_ip_backup=_text(group, "peer-ip-backup"),
+            priority=int(priority) if priority.isdigit() else None,
+            preemptive=(_is_yes(group, "election-option/preemptive") if group is not None and group.find("election-option/preemptive") is not None else None),
+            ha1_port=_text(link, "ha1/port"),
+            ha1_ip=_text(link, "ha1/ip-address"),
+            ha1_backup_port=_text(link, "ha1-backup/port"),
+            ha1_backup_ip=_text(link, "ha1-backup/ip-address"),
+            ha2_port=_text(link, "ha2/port"),
+            ha2_backup_port=_text(link, "ha2-backup/port"),
+            ha3_port=_text(link, "ha3/port"),
+        )
 
     # -- deviceconfig/system -------------------------------------------------
 
@@ -380,19 +412,27 @@ class PaloAltoXmlConfigParser:
         if interface_root is None:
             return
 
-        for eth in interface_root.findall("ethernet/entry"):
+        physical = [(eth, "ethernet") for eth in interface_root.findall("ethernet/entry")]
+        physical += [(ae, "aggregate") for ae in interface_root.findall("aggregate-ethernet/entry")]    # ae1: the group's own address / zone, LACP, its sub-interfaces
+        for eth, kind in physical:
             name = eth.get("name", "")
             layer3 = eth.find("layer3")
             layer2 = eth.find("layer2")
             mode = "layer3" if layer3 is not None else ("layer2" if layer2 is not None else "")
             iface = PaInterface(
                 name=name,
-                interface_type="ethernet",
+                interface_type=kind,
                 mode=mode,
                 comment=_text(eth, "comment"),
                 link_state=_text(eth, "link-state"),
+                aggregate_group=_text(eth, "aggregate-group"),   # a member port of an aggregate-ethernet group
             )
             body = layer3 if layer3 is not None else layer2
+            if body is not None and kind == "aggregate":
+                lacp = body.find("lacp")
+                if lacp is not None:
+                    iface.lacp_enabled = _is_yes(lacp, "enable")
+                    iface.lacp_mode = _text(lacp, "mode") or ("passive" if iface.lacp_enabled else "")
             if body is not None:
                 iface.ip_addresses = [entry.get("name", "") for entry in body.findall("ip/entry")]
                 iface.management_profile = _text(body, "interface-management-profile")

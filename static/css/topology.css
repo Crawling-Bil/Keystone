@@ -41,6 +41,7 @@
 .tp-legend i { display: inline-block; width: 22px; height: 4px; border-radius: 2px; }
 
 .tp-text { width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); font-size: 13px; }
+.tp-hints { padding: 8px 12px; min-height: 84px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; resize: vertical; }
 .tp-text:focus { outline: 3px solid var(--focus); outline-offset: 1px; border-color: var(--blue); }
 .tp-card-box { display: grid; gap: 6px; margin: 0; padding: 14px 14px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); min-width: 0; }
 .tp-card-box > legend { float: left; width: 100%; margin: 0 0 4px; padding: 0; }
@@ -68,3 +69,22 @@
 .tp-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
 .tp-file.has-file .tp-file-name { color: var(--text); font-weight: 600; }
 .tp-name { max-width: 640px; }
+
+.tp-l3-detail { margin: 10px 0; padding: 12px 14px; border: 1px solid var(--border); border-left: 4px solid #7B3FA0; border-radius: 10px; background: var(--panel-2); font-size: 13px; }
+.tp-l3-detail h3 { margin: 0 0 6px; font-size: 14px; }
+.tp-l3-detail ul { margin: 4px 0 8px 18px; padding: 0; }
+.l3-line:focus-visible { outline: 2px solid var(--focus); }
+.tp-trace { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 8px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); font-size: 13px; }
+.tp-trace label { display: inline-flex; gap: 6px; align-items: center; }
+.tp-trace-ip { width: 170px; } .tp-trace-vrf { width: 110px; }
+.tp-trace-result { margin: 8px 0; padding: 10px 14px; border: 1px solid var(--border); border-left: 4px solid #D9A400; border-radius: 10px; background: var(--panel-2); font-size: 13px; }
+.tp-trace-result h3 { margin: 0 0 6px; font-size: 14px; } .tp-trace-result ol { margin: 4px 0 6px 20px; padding: 0; }
+.l3-line.traced polyline:last-of-type { stroke-width: 7; filter: drop-shadow(0 0 5px #D9A400); }
+.tp-howto { max-width: 980px; font-size: 14px; line-height: 1.5; } .tp-howto h3 { margin: 16px 0 4px; }
+
+.tp-sites { margin-bottom: 14px; }
+.tp-sites h3 { margin: 0 0 6px; }
+.tp-sites-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.tp-sites-bar .tp-text { flex: 1 1 260px; min-width: 200px; }
+.tp-sites-list { max-height: 360px; overflow: auto; }
+.tp-sites-list input[type=checkbox] { width: 16px; height: 16px; }

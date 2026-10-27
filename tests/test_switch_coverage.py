@@ -199,7 +199,7 @@ class CollectListConsistencyTests(unittest.TestCase):
     def test_lists_carry_a_version_header(self):
         for name, _family in self.LISTS:
             first = (COLLECT / name).read_text(encoding="utf-8").splitlines()[0]
-            expected = "(v7 2026-10-13)" if name in ("collect-cisco-nexus.txt", "collect-cisco-catalyst.txt") else "(v5 2026-10-13)"
+            expected = {"collect-cisco-nexus.txt": "(v7 2026-10-13)", "collect-cisco-catalyst.txt": "(v7 2026-10-13)", "collect-aruba-cx.txt": "(v6 2026-10-26)"}.get(name, "(v5 2026-10-13)")
             self.assertIn(expected, first, name)
 
     def test_every_expected_command_has_an_aoscx_spelling(self):

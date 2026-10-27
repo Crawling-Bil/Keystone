@@ -11,7 +11,8 @@ a table whose first column is not an identity can show a renamed object as one r
 
 Expect noise when comparing two *different* devices (HA peers): their own hostnames, addresses, serial numbers and
 uptime-like values always differ.  Filter on the ``section`` or ``change`` buttons to look at policy and object drift
-and ignore those.
+and ignore those.  When the two hostnames differ, the tables of the "Change history" group (save log, saves per month, ...)
+are left out and a note says so.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from .findings import SEVERITY_RANK, finding as _finding, sort_findings
 from .result import card, map_as_table, new_result, table_section
 
 SCOPE_KEYS = ("vdom", "vsys", "vrf", "partition", "scope")
+PEER_NOISE_GROUPS = {"Change history"}      # a save log is per device: between two HA peers every line differs and says nothing about drift
 MAX_CHANGE_ROWS = 6000
 MAX_SHOWN = 160                      # characters of one before/after value
 DESCRIBE_COLUMNS = 4
@@ -136,10 +138,15 @@ def compare_results(before: dict[str, Any], after: dict[str, Any]) -> dict[str, 
     per_section: dict[str, Counter] = {}
     after_sections = {s["id"]: s for s in after.get("sections", [])}
     only_before, only_after = [], []
+    peers = bool(before.get("hostname") and after.get("hostname") and before["hostname"] != after["hostname"])
+    skipped: list[str] = []
     for old in before.get("sections", []):
         new = after_sections.get(old["id"])
         if new is None:
             only_before.append(old["title"])
+            continue
+        if peers and old.get("group") in PEER_NOISE_GROUPS:
+            skipped.append(old["title"])
             continue
         if old["kind"] != new["kind"]:
             continue
@@ -199,6 +206,8 @@ def compare_results(before: dict[str, Any], after: dict[str, Any]) -> dict[str, 
     notes = []
     if before.get("platform") != after.get("platform"):
         notes.append(f"The captures come from different platforms or versions ({before.get('platform', '?')} and {after.get('platform', '?')}); expect version-driven differences.")
+    if skipped:
+        notes.append(f"The captures come from different devices, so {len(skipped)} change-history table(s) were left out of the comparison (they differ on every line between HA peers).")
     if len(changes) > MAX_CHANGE_ROWS:
         notes.append(f"{len(changes):,} changes were found; the first {MAX_CHANGE_ROWS:,} are listed.")
     result["warnings"] = notes

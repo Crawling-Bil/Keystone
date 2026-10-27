@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Callable
 
 from ..analyzer_core import capture as cap
 from ..analyzer_core.vendor_hint import wrong_page_hint
-from . import config_extract, config_tree, ipsec as ipsecmod, nat as natmod, ospf as ospfmod, runtime, runtime_health as rh, runtime_logs as rl, runtime_protocols as rpr, runtime_routing as rr, runtime_sdwan as rsd, runtime_vpn as rv, techsupport, xref
+from . import config_extract, config_tree, ipsec as ipsecmod, nat as natmod, ospf as ospfmod, runtime, runtime_health as rh, runtime_logs as rl, runtime_protocols as rpr, runtime_routing as rr, runtime_sdwan as rsd, runtime_sdwan_extra as rse, runtime_vpn as rv, techsupport, xref
 from .ifnames import canon
 
 # Terminal log captured from a router (prompts present) or a bare config.
@@ -83,6 +84,11 @@ SPECS: list[Spec] = [
     Spec("sdwan_local", "show sdwan control local-properties", ("show sdwan control local-properties",), rsd.parse_control_local_properties, "Certificate state, site identity and the WAN interfaces (color, NAT type, control connections allowed).", optional=True),
     Spec("sdwan_app_route", "show sdwan app-route stats", ("show sdwan app-route stats",), rsd.parse_app_route_stats, "Measured loss, latency and jitter of every overlay tunnel, as application-aware routing sees it.", optional=True),
     Spec("sdwan_policy", "show sdwan policy from-vsmart", ("show sdwan policy from-vsmart",), rsd.parse_policy_from_vsmart, "The centralized policy the vSmart pushed: SLA classes, application-aware routing rules and their lists.", optional=True),
+    Spec("sdwan_omp_summary", "show sdwan omp summary", ("show sdwan omp summary",), rse.parse_omp_summary, "OMP state, uptime, the number of vSmart peers and the routes / TLOCs / services this router received, installed and sent.", optional=True),
+    Spec("sdwan_certificates", "show sdwan certificate installed", ("show sdwan certificate installed",), rse.parse_certificates, "Validity dates of the board-id (SUDI) and the enterprise device certificate: an expired certificate takes every control connection down.", optional=True),
+    Spec("sdwan_tunnel_stats", "show sdwan tunnel statistics", ("show sdwan tunnel statistics",), rse.parse_tunnel_statistics, "Packets and octets sent and received per overlay tunnel, and the tunnel MTU: tunnels that transmit but never receive.", optional=True),
+    Spec("sdwan_bfd_history", "show sdwan bfd history", ("show sdwan bfd history",), rse.parse_bfd_history, "Every up/down record of every BFD session: how often tunnels dropped, and whether several dropped at the same moment.", optional=True,
+         empty_lines=(r"DST PUBLIC\s+DST PUBLIC.*", r"SYSTEM IP\s+SITE ID\s+COLOR.*DEL", r"-{10,}"), empty_note="headers only: no BFD session has changed state since the router started"),
     # --- health / platform (show tech-support carries all of these) -------
     Spec("cpu", "show process cpu sorted", ("show process cpu sorted", "show process cpu"), rh.parse_cpu_sorted, "Current CPU load and the busiest processes."),
     Spec("cpu_history", "show process cpu history", ("show process cpu history",), rh.parse_cpu_history, "CPU peaks over the last 60 seconds, 60 minutes and 72 hours."),
@@ -100,6 +106,7 @@ SPECS: list[Spec] = [
     Spec("license_summary", "show license summary", ("show license summary",), rh.parse_license_summary, "Licence level and Smart Licensing status."),
     Spec("license_usage", "show license usage", ("show license usage",), rh.parse_license_usage, "Features and throughput licences in use."),
     Spec("license_all", "show license all", ("show license all",), rh.parse_license_all, "Smart Licensing transport, policy and reporting deadlines."),
+    Spec("license_detail", "show license detail", ("show license detail",), rh.parse_license_detail, "Classic (right-to-use) licences with the store each one lives in, their state and the evaluation time left."),
     Spec("license_status", "show license status", ("show license status",), rh.parse_license_status, "Smart Licensing transport, policy and reporting deadlines (the same fields as 'show license all'); on classic licensing the device credential state."),
     Spec("cdp_neighbors", "show cdp neighbors", ("show cdp neighbors",), rh.parse_cdp_neighbors, "Directly connected Cisco devices.", empty_marker=r"Total cdp entries displayed\s*:\s*0", empty_note="no CDP neighbors"),
     Spec("cdp_detail", "show cdp neighbors detail", ("show cdp neighbors detail",), rh.parse_cdp_detail, "Neighbour management addresses and platforms.", empty_marker=r"Total cdp entries displayed\s*:\s*0", empty_note="no CDP neighbors"),
@@ -164,9 +171,16 @@ IGNORED_BY_DESIGN = (
     ("show process memory platform ...", "per-process platform memory — the router-level view comes from 'show platform resources'"),
     ("show ip ports all", "listening sockets — not analyzed"),
     ("show history ...", "CLI history — not analyzed"),
+    ("write memory", "action command that saves the configuration — it prints no information to analyze"),
+    ("write ...", "action command that saves the configuration — it prints no information to analyze"),
+    ("copy running-config startup-config", "action command that saves the configuration — it prints no information to analyze"),
+    ("show version | ...", "filtered view of 'show version' (for example the uptime line) — the unfiltered output is the one that is analyzed"),
     ("ssh ...", "session hop through a jump host — not part of the analysis"),
     ("telnet ...", "session hop through a jump host — not part of the analysis"),
 )
+
+
+_CLOCK = re.compile(r"(\d{1,2}:\d{2}:\d{2})(?:\.\d+)?\s+\S+\s+(?:\w{3}\s+)?(\w{3})\s+(\d{1,2})\s+(\d{4})")
 
 
 @dataclass
@@ -192,6 +206,24 @@ class Ctx:
     interfaces: list[dict[str, Any]] = field(default_factory=list)  # joined config + runtime
     models: dict[str, Any] = field(default_factory=dict)             # nat / ipsec / ospf models joined from config and live output
     split: dict[int, str] = field(default_factory=dict)              # block.index -> "show tech-support, split into N sections"
+
+    def license_store(self) -> list[dict[str, Any]]:
+        """Classic licence rows from 'show license all' (preferred: it carries the store headings) or, when only that was captured, 'show license detail'."""
+        for key in ("license_all", "license_detail"):
+            rows = (self.data.get(key) or {}).get("store")
+            if rows:
+                return rows
+        return []
+
+    def capture_time(self) -> datetime | None:
+        """Router wall-clock time of the capture ('show clock'), as a naive datetime in the router's own time zone; None when it was not captured."""
+        match = _CLOCK.search(str(self.data.get("clock") or ""))
+        if not match:
+            return None
+        try:
+            return datetime.strptime(f"{match.group(1)} {match.group(2)} {match.group(3)} {match.group(4)}", "%H:%M:%S %b %d %Y")
+        except ValueError:
+            return None
 
     def has(self, key: str) -> bool:
         return key in self.present

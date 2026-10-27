@@ -27,8 +27,9 @@ def looks_like_bigip(text: str) -> bool:
 
 def analyze(content: str, filename: str = "", platform: str = "auto", today: date | None = None) -> dict[str, Any]:
     today = today or date.today()
-    runtime = bigip_runtime.gather(content)
-    text = runtime["config_text"] or content
+    live = getattr(content, "live", "")                                          # a UCS merged with the capture of the same unit (bigip_ucs.merge_same_unit)
+    runtime = bigip_runtime.gather(live or content)
+    text = (str(content) if live else runtime["config_text"]) or content        # the archive's configuration is complete, so it wins over the capture's own 'tmsh list'
     if not looks_like_bigip(text):
         raise ValueError(
             "No F5 BIG-IP configuration was recognised. The Load Balancer Analyzer reads the stanza format of bigip.conf / bigip_base.conf, 'tmsh list' and 'tmsh show running-config' "
@@ -80,6 +81,8 @@ def analyze(content: str, filename: str = "", platform: str = "auto", today: dat
         live_note = "live availability" if network_map[0]["live"].get("any") else "from the configuration"
         result["cards"].append(card("Network map", len(mapped), "bad" if down else ("warn" if parked else "info"), f"{down} offline · {parked} disabled · {live_note}", bigip_map.SECTION_ID))
     result["info"] = bigip_overview.info(data, runtime, tree)
+    if live:
+        result["info"].append({"label": "Live state from", "value": f"{content.live_name} (merged with the UCS of the same unit)"})
     result["findings"] = findings
     result["coverage"] = bigip_overview.coverage(data, tree, runtime)
     result["warnings"] = warnings + bigip_overview.notes(data, runtime)

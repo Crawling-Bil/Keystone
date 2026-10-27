@@ -22,15 +22,17 @@ import re
 from typing import Any
 
 from .extract import Device, mac12
-from .graph import Connection, Graph, Link
+from .graph import Connection, Graph, Link, pick_unit
 from .names import canon_port
 from .roles import _WORD_RULES, _by_rules
 
 _NETWORK_WORDS = {"firewall", "router", "loadbalancer", "wlc", "core", "aggregation", "access", "fabric", "ap"}
 
 _NOT_PHYSICAL = re.compile(r"^(vlan|vl\d|lo\d|loopback|tu\d|tunnel|nve|mgmt|null|cpu|sdwan|vmanage|nvi|bdi|irb|vxlan)", re.I)
-_PREFIX = re.compile(r"^(?:(?:up|down)?link\s*(?:to|-)?|to|link\s+to|connected\s+to|conn(?:ect)?\s+to|trunk\s+to|->|>>|=>)\s*[-:_>]*\s*", re.I)
-_NAME_PORT = re.compile(r"^(?P<name>[A-Za-z][A-Za-z0-9_.-]{2,})[\s:_,;]+(?P<port>(?:[A-Za-z]{1,}[A-Za-z-]*)?\d+(?:/\d+)*(?:\.\d+)?)\s*$")
+_PREFIX = re.compile(r"^(?:(?:up|down)?link\s*(?:to|-)?|to|link\s+to|connect(?:ed|ion)\s+to|conn(?:ect)?\s+to|trunk\s+to|->|>>|=>)\s*[-:_>]*\s*", re.I)
+# "... - Port Eth1/17", "connected to HQEDGNX1 port eth 1/50", "to SW1 interface Gi0/1": the far port named after the word port / interface
+_PORT_WORD = re.compile(r"\b(?:port|interface|intf|int)\.?\s*[:#-]?\s*(?P<port>[A-Za-z][A-Za-z-]*\s?\d+(?:/\d+)+(?:\.\d+)?)\s*$", re.I)
+_NAME_PORT = re.compile(r"^(?P<name>[A-Za-z][A-Za-z0-9_.-]{2,})(?:\s+[-–]\s+|[\s:_,;]+)(?P<port>(?:[A-Za-z]{1,}[A-Za-z-]*)?\d+(?:/\d+)*(?:\.\d+)?)\s*$")
 _STOP = {"LAN", "WAN", "UPLINK", "DOWNLINK", "LINK", "TRUNK", "ACCESS", "MGMT", "MANAGEMENT", "USER", "USERS", "SERVER", "SERVERS", "VOICE", "DATA",
          "PRINTER", "SPARE", "UNUSED", "TEST", "BACKUP", "PRIMARY", "SECONDARY", "INSIDE", "OUTSIDE", "DMZ", "CORE", "HA", "SYNC", "PEER", "VLAN",
          "SHUTDOWN", "RESERVED", "FREE", "NOT-USED", "NOUSE", "CLIENT", "CLIENTS", "STACK", "VSF", "VSX", "ISL", "KEEPALIVE"}
@@ -64,6 +66,12 @@ def parse_description(text: str) -> tuple[str, str]:
     return "", ""
 
 
+def port_hint(text: str) -> str:
+    """The far port a description names after the word 'port' ('Connection to HQPAIBFW1 - Port Eth1/17' -> 'Eth1/17'), canonical, or ''."""
+    found = _PORT_WORD.search((text or "").strip())
+    return canon_port(re.sub(r"\s+", "", found.group("port"))) if found else ""
+
+
 def _is_physical(port: str) -> bool:
     return bool(port) and not _NOT_PHYSICAL.match(port)
 
@@ -89,16 +97,17 @@ def _find_by_name(graph: Graph, text: str, own: str) -> str:
     haystack = f"-{_norm(text)}-"
     best = ""
     for key, node in graph.nodes.items():
-        if key == own or len(node.hostname) < 4 or node.role_hint in ("host", "phone", "server") or key in graph.hidden_nodes:
+        name = node.chassis or node.hostname                 # a firewall drawn per VDOM is named by its chassis in a description
+        if key == own or len(name) < 4 or node.role_hint in ("host", "phone", "server") or key in graph.hidden_nodes:
             continue
-        needle = f"-{_norm(node.hostname)}-"
-        if needle in haystack and len(node.hostname) > len(graph.nodes[best].hostname if best else ""):
+        needle = f"-{_norm(name)}-"
+        if needle in haystack and len(name) > len((graph.nodes[best].chassis or graph.nodes[best].hostname) if best else ""):
             best = key
     return best
 
 
 def _find_by_fragment(graph: Graph, token: str, own: str) -> str:
-    """A description often carries the hostname without its site prefix and suffix ('JAS-1-LT-1A' for KCU-SENAYAN-JAS-1-LT-1A-STC6): it names
+    """A description often carries the hostname without its site prefix and suffix ('SW-1-LT-1A' for SITE-HQ-SW-1-LT-1A-STC6): it names
     a node when that fragment sits between hyphens in exactly one hostname."""
     fragment = f"-{_norm(token)}-"
     if len(fragment) < 8 or not re.search(r"\d", fragment):
@@ -152,6 +161,8 @@ def _routed_names(device: Device) -> dict[str, dict[str, Any]]:
 
 def _arp_peers(device: Device) -> dict[str, list[dict[str, str]]]:
     peers: dict[str, list[dict[str, str]]] = {}
+    if device.vendor == "F5":
+        return peers                          # a BIG-IP ARP table names VLANs, not ports: f5neighbors.py reads it with the VLAN table
     own = set(device.ips) | ({device.mgmt_ip} if device.mgmt_ip else set())
     for row in device.arp_table:
         ip, mac = str(row.get("ip_address", "")), mac12(str(row.get("mac_address", "")))
@@ -239,6 +250,7 @@ def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
     ip_owner = _ip_index(graph)
     mac_owner = _mac_index(graph, ip_owner)
     facts: list[dict[str, Any]] = []
+    claimed: dict[tuple[str, str], str] = {}                # (device, port) -> the device a description of this run put on the other end
     for key in sorted(k for k, n in graph.nodes.items() if n.captured):
         device = graph.nodes[key]
         routed = _routed_names(device)
@@ -246,7 +258,7 @@ def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
         macs_on = _macs_by_port(device)
         ports = set(device.descriptions) | set(peers) | set(macs_on)
         for port in sorted(ports):
-            if not _is_physical(port) or port in taken.get(key, set()) or port in device.bundles:
+            if not _is_physical(port) or (port in taken.get(key, set()) and (key, port) not in claimed) or port in device.bundles:
                 continue
             vrf = str(routed.get(port, {}).get("vrf", "")).lower()
             if "mgmt" in vrf or "management" in vrf:
@@ -254,6 +266,8 @@ def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
             description = device.descriptions.get(port, "")
             name, far_port = parse_description(description)
             desc_key = (_find_by_name(graph, description, key) or (_find_by_fragment(graph, name, key) if name else "")) if description else ""
+            if desc_key and not far_port:
+                far_port = port_hint(description)
             arp = peers.get(port, [])
             far_key, how, far_ip, far_mac = "", set(), "", ""
             # Order of trust after CDP/LLDP (those ports never get here): 1 ARP owner, 2 MAC owner, 3 description naming a known device,
@@ -289,22 +303,65 @@ def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
             if not far_key and name and (far_port or port in routed) and _norm(name) not in _STOP and _looks_like_device(name, far_port, port in routed):
                 far_key = _new_node(graph, name, "", "", "Router" if port in routed else "")
                 how = {"DESC"}
+            if far_key:
+                far_key = pick_unit(graph, far_key, far_port)       # a description names the chassis and the port: the VDOM that owns that port
             if not far_key or far_key == key:
                 continue
-            if any(far_key in (c.a, c.b) and key in (c.a, c.b) for c in graph.connections):
+            if (key, port) in claimed:
+                if claimed[(key, port)] == far_key:
+                    continue                    # the same cable again, said from the other end
+                facts.append({"type": "port-claimed-twice", "a": key, "a_port": port, "first": claimed[(key, port)], "second": far_key})
+            joined = [c for c in graph.connections if far_key in (c.a, c.b) and key in (c.a, c.b)]
+            if any(c.kind != "inferred" for c in joined):
                 continue                        # the two devices are already joined by a line (the other ports of that bundle are TOPO-015's business)
             far_name = canon_port(far_port) if far_port else ""
             if far_ip and far_key in graph.nodes and graph.nodes[far_key].l3 and not far_name:
                 far_name = next((r["name"] for r in graph.nodes[far_key].l3 if r["ip"] == far_ip), "")
+            if joined and _same_cable(joined, key, port, far_key, far_name):
+                taken.setdefault(key, set()).add(port)
+                continue                        # the other end of this cable was inferred already (from the far device's own description or ARP)
             evidence = "+".join(sorted(how))
             note = f"inferred from {evidence}" + (f": port description '{description}'" if "DESC" in how else "") + (f", ARP {far_ip}" if far_ip else "")
             link = Link(key, port, far_key, far_name, "inferred", set(how), note)
             graph.links.append(link)
-            graph.connections.append(Connection(key, far_key, [link], kind="inferred"))
+            if joined:
+                joined[0].links.append(link)    # one more cable between the same two devices (a FortiGate with three ports to one Nexus)
+            else:
+                graph.connections.append(Connection(key, far_key, [link], kind="inferred"))
             taken.setdefault(key, set()).add(port)
+            claimed[(key, port)] = far_key
+            if far_name:
+                taken.setdefault(far_key, set()).add(far_name)
+                if "DESC" in how and not (how - {"DESC"}):
+                    claimed.setdefault((far_key, far_name), key)       # a description names the port on the far end too: another description claiming it is a conflict
             said = next((graph.nodes[k].hostname for k in (desc_key, mac_key) if k and k != far_key and k in graph.nodes), "")
             facts.append({"type": "inferred-link", "a": key, "a_port": port, "b": far_key, "b_port": far_name, "evidence": evidence, "ip": far_ip, "conflict": said})
     return facts
+
+
+def _same_cable(joined: list[Connection], key: str, port: str, far_key: str, far_name: str) -> bool:
+    """Is this port already one end of a link inferred between the same two devices?
+
+    The far device's own description of the cable counts (its port is then ``far_name``), and so does a link made from the far side whose
+    port on this side was still unknown: that port is filled in here.
+    """
+    for conn in joined:
+        for link in conn.links:
+            mine = link.a == key and link.b == far_key
+            theirs = link.a == far_key and link.b == key
+            if not (mine or theirs):
+                continue
+            near, far = (link.a_port, link.b_port) if mine else (link.b_port, link.a_port)      # port on this device, port on the far device
+            if near == port:
+                return True
+            if far_name and far == far_name:
+                if not near and theirs:
+                    link.b_port = port
+                return True
+            if not far_name and theirs and not near:
+                link.b_port = port
+                return True
+    return False
 
 
 def _prefix_len(row: dict[str, Any]) -> int:

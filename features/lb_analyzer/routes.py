@@ -33,6 +33,7 @@ SPEC = AnalyzerSpec(
     collect_prefix="collect-lb",
     activity_module="Load Balancer Analyzer",
     read_upload=bigip_ucs.read_upload,
+    merge_sources=bigip_ucs.merge_same_unit,
     max_upload_bytes=bigip_ucs.MAX_UCS_BYTES,
     page_context={
         "analyzer_key": "lb",

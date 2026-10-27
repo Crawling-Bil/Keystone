@@ -1,6 +1,6 @@
 """F5 documentation cited by the Load Balancer Analyzer findings.
 
-Every link below was opened on 2026-10-09 (the Advanced WAF, DoS, logging, sys db, licensing and UCS pages on 2026-10-14) and the page title and the default
+Every link below was opened on 2026-10-09 (the Advanced WAF, DoS, logging, sys db, licensing and UCS pages on 2026-10-14, the sys license / provision / ha-status / performance and net interface / arp pages on 2026-10-24) and the page title and the default
 values quoted in the rule text were read from the page.  The one exception is
 noted explicitly: my.f5.com knowledge-base articles render with JavaScript and
 could not be read from this session, so none of them is cited.
@@ -64,12 +64,23 @@ F5 = {
     "gtm_iquery": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_iquery.html",
     "dns_iquery_troubleshooting": "https://techdocs.f5.com/en-us/bigip-17-5-0/big-ip-dns-implementations/how-to-diagnose-network-connection-issues.html",
     "gtm_topology": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_topology.html",
+    "gtm_global_settings": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_global-settings_general.html",
+    "gtm_region": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_region.html",
+    "ltm_dns_zone": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/ltm/ltm_dns_zone.html",
+    "ltm_dns_nameserver": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/ltm/ltm_dns_nameserver.html",
+    "ltm_dns_cache_resolver": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/ltm/ltm_dns_cache_resolver.html",
     "dos_apps": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/security/security_dos_profile.html",
     "log_profile": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/security/security_log_profile.html",
     "sys_db": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_db.html",
     "software_update": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_software_update.html",
     "daemon_log_mcpd": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_daemon-log-settings_mcpd.html",
     "daemon_log_tmm": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_daemon-log-settings_tmm.html",
+    "sys_license": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_license.html",
+    "sys_provision": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_provision.html",
+    "sys_ha_status": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_ha-status.html",
+    "sys_performance": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/sys/sys_performance_all-stats.html",
+    "net_interface": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/net/net_interface.html",
+    "net_arp": "https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/net/net_arp.html",
     "licensing": "https://techdocs.f5.com/en-us/bigip-16-1-0/big-ip-system-essentials/licensing.html",
     "ucs_archives": "https://techdocs.f5.com/en-us/bigip-14-1-0/big-ip-system-essentials-14-1-0/archives.html",
     "deploying_tls": "https://community.f5.com/kb/technicalarticles/deploying-tls-securely/278307",

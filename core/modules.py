@@ -70,7 +70,7 @@ TOOLS: tuple[Tool, ...] = (
     Tool("lb_analyzer", "Load Balancer Analyzer", "analyze", "offline", "1.0", "/load-balancer-analyzer", "balancer",
          "F5 BIG-IP: virtual server to pool map, monitors, SSL profiles and certificates, persistence, iRules, HA and hardening findings.",
          task="Review a load balancer (F5 virtual servers, pools, SSL, HA)", keywords=("f5", "big-ip", "ucs", "ltm", "gtm")),
-    Tool("topology", "Topology Builder", "analyze", "offline", "0.5", "/topology", "topology",
+    Tool("topology", "Topology Builder", "analyze", "offline", "1.5", "/topology", "topology",
          "Draw the network from CDP/LLDP in device captures: physical, vPC and logical IP views, link speeds, draw.io, report pack, run merge and gaps in the discovery.",
          task="Draw a network diagram from switch and router captures", keywords=("diagram", "drawio", "draw.io", "cdp", "lldp", "map", "visio", "links")),
     # Convert: one page per kind of device, the same five as Analyze. "planned"

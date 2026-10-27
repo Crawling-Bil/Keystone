@@ -10,6 +10,7 @@ tmsh show sys version
 tmsh show sys hardware
 tmsh show sys provision
 tmsh show sys software status
+tmsh show sys license
 tmsh show sys ha-status
 tmsh show sys cpu
 tmsh show sys memory
@@ -20,6 +21,7 @@ tmsh list
 # ---- DNS settings that 'tmsh list' leaves out because they are defaults.
 tmsh list gtm global-settings general
 tmsh list gtm global-settings load-balancing
+tmsh list gtm global-settings metrics
 tmsh list ltm profile dns all-properties
 tmsh list ltm virtual all-properties
 tmsh list ltm virtual-address all-properties
@@ -45,16 +47,20 @@ tmsh show gtm wideip a detail
 # tmsh show gtm wideip srv detail
 # tmsh show gtm wideip naptr detail
 tmsh show gtm pool a detail
-# tmsh show gtm pool a members detail
 # tmsh show gtm pool aaaa detail
 # tmsh show gtm pool cname detail
 # tmsh show gtm pool srv detail
 tmsh show gtm server detail
-# tmsh show gtm server virtual-servers
+# tmsh show gtm server virtual-servers      (shown only in an example on the F5 page; skip it if your release rejects it)
 tmsh show gtm datacenter
 tmsh show gtm iquery
 tmsh show gtm listener
 # tmsh show gtm link
+# ---- Same data in key-value form ('field-fmt' is a documented option of these show commands; the layout is not described, so the capture decides). Run it in addition to the lines above, never instead.
+# tmsh show gtm wideip a field-fmt
+# tmsh show gtm pool a field-fmt
+# tmsh show gtm server field-fmt
+# tmsh show gtm iquery field-fmt
 
 # ---- DNS traffic and services.
 tmsh show ltm virtual
@@ -64,3 +70,5 @@ tmsh show sys performance gtm
 tmsh show sys performance dnsexpress
 tmsh show sys performance dnssec
 tmsh show net interface
+# tmsh show net lldp-neighbors
+# tmsh show sys performance all-stats

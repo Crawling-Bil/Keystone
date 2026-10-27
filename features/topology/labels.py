@@ -41,16 +41,23 @@ def end_texts(conn: Connection) -> tuple[str, str]:
         return ("" if conn.kind == "rollup" and text.endswith(" ports") and len(conn.links) > 1 and text[0].isdigit() else text), ""
     if conn.kind == "l3" and len(conn.links) > 1:      # many subnets shared by one pair: the tables list every address
         return "", ""
+    if conn.kind == "l3r":
+        if conn.l3.get("over2"):                              # L3 over L2: the cables carry the port names, the arc carries the addresses
+            return "", ""
+        return (f"{conn.links[0].a_port} {conn.ip_a}".strip(), f"{conn.links[0].b_port} {conn.ip_b}".strip())
     if conn.kind in ("l3", "l3seg"):
         link = conn.links[0]
         plen = conn.subnet.rsplit("/", 1)[-1] if "/" in conn.subnet else ""
         return (f"{link.a_port} {conn.ip_a}/{plen}".strip(), f"{link.b_port} {conn.ip_b}/{plen}".strip() if conn.ip_b else "")
     if conn.kind == "routed":
         link = conn.links[0]
-        return link.a_port, link.b_port
+        return (f"{link.a_port} {conn.ip_a}".strip() if conn.ip_a else link.a_port), (f"{link.b_port} {conn.ip_b}".strip() if conn.ip_b else link.b_port)
     a = conn.a_po or _short(compress_ports([l.a_port for l in conn.links]), len(conn.links))
     b = conn.b_po or _short(compress_ports([l.b_port for l in conn.links]), len(conn.links))
-    return a, b
+    one = conn.links[0] if len(conn.links) == 1 else None
+    a_ip = conn.po_ip_a if conn.a_po else (one.a_ip if one else "")
+    b_ip = conn.po_ip_b if conn.b_po else (one.b_ip if one else "")
+    return (f"{a} {a_ip}" if a_ip and a else a), (f"{b} {b_ip}" if b_ip and b else b)
 
 
 def speed_summary(graph: Graph, conn: Connection) -> str:
@@ -76,6 +83,9 @@ def bundle_protocol(graph: Graph, conn: Connection) -> str:
 
 
 def center_text(conn: Connection, graph: Graph) -> str:
+    if conn.kind == "l3r":
+        from .l3page import centre_text
+        return centre_text(conn.l3)
     parts: list[str] = []
     speed = speed_summary(graph, conn) if conn.kind in ("bundle", "parallel", "vpc", "peer-link") else ""
     if conn.kind == "peer-link":
@@ -97,12 +107,25 @@ def center_text(conn: Connection, graph: Graph) -> str:
     elif conn.kind == "l3" and len(conn.links) > 1:
         parts.append(f"{len(conn.links)} shared subnets")
     elif conn.kind == "inferred":
-        parts.append("inferred " + "+".join(sorted(conn.protocols)))
+        parts.append("inferred " + "+".join(sorted(conn.protocols)) + (f", {len(conn.links)} links" if len(conn.links) > 1 else ""))
     if conn.vpc_id and conn.kind not in ("peer-link", "vpc"):
         parts.append(f"vPC {conn.vpc_id}")
     if conn.subnet and conn.kind not in ("l3seg", "inferred"):
         parts.append(conn.subnet)
     return " · ".join(parts)
+
+
+def wrap_centre(text: str, width: int = 44) -> list[str]:
+    """A long middle label broken at its ' · ' separators into lines of at most ``width`` characters (a part longer than that is kept whole).
+
+    Used by the SVG preview, the draw.io file and the label placer, so the three agree on how much room the label takes."""
+    lines: list[str] = []
+    for part in text.split(" · "):
+        if lines and len(lines[-1]) + 3 + len(part) <= width:
+            lines[-1] += " · " + part
+        else:
+            lines.append(part)
+    return lines or [text]
 
 
 def node_lines(node) -> list[str]:

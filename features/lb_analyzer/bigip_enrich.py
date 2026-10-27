@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Any
 
-from . import bigip_gtm, bigip_security, ucs_history
+from . import bigip_dns, bigip_gtm, bigip_security, ucs_history
 from .bigip_extract import short
 from .tmsh_tree import TmshTree
 
@@ -23,6 +23,7 @@ from .tmsh_tree import TmshTree
 def enrich(tree: TmshTree, data: dict[str, Any], bundle: Any | None, today: date) -> None:
     data["extra"] = bigip_security.extract(tree, data)
     data["gtm"] = bigip_gtm.extract(tree)                           # None unless the capture has gtm stanzas
+    data["dns"] = bigip_dns.extract(tree)                           # DNS Express zones, name servers, resolvers; None when absent
     used = _certificate_users(tree)
     for cert in data["certs"]:
         cert["used_by"] = sorted(set(used.get(cert["short"], [])))

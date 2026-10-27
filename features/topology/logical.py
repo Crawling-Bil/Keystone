@@ -100,7 +100,8 @@ def logical_page(graph: Graph, page: Page) -> Page | None:
     if not frames:
         return None
     clone = Page(page.name + VIEW_SUFFIX, dict(page.nodes), set(page.ghosts), list(page.boxes), [], {}, page.width, page.height, page.kept,
-                 pair_boxes=frames, view="logical")
+                 pair_boxes=frames, view="logical", curved=page.curved)
+    clone.end_boxes = list(page.end_boxes)
     clone.connections = _collapse(graph, page, frames)
     if len(clone.connections) == len(page.connections):
         return None                                           # nothing collapsed: the physical page already says it all

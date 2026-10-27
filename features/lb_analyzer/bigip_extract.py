@@ -388,6 +388,17 @@ def trunks(tree: TmshTree) -> list[dict[str, Any]]:
     return out
 
 
+def vcmp_guests(tree: TmshTree) -> list[dict[str, Any]]:
+    """The guests a vCMP host defines (``vcmp guest <name> { ... }``): management address, hostname, state and the VLANs handed to the guest.
+    Properties: https://clouddocs.f5.com/cli/tmsh-reference/v14/modules/vcmp/vcmp_guest.html"""
+    out = []
+    for node in tree.named("vcmp", "guest"):
+        out.append({"name": node.name, "short": short(node.name), "hostname": node.val("hostname"), "management_ip": node.val("management-ip"), "management_gw": node.val("management-gw"),
+                    "management_network": node.val("management-network"), "state": node.val("state"), "vlans": [canon(v) for v in node.names("vlans")], "cores_per_slot": node.val("cores-per-slot"),
+                    "slots": node.val("slots"), "allowed_slots": node.names("allowed-slots"), "initial_image": node.val("initial-image")})
+    return out
+
+
 def route_domains(tree: TmshTree) -> list[dict[str, Any]]:
     return [{"name": n.name, "short": short(n.name), "id": n.val("id"), "parent": n.val("parent"), "vlans": n.names("vlans"), "strict": n.val("strict", "enabled")} for n in tree.named("net", "route-domain")]
 
@@ -400,6 +411,8 @@ def devices(tree: TmshTree) -> list[dict[str, Any]]:
         un = node.child("unicast-address")
         for item in (un.children if un else []):
             ip = item.val("ip") or item.val("effective-ip")
+            if ip == "management-ip":        # keyword for "use the management address": show the address it stands for
+                ip = item.val("effective-ip") or node.val("management-ip") or ip
             if ip:
                 unicast.append(ip + (f":{item.val('port') or item.val('effective-port')}" if (item.val("port") or item.val("effective-port")) else ""))
         out.append({
@@ -534,7 +547,7 @@ def extract(tree: TmshTree) -> dict[str, Any]:
         "info": device_info(tree, devs, sysd),
         "virtuals": virtuals(tree), "virtual_addresses": virtual_addresses(tree), "pools": pools(tree), "nodes": nodes(tree), "default_node_monitor": default_node_monitor(tree), "monitors": monitors(tree),
         "profiles": profiles(tree), "security_profiles": security_profiles(tree), "persistence": persistence_profiles(tree), "irules": irules(tree), "policies": policies(tree), "data_groups": data_groups(tree), **snat_data,
-        "vlans": vlans(tree), "selfs": selfs(tree), "routes": routes(tree), "trunks": trunks(tree), "route_domains": route_domains(tree),
+        "vcmp_guests": vcmp_guests(tree), "vlans": vlans(tree), "selfs": selfs(tree), "routes": routes(tree), "trunks": trunks(tree), "route_domains": route_domains(tree),
         "devices": devs, "device_groups": device_groups(tree), "traffic_groups": traffic_groups(tree),
         "sys": sysd, "auth": auth(tree), "certs": certificates(tree),
         "afm_policies": [short(n.name) for n in tree.named("security", "firewall", "policy")],

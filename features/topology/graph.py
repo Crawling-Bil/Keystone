@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .extract import Device, HalfEdge
-from .names import is_ip, port_sort_key, short_host, split_platform
+from .names import canon_port, is_ip, port_sort_key, short_host, split_platform
 
 STATE_RANK = {"inferred": 0, "confirmed": 1, "single": 2, "conflict": 3}
 
@@ -30,11 +30,14 @@ class Link:
     duplex: str = ""
     seen_native_a: str = ""     # native (CDP) / port (LLDP) VLAN that end A advertises about itself, as read in B's neighbor table
     seen_native_b: str = ""     # the same for end B, read in A's neighbor table
+    a_ip: str = ""              # address/prefix of a routed port at end A (L2 views show it next to the port name)
+    b_ip: str = ""
 
     def swap(self) -> None:
         """Turn the link around (a becomes b) and keep the per-end facts with their end."""
         self.a, self.a_port, self.b, self.b_port = self.b, self.b_port, self.a, self.a_port
         self.seen_native_a, self.seen_native_b = self.seen_native_b, self.seen_native_a
+        self.a_ip, self.b_ip = self.b_ip, self.a_ip
 
 
 @dataclass
@@ -52,6 +55,9 @@ class Connection:
     subnet: str = ""            # routed point-to-point network, when the two ends share one
     ip_a: str = ""
     ip_b: str = ""
+    po_ip_a: str = ""           # address/prefix of the port-channel at end A / B, when it is a routed bundle
+    po_ip_b: str = ""
+    l3: dict[str, Any] = field(default_factory=dict)    # layer-3 views: what this line stands for (kind, state, vrf, evidence, routes), see l3page
 
     @property
     def state(self) -> str:
@@ -72,7 +78,11 @@ class Graph:
     hosts: list[dict[str, Any]] = field(default_factory=list)            # end hosts learned from MAC / ARP tables
     hidden_kinds: set[str] = field(default_factory=set)                  # connection kinds kept in the tables but left out of the picture
     hidden_nodes: set[str] = field(default_factory=set)                  # nodes left out of the pictures (option "exclude end points"); tables keep them
+    f5_hosts: list[dict[str, Any]] = field(default_factory=list)         # hosts read from a BIG-IP ARP table (f5neighbors), added to hosts after the MAC tables
+    group_aps: bool = False                                              # access points drawn one by one are framed per switch even when ``group_endpoints`` is off
+    group_endpoints: bool = False                                        # option "group end points under the same switch": the layout frames them per switch
     rolled_roles: dict[str, str] = field(default_factory=dict)           # endpoint nodes folded into a rollup box -> their role
+    chassis_units: dict[str, list[str]] = field(default_factory=dict)    # firewall chassis name -> the node keys of its VDOMs / vsys
 
 
 def link_ratings(graph: "Graph", link: Link) -> tuple[int, int]:
@@ -116,6 +126,25 @@ def _unique_keys(devices: list[Device], graph: Graph) -> None:
         device.key = key
         seen[key] = device
         graph.nodes[key] = device
+        if device.chassis:
+            graph.chassis_units.setdefault(device.chassis, []).append(key)
+
+
+def pick_unit(graph: Graph, key: str, port: str = "") -> str:
+    """A firewall chassis is drawn as one node per VDOM / vsys, and a neighbor knows only the chassis name and the port: the node that owns ``port``.
+    Without a port (or one nobody owns) the first node of the chassis stands for it."""
+    node = graph.nodes.get(key)
+    if node is None or not node.chassis:
+        return key
+    units = graph.chassis_units.get(node.chassis) or [key]
+    if len(units) > 1 and port:
+        want = canon_port(port)
+        for unit in units:
+            if want in graph.nodes[unit].unit_ports:
+                return unit
+        if "." in want:                                  # port5.100: the VLAN sub-interface belongs to the VDOM of its parent port
+            return pick_unit(graph, key, want.split(".")[0])
+    return key
 
 
 def _indexes(graph: Graph):
@@ -131,6 +160,8 @@ def _indexes(graph: Graph):
         for ip in device.ips | ({device.mgmt_ip} if device.mgmt_ip else set()):
             by_ip.setdefault(ip, key)
         by_host.setdefault(device.hostname, key)
+        if device.chassis:
+            by_host.setdefault(device.chassis, key)
     return by_serial, by_ip, by_host, by_mac
 
 
@@ -167,12 +198,12 @@ def _stub_for(graph: Graph, half: HalfEdge, by_serial, by_ip, by_host, by_mac) -
 def _resolve(graph: Graph, half: HalfEdge, indexes) -> str:
     by_serial, by_ip, by_host, by_mac = indexes
     if half.remote_serial and half.remote_serial in by_serial:
-        return by_serial[half.remote_serial]
+        return pick_unit(graph, by_serial[half.remote_serial], half.remote_port)
     if half.remote_chassis and half.remote_chassis in by_mac:
-        return by_mac[half.remote_chassis]
+        return pick_unit(graph, by_mac[half.remote_chassis], half.remote_port)
     host = short_host(half.remote_name)
     if host in by_host:
-        return by_host[host]
+        return pick_unit(graph, by_host[host], half.remote_port)
     if half.remote_ip and half.remote_ip in by_ip:
         return by_ip[half.remote_ip]
     if is_ip(host) and host in by_ip:

@@ -75,6 +75,10 @@ class Device:
     port_state: dict[str, str] = field(default_factory=dict)          # canonical port -> up / down / admin down
     capture_gap: str = ""                                             # why the capture is incomplete (cut at the top, no running-config ...)
     wireless_clients: dict[str, int] = field(default_factory=dict)    # canonical access-point port -> client MACs learned behind it
+    l3facts: dict[str, Any] = field(default_factory=dict)             # routes by next hop, routing neighbors, SD-WAN sessions, tunnels (see l3facts.py)
+    chassis: str = ""                                                 # a firewall drawn as one node per VDOM / vsys: the name of the box they share ...
+    unit: str = ""                                                    # ... the VDOM / vsys this node is ...
+    unit_ports: set[str] = field(default_factory=set)                 # ... and the canonical ports it owns (a neighbor's cable lands on the node that owns the remote port)
 
     @property
     def label_lines(self) -> list[str]:

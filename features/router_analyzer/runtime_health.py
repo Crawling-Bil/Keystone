@@ -552,6 +552,38 @@ def parse_license_store(lines: list[str]) -> list[dict[str, Any]]:
     return rows
 
 
+_DETAIL_HEAD = re.compile(r"^Index:\s*(\d+)\s+Feature:\s*(\S+)\s+Version:\s*(\S+)")
+
+
+def parse_license_detail(lines: list[str]) -> dict[str, Any]:
+    """``show license detail`` of a router with classic (right-to-use) licensing: ``show license all`` without the ``License Store`` headings.
+
+    Each entry starts with ``Index: n  Feature: name  Version: v`` and names its store on a ``Store Name:`` line; the rows come out in
+    the shape :func:`parse_license_store` returns, so one table and one rule serve both commands.
+    """
+    rows: list[dict[str, Any]] = []
+    cur: dict[str, Any] | None = None
+    for line in lines:
+        text = line.strip()
+        head = _DETAIL_HEAD.match(text)
+        if head:
+            cur = {"store": "", "feature": head.group(2), "version": head.group(3), "type": "", "state": "", "count": "", "priority": "", "eval_left": "", "eval_total": ""}
+            rows.append(cur)
+            continue
+        if cur is None:
+            continue
+        for key, label in (("type", "License Type:"), ("state", "License State:"), ("count", "License Count:"), ("priority", "License Priority:"), ("store", "Store Name:")):
+            if text.startswith(label):
+                cur[key] = text.split(":", 1)[1].strip()
+        left = _EVAL_LEFT.match(text)
+        if left:
+            cur["eval_left"] = re.sub(r"\s+", " ", left.group(1))
+        total = re.match(r"Evaluation total period:\s*(.+?)\s*$", text)
+        if total:
+            cur["eval_total"] = re.sub(r"\s+", " ", total.group(1))
+    return {"store": rows, "command": "show license detail"} if rows else {}
+
+
 def parse_license_all(lines: list[str]) -> dict[str, Any]:
     """``show license all`` / ``show license status``: Smart Licensing (using policy) fields and, on classic licensing, the licence stores."""
     text = "\n".join(lines)

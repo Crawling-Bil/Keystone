@@ -364,8 +364,9 @@ def test_a_line_that_would_cross_a_device_is_bent_around_it():
     page.connections = [Connection("A", "C", [Link("A", "e1", "C", "e1", "confirmed")]), Connection("A", "B", [Link("A", "e2", "B", "e2", "confirmed")])]
     _route(page)
     assert 0 in page.routes and 1 not in page.routes           # A-C passes through B, A-B is clear
-    (x, y), = page.routes[0]
-    assert abs(y - 38) >= 60                                    # bent clear of the row
+    (x1, y1), (x2, y2) = page.routes[0]
+    assert abs(y1 - 38) >= 60 and abs(y1 - y2) < 0.5            # a flat run clear of the row, over the device in between
+    assert x1 < 230 < x2
 
 
 def test_parallel_connections_between_two_devices_are_spread_apart():

@@ -9,6 +9,8 @@ from typing import Any, Iterable
 
 from ..analyzer_core.findings import finding
 from .bigip_context import LCtx, listing
+from .bigip_extract import canon
+from .bigip_gtm import ltm_matches
 from .refs import F5
 
 TOPOLOGY_MODES = {"topology"}
@@ -22,6 +24,21 @@ def gtm_rules(ctx: LCtx) -> Iterable[dict[str, Any]]:
     pools = {(p["type"] or "a", p["name"]): p for p in g["pools"]}
     servers = {s["name"]: s for s in g["servers"]}
     dcs = {d["name"] for d in g["datacenters"]}
+
+    match = ltm_matches(g, ctx.data.get("virtuals") or [])
+    for p in g["pools"]:
+        if p["disabled"]:
+            continue
+        down = [m["name"] for m in p["members"] if not m["disabled"] and (match.get((canon(m["server"]), canon(m["virtual_server"]))) or {}).get("enabled", True) is False]
+        if down:
+            out.append(finding("LB-GTM-012", "medium", "DNS (GTM)", "Pool member points at a disabled LTM virtual server", obj=f"gtm pool {p['type']} {p['name']}".replace("  ", " "),
+                               detail=f"Member(s) {listing(down)} of {p['name']} use a virtual server whose address and port match an LTM virtual server of this unit that is disabled, so they cannot serve traffic" + (f"; wide IP(s) {listing(p['wideips'])} depend on this pool." if p["wideips"] else "."),
+                               recommendation="Enable the LTM virtual server, or disable/remove the GTM pool member so the wide IP does not rely on it.", reference=F5["gtm_pool"]))
+    devices = ctx.data.get("devices") or []
+    if len(devices) >= 2 and str(g["settings"].get("general", {}).get("synchronization", "no")).lower() not in ("yes", "enabled"):
+        out.append(finding("LB-GTM-013", "low", "DNS (GTM)", "GTM configuration synchronization is off", obj="gtm global-settings general",
+                           detail=f"This capture lists {len(devices)} devices but 'gtm global-settings general synchronization' is not 'yes' (documented default: no). Wide IPs, pools and servers are then maintained on each DNS unit separately and drift apart.",
+                           recommendation="Join the units to one sync group ('synchronization yes', same synchronization-group-name) or keep both units identical by hand and compare them regularly.", reference=F5["gtm_global_settings"]))
 
     for w in g["wideips"]:
         if w["disabled"]:
@@ -76,6 +93,18 @@ def gtm_rules(ctx: LCtx) -> Iterable[dict[str, Any]]:
                                detail=f"{s['name']} is a '{s['product']}' server, which does not report its state over iQuery, and neither the server nor its virtual servers have a monitor: it is always treated as up.",
                                recommendation="Assign a monitor (for example gateway_icmp, tcp or http) to the server or to its virtual servers.", reference=F5["gtm_server"]))
 
+    regions = {r["name"] for r in g.get("region_records", [])}
+    for rec in g.get("topology_records", []):
+        for side, text in (("LDNS", rec["ldns"]), ("answer", rec["server"])):
+            words = text.split()
+            for kind, known, label in (("region", regions, "region"), ("datacenter", dcs, "data center")):
+                if kind in words and words.index(kind) + 1 < len(words):
+                    ref = canon(words[words.index(kind) + 1])
+                    if ref not in known:
+                        out.append(finding("LB-GTM-014", "medium", "DNS (GTM)", f"Topology record refers to an unknown {label}", obj=f"gtm topology ldns: {rec['ldns']} server: {rec['server']}",
+                                           detail=f"The {side} side names {label} {ref}, which is not defined in this capture (partial export, other partition or a deleted object), so the record can never match.",
+                                           recommendation=f"Create the {label}, export all partitions, or delete the record.", reference=F5["gtm_region" if kind == "region" else "gtm_topology"]))
+
     used_dcs = {s["datacenter"] for s in g["servers"]}
     empty = [d["name"] for d in g["datacenters"] if d["name"] not in used_dcs]
     if empty:
@@ -110,4 +139,31 @@ def gtm_runtime_rules(ctx: LCtx) -> Iterable[dict[str, Any]]:
             out.append(finding("LB-GTM-022", "medium", "DNS (GTM)", f"GTM server is {server['availability'].lower()}", obj=f"gtm server {server['name']}",
                                detail=f"{server['name']}: {server['reason'] or server['availability']}. Every pool member on it is treated as down.",
                                recommendation="Check the server monitor, iQuery and the network path to it.", reference=F5["gtm_server"]))
+    return out
+
+
+# ===================================================================== DNS Express, name servers, resolvers
+def dns_rules(ctx: LCtx) -> Iterable[dict[str, Any]]:
+    d = ctx.data.get("dns")
+    if not d:
+        return []
+    out: list[dict[str, Any]] = []
+    nameservers = {n["name"] for n in d["nameservers"]}
+    for z in d["zones"]:
+        if z["express"] == "no":
+            continue
+        if not z["server"]:
+            out.append(finding("LB-DNS-001", "medium", "DNS (GTM)", "DNS Express zone has no primary name server", obj=f"ltm dns zone {z['name']}",
+                               detail=f"{z['name']} is a DNS Express zone but 'dns-express-server' is empty, so there is no server to transfer it from and it stays empty.",
+                               recommendation="Set dns-express-server to an 'ltm dns nameserver' that allows zone transfers (AXFR/IXFR) to this BIG-IP.", reference=F5["ltm_dns_zone"]))
+        elif z["server"] not in nameservers:
+            out.append(finding("LB-DNS-001", "medium", "DNS (GTM)", "DNS Express zone refers to an unknown name server", obj=f"ltm dns zone {z['name']}",
+                               detail=f"{z['name']} takes its data from {z['server']}, which is not defined with 'ltm dns nameserver' in this capture.",
+                               recommendation="Create the name server object or correct the reference.", reference=F5["ltm_dns_nameserver"]))
+    for r in d["resolvers"]:
+        for zone, servers in r["forward"].items():
+            if not servers:
+                out.append(finding("LB-DNS-002", "low", "DNS (GTM)", "Forward zone has no name server", obj=f"dns resolver {r['name']}",
+                                   detail=f"Forward zone '{zone or '.'}' of resolver {r['name']} lists no name server, so queries for it cannot be forwarded.",
+                                   recommendation="Add the upstream name servers or remove the forward zone.", reference=F5["ltm_dns_cache_resolver"]))
     return out

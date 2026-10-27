@@ -24,8 +24,13 @@ DOCS: dict[str, tuple[str, str]] = {
     "vsf": ("AOS-CX 10.16 Virtual Switching Framework (VSF) Guide", aoscx.GUIDE_DOCS["vsf"]),
     "interface": ("AOS-CX 10.16 show interface (Fundamentals Guide)", aoscx.GUIDE_DOCS["interface"]),
     "stp_edge": ("AOS-CX 10.16 Layer-2 Bridging Guide - spanning tree on edge ports", aoscx.GUIDE_DOCS["stp_edge"]),
+    "stp_detail": ("AOS-CX 10.16 Layer-2 Bridging Guide - show spanning-tree detail", aoscx.GUIDE_DOCS["stp_detail"]),
+    "stp_tc_history": ("Aruba community - AOS-CX spanning tree topology change history (event log: show logging -r -c mstp)", aoscx.COMMUNITY_DOCS["stp_tc_history"]),
+    "lldp_config": ("AOS-CX 10.14 Fundamentals Guide - Configuring the LLDP agent", aoscx.GUIDE_DOCS["lldp_config"]),
     "events": ("AOS-CX 10.15 Event Log Message Reference Guide", aoscx.EVENT_DOCS["home"]),
     "power": ("AOS-CX 10.15 Event Log Message Reference - Power events", aoscx.EVENT_DOCS["power"]),
+    "modules": ("AOS-CX 10.06 Command-Line Interface Guide - show module (status values)", "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.06/HTML/5200-7690/GUID-514B3804-F171-4980-A512-0C2450092B26.html"),
+    "resources": ("AOS-CX CLI Bank - show system resource-utilization", "https://arubanetworking.hpe.com/techdocs/AOS-CX/AOSCX-CLI-Bank/cli_4100i/Content/SysHW_cmds/sho-sys-res-uti-10.htm"),
     "ssh": ("AOS-CX 10.15 Event Log Message Reference - SSH server events", aoscx.EVENT_DOCS["ssh"]),
 }
 
@@ -127,6 +132,50 @@ def _rules_vsf(findings: list[dict[str, Any]], view: dict[str, Any]) -> None:
         _add(findings, "SW-CX-004", "high", f"VSF status is {state}", f"show vsf reports Status {state}; the stack is split.", where="show vsf", doc="vsf")
 
 
+def _rules_modules(findings: list[dict[str, Any]], view: dict[str, Any]) -> None:
+    bad = [m for m in view.get("module_status") or [] if m["status"].strip().lower().split(" (")[0] in aoscx.MODULE_BAD]
+    if bad:
+        _add(findings, "SW-CX-016", "high", f"{len(bad)} module(s) are not ready",
+             "show module: " + ", ".join(f"{m['kind'].capitalize()} module {m['name']} ({m['product_number']}) is {m['status']}" for m in bad[:6])
+             + ". Active, Standby and Ready are the working states; Failed, Down, Diagnostic, Initializing, Updating, Present or Empty mean that the module does not forward (yet).",
+             where="show module", doc="modules")
+
+
+CPU_HIGH = 80          # five-minute average, percent
+MEMORY_WATCH, MEMORY_HIGH = 80, 90
+PARTITION_WATCH, PARTITION_HIGH = 80, 90
+ENDURANCE_WATCH = 80   # upper end of the eMMC endurance range
+
+
+def _rules_resources(findings: list[dict[str, Any]], view: dict[str, Any]) -> None:
+    res = view.get("resources") or {}
+    if not res:
+        return
+    busiest = ", ".join(f"{row['process']} {row['cpu']}%" for row in res.get("top", [])[:3])
+    cpu = res.get("cpu_5m", res.get("cpu", 0))
+    if cpu >= CPU_HIGH:
+        _add(findings, "SW-CX-017", "high", f"CPU averages {cpu}% over five minutes",
+             f"show system resource-utilization: CPU now {res.get('cpu', '?')}%, one minute {res.get('cpu_1m', '?')}%, five minutes {res.get('cpu_5m', '?')}%. Busiest processes: {busiest}. "
+             "A control-plane CPU this busy slows protocol convergence and management access; look at the busiest process first (a routing process after a topology change, a monitoring agent, a loop that floods the CPU).",
+             where="show system resource-utilization", doc="resources")
+    memory = res.get("memory", 0)
+    if memory >= MEMORY_WATCH:
+        _add(findings, "SW-CX-018", "high" if memory >= MEMORY_HIGH else "medium", f"Memory use is {memory}%",
+             f"show system resource-utilization reports memory usage {memory}% with {res.get('processes', '?')} processes and {res.get('open_fds', '?')} open file descriptors. Compare with a capture taken later: use that keeps growing is a leak, use that stays flat is a full table.",
+             where="show system resource-utilization", doc="resources")
+    full = {name: value for name, value in res.get("partitions", {}).items() if value >= PARTITION_WATCH}
+    if full:
+        _add(findings, "SW-CX-019", "high" if any(v >= PARTITION_HIGH for v in full.values()) else "medium", "A storage partition is nearly full: " + ", ".join(f"{n} {v}%" for n, v in full.items()),
+             "show system resource-utilization, Storage partition usage. A full Nos (software), Log or Coredump partition stops upgrades, logging or core-file capture; remove old images or logs, or copy the core files off the switch.",
+             where="show system resource-utilization", doc="resources")
+    for item in res.get("storage", []):
+        health = item.get("health", "").strip()
+        if (health and health.lower() != "normal") or item.get("worn_to", 0) >= ENDURANCE_WATCH:
+            _add(findings, "SW-CX-020", "high", f"Storage {item['storage']} reports health {health or 'unknown'} and endurance {item['endurance']}",
+                 "show system resource-utilization: the flash that holds the software is worn or reports a fault. Plan the replacement of the member (flash cannot be changed in the field) and keep a current copy of the configuration.",
+                 where="show system resource-utilization", doc="resources")
+
+
 def _rules_ports(findings: list[dict[str, Any]], view: dict[str, Any]) -> None:
     ports = [item for item in view["interfaces"].values() if item.get("kind") == "port"]
     if not ports:
@@ -195,6 +244,86 @@ def _rules_stp(findings: list[dict[str, Any]], view: dict[str, Any]) -> None:
              f"Root for {_names([i['id'] for i in default_priority], 8)} with bridge priority 32768. At the default priority the root is the switch with the lowest MAC address, "
              "so an access switch can win it when a newer switch is added. If this switch is not meant to be the root, set a lower priority on the intended root.",
              where="show spanning-tree", doc="stp_edge")
+
+
+FLAP_WATCH = 10          # moves to the forwarding state of one port since its spanning-tree instance started
+FLAP_HIGH = 50
+TC_WATCH = 20            # topology changes counted by one instance
+TC_HIGH = 100
+TC_RECENT_SECONDS = 3600
+
+
+def _seconds_text(seconds: int) -> str:
+    days, rest = divmod(int(seconds), 86400)
+    return f"{days} d {rest // 3600} h" if days else (f"{rest // 3600} h {rest % 3600 // 60} min" if rest >= 3600 else f"{rest // 60} min")
+
+
+def _rules_stp_detail(findings: list[dict[str, Any]], view: dict[str, Any]) -> None:
+    """Counters that only ``show spanning-tree detail`` prints: moves to forwarding per port, and the topology change count and age per instance."""
+    stp = view["stp"]
+    if not stp.get("detailed"):
+        return
+    worst: dict[str, tuple[int, str]] = {}
+    for port in stp.get("ports", []):
+        count = port.get("forwarding_transitions")
+        if count is None or port["role"] == "Dis":
+            continue
+        old = worst.get(port["interface"])
+        if old is None or count > old[0]:
+            worst[port["interface"]] = (count, port["instance"])
+    flapping = sorted(((n, c, inst) for n, (c, inst) in worst.items() if c >= FLAP_WATCH), key=lambda item: -item[1])
+    if flapping:
+        top = flapping[0]
+        _add(findings, "SW-CX-021", "medium" if top[1] >= FLAP_HIGH else "low", f"{len(flapping)} port(s) moved to the spanning-tree forwarding state {FLAP_WATCH} times or more",
+             "show spanning-tree detail, 'Number of transitions to forwarding state': " + _names([f"{n} {c} times (first seen in {inst})" for n, c, inst in flapping], 6)
+             + ". A port enters the forwarding state again after every link-down/link-up or every time its neighbour's BPDUs stop and return, and each time the VLANs it carries lose traffic for the convergence time. "
+             "A trunk or LAG shows the same value in every VLAN it carries. The counter has no time base in this output, so compare it with the uptime of the switch; "
+             f"the thresholds ({FLAP_WATCH} and {FLAP_HIGH}) are Keystone heuristics.",
+             where="show spanning-tree detail", doc="stp_detail")
+    changed = [i for i in stp.get("instances", []) if (i.get("topology_changes") or 0) >= TC_WATCH]
+    recent = [i for i in stp.get("instances", []) if i.get("last_change_seconds") is not None and i["last_change_seconds"] < TC_RECENT_SECONDS and (i.get("topology_changes") or 0) >= 3]
+    if changed or recent:
+        top = max(changed or recent, key=lambda i: i.get("topology_changes") or 0)
+        ordered = sorted(changed or recent, key=lambda i: -(i.get("topology_changes") or 0))
+        newest = min((i["last_change_seconds"] for i in stp["instances"] if i.get("last_change_seconds") is not None), default=None)
+        severity = "medium" if recent or (top["topology_changes"] or 0) >= TC_HIGH else "low"
+        _add(findings, "SW-CX-022", severity, f"Spanning-tree topology changes: {top['id']} counted {top['topology_changes']}" + (f", {len(ordered) - 1} more instance(s) above {TC_WATCH}" if len(ordered) > 1 else ""),
+             "show spanning-tree detail, 'Number of topology changes': " + _names([f"{i['id']} {i['topology_changes']} (last {_seconds_text(i['last_change_seconds']) + ' ago' if i.get('last_change_seconds') is not None else i.get('last_change') or '?'})" for i in ordered], 5)
+             + (f". The newest change in any instance is {_seconds_text(newest)} old" if newest is not None else "")
+             + ". Every change makes the switch age out the MAC addresses of that VLAN so traffic is flooded until they are learned again. Aruba suggests the event log for the port and source of each change "
+             f"('show logging -r -c mstp'). Thresholds ({TC_WATCH} changes, {_seconds_text(TC_RECENT_SECONDS)}, {TC_HIGH} for medium) are Keystone heuristics.",
+             where="show spanning-tree detail", doc="stp_tc_history")
+
+
+def _rules_lldp(findings: list[dict[str, Any]], view: dict[str, Any]) -> None:
+    """``show lldp configuration``: LLDP off, or receive / transmit off on ports that have a link. Neighbour discovery, and with it the topology map, depends on it."""
+    config = view.get("lldp_config") or {}
+    if not config:
+        return
+    up = {name for name, item in view["interfaces"].items() if item.get("kind") == "port" and item.get("oper_state") == "up"}
+    if config["enabled"] is False:
+        _add(findings, "SW-CX-023", "medium", "LLDP is disabled on the switch",
+             "show lldp configuration: 'LLDP Enabled: No'. The switch neither sends nor reads LLDP, so 'show lldp neighbor-info' stays empty and the topology builder cannot draw "
+             "the links of this switch from its own capture (the neighbours still see nothing from it either). The global command 'lldp' enables it again.",
+             where="show lldp configuration", doc="lldp_config")
+        return
+    rx_off = [p["port"] for p in config["ports"] if not p["rx"] and (not up or p["port"] in up)]
+    tx_off = [p["port"] for p in config["ports"] if not p["tx"] and (not up or p["port"] in up)]
+    if rx_off or tx_off:
+        parts = []
+        if rx_off:
+            parts.append(f"receive is off on {_names(rx_off)}: neighbours behind them are not learned, so the topology builder shows no link there")
+        if tx_off:
+            parts.append(f"transmit is off on {_names(tx_off)}: the far end does not see this switch")
+        _add(findings, "SW-CX-024", "low", f"LLDP is switched off in one direction on {len(set(rx_off) | set(tx_off))} port(s) that are linked",
+             "show lldp configuration: " + "; ".join(parts) + (" (ports with a link only, from show interface)" if up else "") + ". "
+             "'lldp receive' and 'lldp transmit' in the interface context control the two directions (the guide's example turns transmit off with 'no lldp transmit'). On an access or user port this is usually deliberate; on an uplink, a LAG member or a server port it hides the neighbour.",
+             where="show lldp configuration", doc="lldp_config")
+    if config["tlvs"] and not any("management address" in t.lower() for t in config["tlvs"]):
+        _add(findings, "SW-CX-025", "low", "LLDP does not advertise the management address",
+             "show lldp configuration, 'TLVs Advertised' has no 'Management Address'. Neighbours (and Keystone) then identify this switch by chassis ID only, so a neighbour table cannot "
+             "link it to its management IP. The 'lldp select-tlv' and 'lldp management-ipv4-address' commands (Configuring the LLDP agent) choose what is advertised.",
+             where="show lldp configuration", doc="lldp_config")
 
 
 def _rules_log(findings: list[dict[str, Any]], facts: dict[str, Any]) -> None:
@@ -316,8 +445,12 @@ def build(clean: list[str], view: dict[str, Any], *, facts: dict[str, Any] | Non
     findings: list[dict[str, Any]] = []
     _rules_lag(findings, view)
     _rules_vsf(findings, view)
+    _rules_modules(findings, view)
+    _rules_resources(findings, view)
     _rules_ports(findings, view)
     _rules_stp(findings, view)
+    _rules_stp_detail(findings, view)
+    _rules_lldp(findings, view)
     _rules_log(findings, facts)
     for row in view["environment"]:
         if row["problem"]:
@@ -347,6 +480,40 @@ def build(clean: list[str], view: dict[str, Any], *, facts: dict[str, Any] | Non
     hints = {"lacp": "Not in this capture. Add show lacp interface.", "env": "Not in this capture. Add show environment fan, power-supply and temperature."}
     findings.sort(key=lambda item: (SEVERITY_ORDER[item["severity"]], item["code"], item["where"]))
     health["findings"] = findings
+    tables: list[dict[str, Any]] = []
+    if view.get("module_status"):
+        tables.append({"tab": "health", "id": "cx-modules", "title": "Modules",
+                       "hint": "From show module: the management and line modules of every VSF member, with the status the switch reports (Active, Standby and Ready are the working states).",
+                       "columns": [{"key": "kind", "label": "Type"}, {"key": "name", "label": "Member/slot"}, {"key": "product_number", "label": "Product"}, {"key": "description", "label": "Description"},
+                                   {"key": "serial", "label": "Serial"}, {"key": "status", "label": "Status", "status": True}],
+                       "rows": [dict(row, kind=row["kind"].capitalize()) for row in view["module_status"]]})
+    res = view.get("resources") or {}
+    if res:
+        rows = [{"item": "CPU now / 1 min / 5 min", "value": f"{res.get('cpu', '?')}% / {res.get('cpu_1m', '?')}% / {res.get('cpu_5m', '?')}%"},
+                {"item": "Memory", "value": f"{res.get('memory', '?')}%"}, {"item": "Processes / open file descriptors", "value": f"{res.get('processes', '?')} / {res.get('open_fds', '?')}"}]
+        rows += [{"item": f"Storage {s['storage']}", "value": f"endurance {s['endurance']}, health {s['health'] or 'not reported'}"} for s in res.get("storage", [])]
+        rows += [{"item": f"Partition {name}", "value": f"{value}% used, {res.get('written', {}).get(name, '?')} written since boot"} for name, value in res.get("partitions", {}).items()]
+        tables.append({"tab": "health", "id": "cx-resources", "title": "Resource use",
+                       "hint": "From show system resource-utilization. CPU and memory are percentages of the member that answered; the partitions are the flash file systems.",
+                       "columns": [{"key": "item", "label": "Item"}, {"key": "value", "label": "Value"}], "rows": rows})
+        tables.append({"tab": "health", "id": "cx-processes", "title": "Busiest processes", "hint": "From show system resource-utilization: the five processes with the highest CPU use now.",
+                       "columns": [{"key": "process", "label": "Process"}, {"key": "cpu", "label": "CPU %"}, {"key": "memory", "label": "Memory %"}, {"key": "open_fds", "label": "Open FDs"}], "rows": res.get("top", [])})
+    cfg = view.get("lldp_config") or {}
+    if cfg:
+        yes = lambda value: "-" if value is None else ("Yes" if value else "No")
+        off = [p for p in cfg["ports"] if not (p["tx"] and p["rx"])]
+        rows = [{"item": "LLDP enabled", "value": yes(cfg["enabled"])},
+                {"item": "Transmit interval / hold multiplier", "value": f"{cfg['interval'] if cfg['interval'] is not None else '?'} s x {cfg['hold'] if cfg['hold'] is not None else '?'}"
+                 + (f" = {cfg['interval'] * cfg['hold']} s time to live" if cfg["interval"] and cfg["hold"] else "")},
+                {"item": "Transmit delay / re-initialisation", "value": f"{cfg['tx_delay'] if cfg['tx_delay'] is not None else '?'} s / {cfg['reinit'] if cfg['reinit'] is not None else '?'} s"},
+                {"item": "SNMP trap", "value": yes(cfg["trap"])},
+                {"item": "TLVs advertised", "value": ", ".join(cfg["tlvs"]) or "none listed"},
+                {"item": "Ports", "value": f"{len(cfg['ports'])} listed, {len(cfg['ports']) - len(off)} with transmit and receive on" + (f"; off: {_names([p['port'] + (' (no tx)' if not p['tx'] else '') + (' (no rx)' if not p['rx'] else '') for p in off], 8)}" if off else "")}]
+        tables.append({"tab": "health", "id": "cx-lldp", "title": "LLDP configuration",
+                       "hint": "From show lldp configuration. Neighbour discovery (and the topology map) reads LLDP; a port with receive off cannot learn its neighbour. The time to live is the transmit interval times the hold multiplier.",
+                       "columns": [{"key": "item", "label": "Item"}, {"key": "value", "label": "Value"}], "rows": rows})
+    health["extra_tables"] = tables
+    health["extra_counts"] = {"modules": len(view.get("module_status") or []), "resources": 1 if res else 0, "lldp_config": len((view.get("lldp_config") or {}).get("ports") or []) or (1 if view.get("lldp_config") else 0)}
     health["counts"] = {level: sum(1 for item in findings if item["severity"] == level) for level in SEVERITY_ORDER}
     health["capture"] = {"missing": missing, "config_found": bool(_running_config(clean)), "hints": hints}
     return health

@@ -9,11 +9,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from datetime import datetime
+
 from ..analyzer_core.result import kv_section, table_section
 from .context import Ctx
+from . import runtime_sdwan_extra as rse
+from .netutil import human_bytes
 
 GROUP = "SD-WAN overlay"
 MAX_OMP_ROWS = 20000
+MAX_TUNNEL_ROWS = 5000
+ONE_WAY_MIN_PACKETS = 1000     # a tunnel's BFD hellos alone exceed this within minutes, so zero received after this many sent is not a quiet tunnel
 _UNUSABLE_TONE = "warn"
 
 
@@ -51,10 +57,38 @@ def _code_meaning(status: str, legend: dict[str, str]) -> str:
     return ", ".join(legend.get(code, code) for code in status.split(","))
 
 
+def omp_counters(ctx: Ctx, summary: dict[str, Any], peers: list[dict[str, Any]] | None) -> dict[str, Any]:
+    """'show sdwan omp summary': the router's own OMP counters, with the vSmart count checked against the OMP session table when both were captured."""
+    up = summary.get("oper_state", "").upper() == "UP"
+    count = summary.get("vsmart_peers")
+    pairs: list[tuple] = [("OMP operational state", summary.get("oper_state", ""), "ok" if up else "bad"), ("OMP administrative state", summary.get("admin_state", ""), "ok" if summary.get("admin_state", "").upper() == "UP" else "warn"),
+                          ("OMP uptime (d:h:m:s)", summary.get("omp_uptime", ""), "")]
+    if count is not None:
+        pairs.append(("vSmart controllers connected", count, "bad" if count == 0 else ("warn" if count == 1 else "ok")))
+        if peers is not None:
+            sessions = sum(1 for p in peers if p["type"] == "vsmart" and p["state"] == "up")
+            pairs.append(("vSmart sessions up in 'show sdwan omp peers'", sessions, "ok" if sessions == count else "warn"))
+    for key, label in (("routes", "Routes"), ("tlocs", "TLOCs"), ("services", "Services")):
+        got, inst, sent = summary.get(f"{key}_received"), summary.get(f"{key}_installed"), summary.get(f"{key}_sent")
+        if got is not None:
+            pairs.append((f"{label} received / installed / sent", f"{got:,} / {inst if inst is None else format(inst, ',')} / {sent if sent is None else format(sent, ',')}", ""))
+    for label, sent, received in (("OMP hello", "hello_sent", "hello_received"), ("OMP update", "update_sent", "update_received"), ("OMP handshake", "handshake_sent", "handshake_received"),
+                                  ("OMP alert", "alert_sent", "alert_received"), ("OMP inform", "inform_sent", "inform_received"), ("Policy messages", "policy_sent", "policy_received")):
+        if sent in summary:
+            tone = "warn" if label == "OMP alert" and (summary[sent] or summary.get(received)) else ""
+            pairs.append((f"{label} sent / received", f"{summary[sent]:,} / {summary.get(received, 0):,}", tone))
+    return kv_section("sdwan_omp_counters", "OMP summary (this router)", pairs, group=GROUP,
+                      hint="'show sdwan omp summary'. Cisco's API page for the same data lists these counters without defining them; sent and received hello counts that drift far apart, or a rising alert count, "
+                           "point at an unstable control channel. A router normally shows 2 vSmart controllers.")
+
+
 def omp(ctx: Ctx) -> list[dict[str, Any]]:
     sections: list[dict[str, Any]] = []
     peers = ctx.get("sdwan_omp_peers")
     routes = ctx.get("sdwan_omp_routes")
+    summary = ctx.get("sdwan_omp_summary")
+    if summary:
+        sections.append(omp_counters(ctx, summary, peers))
     if peers is not None or routes:
         pairs: list[tuple] = []
         if peers:
@@ -218,10 +252,183 @@ def policy(ctx: Ctx) -> list[dict[str, Any]]:
     return sections
 
 
+# ---------------------------------------------------------------------------
+# Certificates, tunnel traffic, BFD history
+# ---------------------------------------------------------------------------
+
+
+def stamp_text(stamp: str) -> str:
+    """ISO stamp -> 'YYYY-MM-DD HH:MM:SS' (the stamps are the router's own wall clock)."""
+    return stamp.replace("T", " ") if stamp else ""
+
+
+def days_left(stamp: str, now: datetime | None) -> int | None:
+    """Whole days from the capture clock to an ISO stamp; negative when it is in the past, None without a clock or stamp."""
+    if not stamp or now is None:
+        return None
+    try:
+        return int((datetime.fromisoformat(stamp) - now).total_seconds() / 86400)     # whole days, toward zero
+    except ValueError:
+        return None
+
+
+def days_ago(stamp: str, now: datetime | None) -> float | None:
+    """Days from an ISO stamp up to the capture clock (negative when the stamp is later), None when either is missing."""
+    if not stamp or now is None:
+        return None
+    try:
+        return (now - datetime.fromisoformat(stamp)).total_seconds() / 86400
+    except ValueError:
+        return None
+
+
+def cert_tone(days: int | None) -> str:
+    if days is None:
+        return ""
+    return "bad" if days <= 30 else ("warn" if days <= 90 else "ok")
+
+
+def certificates(ctx: Ctx) -> list[dict[str, Any]]:
+    data = ctx.get("sdwan_certificates")
+    if not data:
+        return []
+    now = ctx.capture_time()
+    rows = []
+    for c in data["certificates"]:
+        days = days_left(c["not_after"], now)
+        rows.append({"section": c["section"], "subject": c["subject"].get("CN", ""), "organization": c["subject"].get("O", ""), "issuer": c["issuer"].get("CN", ""), "valid_from": c["not_before"][:10], "valid_until": c["not_after"][:10],
+                     "days": "expired" if days is not None and days < 0 else ("" if days is None else days), "key": f"{c['key_bits']} bit" if c["key_bits"] else "", "algorithm": c["algorithm"],
+                     "_tones": {"days": cert_tone(days), "valid_until": cert_tone(days)}})
+    empty = ", ".join(data["empty_sections"])
+    return [table_section("sdwan_certificates", "Installed certificates", [("section", "Section"), ("subject", "Subject (CN)"), ("organization", "Organization"), ("issuer", "Issuer (CN)"), ("valid_from", "Valid from"), ("valid_until", "Valid until"),
+                                                                       ("days", "Days left at capture", "num"), ("key", "Key"), ("algorithm", "Signature")], rows, group=GROUP, searchable=False,
+                          empty="The command printed no certificate.",
+                          hint=("The serial number of the router is in the subject but is deliberately not shown. " + (f"No certificate is printed under: {empty}. " if empty else "")
+                                + ("Days are counted from 'show clock' of the capture." if now else "'show clock' was not captured, so the days left cannot be counted.")))]
+
+
+def tunnel_flag(t: dict[str, Any]) -> str:
+    tx, rx = t.get("tx_pkts"), t.get("rx_pkts")
+    if tx is None or rx is None:
+        return ""
+    if rx == 0 and tx >= ONE_WAY_MIN_PACKETS:
+        return "sends only"
+    if tx == 0 and rx >= ONE_WAY_MIN_PACKETS:
+        return "receives only"
+    if tx == 0 and rx == 0:
+        return "no traffic"
+    return "both ways"
+
+
+def tunnel_traffic(ctx: Ctx) -> list[dict[str, Any]]:
+    tunnels = ctx.get("sdwan_tunnel_stats")
+    if not tunnels:
+        return []
+    rows = []
+    for t in tunnels[:MAX_TUNNEL_ROWS]:
+        flag = tunnel_flag(t)
+        tx, rx = t.get("tx_pkts"), t.get("rx_pkts")
+        rows.append({"remote": t["system_ip"], "local_color": t["local_color"], "remote_color": t["remote_color"], "src": f"{t['src_ip']}:{t['src_port']}", "dst": f"{t['dst_ip']}:{t['dst_port']}", "mtu": _num(t["mtu"]), "mss": _num(t["tcp_mss"]),
+                     "tx": _num(tx), "rx": _num(rx), "tx_bytes": human_bytes(t["tx_octets"]) if t["tx_octets"] is not None else "", "rx_bytes": human_bytes(t["rx_octets"]) if t["rx_octets"] is not None else "", "flag": flag,
+                     "_tones": {"flag": "bad" if flag in ("sends only", "receives only") else ("mute" if flag == "no traffic" else "ok")}})
+    by_pair: dict[tuple[str, str], dict[str, int]] = {}
+    for t in tunnels:
+        slot = by_pair.setdefault((t["local_color"], t["remote_color"]), {"tunnels": 0, "one_way": 0, "tx": 0, "rx": 0})
+        slot["tunnels"] += 1
+        slot["one_way"] += 1 if tunnel_flag(t) in ("sends only", "receives only") else 0
+        slot["tx"] += t["tx_octets"] or 0
+        slot["rx"] += t["rx_octets"] or 0
+    pair_rows = [{"local_color": a, "remote_color": b, "tunnels": v["tunnels"], "one_way": v["one_way"], "tx": human_bytes(v["tx"]), "rx": human_bytes(v["rx"]), "_tones": {"one_way": "bad" if v["one_way"] else ""}}
+                 for (a, b), v in sorted(by_pair.items(), key=lambda kv: -kv[1]["tunnels"])]
+    return [
+        table_section("sdwan_tunnel_pairs", "Overlay tunnels by color pair", [("local_color", "Local color"), ("remote_color", "Remote color"), ("tunnels", "Tunnels", "num"), ("one_way", "Sending or receiving only", "num"),
+                                                                        ("tx", "Sent (total)"), ("rx", "Received (total)")], pair_rows, group=GROUP, searchable=False,
+                      hint="'show sdwan tunnel statistics': IPv4 counters since each tunnel came up. Sent and received octets differ legitimately (a branch downloads more than it uploads); a tunnel that only sends is the symptom to look for."),
+        table_section("sdwan_tunnel_traffic", "Overlay tunnel traffic", [("remote", "Remote system IP", "mono"), ("local_color", "Local color"), ("remote_color", "Remote color"), ("src", "Local endpoint", "mono"), ("dst", "Remote endpoint", "mono"),
+                                                                       ("mtu", "Tunnel MTU", "num"), ("mss", "TCP MSS adjust", "num"), ("tx", "Packets sent", "num"), ("rx", "Packets received", "num"), ("tx_bytes", "Sent"), ("rx_bytes", "Received"),
+                                                                       ("flag", "Direction", "status")], rows, group=GROUP, total=len(tunnels), page_size=100,
+                      facets=[{"key": "flag", "label": "direction"}, {"key": "local_color", "label": "local color"}, {"key": "remote_color", "label": "remote color"}],
+                      hint=f"One row per tunnel. 'Sends only' means at least {ONE_WAY_MIN_PACKETS:,} packets sent and none received: the peer's BFD hellos never come back. Tunnel MTU is the value path MTU discovery settled on."
+                           + (f" Only the first {MAX_TUNNEL_ROWS:,} tunnels are listed." if len(tunnels) > MAX_TUNNEL_ROWS else "")),
+    ]
+
+
+def bfd_history_summary(ctx: Ctx) -> dict[str, Any] | None:
+    rows = ctx.get("sdwan_bfd_history")
+    if not rows:
+        return None
+    cached = ctx.models.get("bfd_history")
+    if cached is None:
+        cached = ctx.models["bfd_history"] = rse.summarize_bfd_history(rows)
+    return cached
+
+
+def live_bfd_state(ctx: Ctx, system_ip: str, color: str) -> tuple[str, str]:
+    """('2 up', tone) from 'show sdwan bfd sessions' for the sessions to one remote TLOC; ('', '') when that table was not captured or lists none."""
+    sessions = [b for b in ctx.get("sdwan_bfd") or [] if b.get("system_ip") == system_ip and b.get("remote_color") == color]
+    if not sessions:
+        return "", ""
+    counts: dict[str, int] = {}
+    for b in sessions:
+        counts[b.get("state", "?")] = counts.get(b.get("state", "?"), 0) + 1
+    text = ", ".join(f"{n} {state}" for state, n in sorted(counts.items(), key=lambda kv: kv[0] != "up"))
+    return text, "ok" if set(counts) == {"up"} else "bad"
+
+
+def bfd_history(ctx: Ctx) -> list[dict[str, Any]]:
+    summary = bfd_history_summary(ctx)
+    if not summary:
+        return []
+    now = ctx.capture_time()
+    out: list[dict[str, Any]] = []
+    pairs = [("Records", f"{summary['rows']:,}", ""), ("First record", stamp_text(summary["first"]), ""), ("Last record", stamp_text(summary["last"]), ""), ("Remote TLOCs", len(summary["sessions"]), ""),
+             ("Drops (a tunnel that had carried packets went down)", summary["drops"], "warn" if summary["drops"] else "ok"),
+             ("Moments when two or more remote TLOCs dropped together", len(summary["bursts"]), "warn" if summary["bursts"] else "ok")]
+    quiet = days_between_text(summary["last"], now)
+    if quiet:
+        pairs.append(("Last record before the capture", quiet, ""))
+    out.append(kv_section("sdwan_bfd_history_overview", "BFD history overview", pairs, group=GROUP,
+                          hint="'show sdwan bfd history'. The router keeps a limited number of records, so the first record is the start of what it still remembers, not of the session. "
+                               "The output has no local-color column: tunnels from two local colors to the same remote TLOC are listed together. "
+                               "Cisco does not document the DEL column; a down record with DEL 1 is read as the deletion marker that the device writes in the same second as the final down record, and is not counted as a drop."))
+    rows = []
+    for s_ in summary["sessions"]:
+        live, live_tone = live_bfd_state(ctx, s_["system_ip"], s_["color"])
+        rows.append({"remote": s_["system_ip"], "site": s_["site_id"], "color": s_["color"], "dst": s_["dst_ip"], "ports": s_["ports"], "ups": s_["ups"], "drops": s_["drops"], "attempts": s_["attempts"], "teardowns": s_["teardowns"],
+                     "first": stamp_text(s_["first"]), "last": stamp_text(s_["last"]), "state": s_["last_state"], "last_drop": stamp_text(s_["last_drop"]), "since": days_between_text(s_["last_drop"], now) if s_["last_drop"] else "",
+                     "live": live, "_tones": {"drops": "warn" if s_["drops"] else "", "live": live_tone}})
+    out.append(table_section("sdwan_bfd_history_sessions", "BFD history by remote TLOC", [("remote", "Remote system IP", "mono"), ("site", "Site"), ("color", "Color"), ("dst", "Remote public IP", "mono"), ("ports", "Port(s)", "list"),
+                                                                                       ("ups", "Up records", "num"), ("drops", "Drops", "num"), ("attempts", "Down with no traffic", "num"), ("teardowns", "Deletion markers (DEL 1)", "num"),
+                                                                                       ("first", "First record"), ("last", "Last record"), ("last_drop", "Last drop"), ("since", "Last drop before capture"), ("live", "Now (show sdwan bfd sessions)", "status")],
+                              rows, group=GROUP, page_size=100, facets=[{"key": "color", "label": "color"}],
+                              hint="A drop is a down record that carries packet counters. 'Down with no traffic' is a down record with zero counters and DEL 0: a tunnel that did not come up, or the first state after a restart. "
+                                   "The remote port may change when the far router restarts or its NAT re-maps, so rows are keyed by remote address, not by port. The history cannot say whether a tunnel is up now: the last column takes that from 'show sdwan bfd sessions'."))
+    if summary["bursts"]:
+        out.append(table_section("sdwan_bfd_history_bursts", "Remote TLOCs that dropped together", [("time", "First drop"), ("sessions", "Remote TLOCs", "num"), ("seconds", "Spread (s)", "num"), ("colors", "Colors", "list"), ("remotes", "Remote system IPs", "list")],
+                                 [{"time": stamp_text(b["time"]), "sessions": b["sessions"], "seconds": b["seconds"], "colors": b["colors"], "remotes": b["remotes"]} for b in summary["bursts"]], group=GROUP, page_size=100,
+                                 hint="Drops toward different remote TLOCs at most 10 seconds apart. Several remote sites failing at the same second points at this router's own transport (WAN link, interface, NAT or ACL) rather than at each remote site."))
+    return out
+
+
+def days_between_text(stamp: str, now: datetime | None) -> str:
+    """'3 days 5 h' between an ISO stamp and the capture clock, '' when either is missing or the stamp is later."""
+    if not stamp or now is None:
+        return ""
+    try:
+        seconds = (now - datetime.fromisoformat(stamp)).total_seconds()
+    except ValueError:
+        return ""
+    if seconds < 0:
+        return ""
+    days, rest = divmod(int(seconds), 86400)
+    return f"{days} d {rest // 3600} h" if days else f"{rest // 3600} h {rest % 3600 // 60} min"
+
+
 def overlay(ctx: Ctx) -> list[dict[str, Any]]:
-    if not ctx.dialect.get("sdwan") and not any(ctx.has(key) for key in ("sdwan_omp_peers", "sdwan_omp_routes", "sdwan_omp_tlocs", "sdwan_local", "sdwan_app_route", "sdwan_policy")):
+    if not ctx.dialect.get("sdwan") and not any(ctx.has(key) for key in ("sdwan_omp_peers", "sdwan_omp_routes", "sdwan_omp_tlocs", "sdwan_local", "sdwan_app_route", "sdwan_policy", "sdwan_omp_summary", "sdwan_certificates",
+                                                                       "sdwan_tunnel_stats", "sdwan_bfd_history")):
         return []
     out: list[dict[str, Any]] = []
-    for builder in (omp, identity, tunnel_quality, policy):
+    for builder in (omp, identity, certificates, tunnel_quality, tunnel_traffic, bfd_history, policy):
         out.extend(builder(ctx))
     return out

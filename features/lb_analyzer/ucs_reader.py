@@ -3,7 +3,9 @@
 A UCS is a gzip-compressed tar archive holding ``/config``, parts of ``/var`` and ``/etc`` of the BIG-IP.  This
 module streams through it once and keeps only what the Load Balancer Analyzer can use, by whitelist:
 
-* the TMSH configuration files (``bigip.conf``, ``bigip_base.conf``, ``bigip_user.conf``, ``bigip_script.conf``);
+* the TMSH configuration files (``bigip.conf``, ``bigip_base.conf``, ``bigip_gtm.conf``, ``bigip_user.conf``, ``bigip_script.conf``;
+  ``bigip_gtm.conf`` is where a BIG-IP DNS unit keeps its wide IPs, GTM pools, servers, data centers and listeners,
+  and an administrative partition keeps its own ``config/partitions/<name>/bigip.conf`` and ``bigip_gtm.conf``);
 * ``ucs_version``, ``.ucs_platform``, ``bigip.license`` (module list and dates only), ``BigDB.dat`` (customised
   ``sys db`` values) and ``/config/startup``                                   -> ``ucs_files``;
 * the *public* certificates in the file store                                  -> ``ucs_x509``;
@@ -27,6 +29,7 @@ https://techdocs.f5.com/en-us/bigip-14-1-0/big-ip-system-essentials-14-1-0/archi
 
 from __future__ import annotations
 
+import re
 import tarfile
 import time
 from dataclasses import dataclass, field
@@ -41,7 +44,8 @@ MAX_SECONDS = 300                           # wall-clock budget for streaming on
 MAX_CONFIG_BYTES = 64 * 1024 * 1024          # per config file
 MAX_SMALL_BYTES = 8 * 1024 * 1024            # per small OS / license / db file
 MAX_CERT_BYTES = 256 * 1024                  # per certificate file (bundles are skipped)
-CONFIG_FILES = ("config/bigip.conf", "config/bigip_base.conf", "config/bigip_user.conf", "config/bigip_script.conf")
+CONFIG_FILES = ("config/bigip.conf", "config/bigip_base.conf", "config/bigip_gtm.conf", "config/bigip_user.conf", "config/bigip_script.conf")
+_PARTITION_CONFIG = re.compile(r"^config/partitions/[^/]+/bigip(?:_gtm)?\.conf$")      # objects of an administrative partition
 CERT_DIRS = ("/certificate_d/", "/trust_certificate_d/")
 DEFAULT_HTTPD_CONF = {"auth_pam.conf"}
 SECRET_PATHS = ("/ssl.key/", "_key_d/", "config/bigip/kstore/", "etc/shadow", "etc/gshadow", "/.ssh/", "etc/ssh/ssh_host_")
@@ -106,7 +110,8 @@ def read_ucs(stream: BinaryIO) -> UcsBundle:
         bundle.omitted["archive read stopped early (truncated file?)"] = 1
     if not any(n in texts for n in ("config/bigip.conf", "config/bigip_base.conf")):
         raise UcsError("This archive does not contain config/bigip.conf or config/bigip_base.conf, so there is no BIG-IP configuration to analyze. Check that it was created with 'tmsh save sys ucs'.")
-    bundle.text = "\n".join(texts[n] for n in CONFIG_FILES if n in texts)
+    order = [n for n in CONFIG_FILES if n in texts] + sorted(n for n in texts if n not in CONFIG_FILES)
+    bundle.text = "\n".join(texts[n] for n in order)
     return bundle
 
 
@@ -131,7 +136,7 @@ def _dispatch(bundle: UcsBundle, texts: dict[str, str], archive: tarfile.TarFile
     if any(part in "/" + name for part in SECRET_PATHS):                                   # checked first: nothing below may read these
         _omit(bundle, "private keys / password files")
         return
-    if name in CONFIG_FILES:
+    if name in CONFIG_FILES or _PARTITION_CONFIG.match(name):
         if size <= MAX_CONFIG_BYTES:
             texts[name] = _text(archive, member)
             bundle.files[name] = size
