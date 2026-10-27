@@ -282,7 +282,7 @@ class SeveralDevicesTests(unittest.TestCase):
 
     def test_the_sheets_sit_next_to_the_data_they_describe(self):
         names = workbook_of({"hostname": "X", "cards": {}}).sheetnames
-        self.assertEqual(names[names.index("Device Info") + 1:names.index("Device Info") + 6], list(analysis_sheets.GROUPS["front"]))
+        self.assertEqual(names[names.index("Device Info") + 1:names.index("Device Info") + 7], list(analysis_sheets.GROUPS["front"]))
         self.assertEqual(names[names.index("VLANs") + 1:names.index("VLANs") + 4], list(analysis_sheets.GROUPS["layer2"]))
         self.assertEqual(names[names.index("DHCP Snooping Interfaces") + 1:names.index("DHCP Snooping Interfaces") + 5], list(analysis_sheets.GROUPS["logs"]))
 

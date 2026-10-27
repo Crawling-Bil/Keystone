@@ -325,6 +325,20 @@ def _command_index(lines: list[str]) -> list[tuple[int, tuple[str, str]]]:
     return index
 
 
+_STRIPPED_CACHE: list[tuple[list[str], list[str]]] = []
+
+
+def _stripped_lines(lines: list[str]) -> list[str]:
+    """``line.strip()`` of every line, computed once per list object (the header tests of the table readers share it)."""
+    for cached_lines, stripped in _STRIPPED_CACHE:
+        if cached_lines is lines and len(stripped) == len(lines):
+            return stripped
+    stripped = [line.strip() for line in lines]
+    _STRIPPED_CACHE.append((lines, stripped))
+    del _STRIPPED_CACHE[:-4]
+    return stripped
+
+
 def find_blocks(lines: list[str], patterns: Iterable[str] = (), headers: Iterable[str] = ()) -> list[tuple[int, list[str]]]:
     """Locate every block of output for a command, in capture order.
 
@@ -343,7 +357,8 @@ def find_blocks(lines: list[str], patterns: Iterable[str] = (), headers: Iterabl
     dropped; a header block starts at the header line itself.
     """
     compiled = [re.compile(p) for p in patterns]
-    header_rx = [re.compile(h, re.IGNORECASE) for h in headers]
+    header_list = list(headers)
+    header_rx = [re.compile(h, re.IGNORECASE) for h in header_list]
     found: list[tuple[int, list[str]]] = []
     if compiled and not header_rx:
         # Fast path: the command lines are found once per capture and shared by every reader, instead of each of
@@ -354,21 +369,23 @@ def find_blocks(lines: list[str], patterns: Iterable[str] = (), headers: Iterabl
                 block, resume = _block_after(lines, position + 1, [parts[1]] if parts[1] else [])
                 found.append((position, block))
         return found
+    # Slow path (a header is looked for too): the command lines come from the shared index and the header test is one alternation
+    # over the stripped lines, which are also computed once per capture. The scan order and the skip rules are those of a line by line walk.
+    commands = dict(_command_index(lines))
+    stripped = _stripped_lines(lines) if header_rx else []
+    combined = re.compile("|".join(f"(?:{h})" for h in header_list), re.IGNORECASE) if header_list else None
     count = len(lines)
     index = 0
     while index < count:
-        line = lines[index]
-        parts = split_command(line)
+        parts = commands.get(index)
         if parts is not None:
             if compiled and any(rx.fullmatch(parts[0]) for rx in compiled):
                 block, cursor = _block_after(lines, index + 1, [parts[1]] if parts[1] else [])
                 found.append((index, block))
                 index = cursor
                 continue
-            index += 1
-            continue
-        if header_rx and any(rx.match(line.strip()) for rx in header_rx):
-            block, cursor = _block_after(lines, index + 1, [line])
+        elif combined is not None and combined.match(stripped[index]):
+            block, cursor = _block_after(lines, index + 1, [lines[index]])
             found.append((index, block))
             index = cursor
             continue

@@ -349,6 +349,12 @@ def health_license(ctx: Ctx):
                             "On Catalyst 8000 routers Cisco ties encrypted throughput above 250 Mbps and more than 1000 tunnels to the HSECK9 licence; ISR4000 follows the performance licence.",
                      recommendation="Compare the peak encrypted traffic with this limit ('show platform hardware throughput crypto' on Catalyst 8000, 'show platform hardware throughput level' on ISR4000).",
                      reference=_throughput_ref(ctx)))
+    in_use_eval = [e for e in ctx.license_store() if "eval" in e["type"].lower() and e["state"].lower().startswith("active, in use")]
+    if in_use_eval:
+        out.append(F("RTR-HLT-054", "low", "Licensing", f"{len(in_use_eval)} feature(s) run on an evaluation licence", obj=", ".join(sorted({e["feature"] for e in in_use_eval})),
+                     detail="; ".join(f"{e['feature']} ({e['store']}): evaluation period left {e['eval_left'] or '?'}" for e in in_use_eval[:6])
+                            + ". Cisco: an evaluation licence is valid for 60 days and is then automatically upgraded to a right-to-use licence; the EULA still requires the licence to be paid for.",
+                     recommendation="Install the purchased licence for the feature (or stop using it) so the router is compliant before the evaluation period ends.", reference=R["classic_rtu_license"]))
     return out
 
 

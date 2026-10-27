@@ -49,7 +49,8 @@ def _table(workbook: Workbook, title: str, rows: list[dict[str, Any]], fill_colu
 
 
 def to_xlsx(summary: dict[str, Any], devices: list[dict], links: list[dict], hosts: list[dict], findings: list[dict],
-            behind: list[dict] | None = None, bundles: list[dict] | None = None) -> bytes:
+            behind: list[dict] | None = None, bundles: list[dict] | None = None, by_device: list[dict] | None = None,
+            l3: dict[str, list[dict]] | None = None) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Summary"
@@ -70,7 +71,18 @@ def to_xlsx(summary: dict[str, Any], devices: list[dict], links: list[dict], hos
         _table(workbook, "Bundles", bundles, "state", STATE_FILL)
     if behind:
         _table(workbook, "Behind devices", behind)
+    if l3 and l3.get("links"):
+        _table(workbook, "L3 links", l3["links"], "state", {"working": "C6E0B4", "configured only": "FFE699", "broken": "F8CBAD"})
+        _table(workbook, "L3 routes", l3.get("routes", []))
+        if l3.get("sites"):
+            _table(workbook, "SD-WAN sites", l3["sites"])
+        if l3.get("overlay"):
+            _table(workbook, "SD-WAN overlay", l3["overlay"])
+        if l3.get("unresolved"):
+            _table(workbook, "L3 unresolved", l3["unresolved"])
     _table(workbook, "Findings", [{**f, "devices": ", ".join(f["devices"])} for f in findings], "severity", SEVERITY_FILL)
+    if by_device:
+        _table(workbook, "Findings by device", by_device)
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()

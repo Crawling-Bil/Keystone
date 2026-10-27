@@ -110,7 +110,7 @@ Several files or a ZIP can be converted in one go with **batch conversion**. Det
 ## Draw a network topology
 
 1. Open **Analyze**, then **Topology Builder**. Select or drop one capture per device (or a ZIP). The more devices you add, the more links are confirmed from both ends.
-2. Optional: type a **Topology name**. Every download is then named after it (`Panin-DC-topology.drawio`, `Panin-DC-links.csv`, ...); empty keeps the plain names. The draw.io file shows the name and `Topology Created at Date YYYY:MM:DD - Time HH:MM:SS` above the diagram.
+2. Optional: type a **Topology name**. Every download is then named after it (`Lab-DC-topology.drawio`, `Lab-DC-links.csv`, ...); empty keeps the plain names. The draw.io file shows the name and `Topology Created at Date YYYY:MM:DD - Time HH:MM:SS` above the diagram.
 3. Check the options (defaults in brackets):
    - **Exclude IP phones, PCs and servers** (on): draw network devices only. While it is on, the phone/host options are hidden.
    - **Collapse phones and hosts into one node per switch** (on) and **Collapse access points into one node per switch** (on: one box per switch; clear it to draw every access point with its own hostname, model and IP address for a detailed diagram).

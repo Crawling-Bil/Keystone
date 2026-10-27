@@ -28,7 +28,7 @@ class PaInterface:
     """
 
     name: str  # e.g. "ethernet1/1", "ethernet1/4.30", "vlan.900", "sdwan.1", "tunnel.1"
-    interface_type: str = ""  # "ethernet" / "subinterface" / "vlan" / "sdwan" / "tunnel"
+    interface_type: str = ""  # "ethernet" / "aggregate" / "subinterface" / "vlan" / "sdwan" / "tunnel"
     mode: str = ""  # "layer2" / "layer3" / "" (unset/virtual)
     ip_addresses: list[str] = field(default_factory=list)
     comment: str = ""
@@ -46,6 +46,9 @@ class PaInterface:
     hw_speed_duplex_state: str = ""  # live "speed/duplex/state" (e.g. "1000/full/up") -- only ever set by PaloAltoOperationalCaptureParser, from "show interface all"'s hardware table
     hw_mac_address: str = ""  # live physical port MAC -- same source as hw_speed_duplex_state
     vsys: str = ""  # virtual system the object is defined in ("shared" for the shared scope); "" when the export has no vsys level
+    aggregate_group: str = ""  # a physical port that is a member of an aggregate-ethernet group: the group's name (ae1)
+    lacp_enabled: Optional[bool] = None  # an aggregate-ethernet group: LACP on/off; None = not present in the source
+    lacp_mode: str = ""  # an aggregate-ethernet group: "active" / "passive" (PAN-OS default passive when LACP is enabled)
 
 
 @dataclass
@@ -371,6 +374,30 @@ class PaDeviceInfo:
 
 
 @dataclass
+class PaHa:
+    """High availability (deviceconfig/high-availability): the pair this firewall belongs to and the ports its HA links use.
+    HA1 is the control link, HA2 the data (state sync) link, HA3 the packet-forwarding link of an active/active pair; each can have a backup.
+    A port is an ethernet interface or a dedicated HA port (ha1-a, ha2-b, hsci ...).
+    https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/high-availability/ha-concepts/ha-links-and-backup-links"""
+
+    enabled: bool = False
+    mode: str = ""  # "active-passive" / "active-active" ("" when the mode is not in the file)
+    group_id: str = ""
+    description: str = ""
+    peer_ip: str = ""  # HA1 address of the other unit
+    peer_ip_backup: str = ""  # HA1-backup address of the other unit
+    priority: Optional[int] = None
+    preemptive: Optional[bool] = None
+    ha1_port: str = ""
+    ha1_ip: str = ""  # this unit's own HA1 address
+    ha1_backup_port: str = ""
+    ha1_backup_ip: str = ""
+    ha2_port: str = ""
+    ha2_backup_port: str = ""
+    ha3_port: str = ""
+
+
+@dataclass
 class PaDhcpServerBinding:
     """One "set network dhcp interface <iface> server ..." binding."""
 
@@ -455,6 +482,7 @@ class PaloAltoNativeConfig(BaseConfig):
     administrators: list[PaAdministrator] = field(default_factory=list)
     pbf_rules: list[PaPbfRule] = field(default_factory=list)
     device_info: Optional[PaDeviceInfo] = None
+    ha: Optional[PaHa] = None
     source_format: str = "set"  # "set" (PaloAltoFirewallParser) or "xml" (PaloAltoXmlConfigParser) -- lets callers know which native export shape this came from
 
     # Anything recognized as a "set ..." line but not (yet) modeled

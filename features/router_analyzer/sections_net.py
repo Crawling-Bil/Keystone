@@ -168,16 +168,17 @@ def health(ctx: Ctx) -> list[dict[str, Any]]:
                                                     ("next_report_push", "Next report push"), ("agent", "Smart Agent")) if lic.get(k)] if lic else []
     if smart_pairs:
         sections.append(kv_section("licensing", "Smart Licensing", smart_pairs, group="Health"))
-    if lic and lic.get("store"):
+    store_rows = ctx.license_store()
+    if store_rows:
         def store_tone(entry: dict[str, Any]) -> str:
             state = entry["state"].lower()
             if state.startswith("active, in use"):
                 return "warn" if "eval" in entry["type"].lower() else "ok"
             return "mute"
         sections.append(table_section("license_store", "Licences (classic licensing)", [("store", "Store"), ("feature", "Feature", "mono"), ("type", "Type"), ("state", "State", "status"), ("eval_left", "Evaluation period left"),
-                                                                                  ("count", "Count")], [dict(e, _tones={"state": store_tone(e)}) for e in lic["store"]], group="Health", page_size=100,
+                                                                                  ("count", "Count")], [dict(e, _tones={"state": store_tone(e)}) for e in store_rows], group="Health", page_size=100,
                                       facets=[{"key": "type", "label": "type"}, {"key": "store", "label": "store"}],
-                                      hint="'show license all' on a router with classic (right-to-use) licensing. Cisco: an evaluation licence runs 60 days and then becomes a right-to-use licence; a feature whose EULA was never accepted stays 'Not in Use'."))
+                                      hint=f"'{'show license all' if (lic or {}).get('store') else 'show license detail'}' on a router with classic (right-to-use) licensing. Cisco: an evaluation licence runs 60 days and then becomes a right-to-use licence; a feature whose EULA was never accepted stays 'Not in Use'."))
     credential = (ctx.get("license_status") or {}).get("device_credential")
     if credential:
         sections.append(kv_section("licensing_classic", "Licence device credential", [("Device credential verification", credential)], group="Health"))

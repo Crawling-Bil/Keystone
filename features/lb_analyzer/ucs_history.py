@@ -1,6 +1,6 @@
 """Configuration change history from a UCS archive.
 
-BIG-IP keeps a reverse diff of ``bigip.conf`` / ``bigip_base.conf`` every time the configuration is saved, in
+BIG-IP keeps a reverse diff of ``bigip.conf`` / ``bigip_base.conf`` / ``bigip_gtm.conf`` every time the configuration is saved, in
 ``/config/.diffVersions/config/<file>/<n>.patch``.  A UCS carries those patches, so the archive is also an audit
 trail: when each save happened (the archive member's modification time), which objects it touched and what changed.
 
@@ -22,7 +22,7 @@ from typing import Any
 
 from .tmsh_tree import SECRET_KEYS, _HASH
 
-PATCH_PATH = re.compile(r"^config/\.diffVersions/config/(?P<file>bigip\.conf|bigip_base\.conf|bigip_user\.conf|bigip_script\.conf)/(?P<rev>\d+)\.patch$")
+PATCH_PATH = re.compile(r"^config/\.diffVersions/config/(?P<file>bigip\.conf|bigip_base\.conf|bigip_gtm\.conf|bigip_user\.conf|bigip_script\.conf)/(?P<rev>\d+)\.patch$")
 # BigDB.dat patches are counters that change on every save; automatic housekeeping lines are not administrator changes
 AUTOMATIC = (("asm device-sync", "timestamp"),)
 BOOKKEEPING_KEYS = {"last-modified-time", "creation-time", "revision"}      # maintained by mcpd on every object, never typed by an administrator

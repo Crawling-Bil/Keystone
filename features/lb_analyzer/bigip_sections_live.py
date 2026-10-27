@@ -5,11 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from ..analyzer_core.result import kv_section, table_section
+from .bigip_sections_sys import sys_sections
 
 
 _AVAIL_TONE = {"available": "ok", "offline": "bad", "unavailable": "warn"}
 DNS_GROUP = "DNS (GTM)"
-DNS_HINT = "Parsed from the documented 'show gtm' layout; not yet validated against a capture from a DNS/GTM device."
+DNS_HINT = "Parsed from the 'show gtm' output of a BIG-IP DNS (TMOS 17.1); other releases print the same objects with the same headers."
 _ISTATE_TONE = {"connected": "ok", "backlogged": "warn", "connecting": "warn"}
 
 
@@ -61,6 +62,7 @@ def live_sections(runtime: dict[str, Any]) -> list[dict[str, Any]]:
         out.append(table_section("nodes_live", "Nodes (live)", [("name", "Node", "mono"), ("address", "Address", "mono"), ("availability", "Availability", "status"), ("state", "State", "status"), ("connections", "Current connections", "num"), ("reason", "Reason", "wrap")],
                                  rows, group="Live state", page_size=150, facets=[{"key": "availability", "label": "availability"}, {"key": "state", "label": "state"}]))
     out += gtm_live_sections(runtime)
+    out += sys_sections(runtime)
     return out
 
 
@@ -88,14 +90,14 @@ def gtm_live_sections(runtime: dict[str, Any]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     wideips = runtime.get("gtm_wideips")
     if wideips:
-        rows = [dict(w, type=w["type"] or "-", requests=_count(w["stats"].get("requests total", "")), resolved=_count(w["stats"].get("requests resolved", "")), dropped=_count(w["stats"].get("requests dropped", "")),
+        rows = [dict(w, type=(w["type"] or "-").upper(), requests=_count(w["stats"].get("requests total", "")), resolved=_count(w["stats"].get("requests resolved", "")), dropped=_count(w["stats"].get("requests dropped", "")),
                      preferred=_count(w["stats"].get("decisions preferred", "")), alternate=_count(w["stats"].get("decisions alternate", "")), fallback=_count(w["stats"].get("decisions fallback", "")), _tones=_tones(w)) for w in wideips]
         out.append(table_section("gtm_wideips_live", "Wide IPs (live)", [("name", "Wide IP", "mono"), ("type", "Type"), ("availability", "Availability", "status"), ("state", "State", "status"), ("requests", "Requests", "num"), ("resolved", "Resolved", "num"),
                                                                        ("dropped", "Dropped", "num"), ("preferred", "Preferred", "num"), ("alternate", "Alternate", "num"), ("fallback", "Fallback", "num"), ("reason", "Reason", "wrap")],
                                  rows, group=DNS_GROUP, hint=DNS_HINT, page_size=100, facets=_FACETS))
     pools = runtime.get("gtm_pools")
     if pools:
-        rows = [dict(p, type=p["type"] or "-", wideip=p["parent"] or "", _tones=_tones(p)) for p in pools]
+        rows = [dict(p, type=(p["type"] or "-").upper(), wideip=p["parent"] or "", _tones=_tones(p)) for p in pools]
         out.append(table_section("gtm_pools_live", "GTM pools (live)", [("name", "Pool", "mono"), ("type", "Type"), ("wideip", "Wide IP", "mono"), ("availability", "Availability", "status"), ("state", "State", "status"), ("reason", "Reason", "wrap")],
                                  rows, group=DNS_GROUP, hint=DNS_HINT, page_size=100, facets=_FACETS))
     members = runtime.get("gtm_members")

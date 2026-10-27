@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from .graph import Graph, link_ratings, link_speeds
+from .layout import natural_key
 from .names import speed_text
 
 DOC_CDP = "https://www3-realm.cisco.com/en/US/docs/ios-xml/ios/cdp/command/cdp-cr-a1.html"
@@ -20,6 +21,8 @@ MEMBER_FLAGS = {"D": "down", "I": "individual (not bundled)", "s": "suspended", 
                 "M": "not in use, min-links not met", "w": "waiting to be aggregated"}
 
 SEVERITY_ORDER = {"medium": 0, "low": 1, "info": 2}
+
+_NO_NEIGHBOR_TABLE = ("fortinet", "f5")       # configurations without a CDP / LLDP table: no gap to report
 
 
 def _row(code: str, severity: str, title: str, detail: str, devices: list[str], action: str, doc: str = "") -> dict[str, Any]:
@@ -81,7 +84,7 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
     # TOPO-013: commands that would have shown more of the network
     gaps = {"cdp": [], "lldp": [], "bundles": [], "vpc": []}
     for node in graph.nodes.values():
-        if node.captured and node.coverage:
+        if node.captured and node.coverage and node.vendor.lower() not in _NO_NEIGHBOR_TABLE:
             for need in gaps:
                 if need == "cdp" and node.vendor.lower() in ("aruba", "hpe", "huawei", "juniper"):
                     continue                  # these platforms speak LLDP; a missing CDP command is no gap
@@ -95,7 +98,10 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
                              "Add the command to the capture: neighbors that speak only that protocol, port-channels or vPC pairs are otherwise invisible or drawn as plain links."))
     # TOPO-008
     for node in graph.nodes.values():
-        if node.captured and not node.halves:
+        if node.captured and not node.halves and node.vendor.lower() in _NO_NEIGHBOR_TABLE:
+            rows.append(_row("TOPO-008", "info", f"{node.hostname}: no neighbor table is read from a {node.vendor} configuration", node.source, [node.hostname],
+                             "A FortiGate or BIG-IP configuration has no CDP/LLDP table; its cables are drawn from the other end's neighbors, from ARP / MAC evidence and from port descriptions or aliases written 'HOST - port'."))
+        elif node.captured and not node.halves:
             rows.append(_row("TOPO-008", "low", f"{node.hostname}: no CDP or LLDP neighbors in the capture", node.source, [node.hostname],
                              "Add 'show cdp neighbors detail' and 'show lldp neighbors detail' (display lldp neighbor-information verbose on Huawei) to the capture, or enable the protocol."))
     # TOPO-009
@@ -337,9 +343,13 @@ def _inferred_findings(graph: Graph) -> list[dict[str, Any]]:
     if items:
         detail = _few([f"{graph.nodes[i['a']].hostname} {i['a_port']} -> {graph.nodes[i['b']].hostname}{(' ' + i['b_port']) if i['b_port'] else ''} ({i['evidence']})" for i in items], 8)
         names = sorted({graph.nodes[i["a"]].hostname for i in items} | {graph.nodes[i["b"]].hostname for i in items})
-        rows.append(_row("TOPO-027", "low", f"{len(items)} link(s) inferred from ARP, MAC addresses and port descriptions, not from CDP/LLDP", detail, names,
+        f5 = [i for i in items if graph.nodes[i["a"]].vendor == "F5"]
+        extra = (" A BIG-IP has no neighbor table to read: its gateways are the first hops whose ARP entry carries an HSRP / VRRP / GLBP virtual MAC or that a static route points at, "
+                 "its HA peer is the other address on the sync VLAN, and each cable is drawn on the port(s) the VLAN is tagged on (a VLAN on two ports is one cable each; "
+                 "which switch a port really reaches is not in the BIG-IP configuration).") if f5 else ""
+        rows.append(_row("TOPO-027", "low", f"{len(items)} link(s) inferred from ARP, MAC addresses, routes and port descriptions, not from CDP/LLDP", detail, names,
                          "These ports reported no neighbor. Order of trust: ARP (the address on the far end belongs to a known device), then the MAC address learned on the port, "
-                         "then the interface description. It is a strong hint, not a proof. Confirm it, and enable LLDP (or CDP) toward the neighbor so the next capture confirms it from both ends.", DOC_ARP))
+                         "then the interface description. It is a strong hint, not a proof. Confirm it, and enable LLDP (or CDP) toward the neighbor so the next capture confirms it from both ends." + extra, DOC_ARP))
     drift = [i for i in graph.issues if i["type"] == "description-drift"] + [i for i in items if i.get("conflict")]
     if drift:
         def host(i: dict[str, Any], end: str) -> str:
@@ -351,6 +361,16 @@ def _inferred_findings(graph: Graph) -> list[dict[str, Any]]:
         rows.append(_row("TOPO-028", "low", f"{len(drift)} port description(s) name another device than the one the port faces", _few([line(i) for i in drift], 8), names,
                          "CDP/LLDP, ARP and MAC addresses come from the device itself; a description is typed by a person. Where they disagree the line follows the device data. "
                          "Correct the description (or the cabling, if the description is the right one) so the next engineer is not misled.", DOC_CDP))
+    twice = [i for i in graph.issues if i["type"] == "port-claimed-twice"]
+    if twice:
+        def name(key: str) -> str:
+            return graph.nodes[key].hostname if key in graph.nodes else key
+        lines = [f"{name(i['a'])} {i['a_port']}: described as facing {name(i['first'])} and as facing {name(i['second'])}" for i in twice]
+        rows.append(_row("TOPO-029", "medium", f"{len(twice)} port(s) described as connected to two different devices", _few(lines, 8),
+                         sorted({name(i["a"]) for i in twice} | {name(i["first"]) for i in twice} | {name(i["second"]) for i in twice}),
+                         "A port has one cable. Two port descriptions (typed by people, on the two ends of the cabling) put different devices on the same port, so at least one is wrong "
+                         "(a cable moved, a description copied from the neighbor). Both lines are drawn dashed. Check the patch panel or the neighbor's LLDP / CDP table, correct the wrong "
+                         "description, and enable LLDP on the port so the next capture confirms the cable.", DOC_CDP))
     return rows
 
 
@@ -372,3 +392,25 @@ def _carried_findings(graph: Graph) -> list[dict[str, Any]]:
     return [_row("TOPO-022", "info", f"{len(carried)} device(s) come from the previous run, not from a capture in this run", ", ".join(carried[:20]) + (" ..." if len(carried) > 20 else ""),
                  carried, "Their data is as old as the run that saved it. A link between a new capture and one of these devices can disagree because the two were taken on different days; "
                           "capture them again if the estate changed.")]
+
+
+def findings_by_device(graph: Graph, findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Roll-up of the findings per device: one row per device that has at least one finding, worst first.
+
+    A finding names every device it concerns, so a link finding counts for both ends.  A device that was seen by a neighbor but not
+    captured can appear too (``captured`` = no): that is where the engineer has to collect next."""
+    by_name = {node.hostname: node for node in graph.nodes.values()}
+    rows: dict[str, dict[str, Any]] = {}
+    for item in findings:
+        for name in item["devices"]:
+            node = by_name.get(name)
+            row = rows.setdefault(name, {"device": name, "captured": "yes" if node is not None and node.captured else "no", "role": (node.role_hint if node is not None else "") or "",
+                                         "medium": 0, "low": 0, "info": 0, "total": 0, "ids": {}})
+            row[item["severity"]] = row.get(item["severity"], 0) + 1
+            row["total"] += 1
+            row["ids"][item["id"]] = row["ids"].get(item["id"], 0) + 1
+    out = []
+    for row in rows.values():
+        ids = row.pop("ids")
+        out.append({**row, "findings": ", ".join(f"{code} x{count}" if count > 1 else code for code, count in sorted(ids.items()))})
+    return sorted(out, key=lambda r: (-r["medium"], -r["low"], -r["info"], natural_key(r["device"])))

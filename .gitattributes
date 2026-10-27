@@ -1,3 +1,5 @@
+# Normalise line endings: text files are stored with LF in the repository and checked out with the platform's own endings (core.autocrlf), so a CRLF/LF difference never shows as a whole-file change.
+* text=auto
 # Keep shell scripts on LF and Windows scripts on CRLF so a download works on every system.
 *.sh  text eol=lf
 *.bat text eol=crlf

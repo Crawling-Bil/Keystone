@@ -72,6 +72,18 @@ class CompareTests(unittest.TestCase):
         self.assertEqual({c["label"]: c["value"] for c in out["cards"]}["New findings"], 1)
         self.assertEqual(next(c for c in out["cards"] if c["label"] == "New findings")["tone"], "bad")
 
+    def test_change_history_is_left_out_between_ha_peers_but_kept_for_one_device(self):
+        def with_log(host, line):
+            out = result([row("x")], host=host)
+            out["sections"].append(table_section("change_log", "Configuration saves", [("when", "When", "mono"), ("what", "What")], [{"when": line, "what": "save"}], group="Change history"))
+            return out
+        peers = compare_results(with_log("A", "2026-10-01"), with_log("B", "2026-10-02"))
+        self.assertEqual([r for r in next(s for s in peers["sections"] if s["id"] == "compare_changes")["rows"]], [])
+        self.assertTrue(any("change-history" in w for w in peers["warnings"]))
+        same = compare_results(with_log("A", "2026-10-01"), with_log("A", "2026-10-02"))
+        self.assertTrue([r for r in next(s for s in same["sections"] if s["id"] == "compare_changes")["rows"]])
+        self.assertFalse(same["warnings"])
+
     def test_a_comparison_is_never_compared_again(self):
         flask = Flask("t", template_folder="templates")
         flask.register_blueprint(bp)

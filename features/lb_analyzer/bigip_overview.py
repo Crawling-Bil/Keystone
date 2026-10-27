@@ -13,9 +13,12 @@ from ..analyzer_core.result import card, info_rows
 from . import bigip_extract, bigip_runtime
 from .tmsh_tree import TmshTree
 
-# parsers written from the documented 'show' layouts but not yet run on a captured BIG-IP
-UNVALIDATED = {"version": "show sys version", "sync": "show cm sync-status", "failover": "show cm failover-status", "virtuals": "show ltm virtual", "pools": "show ltm pool", "pool_members": "show ltm pool members", "nodes": "show ltm node",
-               "gtm_wideips": "show gtm wideip", "gtm_pools": "show gtm pool", "gtm_servers": "show gtm server", "gtm_datacenters": "show gtm datacenter", "gtm_iquery": "show gtm iquery", "gtm_listeners": "show gtm listener"}
+# Layouts seen with data in captures of TMOS 17.1.3 (an LTM+ASM pair and a BIG-IP DNS pair).  These two commands printed nothing there (no trunk, no LLDP
+# neighbor), so their parsers follow the documented column layout only.
+LTM_ONLY = {"virtuals", "pools", "pool_members", "nodes", "virtual_addresses", "rules", "client_ssl"}
+UNVALIDATED = {"trunks": "show net trunk", "lldp": "show net lldp-neighbors"}
+LIVE_KEYS = ("version", "sync", "failover", "virtuals", "pools", "pool_members", "nodes", "interfaces", "arp", "performance", "license", "provision", "ha_status", "cm_devices", "cm_groups",
+             "virtual_addresses", "rules", "client_ssl", "server_ssl", "gtm_wideips", "gtm_pools", "gtm_servers", "gtm_datacenters", "gtm_iquery", "gtm_listeners")
 
 
 def cards(data: dict[str, Any], findings: list[dict[str, Any]], runtime: dict[str, Any], today: date) -> list[dict[str, Any]]:
@@ -108,10 +111,14 @@ def coverage(data: dict[str, Any], tree: TmshTree, runtime: dict[str, Any]) -> l
             {"command": "cm device / device-group / traffic-group", "status": "analyzed" if data["devices"] or data["device_groups"] else "missing", "lines": 0,
              "note": f"{len(data['devices'])} device(s), {len(data['device_groups'])} device group(s)." if data["devices"] or data["device_groups"] else "No HA objects in the export; availability rules were skipped.", "tone": "ok" if data["devices"] or data["device_groups"] else "warn"}]
     keys = {"show sys version": "version", "show cm sync-status": "sync", "show cm failover-status": "failover", "show ltm virtual": "virtuals", "show ltm pool": "pools", "show ltm pool members": "pool_members", "show ltm node": "nodes",
-            "show gtm wideip a detail": "gtm_wideips", "show gtm pool a detail": "gtm_pools", "show gtm server detail": "gtm_servers", "show gtm datacenter": "gtm_datacenters", "show gtm iquery": "gtm_iquery", "show gtm listener": "gtm_listeners"}
+            "show gtm wideip a detail": "gtm_wideips", "show gtm pool a detail": "gtm_pools", "show gtm server detail": "gtm_servers", "show gtm datacenter": "gtm_datacenters", "show gtm iquery": "gtm_iquery", "show gtm listener": "gtm_listeners",
+            "show sys license": "license", "show sys provision": "provision", "show sys ha-status": "ha_status", "show cm device": "cm_devices", "show net interface": "interfaces", "show net arp": "arp",
+            "show sys performance all-stats": "performance", "show ltm virtual-address": "virtual_addresses", "show ltm rule": "rules", "show ltm profile client-ssl": "client_ssl"}
     dns_unit = bool(data.get("gtm")) or any(k.startswith("gtm_") for k in runtime)
-    for command, purpose in bigip_runtime.COMMANDS + (bigip_runtime.GTM_COMMANDS if dns_unit else ()):
+    for command, purpose in bigip_runtime.COMMANDS + bigip_runtime.SYS_COMMANDS + (bigip_runtime.GTM_COMMANDS if dns_unit else ()):
         key = keys.get(command)
+        if dns_only and key in LTM_ONLY and key not in runtime:       # a DNS-only unit has no virtual servers, pools or profiles to show
+            continue
         if key and key in runtime:
             rows.append({"command": command, "status": "analyzed", "lines": 0, "note": "Shown on the Live state tab.", "tone": "ok"})
         elif key:
@@ -129,9 +136,11 @@ def coverage(data: dict[str, Any], tree: TmshTree, runtime: dict[str, Any]) -> l
 
 def notes(data: dict[str, Any], runtime: dict[str, Any]) -> list[str]:
     notes = ["The configuration parser and rules were verified on synthetic configurations and on one captured BIG-IP UCS. ASM enforcement mode and signature settings are not in a UCS configuration file, so they are not assessed."]
+    if any(key in runtime for key in LIVE_KEYS):
+        notes.append("Live-state tables follow the 'show' output of TMOS 17.1, checked against captures of an LTM+ASM pair and a BIG-IP DNS pair; other releases may print extra or renamed fields, which are then left out of the tables.")
     used = [label for key, label in UNVALIDATED.items() if key in runtime]
     if used:
-        notes.append("Live-state tables are parsed from the documented 'show' layout and not yet validated against a captured BIG-IP: " + ", ".join(used) + ".")
+        notes.append("Not yet validated against a capture that had data (parsed from the documented layout only): " + ", ".join(used) + ".")
     if not data["sys"]["has_base"]:
         notes.append("bigip_base.conf (net, sys, auth, cm) is not part of this export, so management-plane rules were not evaluated.")
     return notes

@@ -53,8 +53,32 @@ def safe_cell(value: Any) -> Any:
     return value
 
 
+SHEET_NAME_OVERRIDES = {
+    "License: active and time-limited modules": "License modules",
+    "Still disabled or forced offline": "Still disabled or offline",
+}
+_TRIM_WORDS = {"and", "or", "of", "the", "in", "on", "to", "for", "from", "by", "with", "a"}
+
+
+def short_sheet_title(title: str) -> str:
+    """A sheet name Excel accepts (31 characters) that still reads as the section title: a trailing bracket note is dropped and a
+    long title is cut at a word, never in the middle of one ("Customised system settings (sys" becomes "Customised system settings")."""
+    text = SHEET_NAME_OVERRIDES.get(title) or title
+    if len(_BAD_SHEET_CHARS.sub("-", text)) > 31:
+        text = re.sub(r"\s*\([^)]*\)", "", text).strip() or text
+    text = _BAD_SHEET_CHARS.sub("-", text).strip("'")
+    if len(text) <= 31:
+        return text
+    words = text.split()
+    while words and len(" ".join(words)) > 31:
+        words.pop()
+    while len(words) > 1 and words[-1].lower() in _TRIM_WORDS:
+        words.pop()
+    return " ".join(words) or text[:31]
+
+
 def _sheet_name(title: str, used: set[str]) -> str:
-    base = _BAD_SHEET_CHARS.sub("-", title).strip("'")[:31] or "Sheet"
+    base = short_sheet_title(title)[:31] or "Sheet"
     name, counter = base, 2
     while name.lower() in used:
         suffix = f" ({counter})"
@@ -161,6 +185,7 @@ def export_results(results: list[dict[str, Any]], path: Path, *, analyzer_label:
             if section["id"] not in meta:
                 meta[section["id"]] = section
                 order.append(section["id"])
+    empty: list[str] = []          # sections with no row for any device: no sheet, one line on the "Empty sections" sheet
     for sid in order:
         first = meta[sid]
         if first["kind"] == "table":
@@ -179,6 +204,9 @@ def export_results(results: list[dict[str, Any]], path: Path, *, analyzer_label:
                     if section["id"] == sid and section["kind"] == "table":
                         for row in section["rows"]:
                             rows.append([result.get("hostname", "")] + [row.get(col["key"], "") for col in columns])
+            if not rows:
+                empty.append(first["title"])
+                continue
             ws = wb.create_sheet(_sheet_name(first["title"], used))
             _write_table(ws, ["Device"] + [col["label"] for col in columns], rows)
         else:
@@ -188,8 +216,15 @@ def export_results(results: list[dict[str, Any]], path: Path, *, analyzer_label:
                     if section["id"] == sid and section["kind"] == "kv":
                         for pair in section["pairs"]:
                             rows.append([result.get("hostname", ""), pair["label"], pair["value"]])
+            if not rows:
+                empty.append(first["title"])
+                continue
             ws = wb.create_sheet(_sheet_name(first["title"], used))
             _write_table(ws, ["Device", "Item", "Value"], rows)
+
+    if empty:
+        ws = wb.create_sheet(_sheet_name("Empty sections", used))
+        _write_table(ws, ["Section", "Why there is no sheet"], [[title, "Nothing was found in the capture(s) for this section."] for title in empty])
 
     # ---- Coverage ---------------------------------------------------------
     ws = wb.create_sheet(_sheet_name("Capture Coverage", used))

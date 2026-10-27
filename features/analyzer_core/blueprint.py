@@ -58,6 +58,8 @@ class AnalyzerSpec:
     # normal text path. It may raise ValueError with a message written for the engineer.
     read_upload: Callable[[str, Any], "str | None"] | None = None
     max_upload_bytes: int = 1536 * 1024 * 1024      # request-size ceiling when read_upload is set
+    # Optional hook run on all uploads before they are analyzed: (name, content) pairs in, pairs out (e.g. an F5 UCS and the capture of the same unit become one).
+    merge_sources: Callable[[list[tuple[str, Any]]], list[tuple[str, Any]]] | None = None
 
 
 def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
@@ -114,6 +116,8 @@ def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
             return jsonify({"ok": False, "error": "Upload a capture file or paste the command output first."}), 400
         if len(sources) > MAX_FILES:
             return jsonify({"ok": False, "error": f"At most {MAX_FILES} files per analysis."}), 400
+        if spec.merge_sources:
+            sources = spec.merge_sources(sources)
 
         platform = request.form.get("platform", "auto")
         results: list[dict[str, Any]] = []

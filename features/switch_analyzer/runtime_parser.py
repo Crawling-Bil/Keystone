@@ -36,6 +36,21 @@ _SECTION_BREAK_RE = re.compile(
 _BARE_COMMAND_RE = re.compile(r"^(show|display|sh)\s+\S", re.IGNORECASE)
 
 
+_LOWER_CACHE: list[tuple[list[str], list[str]]] = []
+
+
+def _lowered(lines: list[str]) -> list[str]:
+    """``line.strip().lower()`` of every line, computed once per list object: the section readers test each line against their command names
+    (about 30 readers over a 180,000-line capture spent seconds in that test alone)."""
+    for cached_lines, lowered in _LOWER_CACHE:
+        if cached_lines is lines and len(lowered) == len(lines):
+            return lowered
+    lowered = [line.strip().lower() for line in lines]
+    _LOWER_CACHE.append((lines, lowered))
+    del _LOWER_CACHE[:-4]
+    return lowered
+
+
 def _extract_section(lines: list[str], keywords: list[str]) -> list[str]:
     """Return the lines that follow the first occurrence of the most-
     preferred keyword present, stopping at the next command banner/
@@ -58,15 +73,16 @@ def _extract_section(lines: list[str], keywords: list[str]) -> list[str]:
     keywords_lower = [keyword.lower() for keyword in keywords]
     start = None
 
+    lowered = _lowered(lines)
     for keyword in keywords_lower:
-        for index, raw_line in enumerate(lines):
+        for index, text in enumerate(lowered):
             # The keyword must END the (stripped) line, not just appear
             # anywhere in it — a plain substring check made "show cdp
             # neighbors" match inside "show cdp neighbors detail" too (a
             # real collision hit on a real Aruba capture, since the brief
             # command's name is a literal prefix of the detail command's),
             # silently pulling the wrong, much longer section.
-            if raw_line.strip().lower().endswith(keyword):
+            if text.endswith(keyword):
                 start = index + 1
                 break
         if start is not None:
@@ -1644,8 +1660,9 @@ def _extract_all_sections(lines: list[str], keywords: list[str]) -> list[tuple[i
     occurrence is then empty or foreign."""
     keywords_lower = [keyword.lower() for keyword in keywords]
     runs: list[tuple[int, list[str]]] = []
-    for index, raw_line in enumerate(lines):
-        if not any(raw_line.strip().lower().endswith(keyword) for keyword in keywords_lower):
+    ending = tuple(keywords_lower)
+    for index, text in enumerate(_lowered(lines)):
+        if not text.endswith(ending):
             continue
         captured: list[str] = []
         for line in lines[index + 1:]:

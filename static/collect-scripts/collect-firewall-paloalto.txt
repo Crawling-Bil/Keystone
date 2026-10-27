@@ -10,3 +10,7 @@ show high-availability state
 show routing route
 show vpn ike-sa
 show vpn ipsec-sa
+
+# Neighbors and ARP, for the Topology Builder (not used by the Firewall Analyzer). LLDP must be enabled on the interfaces (Network > LLDP). If your PAN-OS version does not accept the first command, read the neighbors in the web interface under Network > LLDP > Peers.
+show lldp neighbors all
+show arp all

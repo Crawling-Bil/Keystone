@@ -4,7 +4,8 @@ Same status vocabulary and the same rule as the LTM tree (see ``bigip_map``): no
 command said so; a configuration-only capture shows what the configuration implies (``configured`` = enabled and health-monitored,
 ``unknown`` = no monitor, ``disabled``, ``parent disabled`` when the server or its data center is disabled).
 
-Written from the documented ``gtm`` syntax and ``show gtm`` layout; neither has been checked against a capture from a DNS device.
+Written from the documented ``gtm`` syntax and ``show gtm`` layout; the configuration side was checked against the saved configuration of two
+BIG-IP DNS units, the ``show gtm`` layout has not been checked against a real capture.
 
 Documentation:
   gtm wideip a   https://clouddocs.f5.com/cli/tmsh-reference/latest/modules/gtm/gtm_wideip_a.html
@@ -17,6 +18,7 @@ from __future__ import annotations
 from typing import Any
 
 from .bigip_extract import canon, short
+from .bigip_gtm import ltm_matches
 
 TYPES = [
     {"key": "wideip", "label": "Wide IP"},
@@ -55,6 +57,7 @@ class DnsTree:
         for rec in rt.get("gtm_members") or []:
             self.live_m.setdefault((m._key(rec["parent"]), m._key(rec["name"])), rec)
             self.live_m_by_name.setdefault(m._key(rec["name"]), []).append(rec)
+        self.match = ltm_matches(self.g, builder.data.get("virtuals") or [])
         self.servers = {m._key(s["name"]): s for s in self.g["servers"]}
         self.dcs = {m._key(d["name"]): d for d in self.g["datacenters"]}
         self.pools = {(p["type"] or "a", canon(p["name"])): p for p in self.g["pools"]}
@@ -81,6 +84,9 @@ class DnsTree:
         if server["disabled"] or (dc and dc["disabled"]):
             what = f"server {short(server['name'])}" if server["disabled"] else f"data center {short(dc['name'])}"
             return dict(base, status="parent disabled", source="derived", reason=f"{what} is disabled")
+        hit = self.match.get((server["name"], canon(member["virtual_server"]))) if member["virtual_server"] else None
+        if hit is not None and not hit["enabled"]:
+            return dict(base, status="parent disabled", source="derived", reason=f"the LTM virtual server {short(hit['name'])} behind this member (same address and port, this unit) is disabled")
         if member["virtual_server"] and server["virtual_servers"] and member["virtual_server"] not in server["virtual_servers"]:
             return dict(base, status="unknown", source="derived", reason=f"virtual server {member['virtual_server']} is not defined on server {short(server['name'])}")
         if pool["monitor"] or server["monitor"] or server["vs_monitored"]:
@@ -134,6 +140,9 @@ class DnsTree:
             mdetail = [("Status", st["status"]), ("Source", st["source"]), ("Reason", st["reason"]), ("Server", short(member["server"])), ("Virtual server", member["virtual_server"] or ""), ("Pool", short(pool["name"])),
                        ("Data center", short(dc["name"]) if dc else (short(server["datacenter"]) if server and server["datacenter"] else "")), ("Product", server["product"] if server else ""), ("Server addresses", addresses),
                        ("Server monitor", short(server["monitor"]) if server and server["monitor"] else ""), ("Configured state", "disabled" if member["disabled"] else "enabled")]
+            ltm = self.match.get((server["name"], canon(member["virtual_server"]))) if server and member["virtual_server"] else None
+            if ltm is not None:
+                mdetail.append(("LTM virtual server (same unit)", f"{short(ltm['name'])} ({'enabled' if ltm['enabled'] else 'disabled'}), {ltm['destination']}:{ltm['port_label']}"))
             if live:
                 mdetail.append(("Live availability / state", f"{live['availability']} / {live['state']}"))
             b.add({"id": b.new_id("ge"), "parent": pid, "type": "dnsmember", "name": member["name"].replace("/Common/", ""), "status": st["status"], "badge": short(dc["name"]) if dc else "", "source": st["source"], "reason": st["reason"],

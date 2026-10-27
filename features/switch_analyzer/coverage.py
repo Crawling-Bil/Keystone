@@ -202,7 +202,17 @@ SPECS: tuple[Spec, ...] = (
     Spec("nx_vrf", "VRFs", (rf"{SH} vrf",), "routing", "the VRFs and their state", "the VRFs and their state", {"nxos": "show vrf"}, _extra("vrf"), True),
     Spec("nx_vrf_interface", "Interfaces per VRF", (rf"{SH} vrf interface",), "routing", "which VRF each interface belongs to", "the VRF of each interface", {"nxos": "show vrf interface"}, _extra("vrf_interface"), True),
     Spec("nx_logging_server", "Syslog servers", (rf"{SH} logging server",), "logs", "the remote syslog servers and the status of each", "the remote syslog servers", {"nxos": "show logging server"}, _extra("logging_server"), True),
-    Spec("nx_route_summary", "Route summary", (rf"{SH} ip route summary(?: vrf \S+)?",), "routing", "routes and paths per VRF and per protocol", "the route counts per VRF", {"nxos": "show ip route summary"}, _extra("route_summary"), True),
+    Spec("nx_route_summary", "Route summary", (rf"{SH} ip route summary(?: vrf \S+)?",), "routing", "routes per route source (IOS XE) or per VRF and protocol (NX-OS)", "the route counts per source or VRF", {"nxos": "show ip route summary", "cisco": "show ip route summary"}, _extra("route_summary"), True),
+    Spec("cx_resources", "Resource use", (rf"{SH} system resource-utilization",), "health", "CPU, memory, flash health and partition use, busiest processes", "the CPU, memory and flash use of the switch", {"aoscx": "show system resource-utilization"}, _extra("resources"), True),
+    Spec("cx_stp_detail", "Spanning tree detail", (rf"{SH} spanning-tree detail",), "stp", "moves to forwarding per port, topology change count and age per instance, BPDU and TCN counters",
+         "the spanning-tree detail: moves to forwarding, topology changes and BPDU counters", {"aoscx": "show spanning-tree detail"},
+         lambda result: len((result.get("spanning_tree") or {}).get("instances") or []) if (result.get("spanning_tree") or {}).get("detailed") else 0, True),
+    Spec("cx_lldp_config", "LLDP configuration", (rf"{SH} lldp config(?:uration)?",), "health", "whether LLDP is on, the timers, the TLVs advertised and transmit / receive per port",
+         "the LLDP switch-wide settings and the transmit / receive state of each port", {"aoscx": "show lldp configuration"}, _extra("lldp_config"), True),
+    Spec("ios_cpu", "CPU by process", (rf"{SH} proc(?:esses)? cpu sorted(?: \S+)?",), "health", "CPU load now and the busiest processes", "the CPU load and the busiest processes", {"cisco": "show processes cpu sorted"}, _extra("cpu_processes"), True),
+    Spec("ios_memory", "Memory by process", (rf"{SH} proc(?:esses)? memory sorted(?: \S+)?",), "health", "memory pools and the processes that hold the most", "the memory pools and the largest holders", {"cisco": "show processes memory sorted"}, _extra("memory_pools"), True),
+    Spec("ios_queues", "Interface queue drops", (rf"{SH} int(?:erfaces?)? summary",), "health", "input and output queue drops and throttles per interface", "the queue drops and throttles per interface", {"cisco": "show interfaces summary"}, _extra("interface_queues"), True),
+    Spec("bgp_summary", "BGP neighbors", (rf"{SH} ip bgp(?: ipv4 unicast)? summary",), "health", "the BGP neighbors, their state and prefixes received", "the BGP neighbors and their state", {"cisco": "show ip bgp summary", "nxos": "show ip bgp summary"}, _extra("bgp_neighbors"), True),
     Spec("stp_vrp", "Spanning tree (VRP)", (rf"{DIS} stp(?: brief)?",), "health", "spanning-tree mode, root bridge, BPDU protection and port roles",
          "the spanning-tree mode, root bridge, BPDU protection and port roles", {"huawei": "display stp brief"}),
     Spec("hw_topology", "Stack topology", (rf"{DIS} stack topology",), "health", "ring or chain, state of each member's stack ports and the physical stack links",
@@ -246,6 +256,9 @@ EXPECTED = {
     "aoscx": ("config", "version", "inventory", "vsf", "interfaces", "vlan", "neighbors", "portchannel", "lacp", "arp", "mac", "route", "stp", "env", "logs"),
 }
 
+# An expected command that a longer form of itself also answers: {expected spec key: (spec keys that carry the same table)}
+_ALSO_ANSWERS = {"stp": ("cx_stp_detail",)}
+
 # Commands that are fine to have in a capture but that the Switch Analyzer does not use.
 _NOT_USED = (
     (rf"{SH} clock", "capture time, not used"), (rf"{DIS} clock", "capture time, not used"),
@@ -262,6 +275,7 @@ _NOT_USED = (
 # A command whose whole answer is its own title: the feature behind it is not in use. (pattern, most lines that still count as "empty", note)
 _EMPTY_ANSWERS = (
     (rf"{SH} ip sla (?:configuration|statistics|summary)(?: \d+)?", 2, "no IP SLA operation is configured (the command printed only its title)"),
+    (rf"{SH} port-access clients(?: .*)?", 1, "no 802.1X or MAC-authentication client is connected (the switch answered 'No port-access clients found.')"),
 )
 
 # NX-OS answers "% Invalid command" to every command of a feature that is not enabled.
@@ -442,7 +456,7 @@ def build_coverage(clean: list[str], vendor: str, result: dict[str, Any]) -> dic
     missing = []
     for key in EXPECTED.get(family, ()):
         spec = BY_KEY[key]
-        if key in seen or key in ran_empty:
+        if key in seen or key in ran_empty or any(other in seen for other in _ALSO_ANSWERS.get(key, ())):
             continue
         shown = command_for(spec, family, nxos)
         found = spec.rows(result) if spec.rows else None

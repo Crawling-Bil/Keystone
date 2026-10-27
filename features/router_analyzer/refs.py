@@ -82,6 +82,12 @@ REFS = {
     "sdwan_aar_deploy": "https://www.cisco.com/c/en/us/td/docs/solutions/CVD/SDWAN/cisco-sdwan-application-aware-routing-deploy-guide.html",
     "sdwan_nat_types": CISCO + "support/docs/routers/sd-wan/214517-vedge-can-t-establish-ipsec-tunnel-if-on.html",
     "sdwan_command_reference": "https://www.cisco.com/c/en/us/td/docs/routers/sdwan/command/sdwan-cr-book/operational-cmd.html",
+    # SD-WAN certificates, OMP summary, BFD history, tunnel MTU; classic licensing (opened 2026-10-26)
+    "sdwan_troubleshoot_common": CISCO + "support/docs/routers/sd-wan/222302-troubleshoot-common-sd-wan-control-and-d.html",
+    "sdwan_omp_summary_api": "https://developer.cisco.com/docs/sdwan/create-omp-summary",
+    "sdwan_bfd_history_api": "https://developer.cisco.com/docs/sdwan/create-bfd-history-list",
+    "sdwan_mtu_community": "https://community.cisco.com/t5/sd-wan-and-cloud-networking/finding-right-mtu-size-for-sdwan/td-p/4664625",
+    "classic_rtu_license": TD + "csa/configuration/xe-16-10/csa-xe-16-10-book/csa-rtu.html",
     "syslog_xe_17_9": TD + "17_xe/syslogs/17-9-x/b-system-message-guide-17-9-x.html",
     "router_crashes_xe": CISCO + "support/docs/routers/asr-1000-series-aggregation-services-routers/109723-asr-crash.html",
 }

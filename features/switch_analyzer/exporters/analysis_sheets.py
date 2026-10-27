@@ -25,6 +25,7 @@ HEADERS: dict[str, list[str]] = {
     "Health LACP": ["Hostname", "Port", "Group", "Partner ID", "Partner Port", "Partner State", "State", "State Flags", "Flags", "Age"],
     "Health Environment": ["Hostname", "Type", "Name", "Location", "State", "Reading", "Problem"],
     "Health Licences": ["Hostname", "Table", "Licence / Feature", "Tag", "Type", "Count", "Status", "Start", "End", "Detail"],
+    "Health Details": ["Hostname", "Table", "Row", "Column", "Value"],
     "Trunks": ["Hostname", "Port", "Mode", "Encapsulation", "Status", "Port-Channel", "Native VLAN", "Allows Every VLAN", "Allowed VLANs", "Active VLANs", "Forwarding VLANs"],
     "Spanning Tree": ["Hostname", "Instance", "Protocol", "Root", "Root Priority", "Root Address", "Root Cost", "Root Port", "Bridge Priority", "Bridge Address", "Ports", "Blocking", "Broken"],
     "Spanning Tree Ports": ["Hostname", "Instance", "Interface", "Role", "State", "Cost", "Priority", "Port Number", "Type", "Inconsistent"],
@@ -45,7 +46,7 @@ HEADERS: dict[str, list[str]] = {
 
 # The order the exporter writes them in, and after which existing sheet each group goes.
 GROUPS: dict[str, tuple[str, ...]] = {
-    "front": ("Findings", "Health", "Health LACP", "Health Environment", "Health Licences"),
+    "front": ("Findings", "Health", "Health LACP", "Health Environment", "Health Licences", "Health Details"),
     "layer2": ("Trunks", "Spanning Tree", "Spanning Tree Ports"),
     "layer3": ("HSRP", "HSRP Summary", "OSPF Neighbours", "OSPF Neighbour Summary", "OSPF Interfaces", "OSPF Processes", "OSPF LSDB", "OSPF Routers"),
     "logs": ("Logs", "Log Flaps", "Log Events", "Log Messages"),
@@ -284,6 +285,22 @@ def _routing_tables(result: dict[str, Any], hostname: str, rows: dict[str, list[
         rows["OSPF Routers"].append(_row(hostname, item.get("process"), item.get("vrf"), item.get("area"), item.get("router"), item.get("seen"), item.get("links"), item.get("age"), item.get("seq")))
 
 
+# Tables that already have a sheet of their own (_routing_tables); every other table of the Health, Routing and Port tabs goes to "Health Details".
+_OWN_SHEET = ("fhrp-groups", "hsrp-summary", "ospf-neighbors", "ospf-neighbor-summary", "ospf-interfaces", "ospf-overview", "ospf-lsdb", "ospf-routers")
+
+
+def _extra_tables(result: dict[str, Any], hostname: str, rows: dict[str, list[list[Any]]]) -> None:
+    """The extra tables a parser added (CPU, memory, BGP neighbors, modules, NTP ...) as one long sheet: device, table, row number, column, value."""
+    for table in result.get("extra_tables") or []:
+        if table.get("id") in _OWN_SHEET:
+            continue
+        columns = [(column.get("key"), column.get("label") or column.get("key")) for column in table.get("columns") or []]
+        for number, item in enumerate(table.get("rows") or [], 1):
+            for key, label in columns:
+                if key in item and item[key] not in (None, ""):
+                    rows["Health Details"].append(_row(hostname, table.get("title") or table.get("id"), number, label, item[key]))
+
+
 def collect(result: dict[str, Any], hostname: str, rows: dict[str, list[list[Any]]]) -> None:
     """Add one device's Findings, Health, Trunks, Spanning Tree, HSRP / OSPF and Logs rows to the collector."""
     _findings(result, hostname, rows)
@@ -291,4 +308,5 @@ def collect(result: dict[str, Any], hostname: str, rows: dict[str, list[list[Any
     _trunks(result, hostname, rows)
     _spanning_tree(result, hostname, rows)
     _routing_tables(result, hostname, rows)
+    _extra_tables(result, hostname, rows)
     _logs(result, hostname, rows)

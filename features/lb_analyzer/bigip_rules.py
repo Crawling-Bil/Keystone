@@ -19,7 +19,7 @@ from datetime import date
 from typing import Any
 
 from ..analyzer_core.findings import cap_per_rule, dedupe_findings, sort_findings
-from . import bigip_rules_gtm, bigip_rules_ha, bigip_rules_ltm, bigip_rules_mgmt, bigip_rules_security, bigip_rules_ssl, bigip_rules_ucs
+from . import bigip_rules_gtm, bigip_rules_ha, bigip_rules_ltm, bigip_rules_mgmt, bigip_rules_security, bigip_rules_sys, bigip_rules_ssl, bigip_rules_ucs
 from .bigip_context import LCtx
 from .bigip_resolve import Resolver
 
@@ -27,7 +27,7 @@ MAX_PER_RULE = 25
 RULES = (
     bigip_rules_ltm.virtual_rules, bigip_rules_ltm.pool_rules, bigip_rules_ltm.monitor_rules, bigip_rules_ssl.ssl_rules, bigip_rules_ltm.http_rules, bigip_rules_ltm.irule_rules,
     bigip_rules_ltm.reference_rules, bigip_rules_ltm.unused_rules, bigip_rules_mgmt.management_rules, bigip_rules_ssl.certificate_rules, bigip_rules_ha.ha_rules,
-    bigip_rules_mgmt.network_rules, bigip_rules_ha.runtime_rules, bigip_rules_security.security_rules, bigip_rules_ucs.ucs_rules, bigip_rules_gtm.gtm_rules, bigip_rules_gtm.gtm_runtime_rules,
+    bigip_rules_mgmt.network_rules, bigip_rules_ha.runtime_rules, bigip_rules_security.security_rules, bigip_rules_ucs.ucs_rules, bigip_rules_gtm.gtm_rules, bigip_rules_gtm.dns_rules, bigip_rules_gtm.gtm_runtime_rules, bigip_rules_sys.sys_runtime_rules,
 )
 
 

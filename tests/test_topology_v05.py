@@ -249,17 +249,17 @@ def test_description_naming_another_device_than_the_cdp_neighbor_is_reported():
 
 def test_safe_name_and_download_name():
     from features.topology.report import download_name, safe_name
-    assert safe_name("  Panin DC / Cabang #1  ") == "Panin-DC-Cabang-1"
+    assert safe_name("  Lab DC / Branch #1  ") == "Lab-DC-Branch-1"
     assert safe_name("../../etc/passwd") == "etcpasswd" and safe_name("") == "" and len(safe_name("x" * 200)) == 60
-    assert download_name("links.csv", "Panin-DC") == "Panin-DC-links.csv" and download_name("links.csv", "") == "links.csv"
+    assert download_name("links.csv", "Lab-DC") == "Lab-DC-links.csv" and download_name("links.csv", "") == "links.csv"
 
 
 def test_drawio_carries_the_name_and_the_creation_time_under_it():
     import datetime as dt
-    xml = build_topology(list(lab_dc().items()), name="Panin DC", created=dt.datetime(2026, 10, 21, 9, 5, 7))["drawio"]
+    xml = build_topology(list(lab_dc().items()), name="Lab DC", created=dt.datetime(2026, 10, 21, 9, 5, 7))["drawio"]
     root = ET.fromstring(xml)
     values = [c.get("value") for c in root.iter("mxCell")]
-    assert "Panin DC" in values and "Topology Created at Date 2026:10:21 - Time 09:05:07" in values
+    assert "Lab DC" in values and "Topology Created at Date 2026:10:21 - Time 09:05:07" in values
     cells = {c.get("id"): c for c in root.iter("mxCell")}
     title_y = float(cells["0-title"].find("mxGeometry").get("y")); created_y = float(cells["0-created"].find("mxGeometry").get("y"))
     assert title_y < created_y < 0                       # above every device, the time below the name
@@ -275,11 +275,11 @@ def test_route_names_the_downloads_after_the_topology(tmp_path, monkeypatch):
     from app import create_app
     app = create_app() if callable(create_app) else create_app
     client = app.test_client()
-    data = {"files": [(__import__("io").BytesIO(text.encode()), name) for name, text in lab_dc().items()], "name": "Panin DC"}
+    data = {"files": [(__import__("io").BytesIO(text.encode()), name) for name, text in lab_dc().items()], "name": "Lab DC"}
     body = client.post("/topology/api/build", data=data, content_type="multipart/form-data").get_json()
-    assert body["ok"] and {d["filename"] for d in body["downloads"]} >= {"Panin-DC-topology.drawio", "Panin-DC-links.csv", "Panin-DC-keystone-topology-pack.zip"}
+    assert body["ok"] and {d["filename"] for d in body["downloads"]} >= {"Lab-DC-topology.drawio", "Lab-DC-links.csv", "Lab-DC-keystone-topology-pack.zip"}
     response = client.get(body["downloads"][0]["url"])
-    assert "Panin-DC-" in response.headers["Content-Disposition"]
+    assert "Lab-DC-" in response.headers["Content-Disposition"]
     plain = client.post("/topology/api/build", data={"files": [(__import__("io").BytesIO(text.encode()), name) for name, text in lab_dc().items()]}, content_type="multipart/form-data").get_json()
     assert {d["filename"] for d in plain["downloads"]} == {d["name"] for d in plain["downloads"]}
 

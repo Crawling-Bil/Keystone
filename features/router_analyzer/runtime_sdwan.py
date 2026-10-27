@@ -35,6 +35,17 @@ def _int(text: str) -> int | None:
 # --------------------------------------------------------------------------
 
 
+def join_years(parts: list[str]) -> list[str]:
+    """An uptime of more than a year is printed as two words, ``1y 41:21:55:45`` (years, then d:hh:mm:ss): put them back into one cell."""
+    out: list[str] = []
+    for part in parts:
+        if out and re.fullmatch(r"\d+y", out[-1]) and re.fullmatch(r"\d+:\d{2}:\d{2}:\d{2}\d*", part):
+            out[-1] = f"{out[-1]} {part}"
+        else:
+            out.append(part)
+    return out
+
+
 def parse_omp_peers(lines: list[str]) -> list[dict[str, Any]]:
     """One row per OMP session: TENANT, PEER, TYPE, DOMAIN, OVERLAY, SITE, [REGION], STATE, UPTIME, R/I/S.
 
@@ -43,7 +54,7 @@ def parse_omp_peers(lines: list[str]) -> list[dict[str, Any]]:
     """
     rows = []
     for line in lines:
-        parts = line.split()
+        parts = join_years(line.split())
         if len(parts) < 9 or not parts[0].isdigit() or not is_ip(parts[1]) or parts[2] not in _PEER_TYPES:
             continue
         ris = re.fullmatch(r"(\d+)/(\d+)/(\d+)", parts[-1])

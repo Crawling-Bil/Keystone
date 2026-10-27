@@ -53,10 +53,27 @@ def _zip_members(name: str, data: bytes) -> list[tuple[str, bytes]]:
     return members
 
 
+def _ucs(name: str, data: bytes) -> str | None:
+    """A BIG-IP UCS archive (gzip tar) as its configuration text; None for any other file.  The archive is read as a stream, so its size is not held in memory twice."""
+    if not name.lower().endswith(".ucs"):
+        return None
+    from features.lb_analyzer.bigip_ucs import read_upload
+    try:
+        return read_upload(name, io.BytesIO(data))
+    except ValueError as exc:
+        raise IngestError(f"{name}: {exc}") from exc
+
+
 def to_captures(uploads: list[tuple[str, bytes]], max_devices: int) -> list[tuple[str, str]]:
     captures: list[tuple[str, str]] = []
     for name, data in uploads:
         name = _safe_name(name)
+        archive = _ucs(name, data)
+        if archive is not None:
+            captures.append((name, archive))
+            if len(captures) > max_devices:
+                raise IngestError(f"More than {max_devices} device captures after opening the files. Upload fewer at a time.")
+            continue
         if len(data) > MAX_CAPTURE_BYTES and not name.lower().endswith(".zip"):
             raise IngestError(f"{name} exceeds the {MAX_CAPTURE_BYTES // (1024 * 1024)} MB limit.")
         members = _zip_members(name, data) if name.lower().endswith(".zip") else [(name, data)]

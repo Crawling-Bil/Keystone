@@ -555,6 +555,8 @@
     { label: "Ports", value: row => (row.ports || []).length },
     { label: "Blocking", key: "blocking" },
     { label: "Broken", key: "inconsistent" },
+    { label: "Topology changes", key: "topology_changes" },
+    { label: "Last change", key: "last_change" },
   ];
   const STP_PORT_COLUMNS = [
     { label: "Instance", key: "instance" },
@@ -565,6 +567,10 @@
     { label: "Prio.Nbr", value: row => `${row.priority}.${row.port_number}` },
     { label: "Type", key: "type" },
     { label: "Inconsistent", key: "inconsistent", clip: true },
+    { label: "Moved to forwarding", key: "forwarding_transitions" },
+    { label: "BPDU sent / received", value: row => (row.bpdu_tx == null ? "" : `${row.bpdu_tx} / ${row.bpdu_rx}`) },
+    { label: "TCN sent / received", value: row => (row.tcn_tx == null ? "" : `${row.tcn_tx} / ${row.tcn_rx}`) },
+    { label: "Designated bridge", key: "designated_bridge" },
   ];
   const MAC_VLAN_COLUMNS = [
     { label: "VLAN", key: "vlan" },

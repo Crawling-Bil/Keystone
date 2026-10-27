@@ -12,3 +12,10 @@ get router info bgp summary
 get vpn ipsec tunnel summary
 get system ha status
 get system performance status
+
+# Neighbors and ARP, for the Topology Builder (not used by the Firewall Analyzer). LLDP reception is on by default only for WAN-role interfaces; enable it per interface ('set lldp-reception enable' under 'config system interface') or globally before you collect.
+# FortiOS 7.6.2 and earlier:
+diagnose lldprx neighbor details
+# FortiOS 7.6.3 and later (use this one instead):
+# diagnose lldp rx neighbor details
+get system arp

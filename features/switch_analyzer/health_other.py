@@ -522,9 +522,11 @@ def build_nxos(clean: list[str], *, interfaces: list[dict[str, Any]], port_chann
         _add(findings, item["code"], item["severity"], item["title"], item["text"], where=item["where"], doc=item["doc"])
     extras = nxos_extras.analyse(clean)
     state = nxos_state.analyse(clean)
-    findings += extras["findings"] + state["findings"]
-    health["extra_tables"] = extras["tables"] + state["tables"]
-    health["extra_counts"] = {**extras["counts"], **state["counts"]}
+    from . import iosxe_extras                       # `show ip bgp summary` prints the same neighbor table on NX-OS
+    bgp = iosxe_extras.analyse(clean, ("bgp",))
+    findings += extras["findings"] + state["findings"] + bgp["findings"]
+    health["extra_tables"] = extras["tables"] + state["tables"] + bgp["tables"]
+    health["extra_counts"] = {**extras["counts"], **state["counts"], **bgp["counts"]}
 
     missing = []
     for label, found, adds in (("show version", version_lines, "uptime, the reason for the last reset"), ("show environment all", env_lines, "fan, power supply and temperature state"),

@@ -2,7 +2,7 @@
 ! Log in with a read-only account that can run 'show running-config' (privilege 15 or a CLI view), paste the commands, save the WHOLE terminal buffer (MobaXterm / PuTTY / SecureCRT session log) and upload it to the Router Analyzer.
 ! Every command below only reads. 'terminal length 0' changes the paging of YOUR session only. A command the router does not know ('% Invalid input') is harmless: the analyzer lists it as failed and goes on.
 ! Use this list on a router that shows 'Router operating mode: Controller-Managed' in 'show version'. On a traditional router use collect-router-cisco-ios-xe.txt: it has no 'show sdwan' commands because they do not exist there.
-! The commands below were all seen in real captures: 'show sdwan system status / control connections / connection-history / bfd sessions' and 'show logging last 3000' on a C8200-1N-4T (IOS-XE 17.09.03a); 'show sdwan control local-properties / omp peers / omp routes / omp tlocs / app-route stats / policy from-vsmart' on two further cEdge routers (IOS-XE 17.x); the other commands on other IOS-XE routers.
+! The commands below were all seen in real captures: 'show sdwan system status / control connections / connection-history / bfd sessions' and 'show logging last 3000' on a C8200-1N-4T (IOS-XE 17.09.03a); 'show sdwan control local-properties / omp peers / omp routes / omp tlocs / app-route stats / policy from-vsmart' on two further cEdge routers (IOS-XE 17.x); 'show sdwan omp summary / certificate installed / tunnel statistics' on a C8200 and a C8300, 'show sdwan bfd history' on the C8200; the other commands on other IOS-XE routers.
 ! 'show sdwan omp routes' prints one line per overlay path: about 22,000 lines on a branch router that learns 7,000 prefixes. The Router Analyzer reads it in well under a second, but the terminal log grows by several MB; keep it, it is what the OMP tables, the unresolved-TLOC check and the cross-check with the routing table are built from.
 ! 'show running-config' does not contain the sdwan stanza (system-ip, site-id, tunnel colors, allow-service): 'show sdwan running-config' does. 'show sdwan system status' shows vManaged and the Configuration template.
 ! The log of a controller-managed router is mostly NETCONF logins from SD-WAN Manager (%DMI-5-AUTH_PASSED), so 'show logging last 3000' keeps the capture small; raise the number if the window it covers is too short.
@@ -59,7 +59,7 @@ show license summary
 ! Who is logged in, and the log (flaps, OMP peer changes, restarts, logins)
 show users
 show logging last 3000
-!!! UNVERIFIED v4 - SD-WAN commands from Cisco's Catalyst SD-WAN command reference that no capture has answered yet. Test on ONE router first; keep only what it accepts.
+! OMP counters, certificate validity, BFD up/down history and per-tunnel packet counters (all four answered by real captures; 'bfd history' is long on a router whose tunnels flap, 'tunnel statistics' prints one block per tunnel)
 show sdwan omp summary
 show sdwan certificate installed
 show sdwan bfd history

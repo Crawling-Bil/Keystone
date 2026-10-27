@@ -15,8 +15,10 @@
         <legend class="an-label">Options</legend>
         <label class="tp-opt"><input type="checkbox" data-role="exclude-endpoints" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Exclude IP phones, PCs and servers</strong><small>Draw network devices only: router, firewall, load balancer, switch, access point.</small></span></label>
         <label class="tp-opt" data-dep="no-exclude"><input type="checkbox" data-role="collapse" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Collapse phones and hosts into one node per switch</strong><small>Shown only when end points are drawn.</small></span></label>
+        <label class="tp-opt" data-dep="no-exclude no-collapse"><input type="checkbox" data-role="group-endpoints" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Group end points under the same switch</strong><small>One frame per switch, named after it, around its phones, PCs and servers (two or more). Shown only when end points are drawn one by one. Access points that are drawn one by one (the option below is off) are always framed under their switch.</small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="collapse-ap" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Collapse access points into one node per switch</strong><small>Clear it to draw every access point with its own hostname, model and IP address.</small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="ports" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Show port names on the lines</strong><small></small></span></label>
+        <label class="tp-opt"><input type="checkbox" data-role="link-ips" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Show the address of routed ports on the lines</strong><small></small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="infer" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Infer neighbors where CDP/LLDP is silent</strong><small>Order of trust: ARP, then MAC address, then port description.</small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="routed" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Add routed /30 and /31 links found in interface addresses</strong><small></small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="mgmt" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Leave out-of-band management links (mgmt0) out of the picture</strong><small>They stay in links.csv.</small></span></label>
@@ -24,9 +26,9 @@
       </fieldset>
       <span class="an-label">Device captures</span>
       <label class="an-drop" data-role="drop">
-        <input type="file" data-role="file-input" multiple accept=".txt,.log,.cfg,.conf,.config,.cap,.out,.zip">
+        <input type="file" data-role="file-input" multiple accept=".txt,.log,.cfg,.conf,.config,.cap,.out,.zip,.ucs">
         <span class="an-drop-icon"><svg class="an-icon" aria-hidden="true"><use href="/static/icons/nes-icons.svg#upload"></use></svg></span>
-        <span><strong>Select or drop device captures</strong><small>Terminal logs or backups with <code>show cdp neighbors detail</code> and/or <code>show lldp neighbors detail</code>. One file per device, a file holding several devices, or a .zip of captures. Up to {{ max_files }} devices; the more you add, the more links are confirmed from both ends.</small></span>
+        <span><strong>Select or drop device captures</strong><small>Terminal logs or backups with <code>show cdp neighbors detail</code> and/or <code>show lldp neighbors detail</code>. One file per device, a file holding several devices, or a .zip of captures. A FortiGate configuration is drawn as a firewall. An F5 BIG-IP is drawn as a load balancer from its <code>.ucs</code> archive (System &gt; Archives &gt; Create, or <code>save sys ucs</code>); add a tmsh capture of the same unit (<code>show net interface</code>, <code>show net arp</code>) for port state and ARP. The 'How to read' tab explains how a BIG-IP is drawn. Up to {{ max_files }} devices; the more you add, the more links are confirmed from both ends.</small></span>
       </label>
       <ul class="an-file-list hidden" data-role="file-list" aria-label="Selected files"></ul>
       <p class="an-hint">Cisco IOS XE, NX-OS and the other vendors the Switch Analyzer reads. Nothing leaves this computer.</p>
@@ -38,11 +40,30 @@
           <select class="an-select" data-role="group">{% for value, label in group_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         </label>
         <label class="an-field"><span class="tp-sub">Diagram file contains</span>
-          <select class="an-select" data-role="view"><option value="both">Physical and vPC view</option><option value="physical">Physical view only</option><option value="logical">vPC view only</option><option value="ip">Logical IP view only (shared subnets, interface addresses)</option></select>
+          <select class="an-select" data-role="view"><option value="all" selected>All views: L3 over L2, L3 route, IP, physical, vPC and F5 map in one file - default</option><option value="l3over2">L3 over L2 (L3 links drawn on top of the cables that carry them)</option><option value="l3route">L3 - Logical and Route (links proven by routing tables and neighbors)</option><option value="ip">L3 - Logical view only (shared subnets, interface addresses)</option><option value="both">L2 - Physical and vPC view</option><option value="physical">L2 - Physical view only</option><option value="logical">L2 - vPC view only</option><option value="f5map">F5 map only (virtual servers, pools, members, nodes of each BIG-IP)</option></select>
+        </label>
+        <label class="an-field"><span class="tp-sub">Line shape</span>
+          <select class="an-select" data-role="line-shape"><option value="angled" selected>Straight, bent once around a device</option><option value="curved">Curved around a device</option></select>
         </label>
         <label class="an-field"><span class="tp-sub">Style lines by</span>
           <select class="an-select" data-role="line-style"><option value="speed" selected>Rated speed (1G, 10G, 25G, 40G, 100G)</option><option value="state">Link state (confirmed, one end, conflict)</option></select>
         </label>
+      </fieldset>
+      <fieldset class="tp-card-box">
+        <legend class="an-label">SD-WAN sites on the L3 pages</legend>
+        <label class="an-field"><span class="tp-sub">Sites drawn</span>
+          <select class="an-select" data-role="overlay-sites"><option value="captured" selected>Only the sites I captured (recommended)</option><option value="all">Every site in the BFD tables</option></select>
+        </label>
+        <label class="an-field"><span class="tp-sub">Draw only these sites (optional)</span>
+          <textarea class="tp-text tp-hints" rows="2" maxlength="4000" spellcheck="false" data-role="focus-sites" placeholder="10001&#10;10.255.110.1&#10;BRANCH-01"></textarea>
+        </label>
+        <small class="an-hint">A hub router lists every branch in its BFD table. By default the page draws the sites you captured and one cloud for the rest ("+520 SD-WAN sites, not drawn"). Type site IDs, system IPs or part of a host name to draw exactly those sites, captured or not. After a build, the <em>SD-WAN overlay</em> tab lists every site with a tick box.</small>
+        <label class="tp-opt"><input type="checkbox" data-role="group-l3" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Group what repeats on the L3 pages</strong><small>Next-hop routers nobody captured become one node per VRF, and the VLAN interface pairs between two switches become one line. The tables keep every row.</small></span></label>
+      </fieldset>
+      <fieldset class="tp-card-box">
+        <legend class="an-label">Provider hints for the L3 views (optional)</legend>
+        <textarea class="tp-text tp-hints" rows="4" maxlength="4000" spellcheck="false" data-role="provider-hints" placeholder="HQWANR1 Gi0/0/1 = mpls Telkom&#10;203.0.113.0/30 = internet Biznet&#10;METRO-JKT = metro Moratel"></textarea>
+        <small class="an-hint">One rule per line: <em>what = type provider</em>. What can be a device and interface, an address or subnet, or a word that appears in a port description, VRF name or neighbor name. Type: mpls, internet, metro, lte or private. Without a rule the clouds come from descriptions, SD-WAN colours and neighbor names.</small>
       </fieldset>
       <fieldset class="tp-card-box">
         <legend class="an-label">Continue earlier work (optional)</legend>
@@ -76,11 +97,25 @@
         <button type="button" role="tab" data-tab="hosts" aria-selected="false">Hosts</button>
         <button type="button" role="tab" data-tab="behind" aria-selected="false">Behind devices</button>
         <button type="button" role="tab" data-tab="devices" aria-selected="false">Devices</button>
+        <button type="button" role="tab" data-tab="l3links" aria-selected="false" class="hidden" data-role="tab-l3links">L3 links</button>
+        <button type="button" role="tab" data-tab="l3routes" aria-selected="false" class="hidden" data-role="tab-l3routes">L3 routes</button>
+        <button type="button" role="tab" data-tab="l3overlay" aria-selected="false" class="hidden" data-role="tab-l3overlay">SD-WAN overlay</button>
+        <button type="button" role="tab" data-tab="howto" aria-selected="false">How to read</button>
       </div>
       <div data-panel="diagram">
         <div class="tp-viewbar" data-role="viewbar" role="group" aria-label="Diagram view"></div>
         <div class="tp-pagebar" data-role="pagebar"></div>
         <div class="tp-canvas" data-role="canvas"></div>
+        <form class="tp-trace hidden" data-role="trace" aria-label="Trace a path">
+          <strong>Trace a path</strong>
+          <label>From <select class="an-select" data-role="trace-source"></select></label>
+          <label>To address <input class="tp-text tp-trace-ip" type="text" data-role="trace-dest" maxlength="45" placeholder="10.20.1.55" autocomplete="off"></label>
+          <label>VRF <input class="tp-text tp-trace-vrf" type="text" data-role="trace-vrf" maxlength="40" placeholder="global" autocomplete="off"></label>
+          <button type="submit" class="an-btn small primary">Trace</button>
+          <button type="button" class="an-btn small" data-role="trace-clear">Clear</button>
+        </form>
+        <div class="tp-trace-result hidden" data-role="trace-result" aria-live="polite"></div>
+        <div class="tp-l3-detail hidden" data-role="l3-detail" aria-live="polite"></div>
         <ul class="tp-legend" data-role="legend"></ul>
         <p class="an-hint">Preview only. <strong>vPC view</strong>: each vPC pair is one frame and each bundle spanning the pair is one line (vPC id, member count, rated speed). <strong>Physical view</strong>: every cable. <strong>IP view</strong>: devices that share a subnet, with the interface and address at each end and a table of every interface address under the picture. Speeds are transceiver or port ratings, not negotiated rates. Drag nodes in draw.io, then upload that file under <em>Keep my layout</em> next time.</p>
       </div>
@@ -90,6 +125,13 @@
       <div data-panel="hosts" class="hidden" data-role="hosts-table"></div>
       <div data-panel="behind" class="hidden" data-role="behind"></div>
       <div data-panel="devices" class="hidden" data-role="devices"></div>
+      <div data-panel="l3links" class="hidden" data-role="l3links"></div>
+      <div data-panel="l3routes" class="hidden" data-role="l3routes"></div>
+      <div data-panel="l3overlay" class="hidden">
+        <div class="tp-sites" data-role="l3sites"></div>
+        <div data-role="l3overlay"></div>
+      </div>
+      <div data-panel="howto" class="hidden tp-howto" data-role="howto"></div>
     </div>
   </div>
 
@@ -103,6 +145,7 @@
       <li><code>show mac address-table</code> and <code>show ip arp</code> - end hosts (optional).</li>
       <li><code>show ip interface brief</code> or the running configuration - management IP address.</li>
     </ul>
+    <p><strong>F5 BIG-IP:</strong> upload the <code>.ucs</code> archive (System &gt; Archives &gt; Create, or <code>tmsh save sys ucs name</code>). It holds the configuration only; add a tmsh capture of the same unit with <code>show net interface</code> and <code>show net arp</code> for port state, speed and ARP (<a href="https://techdocs.f5.com/en-us/bigip-16-1-0/big-ip-system-essentials/archives.html" target="_blank" rel="noopener noreferrer">F5 documentation: archives</a>).</p>
     <p>The builder matches the two ends of each link by serial number, management IP and hostname, so a device that appears in a neighbor table is placed on the diagram even when you did not capture it (grey box).</p>
   </div>
 </section>

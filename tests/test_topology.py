@@ -230,7 +230,7 @@ def test_build_returns_results_and_downloads(client):
     assert response.status_code == 200 and body["ok"] and body["summary"]["captured"] == 3
     assert body["pages"][0]["svg"].startswith("<svg")
     names = {d["name"] for d in body["downloads"]}
-    assert names == {"topology.drawio", "topology.xlsx", "links.csv", "devices.csv", "hosts.csv", "behind.csv", "bundles.csv", "findings.csv",
+    assert names == {"topology.drawio", "topology.xlsx", "links.csv", "devices.csv", "hosts.csv", "behind.csv", "bundles.csv", "findings.csv", "findings-by-device.csv",
                      "topology.json", "topology-report.html", "keystone-topology-pack.zip", "run-settings.txt"}
     for download in body["downloads"]:
         fetched = client.get(download["url"])

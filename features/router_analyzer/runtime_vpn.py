@@ -22,7 +22,7 @@ def parse_gdoi(lines: list[str]) -> dict[str, Any]:
         text = line.strip()
         if not text:
             continue
-        m = re.match(r"^(Group Name|Group Identity|Rekeys received|IPSec SA Direction|Active Group Server|GM Reregisters in|Rekey Received\(hh:mm:ss\)|Rekey Acks sent|Registration status|Registered with|Succeeded registration|Last rekey seq num|Rekey Transport Type|Lifetime \(secs\)|Encrypt Algorithm|Key Size|Sig Hash Algorithm|Sig Key Length \(bits\))\s*:\s*(.*)$", text)
+        m = re.match(r"^(Group Name|Group Identity|Rekeys received|IPSec SA Direction|Active Group Server|GM Reregisters in|Rekey Received\(hh:mm:ss\)|Rekey Acks sent|Registration status|Registered with|Re-registers in|Rekey Rcvd\(hh:mm:ss\)|Rekey ACKs sent|Last rekey from|Succeeded registration|Last rekey seq num|Rekey Transport Type|Lifetime \(secs\)|Encrypt Algorithm|Key Size|Sig Hash Algorithm|Sig Key Length \(bits\))\s*:\s*(.*)$", text)
         if m:
             key = m.group(1)
             value = m.group(2).strip()
@@ -31,7 +31,8 @@ def parse_gdoi(lines: list[str]) -> dict[str, Any]:
             info[{
                 "Group Name": "group", "Group Identity": "identity", "Rekeys received": "rekeys_received", "IPSec SA Direction": "sa_direction",
                 "Active Group Server": "active_ks", "GM Reregisters in": "reregister_in", "Rekey Received(hh:mm:ss)": "last_rekey_age", "Rekey Acks sent": "rekey_acks",
-                "Registration status": "registration", "Registered with": "registered_with", "Succeeded registration": "registrations_ok", "Last rekey seq num": "rekey_seq",
+                "Registration status": "registration", "Registered with": "registered_with", "Re-registers in": "reregister_in", "Rekey Rcvd(hh:mm:ss)": "last_rekey_age",
+                "Rekey ACKs sent": "rekey_acks", "Last rekey from": "last_rekey_from", "Succeeded registration": "registrations_ok", "Last rekey seq num": "rekey_seq",
                 "Rekey Transport Type": "rekey_transport", "Lifetime (secs)": "kek_lifetime", "Encrypt Algorithm": "kek_encryption", "Key Size": "kek_key_size",
                 "Sig Hash Algorithm": "kek_sig_hash", "Sig Key Length (bits)": "kek_sig_len",
             }[key]] = value
@@ -77,6 +78,9 @@ def parse_gdoi(lines: list[str]) -> dict[str, Any]:
             m8 = re.match(r"^(\S+):$", text)
             if m8:
                 info.setdefault("tek_interfaces", []).append(m8.group(1))
+    # IOS XE 16.x / 17.x prints "Registration status : Registered" and "Registered with : <ks>" instead of the older "Active Group Server"
+    if not info.get("active_ks") and str(info.get("registration", "")).strip().lower() == "registered" and info.get("registered_with"):
+        info["active_ks"] = info["registered_with"]
     return info
 
 
@@ -241,7 +245,7 @@ def parse_sdwan_system_status(lines: list[str]) -> dict[str, str]:
     return info
 
 
-# UPTIME is d:hh:mm:ss. The column is 11 characters wide, so a two-digit day count (``21:00:00:17``) fills it and the
+# UPTIME is d:hh:mm:ss (``1y 41:21:54:04`` after a year). The column is 11 characters wide, so a two-digit day count (``21:00:00:17``) fills it and the
 # CONTROLLER GROUP ID that follows is printed against it without a space: ``21:00:00:170`` is uptime 21:00:00:17 and group 0.
 _UPTIME = re.compile(r"(\d+:\d{2}:\d{2}:\d{2})(\d*)")
 _PEER_TYPES = ("vsmart", "vmanage", "vbond", "vedge")
@@ -267,6 +271,8 @@ def parse_sdwan_control_connections(lines: list[str]) -> list[dict[str, str]]:
         if glued:
             tail.pop()
             uptime, group = glued.group(1), group or glued.group(2)
+            if tail and re.fullmatch(r"\d+y", tail[-1]):           # a connection up for more than a year prints "1y 41:21:54:040": the years come as a word of their own
+                uptime = f"{tail.pop()} {uptime}"
         if len(tail) < 3:
             continue
         rows.append({

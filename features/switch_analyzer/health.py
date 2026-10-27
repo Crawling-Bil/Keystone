@@ -607,6 +607,9 @@ def build_health(clean: list[str], vendor: str, *, interfaces: list[dict[str, An
     findings += _rules_device(env, licence, software)
     for item in licence_detail.licence_findings(licence["detail"]):
         findings.append(_finding(item["code"], item["severity"], item["title"], item["text"], where=item["where"], doc=item["doc"]))
+    from . import iosxe_extras                       # CPU, memory, queue drops, BGP neighbors, route counts (the commands the collect list asks for)
+    live = iosxe_extras.analyse(clean)
+    findings += live["findings"]
     findings.sort(key=lambda item: (SEVERITY_ORDER[item["severity"]], item["code"], item["where"]))
 
     counts = {level: sum(1 for item in findings if item["severity"] == level) for level in SEVERITY_ORDER}
@@ -617,4 +620,5 @@ def build_health(clean: list[str], vendor: str, *, interfaces: list[dict[str, An
         "supported": True, "scope": "Cisco IOS / IOS XE", "family": "ios", "note": "",
         "findings": findings, "counts": counts, "stp": stp, "lacp": lacp, "environment": env,
         "licence": licence, "software": software, "capture": {"missing": missing, "config_found": bool(config)},
+        "extra_tables": live["tables"], "extra_counts": live["counts"],
     }

@@ -230,6 +230,100 @@ def parse_vsf(clean: list[str]) -> dict[str, Any]:
     return best
 
 
+# working states are Active, Standby and Ready; these are the documented states in which a module does not forward (yet)
+MODULE_BAD = ("failed", "down", "diagnostic", "failover", "initializing", "deinitializing", "updating", "empty", "present", "not ready")
+
+
+def parse_modules(clean: list[str]) -> list[dict[str, str]]:
+    """``show module``: the ``Management Modules`` and ``Line Modules`` tables (name ``member/slot``, product number, description, serial, status).
+
+    Columns come from the dash line under each header, as in ``show system inventory``; the section a row belongs to is the last
+    ``... Modules`` title above it.  Status values: https://arubanetworking.hpe.com/techdocs/AOS-CX/10.06/HTML/5200-7690/GUID-514B3804-F171-4980-A512-0C2450092B26.html
+    """
+    best: list[dict[str, str]] = []
+    for block in _outputs(clean, [r"sh(?:ow)? mod(?:ule)?s?"]):
+        rows: list[dict[str, str]] = []
+        kind = ""
+        spans: list[tuple[int, int]] = []
+        for line in block:
+            text = line.strip()
+            title = re.match(r"^(Management|Line|Fabric) Modules?\s*$", text)
+            if title:
+                kind = title.group(1).lower()
+                spans = []
+                continue
+            if kind and re.match(r"^-{3,}(?:\s+-{3,}){3,}\s*$", text):
+                spans = _dash_spans(line.rstrip())
+                continue
+            if not kind or not spans or not text or set(text) <= set("="):
+                continue
+            cells = [line[start:(spans[i + 1][0] if i + 1 < len(spans) else len(line))].strip() for i, (start, _end) in enumerate(spans)]
+            if len(cells) < 5 or not re.match(r"^\d+/\d+$", cells[0]):
+                continue
+            rows.append({"kind": kind, "name": cells[0], "product_number": cells[1], "description": cells[2], "serial": cells[3], "status": cells[4]})
+        if len(rows) >= len(best):
+            best = rows
+    return best
+
+
+def parse_resources(clean: list[str]) -> dict[str, Any]:
+    """``show system resource-utilization``: CPU (now, 1 and 5 minute averages), memory, storage health and partition use, and the process table."""
+    best: dict[str, Any] = {}
+    for block in _outputs(clean, [r"sh(?:ow)? system resource-utilization"]):
+        info: dict[str, Any] = {"partitions": {}, "written": {}, "storage": [], "top": []}
+        section = ""
+        for line in block:
+            text = line.strip()
+            if not text:
+                continue
+            if text.startswith("Data written to various partitions"):
+                section = "written"
+                continue
+            if text.startswith("Storage partition usage"):
+                section = "partitions"
+                continue
+            if re.match(r"^Process\s+CPU Usage", text):
+                section = "processes"
+                continue
+            if section == "processes":
+                row = re.match(r"^(\S.*?)\s{2,}(\d+)\s+(\d+)\s+(\d+)\s*$", text)
+                if row:
+                    info["top"].append({"process": row[1], "cpu": int(row[2]), "memory": int(row[3]), "open_fds": int(row[4])})
+                continue
+            storage = re.match(r"^Storage\s+(\d+):\s*(.*)$", text)
+            if storage:
+                health = re.search(r"Health\s*=\s*([^,]+?)\s*$", storage[2])
+                wear = [int(m[2]) for m in re.finditer(r"(\d+)-(\d+)%\s*\(([^)]+)\)", storage[2])]          # the upper end of each ``0-10%`` range
+                info["storage"].append({"storage": storage[1], "health": health[1] if health else "", "endurance": storage[2].split(", Health")[0].replace("Endurance utilization = ", ""), "worn_to": max(wear, default=0)})
+                continue
+            pair = re.match(r"^(.+?)\s*:\s*(.+?)\s*$", text)
+            if not pair:
+                continue
+            key, value = pair[1], pair[2]
+            if section == "written":
+                info["written"][key] = value
+            elif section == "partitions" and value.isdigit():
+                info["partitions"][key] = int(value)
+            elif section == "":
+                number = re.match(r"^\d+$", value)
+                if key == "Processes" and number:
+                    info["processes"] = int(value)
+                elif key == "CPU usage(%)" and number:
+                    info["cpu"] = int(value)
+                elif key.startswith("CPU usage(% average over 1") and number:
+                    info["cpu_1m"] = int(value)
+                elif key.startswith("CPU usage(% average over 5") and number:
+                    info["cpu_5m"] = int(value)
+                elif key == "Memory usage(%)" and number:
+                    info["memory"] = int(value)
+                elif key == "Open FD's" and number:
+                    info["open_fds"] = int(value)
+        if "cpu" in info or "memory" in info:
+            info["top"] = sorted(info["top"], key=lambda row: (-row["cpu"], -row["memory"]))[:5]
+            best = info
+    return best
+
+
 def build_inventory(clean: list[str]) -> dict[str, Any]:
     """``(modules, stack)`` in the shapes ``runtime_parser.parse_inventory`` returns, plus the VSF fields."""
     rows = parse_system_inventory(clean)
@@ -786,6 +880,52 @@ def parse_lldp(clean: list[str]) -> list[dict[str, str]]:
     return neighbors
 
 
+def parse_lldp_config(clean: list[str]) -> dict[str, Any]:
+    """``show lldp configuration``: the global timers, the TLVs the switch advertises and the TX / RX / trap setting of every port."""
+    best: dict[str, Any] = {}
+    labels = (("LLDP Enabled", "enabled"), ("LLDP Transmit Interval", "interval"), ("LLDP Hold Time Multiplier", "hold"),
+              ("LLDP Transmit Delay Interval", "tx_delay"), ("LLDP Reinit Time Interval", "reinit"), ("LLDP Trap Enabled", "trap"))
+    for block in _outputs(clean, [r"sh(?:ow)? lldp config(?:uration)?"]):
+        info: dict[str, Any] = {"enabled": None, "interval": None, "hold": None, "tx_delay": None, "reinit": None, "trap": None, "tlvs": [], "ports": []}
+        section = ""
+        for line in block:
+            text = line.strip()
+            if not text or re.fullmatch(r"[=-]{5,}", text):
+                continue
+            if text in ("LLDP Global Configuration", "TLVs Advertised", "LLDP Port Configuration"):
+                section = text
+                continue
+            if re.match(r"^PORT\s+TX-ENABLED\s+RX-ENABLED", text):
+                section = "LLDP Port Configuration"
+                continue
+            match = re.match(r"^(.+?)\s*:\s*(.*)$", text)
+            if match and section != "TLVs Advertised":
+                for label, key in labels:
+                    if match.group(1).strip() == label:
+                        value = match.group(2).strip()
+                        info[key] = (value.lower() == "yes") if key in ("enabled", "trap") else _to_int(value)
+                        break
+                continue
+            if section == "TLVs Advertised":
+                info["tlvs"].append(text)
+                continue
+            if section == "LLDP Port Configuration":
+                cells = text.split()
+                if len(cells) >= 3 and re.fullmatch(rf"{_PORT}|lag\d+", cells[0]) and all(c.lower() in ("yes", "no") for c in cells[1:4]):
+                    info["ports"].append({"port": cells[0], "tx": cells[1].lower() == "yes", "rx": cells[2].lower() == "yes",
+                                          "trap": cells[3].lower() == "yes" if len(cells) > 3 else None})
+        if info["enabled"] is None and not info["ports"]:
+            continue
+        if not best or len(info["ports"]) >= len(best["ports"]):
+            best = info
+    return best
+
+
+def parse_port_access_empty(clean: list[str]) -> bool:
+    """True when ``show port-access clients`` answered "No port-access clients found." (802.1X / MAC authentication has no session)."""
+    return any(any(re.match(r"^No port-access clients found", line.strip(), re.IGNORECASE) for line in block) for block in _outputs(clean, [r"sh(?:ow)? port-access clients(?: .*)?"]))
+
+
 def parse_lag(clean: list[str]) -> dict[str, dict[str, Any]]:
     """``show lag``: one block per aggregate (``Aggregate lag1 is up``) with its members, mode and hash; ``show lag brief`` adds the table."""
     lags: dict[str, dict[str, Any]] = {}
@@ -935,17 +1075,24 @@ _STP_STATE = {"forwarding": ("FWD", "Forwarding"), "blocking": ("BLK", "Blocking
 
 
 def parse_spanning_tree(clean: list[str]) -> dict[str, Any]:
-    """``show spanning-tree``: the global header, then one block per VLAN (RPVST) or instance (MSTP) with a port table.
+    """``show spanning-tree`` and ``show spanning-tree detail``: the global header, then one block per VLAN (RPVST) or instance (MSTP) with a port table.
 
     The result has the shape of ``stp_detail.build_spanning_tree`` so the Spanning Tree tab and the findings read it unchanged.
+    The ``detail`` form prints the same blocks and then, per port, the designated root / bridge / port and the number of transitions to the
+    forwarding state; those are added to the port rows (``forwarding_transitions``, ``designated_bridge`` ...) and the instance gets
+    ``tc_flag`` and ``last_change_seconds``.  An instance seen in both forms keeps the detailed one, whichever came last in the file.
+    Reference (Aruba, ``show spanning-tree detail``): https://arubanetworking.hpe.com/techdocs/AOS-CX/10.16/HTML/l2_bridging_6300-6400/Content/Chp_stp/mstp_cmds/sho-spa-tre-det-10.htm
     """
     instances: dict[str, dict[str, Any]] = {}
     summary: dict[str, str] = {}
     protocol = ""
     captured = False
-    for block in _outputs(clean, [r"sh(?:ow)? spanning-tree"]):
+    detailed = False
+    for block in _outputs(clean, [r"sh(?:ow)? spanning-tree(?: detail)?"]):
         captured = True
+        local: dict[str, dict[str, Any]] = {}
         current: dict[str, Any] | None = None
+        port: dict[str, Any] | None = None
         side = ""
         in_ports = False
         for line in block:
@@ -965,12 +1112,33 @@ def parse_spanning_tree(clean: list[str]) -> dict[str, Any]:
                 vlan = re.match(r"VLAN0*(\d+)$", name)
                 current = {"id": name, "vlan": int(vlan.group(1)) if vlan else None, "protocol": protocol, "is_root": False, "root_priority": None, "root_address": "",
                            "root_cost": None, "root_port": "", "bridge_priority": None, "bridge_address": "", "hello": None, "max_age": None, "forward_delay": None,
-                           "ports": [], "root_ports": 0, "blocking": 0, "inconsistent": 0, "topology_changes": None, "last_change": ""}
-                instances[name] = current
+                           "ports": [], "root_ports": 0, "blocking": 0, "inconsistent": 0, "topology_changes": None, "last_change": "", "last_change_seconds": None,
+                           "tc_flag": None, "detailed": False}
+                local[name] = current
+                port = None
                 side, in_ports = "", False
                 continue
             if current is None:
                 continue
+            match = re.match(r"^Port\s+(\S+)\s*$", text)
+            if match and not line[:1].isspace():
+                port = next((p for p in current["ports"] if p["interface"] == match.group(1)), None)
+                current["detailed"] = True
+                in_ports = False
+                continue
+            if port is not None:
+                match = re.match(r"^Designated (root|bridge) has priority\s*:\s*(\d+)\s+Address:\s*(" + _RE_MAC + ")", text)
+                if match:
+                    port[f"designated_{match.group(1)}"] = match.group(3).lower()
+                    continue
+                match = re.match(r"^Designated port\s*:\s*(\S+)", text)
+                if match:
+                    port["designated_port"] = match.group(1)
+                    continue
+                match = re.match(r"^Number of transitions to forwarding state\s*:\s*(\d+)", text)
+                if match:
+                    port["forwarding_transitions"] = int(match.group(1))
+                    continue
             match = re.match(r"^Root ID\s+Priority\s*:\s*(\d+)", text)
             if match:
                 current["root_priority"], side, in_ports = int(match.group(1)), "root", False
@@ -997,6 +1165,10 @@ def parse_spanning_tree(clean: list[str]) -> dict[str, Any]:
             if re.match(r"^Port\s+Role\s+State\s+Cost", text):
                 in_ports, side = True, ""
                 continue
+            match = re.match(r"^Topology change flag\s*:\s*(\S+)", text)
+            if match:
+                current["tc_flag"] = match.group(1).lower() == "true"
+                continue
             match = re.match(r"^Number of topology changes\s*:\s*(\d+)", text)
             if match:
                 current["topology_changes"] = int(match.group(1))
@@ -1005,19 +1177,27 @@ def parse_spanning_tree(clean: list[str]) -> dict[str, Any]:
             match = re.match(r"^Last topology change occurred\s*:\s*(.+)$", text)
             if match:
                 current["last_change"] = match.group(1).strip()
+                seconds = re.match(r"(\d+)\s+seconds?\s+ago", current["last_change"])
+                current["last_change_seconds"] = int(seconds.group(1)) if seconds else None
                 continue
             if in_ports:
                 match = re.match(rf"^(\S+)\s+(Root|Designated|Alternate|Backup|Disabled|Master|Boundary)\s+(Forwarding|Blocking|Discarding|Learning|Listening|Down)\s+(\d+)\s+(\d+)\s+(\S+)(?:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+))?\s*$", text, re.IGNORECASE)
                 if match:
-                    port, role, state, cost, priority, kind = match.groups()[:6]
+                    name_, role, state, cost, priority, kind = match.groups()[:6]
                     role_code, role_name = _STP_ROLE[role.lower()]
                     state_code, state_name = _STP_STATE[state.lower()]
                     current["ports"].append({
-                        "instance": current["id"], "interface": port, "role": role_code, "role_name": role_name, "state": state_code, "state_name": state_name,
+                        "instance": current["id"], "interface": name_, "role": role_code, "role_name": role_name, "state": state_code, "state_name": state_name,
                         "cost": int(cost), "priority": int(priority), "port_number": 0, "type": kind, "inconsistent": "", "broken": False,
                         "bpdu_tx": int(match.group(7)) if match.group(7) else None, "bpdu_rx": int(match.group(8)) if match.group(8) else None,
                         "tcn_tx": int(match.group(9)) if match.group(9) else None, "tcn_rx": int(match.group(10)) if match.group(10) else None,
+                        "forwarding_transitions": None, "designated_root": "", "designated_bridge": "", "designated_port": "",
                     })
+        for name, item in local.items():
+            old = instances.get(name)
+            if old is None or item["detailed"] or not old["detailed"]:
+                instances[name] = item
+            detailed = detailed or item["detailed"]
     result = sorted(instances.values(), key=lambda item: (item["vlan"] is None, item["vlan"] or 0, item["id"]))
     for item in result:
         if item["root_address"] and item["root_address"] == item["bridge_address"]:
@@ -1031,7 +1211,7 @@ def parse_spanning_tree(clean: list[str]) -> dict[str, Any]:
     enabled = summary.get("Spanning tree status", "").lower() == "enabled"
     return {
         "captured": captured, "enabled": enabled and bool(result), "note": "" if result else ("Spanning tree is disabled." if captured and summary and not enabled else ""),
-        "summary": summary, "protocol": protocol, "instances": result, "ports": ports,
+        "summary": summary, "protocol": protocol, "instances": result, "ports": ports, "detailed": detailed,
         "root_for": [item["id"] for item in result if item["is_root"]], "root_bridges": len(roots),
         "blocking": sum(1 for port in ports if port["state"] in ("BLK", "BKN")), "broken": [],
     }
@@ -1179,10 +1359,18 @@ EVENT_DOCS = {
 GUIDE_DOCS = {
     "stp_edge": "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.16/HTML/l2_bridging_8400/Content/Chp_stp/use-caseMSTP_SpanEdgePorts.htm",
     "stp_port_type": "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/HTML/l2_bridging_8400/Content/Chp_stp/mstp_cmds/spa-tre-por-typ.htm",
+    "stp_detail": "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.16/HTML/l2_bridging_6300-6400/Content/Chp_stp/mstp_cmds/sho-spa-tre-det-10.htm",
+    # fetched 2026-10-26: "lldp", "lldp transmit", "lldp receive", "lldp select-tlv" in the AOS-CX 10.14 Fundamentals Guide
+    "lldp_config": "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.14/HTML/fundamentals_8400/Content/Chp_Dev_disc/cnf-lld-age.htm",
     "acl": "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.16/PDF/acls_832x-93xx-100xx.pdf",
     "lag": "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.16/PDF/link_aggregation.pdf",
     "vsf": "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.16/PDF/vsf.pdf",
     "interface": "https://arubanetworking.hpe.com/techdocs/AOS-CX/10.16/HTML/fundamentals_8400/Content/Chp_IfaceCfg/Iface_cmds/sho-int-10.htm",
+}
+
+# HPE Airheads community (not the product documentation): a thread on where the spanning-tree topology change history is kept
+COMMUNITY_DOCS = {
+    "stp_tc_history": "https://community.networking.hpe.com/discussion/aruba-aos-cx-spanning-tree-topology-change-history",
 }
 
 _TC_GENERATED = re.compile(r"Topology change generated on port (\S+) on VLAN (\d+)")
@@ -1481,13 +1669,13 @@ def build(clean: list[str]) -> dict[str, Any]:
     return {
         "version": version, "clock": clock, "model": model,
         "os_version": {"os_version": version.get("os_version", ""), "model": model},
-        "inventory": {"modules": inventory["modules"], "stack": inventory["stack"]},
+        "inventory": {"modules": inventory["modules"], "stack": inventory["stack"]}, "module_status": parse_modules(clean), "resources": parse_resources(clean),
         "serials": serials_view(inventory), "transceivers": parse_transceivers(clean, inventory["transceivers"]),
         "observations": interface_observations(clean), "interfaces": ifaces,
         "vlan_db": build_vlan_db(clean), "trunks": {"captured": bool(trunks) or bool(_outputs(clean, [r"sh(?:ow)? int(?:erfaces?)? trunks?"])), "rows": trunks},
         "stp": parse_spanning_tree(clean),
         "arp": arp_rows, "arp_meta": arp_meta, "mac": mac_rows, "mac_meta": mac_meta, "mac_count": parse_mac_count(clean),
-        "routes": parse_routes(clean), "neighbors": parse_lldp(clean),
+        "routes": parse_routes(clean), "neighbors": parse_lldp(clean), "lldp_config": parse_lldp_config(clean),
         "lags": lags, "lacp": lacp, "port_channels": port_channel_rows(lags, lacp, ifaces),
         "environment": parse_environment(clean),
     }
