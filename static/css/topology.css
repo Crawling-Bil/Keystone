@@ -1,9 +1,16 @@
-.tp-page { display: grid; gap: 16px; }
+.tp-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 .tp-intake { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 22px; padding: 18px; }
 .tp-intake-main, .tp-intake-side { display: grid; gap: 12px; align-content: start; }
 .tp-check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--text-soft); }
 .tp-status { margin: 0; min-height: 18px; font-size: 12px; color: var(--muted); }
 .tp-status.error { color: var(--red, #d64545); }
+.tp-progress { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.tp-progress-top { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.tp-progress-top span { font-variant-numeric: tabular-nums; color: var(--muted); }
+.tp-progress-bar { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.tp-progress-bar span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--accent, #0f8f7e); transition: width .35s ease; }
+.tp-progress-detail { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; min-height: 16px; }
+@media (prefers-reduced-motion: reduce) { .tp-progress-bar span { transition: none; } }
 .tp-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
 .tp-card { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
 .tp-card strong { display: block; font-size: 24px; line-height: 1.1; }
@@ -22,6 +29,7 @@
 .tp-canvas svg { display: block; min-width: 900px; width: 100%; height: auto; }
 .tp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .tp-table th, .tp-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.tp-table td.tp-long { min-width: 260px; max-width: 460px; }
 .tp-table th { position: sticky; top: 0; background: var(--panel-2); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .tp-scroll { overflow: auto; max-height: 60vh; }
 .tp-finding { padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -88,3 +96,4 @@
 .tp-sites-bar .tp-text { flex: 1 1 260px; min-width: 200px; }
 .tp-sites-list { max-height: 360px; overflow: auto; }
 .tp-sites-list input[type=checkbox] { width: 16px; height: 16px; }
+.tp-warn { margin: 0; padding: 10px 12px; border: 1px solid var(--amber, #c58f00); border-radius: 10px; background: var(--panel-2); font-size: 12px; line-height: 1.45; }

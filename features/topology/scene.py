@@ -7,7 +7,9 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
-from .graph import Connection, Graph
+import copy
+
+from .graph import Connection, Graph, link_speed
 from .layout import BOX_HALF, BOX_MIN, MARGIN, NODE_H, NODE_W, X_STEP, Y_STEP, Placed, groups_of, layered
 
 PAGE_ROW_WIDTH = 3200
@@ -106,6 +108,14 @@ class Page:
     shapes: list["Shape"] = field(default_factory=list)              # F5 map: virtual servers, pools, members, nodes
     shape_edges: list["ShapeEdge"] = field(default_factory=list)
     comb_source: dict[int, str] = field(default_factory=dict)       # connection index -> the switch end of a comb line (its port label stands on the drop beside that switch)
+    bundled: dict[int, list[Connection]] = field(default_factory=dict)   # connection index of a site bundle -> the separate lines it stands for (``bundle_sites``)
+
+    def unbundled(self) -> list[Connection]:
+        """The connections as they were before ``bundle_sites``: each site bundle replaced by the lines it stands for, in place."""
+        out: list[Connection] = []
+        for index, conn in enumerate(self.connections):
+            out.extend(self.bundled.get(index, [conn]))
+        return out
 
 
 def _connections_for(graph: Graph, keys: set[str]) -> list[Connection]:
@@ -310,8 +320,64 @@ def build_pages(graph: Graph, group_mode: str = "none", layout: Layout | None = 
     for page in pages:
         page.curved = curved
         page.end_boxes = endpoint_boxes(graph, page)
+        bundle_sites(graph, page)
         _route(page)
     return pages
+
+
+# ---- one line per pair of sites -----------------------------------------------------------------------------------
+
+SITE_BUNDLE_MIN = 3        # separate device-to-device lines between the same two site boxes from which the Overview draws one line for them
+BUNDLE_SKIP = ("host", "rollup", "peer-link", "mgmt", "l3", "l3seg", "l3r")
+
+
+def bundle_sites(graph: Graph, page: Page) -> None:
+    """Many lines between the same two site boxes (two aggregation pairs meshed, a ring of uplinks) cross the Overview as a bundle of long lines.
+    From ``SITE_BUNDLE_MIN`` lines on, the pair of boxes gets one line (kind ``sitebundle``): it joins the two devices of the fastest member, says
+    "N links" and the speed, and keeps every cable in its tooltip and draw.io data.  The site pages and the tables still hold each cable on its own.
+    ``page.bundled`` remembers the replaced lines, so the vPC twin and the L3-over-L2 page can start from them."""
+    if len(page.boxes) < 2 or page.bundled:
+        return
+    where: dict[str, int | None] = {key: _box_of(page, _centre(pos)) for key, pos in page.nodes.items()}
+    groups: dict[tuple[int, int], list[int]] = defaultdict(list)
+    for index, conn in enumerate(page.connections):
+        if conn.kind in BUNDLE_SKIP or conn.a not in where or conn.b not in where:
+            continue
+        i, j = where[conn.a], where[conn.b]
+        if i is None or j is None or i == j or conn.a in page.ghosts or conn.b in page.ghosts:
+            continue
+        groups[(min(i, j), max(i, j))].append(index)
+    chosen = {pair: members for pair, members in groups.items() if len(members) >= SITE_BUNDLE_MIN}
+    if not chosen:
+        return
+    first = {members[0]: pair for pair, members in chosen.items()}
+    drop = {index for members in chosen.values() for index in members[1:]}
+    out: list[Connection] = []
+    bundled: dict[int, list[Connection]] = {}
+    for index, conn in enumerate(page.connections):
+        if index in drop:
+            continue
+        if index not in first:
+            out.append(conn)
+            continue
+        low = first[index][0]
+        ranked = chosen[first[index]]
+        members = [page.connections[k] for k in ranked]
+        best = page.connections[max(ranked, key=lambda k: (max((link_speed(graph, l) for l in page.connections[k].links), default=0), -k))]     # the fastest member; the first one on a tie
+        links = []
+        for member in members:
+            flip = where[member.a] != low
+            for link in member.links:
+                clone = copy.copy(link)
+                clone.protocols = set(link.protocols)
+                if flip:
+                    clone.swap()
+                links.append(clone)
+        a, b = (best.a, best.b) if where[best.a] == low else (best.b, best.a)
+        bundled[len(out)] = members
+        out.append(Connection(a, b, links, kind="sitebundle"))
+    page.connections = out
+    page.bundled = bundled
 
 
 # ---- line routing -------------------------------------------------------------------------------------------------

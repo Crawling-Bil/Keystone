@@ -40,6 +40,14 @@ class Interface:
     ip_address: str = ""
     subnet_mask: str = ""
 
+    # The address comes from DHCP ("ip address dhcp" Cisco, "ip dhcp" AOS-CX, "ip address dhcp-bootp" ArubaOS-Switch, "ip address dhcp-alloc" Huawei).
+    # It used to be dropped without a word because there is no address to copy.
+    ip_dhcp: bool = False
+
+    # Port speed (Mbps, "100") and duplex ("full" / "half") fixed by the source; empty = auto-negotiated (every vendor's default, not printed).
+    speed: str = ""
+    duplex: str = ""
+
     channel_group: Optional[int] = None
     lacp_mode: str = ""
 
@@ -87,7 +95,15 @@ class Interface:
     # the only place a Huawei PoE-capable port's enabled state comes
     # from. See service.py's PoE config-only fallback (mirrors the
     # vPC/M-LAG and stack config-only fallback pattern).
-    poe_enabled: bool = False
+    #
+    # None = the source says nothing about PoE on this port (every
+    # vendor's default is "PoE on", and a default is not printed in the
+    # running-config); True / False = the source set it explicitly. The
+    # translators write PoE only for an explicit value: with a False
+    # default, "power inline never" / "no poe-enable" was written on every
+    # port of every conversion (uplinks, SVIs and the IP-phone / access-point
+    # ports included).
+    poe_enabled: Optional[bool] = None
 
     # vPC (Cisco NX-OS "vpc peer-link" / "vpc <id>" interface
     # sub-commands, only meaningful alongside a global "vpc domain"

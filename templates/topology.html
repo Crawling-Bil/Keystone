@@ -39,6 +39,7 @@
         <label class="an-field"><span class="tp-sub">Grouping</span>
           <select class="an-select" data-role="group">{% for value, label in group_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
         </label>
+        <p class="an-hint tp-warn hidden" data-role="group-warning" role="note">With this many captures, one diagram becomes too wide to read or print (a network of 25 sites is about 26,000 px wide). Choose <em>Automatic</em>: an Overview of the sites and one page per site; every cable stays in the tables.</p>
         <label class="an-field"><span class="tp-sub">Diagram file contains</span>
           <select class="an-select" data-role="view"><option value="all" selected>All views: L3 over L2, L3 route, IP, physical, vPC and F5 map in one file - default</option><option value="l3over2">L3 over L2 (L3 links drawn on top of the cables that carry them)</option><option value="l3route">L3 - Logical and Route (links proven by routing tables and neighbors)</option><option value="ip">L3 - Logical view only (shared subnets, interface addresses)</option><option value="both">L2 - Physical and vPC view</option><option value="physical">L2 - Physical view only</option><option value="logical">L2 - vPC view only</option><option value="f5map">F5 map only (virtual servers, pools, members, nodes of each BIG-IP)</option></select>
         </label>
@@ -74,16 +75,27 @@
         <label class="tp-file"><input type="file" data-role="previous" accept=".drawio,.xml"><span class="tp-file-btn">Choose file</span><span class="tp-file-name" data-role="previous-name">No file chosen</span></label>
         <small class="an-hint">Pick the topology.drawio you moved things in. Devices keep their position; new devices are placed beside them.</small></div>
       </fieldset>
+      <fieldset class="tp-card-box">
+        <legend class="an-label">Share a safe copy (optional)</legend>
+        <label class="tp-opt"><input type="checkbox" data-role="anonymize"><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Also make an anonymized copy</strong><small>Hostnames, domain names, port descriptions, VRF and F5 object names, IP addresses, MAC addresses and serial numbers are replaced the same way in every picture and table; subnets keep their shape, so the copy reads like the original. You get a second pack and a key file. Keep the key on this computer.</small></span></label>
+      </fieldset>
       <div class="an-actions">
         <button type="submit" class="an-btn primary" data-role="build" disabled>Build topology</button>
         <button type="button" class="an-btn" data-role="clear">Clear</button>
+      </div>
+      <div class="tp-progress hidden" data-role="progress">
+        <div class="tp-progress-top"><strong data-role="progress-label">Starting</strong><span data-role="progress-percent">0%</span></div>
+        <div class="tp-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Topology build progress"><span data-role="progress-fill"></span></div>
+        <div class="tp-progress-detail" data-role="progress-detail"></div>
       </div>
       <p class="tp-status" data-role="status" role="status" aria-live="polite"></p>
     </div>
   </form>
 
   <div class="tp-result hidden" data-role="result">
+    <p class="tp-warn hidden" data-role="notices" role="note"></p>
     <div class="tp-cards" data-role="cards"></div>
+    <p class="an-hint hidden" data-role="anonymized" role="note"></p>
     <div class="panel tp-downloads">
       <div><strong>Download</strong><span class="muted-copy"> <em>keystone-topology-pack.zip</em> holds everything (open <em>topology-report.html</em> and print it to PDF). <em>topology.drawio</em> opens in diagrams.net with every device and line carrying its data in Edit Data. Keep <em>topology.json</em> to add more devices later.</span></div>
       <div class="tp-buttons" data-role="downloads"></div>
@@ -97,6 +109,7 @@
         <button type="button" role="tab" data-tab="hosts" aria-selected="false">Hosts</button>
         <button type="button" role="tab" data-tab="behind" aria-selected="false">Behind devices</button>
         <button type="button" role="tab" data-tab="devices" aria-selected="false">Devices</button>
+        <button type="button" role="tab" data-tab="priority" aria-selected="false" class="hidden" data-role="tab-priority">Capture next <span class="an-badge" data-role="priority-count"></span></button>
         <button type="button" role="tab" data-tab="l3links" aria-selected="false" class="hidden" data-role="tab-l3links">L3 links</button>
         <button type="button" role="tab" data-tab="l3routes" aria-selected="false" class="hidden" data-role="tab-l3routes">L3 routes</button>
         <button type="button" role="tab" data-tab="l3overlay" aria-selected="false" class="hidden" data-role="tab-l3overlay">SD-WAN overlay</button>
@@ -125,6 +138,10 @@
       <div data-panel="hosts" class="hidden" data-role="hosts-table"></div>
       <div data-panel="behind" class="hidden" data-role="behind"></div>
       <div data-panel="devices" class="hidden" data-role="devices"></div>
+      <div data-panel="priority" class="hidden">
+        <p class="an-hint">Which captures would add the most to the picture, best first. <em>New capture</em>: a device its neighbors see but nobody captured; its capture confirms the one-sided links, names its ports and shows the neighbors only it can see. <em>Capture again</em>: a captured device whose capture has no CDP / LLDP neighbor table. Ranked by links that a neighbor table reports at the device (links only inferred from ARP, descriptions or routes count after those), then different captured neighbors, then MAC addresses behind it. <em>Collect list</em> is the file to run on the device.</p>
+        <div data-role="priority"></div>
+      </div>
       <div data-panel="l3links" class="hidden" data-role="l3links"></div>
       <div data-panel="l3routes" class="hidden" data-role="l3routes"></div>
       <div data-panel="l3overlay" class="hidden">

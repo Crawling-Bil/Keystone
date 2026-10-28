@@ -287,8 +287,10 @@ class CiscoSwitchTranslator:
             output.append("!")
 
         if config.banner_commands:
-            for banner in config.banner_commands:
-                output.append(f"banner motd ^{banner}^")
+            kinds = config.metadata.get("banner_kinds", [])
+            for index, banner in enumerate(config.banner_commands):
+                kind = kinds[index] if index < len(kinds) and kinds[index] in ("motd", "exec", "login") else "motd"
+                output.append(f"banner {kind} ^{banner}^")
             output.append("!")
 
         if config.line_vty_commands:
@@ -370,7 +372,7 @@ class CiscoSwitchTranslator:
         # never takes that command.
         # -----------------------------------------------------
 
-        if interface.ip_address:
+        if interface.ip_address or interface.ip_dhcp:
 
             if not is_svi:
                 lines.append(" no switchport")
@@ -382,7 +384,9 @@ class CiscoSwitchTranslator:
             if interface.vrf_forwarding:
                 lines.append(f" vrf forwarding {interface.vrf_forwarding}")
 
-            if interface.subnet_mask:
+            if not interface.ip_address:
+                lines.append(" ip address dhcp")        # a DHCP client (Cisco IOS XE "ip address dhcp")
+            elif interface.subnet_mask:
                 lines.append(
                     f" ip address {interface.ip_address} "
                     f"{interface.subnet_mask}"
@@ -561,6 +565,25 @@ class CiscoSwitchTranslator:
         # LLDP (per-interface transmit/receive)
         # -----------------------------------------------------
 
+        # -----------------------------------------------------
+        # SPEED / DUPLEX fixed by the source
+        #
+        # Cisco IOS XE: "speed {10 | 100 | 1000 | ...}" and "duplex {full | half}". Duplex is not configurable at 1 Gbps and above.
+        # Both ends of a cable must agree: the line is written as the source had it and the review note says so.
+        # -----------------------------------------------------
+
+        if interface.speed:
+            lines.append(f" speed {interface.speed}")
+
+        if interface.duplex and interface.speed in ("", "10", "100"):
+            lines.append(f" duplex {interface.duplex}")
+
+        if interface.speed or interface.duplex:
+            lines.append(
+                " ! REVIEW-SPEED: fixed in the source; the far end must be fixed the same way "
+                "(one side fixed and the other auto-negotiating gives a duplex mismatch)"
+            )
+
         if interface.lldp_transmit_disabled:
             lines.append(" no lldp transmit")
 
@@ -663,6 +686,8 @@ class CiscoSwitchTranslator:
         # -----------------------------------------------------
 
         for command in interface.commands:
+            if command == "no ip address":
+                continue                             # the default of a layer-2 port / unnumbered VLAN: no review item
             if getattr(self, "_same_vendor", False) and (nac.is_nac_command(command) or command == "device-tracking"):
                 # Cisco -> Cisco (model migration): 802.1X / MAB / device-tracking lines are IOS-XE syntax, kept verbatim
                 lines.append(f" {command}")
@@ -1406,6 +1431,10 @@ class CiscoSwitchTranslator:
 
     @staticmethod
     def translate_global_command(line):
+
+        # The end marker and the "version 17.9" stamp of a show running-config are not configuration: the target prints its own.
+        if line == "end" or re.fullmatch(r"version \d+(?:\.\d+)*", line):
+            return None
 
         if line.startswith("ntp server "):
             return line

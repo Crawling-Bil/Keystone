@@ -24,6 +24,7 @@ runtime_parser.py does and why it returns nothing on those captures).
 """
 from __future__ import annotations
 
+import functools
 import re
 from bisect import bisect_right
 from typing import Iterable
@@ -57,9 +58,18 @@ _GLUED_LOG_RE = re.compile(r"(?<=[A-Za-z\-])\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{
 
 def clean_lines(text: str) -> list[str]:
     """Return the capture as a list of lines with terminal/session-log
-    transport noise removed. Content is never rewritten."""
-    if not text:
-        return []
+    transport noise removed. Content is never rewritten.
+
+    The fingerprint and the analyzer read the same capture one after the other, so the last two captures are kept (as tuples; the caller gets a fresh list)."""
+    return list(_clean_lines_cached(text)) if text else []
+
+
+@functools.lru_cache(maxsize=2)
+def _clean_lines_cached(text: str) -> tuple[str, ...]:
+    return tuple(_clean_lines(text))
+
+
+def _clean_lines(text: str) -> list[str]:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = _ANSI_RE.sub("", text)
     text = _BARE_CURSOR_RE.sub("\n", text)

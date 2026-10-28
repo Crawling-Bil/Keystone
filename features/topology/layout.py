@@ -269,7 +269,7 @@ def _arrange(graph: Graph, rows: dict[float, list[str]], order: list[float], nei
                 items.insert(at, mark)
                 want[mark] = spot[parent]
                 reach[mark] = reach[parent]
-            got = _spread(items, want, 1.0, _isolated_gaps(items, neighbours, _owner_gaps(items, reach, xstep)))
+            got = _spread(items, want, 1.0, _isolated_gaps(items, neighbours, _owner_gaps(items, reach, xstep)), OWNER_ROW_FOLLOW)
             spot.update({k: x for k, x in got.items() if not k.startswith("\0")})
             first = index if first is None else first
             changed.add(index)
@@ -341,11 +341,17 @@ def _reorder(graph: Graph, row: list[str], neighbours: dict[str, set[str]], spot
     return new, want
 
 
-def _spread(row: list[str], want: dict[str, float], gap: float, gaps: list[float] | None = None) -> dict[str, float]:
+OWNER_ROW_FOLLOW = 0.0    # in the row of the switches that stand over their frames, a device without a frame (a seen-only switch) only comes along: the owners share the move
+
+
+def _spread(row: list[str], want: dict[str, float], gap: float, gaps: list[float] | None = None, follow_weight: float = 1.0) -> dict[str, float]:
     """x of every device of a row: as near to the wanted x as possible, never closer than ``gap`` to the one before it (``gaps[i]`` is the least distance
-    between ``row[i]`` and ``row[i + 1]`` when the pairs differ; isotonic regression on x - offset, so the order never changes)."""
+    between ``row[i]`` and ``row[i + 1]`` when the pairs differ; isotonic regression on x - offset, so the order never changes).  A device with no wish
+    follows the one before it; ``follow_weight`` is how much such a device counts when a run of devices has to move as a whole (1: like a device with a wish;
+    near 0: the devices that wish something share the move, the followers only come along)."""
     n = len(row)
     wished: list[float | None] = [want.get(k) for k in row]
+    weight = [1.0 if w is not None else max(follow_weight, 1e-9) for w in wished]
     steps = gaps if gaps is not None else [gap] * max(n - 1, 0)
     offset = [0.0]
     for step in steps:
@@ -358,18 +364,19 @@ def _spread(row: list[str], want: dict[str, float], gap: float, gaps: list[float
     for i in range(n - 2, -1, -1):
         if wished[i] is None and wished[i + 1] is not None:
             wished[i] = wished[i + 1] - steps[i]
-    blocks: list[list[float]] = []                                    # [sum, count] of runs that must share one level
+    blocks: list[list[float]] = []                                    # [weighted sum, weight, count] of runs that must share one level
     for i, w in enumerate(wished):
-        blocks.append([w - offset[i], 1])                             # type: ignore[operator]
+        blocks.append([(w - offset[i]) * weight[i], weight[i], 1])      # type: ignore[operator]
         while len(blocks) > 1 and blocks[-2][0] / blocks[-2][1] > blocks[-1][0] / blocks[-1][1]:
-            total, count = blocks.pop()
+            total, load, count = blocks.pop()
             blocks[-1][0] += total
-            blocks[-1][1] += count
+            blocks[-1][1] += load
+            blocks[-1][2] += count
     out: dict[str, float] = {}
     i = 0
-    for total, count in blocks:
+    for total, load, count in blocks:
         for _ in range(int(count)):
-            out[row[i]] = total / count + offset[i]
+            out[row[i]] = total / load + offset[i]
             i += 1
     return out
 

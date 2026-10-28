@@ -16,7 +16,7 @@ from typing import Any
 from ..analyzer_core.capture import F5_PROMPT
 from ..analyzer_core.vendor_hint import identify
 from ..switch_analyzer.service import analyze as analyze_switch
-from . import bigipdev, fortidev, panosdev, hosts as hosts_module, l3facts, l3switch, labels, roles, split as split_module
+from . import progress, bigipdev, fortidev, panosdev, hosts as hosts_module, l3facts, l3switch, labels, roles, split as split_module
 from .drawio import to_drawio
 from .extract import Device, device_from_analysis, os_from_text
 from .findings import build_findings, findings_by_device
@@ -37,7 +37,8 @@ from .l3tables import overlay_sites_table, overlay_table
 from .l3trace import trace_data
 from .l3tables import links_table as l3_links_table, routes_table as l3_routes_table, unresolved_table as l3_unresolved_table
 from .labelplace import place_labels
-from .layout import auto_mode
+from .layout import PREFIX_WORDS, auto_mode, groups_of
+from .priority import capture_priority
 from .routed import infer_routed
 from .state import merge, state_json
 from .logical import logical_pages
@@ -158,7 +159,11 @@ def read_devices(files: list[tuple[str, str]]) -> tuple[list[Device], list[dict[
     """Every capture read into a device (copies: the build changes devices, the cache must not see that)."""
     devices: list[Device] = []
     skipped: list[dict[str, str]] = []
-    for name, text in _merge_f5(files):
+    merged = _merge_f5(files)
+    total = max(sum(len(text) for _, text in merged), 1)         # the bar follows the bytes: a 4 MB capture is most of the time
+    done = 0
+    for number, (name, text) in enumerate(merged, 1):
+        progress.report("read", done / total, f"Capture {number} of {len(merged)}: {name}")
         key = hashlib.sha1(f"{name}\0{text}\0{getattr(text, 'live', '')}".encode("utf-8", "replace")).hexdigest()
         with _CACHE_LOCK:
             hit = _CACHE.get(key)
@@ -177,6 +182,8 @@ def read_devices(files: list[tuple[str, str]]) -> tuple[list[Device], list[dict[
             devices.extend(copy.deepcopy(device))
         elif device is not None:
             devices.append(copy.deepcopy(device))
+        done += len(text)
+    progress.report("read", 1.0, f"{len(merged)} capture(s) read")
     return _drop_replaced_guests(devices), skipped
 
 
@@ -192,20 +199,49 @@ def all_views_order(l3_pages: list, l3_extra: list, ip_pages: list, pages: list,
     return list(l3_pages) + list(l3_extra) + list(ip_pages) + list(pages) + list(twins) + list(f5_pages_ or [])
 
 
+WIDE_DIAGRAM_PX = 12000      # a single diagram wider than this (or taller, or with this many devices drawn) is too large to read on a screen or print on a plotter
+LARGE_DIAGRAM_DEVICES = 150
+
+
+def grouping_notices(graph: Graph, group: str, pages: list) -> list[str]:
+    """Plain-language warnings about the chosen grouping.  Today one: "One diagram" was chosen for a network whose picture is too large to read, and Automatic grouping
+    would split it into sites (the message says how many).  The list is empty when nothing is wrong."""
+    if group != "none" or not pages:
+        return []
+    overview = pages[0]
+    drawn = len(overview.nodes)
+    if max(overview.width, overview.height) <= WIDE_DIAGRAM_PX and drawn <= LARGE_DIAGRAM_DEVICES:
+        return []
+    size = f"{overview.width:,.0f} x {overview.height:,.0f} px with {drawn} devices"
+    mode = auto_mode(graph)
+    if mode != "none":
+        sites = len(groups_of(graph, mode, follow=False))
+        return [f"The single diagram is {size}, too large to read on a screen or to print as one picture. Choose the grouping \"Automatic\": it would give an Overview of {sites} sites "
+                f"and one page per site (grouped by the first {PREFIX_WORDS[mode]} hostname word{'s' if PREFIX_WORDS[mode] > 1 else ''}), and every cable stays in the tables."]
+    return [f"The single diagram is {size}, too large to read on a screen or to print as one picture, and the hostnames give no readable sites to group by. "
+            "Build the captures of each site (or each building) as a separate run, or pick \"Group by first hostname word\" or \"first two words\" if your names carry the site."]
+
+
 def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_endpoints: bool = True,
                    show_ports: bool = True, include_hosts: bool = False, include_routed: bool = True,
                    layout: dict[str, dict[str, tuple[float, float]]] | None = None, line_style: str = "state",
                    view: str = "both", hide_mgmt: bool = True, previous: list[Device] | None = None,
                    collapse_aps: bool | None = None, exclude_endpoints: bool = False, infer_neighbors_from_arp: bool = True,
-                   name: str = "", created: _dt.datetime | None = None, provider_hints: str = "", line_shape: str = "angled", show_link_ips: bool = True, overlay_sites: str = "captured", focus_sites: str = "", group_gateways: bool = True, group_endpoints: bool = True) -> dict[str, Any]:
+                   name: str = "", created: _dt.datetime | None = None, provider_hints: str = "", line_shape: str = "angled", show_link_ips: bool = True, overlay_sites: str = "captured", focus_sites: str = "", group_gateways: bool = True, group_endpoints: bool = True,
+                   devices: list[Device] | None = None) -> dict[str, Any]:
     """``collapse_endpoints`` folds IP phones and hosts into one node per switch; ``collapse_aps`` does the same for access points
     (default: as ``collapse_endpoints``, so older callers keep their picture).  ``exclude_endpoints`` leaves phones, hosts and servers
     out of the pictures altogether so only network devices remain.  ``group_endpoints`` frames the end points of each switch (a box named after the
-    switch); it acts only when end points are drawn one by one, that is neither excluded nor collapsed."""
-    devices, skipped = read_devices(files)
+    switch); it acts only when end points are drawn one by one, that is neither excluded nor collapsed.
+    ``devices`` are devices that were read already (the anonymized copy is built from those): ``files`` and ``previous`` are then not used."""
     replaced: list[str] = []
-    if previous:
-        devices, replaced = merge(previous, devices)
+    if devices is not None:
+        devices, skipped = list(devices), []
+    else:
+        devices, skipped = read_devices(files)
+        if previous:
+            devices, replaced = merge(previous, devices)
+    progress.report("link", 0.0, f"{len(devices)} device(s)")
     graph = build(devices)
     if hide_mgmt:
         graph.hidden_kinds.add("mgmt")
@@ -236,17 +272,23 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
     graph.group_aps = not (collapse_endpoints if collapse_aps is None else collapse_aps)         # access points drawn one by one are framed per switch, whatever the option for the other end points says
     used = auto_mode(graph) if group == "auto" else group          # the grouping that was applied
     curved = line_shape == "curved"
+    progress.report("pages", 0.0, "Placing devices")
     pages = build_pages(graph, used, layout, curved)
-    for page in pages:
+    for number, page in enumerate(pages, 1):
+        progress.report("pages", 0.15 + 0.5 * number / len(pages), f"Page {number} of {len(pages)}: {page.name}")
         place_labels(page, graph, show_ports)
+    notices = grouping_notices(graph, group, pages)
     twins = logical_pages(graph, pages)
-    for page in twins:
+    for number, page in enumerate(twins, 1):
+        progress.report("pages", 0.65 + 0.25 * number / len(twins), f"Logical page {number} of {len(twins)}")
         place_labels(page, graph, show_ports)
+    progress.report("pages", 0.9, "IP and F5 maps")
     ip_pages = [page for page in [ip_page(graph, curved)] if page is not None]
     f5_maps = f5_pages(graph)
     hints = {"rules": parse_hints(provider_hints)}
     focus = Focus.of(overlay_sites, focus_sites)
     want_l3 = view in ("l3route", "l3over2", "all")
+    progress.report("l3", 0.0, "Routes, tunnels and peerings" if want_l3 else "Not asked for")
     model = build_l3(graph, hints, focus, group_gateways) if want_l3 else None
     route_page = l3_page(graph, hints, curved, model, focus) if want_l3 else None
     over2_pages = l3over2_pages(graph, pages, hints, model, focus) if want_l3 else []
@@ -272,7 +314,9 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
     if l3_pages:
         model = l3_pages[0].l3["model"]
         l3_trace = trace_data(graph, model, {id(e): ident for page in l3_pages for ident, e in page.l3["all"]})
+    progress.report("l3", 0.8, "Findings")
     findings = build_findings(graph)
+    progress.report("export", 0.0, "draw.io file and pictures")
     kept = sum(page.kept for page in pages)
     shown = {"physical": pages, "logical": twins or pages, "both": pages + twins, "ip": ip_pages or pages, "l3route": l3_pages or pages, "l3over2": l3_pages or pages,
              "f5map": f5_maps or pages, "all": all_views_order(l3_pages, l3_extra, ip_pages, pages, twins, f5_maps)}.get(view, pages + twins)
@@ -282,7 +326,7 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
                 "infer_neighbors": infer_neighbors_from_arp, "include_routed": include_routed, "hide_mgmt": hide_mgmt, "include_hosts": include_hosts,
                 "previous_state": bool(previous), "keep_layout": bool(layout), "provider_hints": len(parse_hints(provider_hints)), "overlay_sites": focus.mode, "focus_sites": ", ".join(focus.sites), "group_gateways": group_gateways}
     return {
-        "settings": settings, "graph": graph, "pages": pages, "logical_pages": twins, "ip_pages": ip_pages, "l3_pages": l3_pages, "l3_links": l3_links, "l3_routes": l3_routes, "l3_unresolved": l3_unresolved, "l3_overlay": l3_overlay, "l3_sites": l3_sites, "l3_trace": l3_trace, "findings": findings, "findings_by_device": findings_by_device(graph, findings), "skipped": skipped,
+        "settings": settings, "notices": notices, "graph": graph, "pages": pages, "logical_pages": twins, "ip_pages": ip_pages, "l3_pages": l3_pages, "l3_links": l3_links, "l3_routes": l3_routes, "l3_unresolved": l3_unresolved, "l3_overlay": l3_overlay, "l3_sites": l3_sites, "l3_trace": l3_trace, "findings": findings, "findings_by_device": findings_by_device(graph, findings), "skipped": skipped,
         "drawio": to_drawio(graph, used, show_ports, shown, line_style, title=name, created=created),
         "svgs": [{"name": page.name, "view": page.view, "svg": to_svg(page, graph, show_ports, line_style)} for page in (shown if view == "all" else pages + twins + ip_pages + l3_pages + l3_extra + f5_maps)],
         "l3_extra_pages": l3_extra,
@@ -414,7 +458,7 @@ def _tool_version() -> str:
 def to_json(graph: Graph, findings: list[dict], devices: list[Device] | None = None, settings: dict[str, Any] | None = None) -> str:
     """The tables, readable with indentation, plus (when ``devices`` is given) the compact ``state`` block that lets a later run add to this one."""
     text = json.dumps({"devices": devices_table(graph), "links": links_table(graph), "hosts": hosts_table(graph), "behind": behind_table(graph),
-                       "findings": findings, **({"build": settings} if settings else {})}, indent=2)
+                       "capture_priority": capture_priority(graph), "findings": findings, **({"build": settings} if settings else {})}, indent=2)
     if devices is None:
         return text
     return text[:-2] + ',\n  "state": ' + state_json(devices) + "\n}"

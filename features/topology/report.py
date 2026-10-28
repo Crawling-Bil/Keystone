@@ -86,7 +86,8 @@ def device_ports(graph: Graph, key: str) -> list[list[str]]:
 
 def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], devices: list[dict], links: list[dict], hosts: list[dict],
                  behind: list[dict], svgs: list[dict], skipped: list[dict], title: str = "Network topology documentation",
-                 settings: dict[str, Any] | None = None, l3: dict[str, list[dict]] | None = None) -> str:
+                 settings: dict[str, Any] | None = None, l3: dict[str, list[dict]] | None = None, notices: list[str] | None = None,
+                 priority: list[dict] | None = None) -> str:
     now = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     cards = [("captured", "Devices captured"), ("seen_only", "Seen by neighbors only"), ("connections", "Connections"), ("confirmed", "Links confirmed both ends"),
              ("single_sided", "Links one end only"), ("vpc_pairs", "vPC pairs"), ("hosts", "Hosts in MAC tables"), ("findings", "Findings")]
@@ -95,8 +96,10 @@ def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], de
            f"<h1>{_e(title)}</h1><p class='meta'>Generated {_e(now)} by Keystone Topology Builder from CDP/LLDP, port-channel, vPC, MAC and ARP data in device captures. "
            "Nothing in this report was typed in by hand.</p>",
            "<div class='cards'>" + "".join(f"<div class='card'><b>{_e(summary.get(k, 0))}</b><span>{_e(label)}</span></div>" for k, label in cards) + "</div>"]
+    for text in notices or []:
+        out.append(f"<p class='note'><b>Notice.</b> {_e(text)}</p>")
     if settings:
-        out.append("<h2>Build options</h2><p class='note'>The options that were set on the page for this run (the same text is in run-settings.txt).</p><pre>" + _e(settings_text(settings, summary)) + "</pre>")
+        out.append("<h2>Build options</h2><p class='note'>The options that were set on the page for this run (the same text is in run-settings.txt).</p><pre>" + _e(settings_text(settings, summary, notices)) + "</pre>")
     out.append("<h2>1. Diagrams</h2>")
     out.append("<p class='note'>Physical view: every cable. vPC view: each vPC pair is one frame and each bundle that spans a pair is one line. IP view: devices that share a subnet, with the address at each end and a table of every interface address. "
                "Black = confirmed from both ends, orange dashed = reported by one end only, red = the ends disagree, blue = vPC peer-link, grey box = seen by a neighbor but not captured.</p>")
@@ -153,7 +156,17 @@ def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], de
                "VMware and Hyper-V are recognised by MAC prefix only: a hint, not proof.</p>")
     out.append(_table(["Behind", "Switch", "Port", "MAC addresses", "With IP", "VMware", "Hyper-V", "VLANs"],
                       [[b["behind"], b["switch"], b["port"], b["mac_addresses"], b["with_ip"], b["vmware"], b["hyper_v"], b["vlans"]] for b in behind]))
-    out.append("<h2>6. Per-device pages</h2>")
+    if priority:
+        out.append("<h2>6. Captures to take next</h2>")
+        out.append("<p class='note'>Ranked by what a capture adds to the picture: first the links that a neighbor table reports at the device (each one is seen from the other side only until the device itself is captured; "
+                   "links only inferred from ARP, descriptions or routes count after those), then the number of different captured neighbors, then the MAC addresses learned behind it. 'Capture again' rows are captured devices whose capture holds no CDP / LLDP neighbor table. "
+                   "The collect list is the file in static/collect-scripts that fits the vendor.</p>")
+        out.append(_table(["#", "Action", "Device", "Role", "Model", "Links", "Inferred", "Neighbors", "MACs behind", "Seen from", "Collect list"],
+                          [[r["rank"], r["action"], r["device"], r["role"], r["model"], r["links"], r["inferred_links"], r["captured_neighbors"], r["behind_macs"], r["ports_seen"] or r["neighbors"], r["collect_list"]] for r in priority[:200]]))
+        if len(priority) > 200:
+            out.append(f"<p class='note'>The first 200 of {len(priority)} rows are shown here; capture-priority.csv and the workbook list all of them.</p>")
+    number = 7 if priority else 6                  # the section "Captures to take next" is there only when the list is not empty
+    out.append(f"<h2>{number}. Per-device pages</h2>")
     for key, node in sorted(graph.nodes.items(), key=lambda item: item[1].hostname):
         if not node.captured:
             continue
@@ -173,7 +186,7 @@ def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], de
             out.append("<p class='note'>Hosts behind uncaptured devices on this switch:</p>")
             out.append(_table(["Behind", "Port", "MAC addresses", "With IP", "VMware", "VLANs"], [[b["behind"], b["port"], b["mac_addresses"], b["with_ip"], b["vmware"], b["vlans"]] for b in mine]))
         out.append("</div>")
-    out.append("<h2>7. Method and limits</h2><ul class='note'>"
+    out.append(f"<h2>{number + 1}. Method and limits</h2><ul class='note'>"
                "<li>A link is <b>confirmed</b> when both devices report it, <b>single-sided</b> when only one does (the other was not captured or does not send CDP/LLDP), and a <b>conflict</b> when the peer's own table says that port faces another device.</li>"
                "<li>Ends are matched by serial number, chassis MAC, hostname and management IP, and by canonical port name.</li>"
                "<li>A vPC frame appears only when both switches of the pair were captured and sit on the same row of the diagram.</li>"
@@ -212,7 +225,7 @@ CHOICE_LABELS = {
 }
 
 
-def settings_text(settings: dict[str, Any], summary: dict[str, Any] | None = None) -> str:
+def settings_text(settings: dict[str, Any], summary: dict[str, Any] | None = None, notices: list[str] | None = None) -> str:
     """The options of one run as plain text (run-settings.txt): what was on the page, so a result can be reproduced and discussed without a screenshot."""
     summary = summary or {}
     lines = [f"Keystone Topology Builder {settings.get('tool_version', '')} - run settings".replace("  ", " "),
@@ -233,6 +246,8 @@ def settings_text(settings: dict[str, Any], summary: dict[str, Any] | None = Non
     lines.append(f"SD-WAN sites drawn on the L3 pages: {CHOICE_LABELS['overlay_sites'].get(settings.get('overlay_sites'), settings.get('overlay_sites', 'captured'))}")
     lines.append(f"SD-WAN sites typed in the list (drawn exactly, captured or not): {settings.get('focus_sites') or '(none)'}")
     lines.append(f"Group uncaptured next-hop routers and parallel subnets on the L3 pages: {'yes' if settings.get('group_gateways', True) else 'no'}")
+    if notices:
+        lines += ["", "Notices"] + [f"  ! {text}" for text in notices]
     return "\r\n".join(lines) + "\r\n"
 
 

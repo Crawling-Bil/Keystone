@@ -68,9 +68,9 @@ Dengan git: `git pull`, lalu jalankan file setup sekali (`setup_windows.bat` ata
 | Menilai router (routing, BGP/OSPF, VPN, SD-WAN) | Router Analyzer | Capture Cisco IOS, IOS-XE, atau SD-WAN |
 | Menilai firewall (policy, NAT, VPN) | Firewall Analyzer | FortiGate, FortiSwitch, Palo Alto, MikroTik |
 | Menilai load balancer F5 | Load Balancer Analyzer | `.ucs`, `bigip.conf`, atau output `tmsh` |
-| Membuat diagram topologi (draw.io) | Topology Builder | Capture per perangkat (atau ZIP) berisi `show cdp neighbors detail` / `show lldp neighbors detail`, opsional tabel MAC / ARP; hasil: tampilan fisik, vPC, dan Logical IP, tetangga dari ARP / MAC / description saat CDP/LLDP tidak ada, pengelompokan per site, nama topologi untuk nama file, kecepatan link, paket dokumentasi (ZIP / laporan HTML), gabung dengan hasil sebelumnya |
+| Membuat diagram topologi (draw.io) | Topology Builder | Capture per perangkat (atau ZIP): switch, router, FortiGate, Palo Alto, F5 BIG-IP (`.ucs` atau `tmsh`), berisi `show cdp neighbors detail` / `show lldp neighbors detail`, opsional tabel MAC / ARP dan fakta routing; hasil: tampilan L3 over L2, L3 logical dan route, Logical IP, fisik, vPC, dan peta F5, tetangga dari ARP / MAC / description saat CDP/LLDP tidak ada, satu halaman per site untuk jaringan besar, overlay SD-WAN, trace jalur, kecepatan link, paket dokumentasi (ZIP / laporan HTML), daftar capture berikutnya, gabung dengan hasil sebelumnya, salinan anonim opsional, progress bar saat proses berjalan |
 | Menilai wireless controller | Wireless Analyzer | Konfigurasi WLC Huawei atau Cisco 9800 |
-| Memindahkan konfigurasi switch ke vendor lain | Convert, Switch | Konfigurasi switch Cisco, Huawei, atau Aruba |
+| Memindahkan konfigurasi switch ke vendor lain | Convert, Switch | Konfigurasi switch Cisco, Huawei, atau Aruba (Aruba 2540 / ArubaOS-Switch dan AOS-CX), atau capture sesi terminalnya |
 | Memindahkan firewall MikroTik ke Palo Alto (sekali klik atau Guided Conversion langkah demi langkah) | Convert, Firewall | Konfigurasi MikroTik |
 | Upgrade firmware, push config, onboarding switch baru | Device Operations, ZTP | Kredensial perangkat, firmware, draft config |
 | Backup konfigurasi (hanya baca) | Config Backup | Kredensial perangkat |
@@ -106,20 +106,30 @@ Jika file Anda milik tool lain (misalnya capture router di halaman Switch), Keys
    - **Pre-flight**: apa yang terkonversi bersih, apa yang butuh keputusan, apa yang tidak terkonversi, plus pemeriksaan struktur seperti rule ACL ganda dan port-channel kosong.
 7. Cari `REVIEW-` di hasil. Setiap baris itu adalah keputusan atau padanan yang tidak ada, dan harus diputuskan manusia sebelum konfigurasi masuk ke perangkat.
 
+Yang dibawa converter, dan yang ditinggalkan untuk Anda:
+
+- Hanya yang dinyatakan sumber yang ditulis. Port yang PoE-nya tidak disebut sumber tidak mendapat baris PoE (setiap vendor menyalakan PoE secara default); port yang PoE-nya dimatikan sumber tetap dimatikan.
+- Speed dan duplex tetap (`speed 100` / `duplex full`, `speed-duplex 100-full`) dan alamat DHCP client (`ip address dhcp`, `ip address dhcp-bootp`, `ip dhcp`, `ip address dhcp-alloc`) ditulis di setiap target. Port dengan speed tetap juga mendapat baris `REVIEW-SPEED`, karena ujung lawannya harus ditetapkan sama, kalau tidak terjadi duplex mismatch. AOS-CX hanya menerima `ip dhcp` di interface management dan VLAN 1, jadi interface lain mendapat baris `REVIEW-DHCP-CLIENT`.
+- Capture `show tech-support` atau capture sesi terminal lain hanya dibaca bagian running configuration-nya; capture Aruba 2540 puluhan ribu baris tidak lagi dianggap sebagai konfigurasi. Banner mempertahankan jenis (`motd`, `exec`, `login`) dan isinya.
+- Baris yang tidak punya padanan di target tetap terlihat sebagai baris `REVIEW-`, tidak dibuang diam-diam.
+
 Beberapa file atau satu ZIP bisa dikonversi sekaligus lewat **batch conversion**. Aturan converter ada di [modules/configuration-studio.md](modules/configuration-studio.md).
 
 ## 7b. Membuat diagram topologi
 
-1. Buka **Analyze**, lalu **Topology Builder**. Pilih atau tarik satu capture per perangkat (atau satu ZIP). Semakin banyak perangkat, semakin banyak link yang terkonfirmasi dari kedua ujung.
+1. Buka **Analyze**, lalu **Topology Builder**. Pilih atau tarik satu capture per perangkat (atau satu ZIP; untuk F5 BIG-IP arsip `.ucs`, ditambah capture `tmsh` unit yang sama untuk status port dan ARP). Semakin banyak perangkat, semakin banyak link yang terkonfirmasi dari kedua ujung.
 2. Opsional: isi **Topology name**. Semua file unduhan lalu diberi nama itu (`Lab-DC-topology.drawio`, `Lab-DC-links.csv`, ...); kosong berarti nama biasa. File draw.io menampilkan nama dan `Topology Created at Date YYYY:MM:DD - Time HH:MM:SS` di atas diagram.
 3. Atur opsi (nilai awal dalam kurung):
    - **Exclude IP phones, PCs and servers** (aktif): hanya perangkat jaringan yang digambar. Selama aktif, opsi phone/host disembunyikan.
-   - **Collapse phones and hosts into one node per switch** (aktif) dan **Collapse access points into one node per switch** (aktif: satu kotak per switch; matikan agar setiap access point tampil dengan hostname, model, dan IP sendiri untuk diagram yang lebih detail).
-   - **Show port names on the lines** (aktif), **Infer neighbors where CDP/LLDP is silent** (aktif; urutan kepercayaan: ARP, lalu MAC address, lalu port description), **Add routed /30 and /31 links** (aktif), **Leave out-of-band management links out of the picture** (aktif), **Draw end hosts learned from MAC tables** (mati).
-   - **Grouping**: satu diagram, atau kelompok berdasarkan satu, dua, atau tiga kata pertama hostname (`JKT`, `JKT-A02`, `JKT-GD1-LT1`). Grup dengan link terbanyak ke grup lain digambar di tengah, grup lain di sekelilingnya, masing-masing dalam kotak hitam.
-   - **Diagram file contains**: tampilan fisik dan vPC, fisik saja, vPC saja, atau **Logical IP view** (perangkat yang berbagi subnet, interface dan alamat di tiap ujung, serta tabel semua alamat interface per perangkat).
-   - **Style lines by**: kecepatan rating (default) atau status link.
-4. Tekan **Build topology**, lihat pratinjau (zoom, geser, buka di tab baru), dan baca findings. Unduh **pack** (ZIP) untuk semuanya, atau file satuan.
+   - **Collapse phones and hosts into one node per switch** (aktif), **Group end points under the same switch** (aktif, bila end point digambar satu per satu: satu bingkai per switch di sekeliling phone, PC, dan server-nya) dan **Collapse access points into one node per switch** (aktif: satu kotak per switch; matikan agar setiap access point tampil dengan hostname, model, dan IP sendiri, dalam bingkai di bawah switch-nya).
+   - **Show port names on the lines** (aktif), **Show the address of routed ports on the lines** (aktif), **Infer neighbors where CDP/LLDP is silent** (aktif; urutan kepercayaan: ARP, lalu MAC address, lalu port description), **Add routed /30 and /31 links** (aktif), **Leave out-of-band management links out of the picture** (aktif), **Draw end hosts learned from MAC tables** (mati).
+   - **Grouping**: Automatic (default: satu halaman per site bila jaringan besar), satu diagram, atau kelompok berdasarkan satu, dua, atau tiga kata pertama hostname (`JKT`, `JKT-A02`, `JKT-GD1-LT1`). Setiap grup digambar dalam kotak hitam; grup dengan link terbanyak ke grup lain ada di tengah.
+   - **Diagram file contains**: semua tampilan dalam satu file (default), **L3 over L2** (link L3 digambar di atas kabel yang membawanya), **L3 - Logical and Route** (link yang dibuktikan tabel routing dan tetangga), **L3 - Logical view** (subnet bersama, alamat interface), **L2 fisik dan vPC**, fisik saja, vPC saja, atau **F5 map** (virtual server, pool, member, node tiap BIG-IP).
+   - **Line shape** (lurus dengan satu tekukan di sekitar perangkat, atau melengkung) dan **Style lines by** (kecepatan rating atau status link).
+   - **SD-WAN sites on the L3 pages**: hanya site yang Anda capture (default; sisanya satu cloud) atau semua site di tabel BFD, opsional dengan daftar site yang digambar. **Group what repeats on the L3 pages** (aktif) mengubah router next-hop yang tidak di-capture menjadi satu node per VRF, dan pasangan interface VLAN antara dua switch menjadi satu garis; tabel tetap berisi semua baris.
+   - **Provider hints** (opsional): satu aturan per baris, misalnya `HQWANR1 Gi0/0/1 = mpls Telkom` atau `203.0.113.0/30 = internet Biznet`, untuk menamai cloud provider di tampilan L3.
+   - **Also make an anonymized copy** (mati): paket kedua dengan hostname, nama domain, description, nama VRF dan objek F5, alamat IP, MAC address, dan serial number diganti secara konsisten di semua tempat, plus file kunci. Simpan kunci itu di komputer Anda sendiri.
+4. Tekan **Build topology**. Progress bar menampilkan langkahnya (capture 3 dari 7, menggambar halaman 2 dari 5, menulis pack) dan detik yang sudah berjalan; build kedua dari capture yang sama jauh lebih cepat karena hasil pembacaan disimpan. Lalu lihat pratinjau (zoom, geser, buka di tab baru) dan baca findings. Unduh **pack** (ZIP) untuk semuanya, atau file satuan. Tab **Capture next** menampilkan perangkat yang capture-nya paling menambah link, dan **Trace a path** menelusuri alamat tujuan hop demi hop lewat tabel routing.
 5. Untuk melanjutkan nanti, pilih `topology.json` di **Add to a previous run** dan `topology.drawio` yang sudah Anda geser di **Keep my layout**.
 6. Penempatan perangkat: satu level dibaca dari kiri ke kanan urut nama (A-Z, lalu 0-9). Semua yang terhubung ke satu perangkat (switch, access point, IP phone, PC) dikelompokkan tepat di bawah perangkat itu, jadi 3 AP di bawah switch A tidak bercampur dengan 2 AP di bawah switch B. Perangkat yang hanya uplink (router, firewall) ditempatkan di atas perangkat yang dilayaninya, berdampingan (router A, B, C).
 

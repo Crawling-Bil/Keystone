@@ -39,6 +39,8 @@ def end_texts(conn: Connection) -> tuple[str, str]:
     if conn.kind in ("rollup", "host"):
         text = _short(compress_ports([l.a_port for l in conn.links]), len(conn.links))
         return ("" if conn.kind == "rollup" and text.endswith(" ports") and len(conn.links) > 1 and text[0].isdigit() else text), ""
+    if conn.kind == "sitebundle":                         # the cables of a pair of sites drawn as one line: their ports are in the tooltip and the tables
+        return "", ""
     if conn.kind == "l3" and len(conn.links) > 1:      # many subnets shared by one pair: the tables list every address
         return "", ""
     if conn.kind == "l3r":
@@ -87,7 +89,7 @@ def center_text(conn: Connection, graph: Graph) -> str:
         from .l3page import centre_text
         return centre_text(conn.l3)
     parts: list[str] = []
-    speed = speed_summary(graph, conn) if conn.kind in ("bundle", "parallel", "vpc", "peer-link") else ""
+    speed = speed_summary(graph, conn) if conn.kind in ("bundle", "parallel", "vpc", "peer-link", "sitebundle") else ""
     if conn.kind == "peer-link":
         parts.append("vPC peer-link" + (f" {len(conn.links)}x{speed}" if speed and "+" not in speed else ""))
     elif conn.kind == "rollup":
@@ -99,6 +101,8 @@ def center_text(conn: Connection, graph: Graph) -> str:
         protocol = bundle_protocol(graph, conn)
         if protocol:
             parts.append(protocol)
+    elif conn.kind == "sitebundle":
+        parts.append(f"{len(conn.links)} links" + (f" · {speed}" if speed else ""))
     elif conn.kind in ("bundle", "parallel"):
         protocol = bundle_protocol(graph, conn)
         if conn.kind == "parallel":

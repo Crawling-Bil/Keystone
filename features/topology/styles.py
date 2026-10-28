@@ -46,5 +46,5 @@ def line_look(graph: Graph, conn: Connection, line_style: str) -> tuple[str, flo
         colour, width = speed_style(graph, conn)
         return colour, width, conn.state != "confirmed"
     colour = STATE_COLOUR[conn.state]
-    width = 6 if conn.kind == "vpc" else 4 if conn.kind in ("bundle", "parallel") and conn.state == "confirmed" else 3 if conn.state == "conflict" else 2
+    width = 6 if conn.kind == "vpc" else 4 if conn.kind in ("bundle", "parallel", "sitebundle") and conn.state == "confirmed" else 3 if conn.state == "conflict" else 2
     return colour, width, conn.state != "confirmed"

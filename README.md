@@ -33,12 +33,12 @@ Keystone only listens on your own computer (`127.0.0.1`), so another machine on 
 | Group | Tool | What you give it | What you get |
 | --- | --- | --- | --- |
 | Analyze | Wireless Analyzer | Huawei or Cisco 9800 WLC configuration, optional AP inventory | Assessment, AP master validation, AP role diff, source-to-target delta |
-| Analyze | Switch Analyzer | Cisco (Catalyst, Nexus), Huawei, Aruba (ArubaOS-Switch, AOS-CX) configuration and `show` output | Inventory, VLANs, spanning tree, port-channels, vPC/M-LAG, PoE, transceivers, findings, Excel export |
+| Analyze | Switch Analyzer | Cisco (Catalyst, Nexus), Huawei, Aruba (ArubaOS-Switch, AOS-CX) configuration and `show` output | Inventory, VLANs, spanning tree, port-channels, vPC/M-LAG, PoE, transceivers, findings, Excel export (with a Health Details sheet) |
 | Analyze | Router Analyzer | Cisco IOS, IOS-XE or SD-WAN capture | Interfaces, routing, BGP/OSPF, VPN, hardening findings |
 | Analyze | Firewall Analyzer | FortiGate, FortiSwitch, Palo Alto (configuration or runtime log), MikroTik RouterOS 6/7 | Policies, NAT, VPN, routing, objects, hardening findings |
 | Analyze | Load Balancer Analyzer | F5 BIG-IP `.ucs`, `bigip.conf` or `tmsh` output | Virtual server to pool map, monitors, SSL, HA, DNS (GTM), findings |
-| Analyze | Topology Builder | Captures (or a ZIP) with CDP / LLDP neighbors, optionally MAC / ARP tables | draw.io diagram with physical, vPC and logical IP views (keeps your layout between runs), neighbors from ARP / MAC / descriptions where CDP/LLDP is silent, grouping by site, optional topology name for the file names, link speeds, documentation pack (ZIP / HTML report), Excel, link, bundle and host tables, devices behind uncaptured devices, merge with a previous run, gaps in the discovery |
-| Convert | Convert Switch | Cisco, Huawei or Aruba switch configuration | Configuration for another vendor, interface map, pre-flight summary |
+| Analyze | Topology Builder | Captures (or a ZIP) of switches, routers, FortiGate, Palo Alto and F5 BIG-IP (`.ucs` or `tmsh`), with CDP / LLDP neighbors, optionally MAC / ARP tables and routing facts | draw.io diagram with L3 over L2, L3 logical and route, logical IP, physical, vPC and F5 map views (keeps your layout between runs), neighbors from ARP / MAC / descriptions where CDP/LLDP is silent, one page per site on large networks, SD-WAN overlay and provider clouds, trace of a path, link speeds, documentation pack (ZIP / HTML report), Excel, link, bundle, host and L3 tables, devices behind uncaptured devices, the captures to take next, merge with a previous run, optional anonymized copy, a progress bar while it builds |
+| Convert | Convert Switch | Cisco, Huawei or Aruba switch configuration (Aruba 2540 / ArubaOS-Switch and AOS-CX), or a terminal session capture of it | Configuration for another vendor, interface map, pre-flight summary; every statement without a safe equivalent is a `REVIEW-` line |
 | Convert | Convert Firewall | MikroTik configuration | Palo Alto (Panorama-ready) configuration, in one click or step by step (Guided Conversion: target model, interface and VLAN mapping, zones, checked at every step) |
 | Convert | Wireless, Router, Load Balancer | none yet | These pages say what is needed first and link to the matching analyzer |
 | Operate | Device Operations (Devices, Backup, Config Push, Upgrade, Live Logs), ZTP Provisioning | Device credentials, firmware, draft configuration | Firmware upgrade, configuration push, zero-touch provisioning (these change real devices) |
@@ -105,20 +105,30 @@ A file that belongs to another tool (for example a router capture on the Switch 
    - **Pre-flight**: what converted cleanly, what needs a decision, what was not converted, and structural checks such as duplicate ACL rules and empty port-channels.
 7. Search the output for `REVIEW-`. Every such line is a decision or a missing equivalent that a person must settle before the configuration goes on a device.
 
+What the converter carries over, and what it leaves for you:
+
+- Only what the source states is written. A port whose PoE the source never mentioned gets no PoE line (every vendor powers a PoE port by default); a port the source switched off keeps it off.
+- Fixed speed and duplex (`speed 100` / `duplex full`, `speed-duplex 100-full`) and DHCP-client addresses (`ip address dhcp`, `ip address dhcp-bootp`, `ip dhcp`, `ip address dhcp-alloc`) are written on every target. A fixed port also gets a `REVIEW-SPEED` line, because the far end must be fixed the same way or you get a duplex mismatch. AOS-CX accepts `ip dhcp` only on the management interface and VLAN 1, so any other interface gets a `REVIEW-DHCP-CLIENT` line.
+- A `show tech-support` or other terminal capture is read for its running configuration only; an Aruba 2540 capture of tens of thousands of lines no longer becomes the configuration. Banners keep their kind (`motd`, `exec`, `login`) and their text.
+- Lines that have no equivalent on the target stay visible as `REVIEW-` lines instead of being dropped silently.
+
 Several files or a ZIP can be converted in one go with **batch conversion**. Details and the rules behind the converter are in [docs/modules/configuration-studio.md](docs/modules/configuration-studio.md).
 
 ## Draw a network topology
 
-1. Open **Analyze**, then **Topology Builder**. Select or drop one capture per device (or a ZIP). The more devices you add, the more links are confirmed from both ends.
+1. Open **Analyze**, then **Topology Builder**. Select or drop one capture per device (or a ZIP; for an F5 BIG-IP the `.ucs` archive, plus a `tmsh` capture of the same unit for port state and ARP). The more devices you add, the more links are confirmed from both ends.
 2. Optional: type a **Topology name**. Every download is then named after it (`Lab-DC-topology.drawio`, `Lab-DC-links.csv`, ...); empty keeps the plain names. The draw.io file shows the name and `Topology Created at Date YYYY:MM:DD - Time HH:MM:SS` above the diagram.
 3. Check the options (defaults in brackets):
    - **Exclude IP phones, PCs and servers** (on): draw network devices only. While it is on, the phone/host options are hidden.
-   - **Collapse phones and hosts into one node per switch** (on) and **Collapse access points into one node per switch** (on: one box per switch; clear it to draw every access point with its own hostname, model and IP address for a detailed diagram).
-   - **Show port names on the lines** (on), **Infer neighbors where CDP/LLDP is silent** (on; order of trust: ARP, then MAC address, then port description), **Add routed /30 and /31 links** (on), **Leave out-of-band management links out of the picture** (on), **Draw end hosts learned from MAC tables** (off).
-   - **Grouping**: one diagram, or group by the first one, two or three hostname words (`JKT`, `JKT-A02`, `JKT-GD1-LT1`). The group with the most links to other groups is drawn in the middle, the others around it, each in a black frame.
-   - **Diagram file contains**: physical and vPC view, physical only, vPC only, or the **Logical IP view** (devices that share a subnet, the interface and address at each end, and a table of every interface address per device).
-   - **Style lines by**: rated speed (default) or link state.
-4. Press **Build topology**, look at the preview (zoom, drag, open in a new tab) and read the findings. Download the **pack** (ZIP) for everything, or single files.
+   - **Collapse phones and hosts into one node per switch** (on), **Group end points under the same switch** (on, when end points are drawn one by one: one frame per switch around its phones, PCs and servers) and **Collapse access points into one node per switch** (on: one box per switch; clear it to draw every access point with its own hostname, model and IP address, framed under its switch).
+   - **Show port names on the lines** (on), **Show the address of routed ports on the lines** (on), **Infer neighbors where CDP/LLDP is silent** (on; order of trust: ARP, then MAC address, then port description), **Add routed /30 and /31 links** (on), **Leave out-of-band management links out of the picture** (on), **Draw end hosts learned from MAC tables** (off).
+   - **Grouping**: Automatic (default: one page per site when the network is large), one diagram, or group by the first one, two or three hostname words (`JKT`, `JKT-A02`, `JKT-GD1-LT1`). Each group is drawn in a black frame; the group with the most links to other groups is in the middle.
+   - **Diagram file contains**: all views in one file (default), **L3 over L2** (L3 links drawn on top of the cables that carry them), **L3 - Logical and Route** (links proven by routing tables and neighbors), **L3 - Logical view** (shared subnets, interface addresses), **L2 physical and vPC**, physical only, vPC only, or the **F5 map** (virtual servers, pools, members, nodes of each BIG-IP).
+   - **Line shape** (straight, bent once around a device, or curved) and **Style lines by** (rated speed or link state).
+   - **SD-WAN sites on the L3 pages**: only the sites you captured (default; the rest is one cloud) or every site in the BFD tables, optionally a list of the sites to draw. **Group what repeats on the L3 pages** (on) turns next-hop routers nobody captured into one node per VRF and VLAN interface pairs between two switches into one line; the tables keep every row.
+   - **Provider hints** (optional): one rule per line, for example `HQWANR1 Gi0/0/1 = mpls Telkom` or `203.0.113.0/30 = internet Biznet`, to name the provider clouds on the L3 views.
+   - **Also make an anonymized copy** (off): a second pack where hostnames, domain names, descriptions, VRF and F5 object names, IP addresses, MAC addresses and serial numbers are replaced the same way everywhere, plus a key file. Keep the key on your own computer.
+4. Press **Build topology**. A progress bar shows the step (capture 3 of 7, drawing page 2 of 5, writing the pack) and the seconds so far; a second build of the same captures is much faster because the reading is cached. Then look at the preview (zoom, drag, open in a new tab) and read the findings. Download the **pack** (ZIP) for everything, or single files. The **Capture next** tab lists the devices whose capture would add the most links, and **Trace a path** follows a destination address hop by hop through the routing tables.
 5. To continue later, pick the `topology.json` under **Add to a previous run** and the `topology.drawio` you moved things in under **Keep my layout**.
 
 The pack contains `run-settings.txt`: the options you set, the creation time and the topology name. Send it together with a question or a bug report. Everything else, including finding IDs (TOPO-001 ...) and what each option does, is in [docs/modules/topology.md](docs/modules/topology.md).
@@ -191,6 +201,7 @@ On Windows, open Command Prompt in the Keystone folder, run for example `set NES
 - [docs/modules/lifecycle-manager.md](docs/modules/lifecycle-manager.md): upgrade, push, backup and ZTP
 - [docs/modules/lld-index.md](docs/modules/lld-index.md): LLD index templates, inventory columns, rack layout, saved projects
 - [docs/modules/lld-generator.md](docs/modules/lld-generator.md): Document Generator, master template placeholders, Work Plan and Work Report, approvers, import from the old Document Generator
+- [CONTRIBUTING.md](CONTRIBUTING.md): reporting problems, keeping real data out, running the tests
 - [CHANGELOG.md](CHANGELOG.md)
 
 ## Development

@@ -11,12 +11,44 @@
 
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const setStatus = (text, error) => { status.textContent = text || ""; status.classList.toggle("error", !!error); };
+  // build progress: the page sends a random id with the captures and asks the server where the build is twice a second
+  const bar = { box: $("progress"), label: $("progress-label"), percent: $("progress-percent"), fill: $("progress-fill"), detail: $("progress-detail"), meter: $("progress").querySelector("[role=progressbar]") };
+  let pollTimer = null, pollStart = 0;
+  const showProgress = (percent, label, detail) => {
+    const value = Math.max(0, Math.min(100, Math.round(percent)));
+    bar.box.classList.remove("hidden");
+    bar.label.textContent = label; bar.percent.textContent = `${value}%`; bar.fill.style.width = `${value}%`;
+    bar.detail.textContent = detail; bar.meter.setAttribute("aria-valuenow", String(value));
+  };
+  const newBuildId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "") : Math.random().toString(16).slice(2) + Date.now().toString(16)).padEnd(16, "0");
+  function startProgress(id, first) {
+    stopProgress(); pollStart = Date.now(); showProgress(0, first, "");
+    const tick = async () => {
+      let state = null;
+      try { const r = await fetch(`${api}/api/progress/${id}`, { cache: "no-store" }); if (r.ok) state = await r.json(); } catch (err) { /* the build request itself reports a lost connection */ }
+      if (pollTimer === null) return;
+      const seconds = Math.round((Date.now() - pollStart) / 1000);
+      if (state && state.known) showProgress(state.percent, state.label, `${state.detail ? state.detail + " · " : ""}${seconds} s`);
+      else showProgress(0, first, `${seconds} s`);
+      pollTimer = setTimeout(tick, 500);
+    };
+    pollTimer = setTimeout(tick, 250);
+  }
+  function stopProgress(finalLabel) {
+    if (pollTimer !== null) { clearTimeout(pollTimer); pollTimer = null; }
+    if (finalLabel) showProgress(100, finalLabel, `${Math.round((Date.now() - pollStart) / 1000)} s`);
+    else bar.box.classList.add("hidden");
+  }
+  // "One diagram" for a long list of captures: say so before the build (the build adds the measured size to the result)
+  const WIDE_FILES = 30;
+  const groupWarning = () => $("group-warning").classList.toggle("hidden", !(($("group").value === "none") && files.length >= WIDE_FILES));
   const canBuild = () => files.length > 0 || !!$("previous-state").files[0];
 
   function renderFiles() {
     list.innerHTML = files.map((f, i) => `<li><span>${esc(f.name)}</span><small>${Math.max(1, Math.round(f.size / 1024))} KB</small><button type="button" class="an-btn small" data-remove="${i}" aria-label="Remove ${esc(f.name)}">Remove</button></li>`).join("");
     list.classList.toggle("hidden", !files.length);
     button.disabled = !canBuild();
+    groupWarning();
   }
   function addFiles(incoming) {
     const known = new Set(files.map((f) => f.name + f.size));
@@ -41,7 +73,8 @@
   ["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("dragover"); }));
   ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("dragover"); }));
   drop.addEventListener("drop", (e) => addFiles([...e.dataTransfer.files]));
-  $("clear").addEventListener("click", () => { files = []; data = null; $("previous-state").value = ""; $("previous").value = ""; $("previous-state").showName(); $("previous").showName(); renderFiles(); result.classList.add("hidden"); empty.classList.remove("hidden"); setStatus(""); });
+  $("group").addEventListener("change", groupWarning);
+  $("clear").addEventListener("click", () => { files = []; data = null; $("previous-state").value = ""; $("previous").value = ""; $("previous-state").showName(); $("previous").showName(); renderFiles(); result.classList.add("hidden"); empty.classList.remove("hidden"); setStatus(""); stopProgress(); });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -65,18 +98,23 @@
     body.append("overlay_sites", $("overlay-sites").value);
     body.append("focus_sites", $("focus-sites").value);
     body.append("group_l3", $("group-l3").checked ? "1" : "0");
+    body.append("anonymize", $("anonymize").checked ? "1" : "0");
     body.append("line_style", $("line-style").value);
     body.append("line_shape", $("line-shape").value);
+    const buildId = newBuildId();
+    body.append("progress_id", buildId);
     const previous = $("previous").files[0];
     if (previous) body.append("previous", previous, previous.name);
     const saved = $("previous-state").files[0];
     if (saved) body.append("previous_state", saved, saved.name);
     button.disabled = true;
-    setStatus(files.length ? `Reading ${files.length} capture(s)... this takes about one second per device.` : "Rebuilding from the previous run...");
+    setStatus("");
+    startProgress(buildId, files.length ? "Sending the captures" : "Rebuilding from the previous run");
     let response;
     try {
       response = await fetch(`${api}/api/build`, { method: "POST", body });
     } catch (err) {
+      stopProgress();
       setStatus("Keystone did not answer. Check that its terminal window is still open, then try again.", true);
       button.disabled = !canBuild();
       return;
@@ -84,11 +122,12 @@
     try {
       let payload;
       try { payload = await response.json(); } catch (err) { payload = null; }
-      if (!payload) { setStatus(`Keystone answered with an error (HTTP ${response.status}). See the Keystone terminal window for details.`, true); return; }
-      if (!response.ok || !payload.ok) { setStatus(payload.error || "The topology could not be built.", true); return; }
-      data = payload; activePage = 0; activeView = startView($("view").value); render(); setStatus("");
+      if (!payload) { stopProgress(); setStatus(`Keystone answered with an error (HTTP ${response.status}). See the Keystone terminal window for details.`, true); return; }
+      if (!response.ok || !payload.ok) { stopProgress(); setStatus(payload.error || "The topology could not be built.", true); return; }
+      stopProgress("Done"); data = payload; activePage = 0; activeView = startView($("view").value); render(); setStatus("");
+      setTimeout(() => { if (pollTimer === null && !button.disabled) bar.box.classList.add("hidden"); }, 4000);
     } catch (err) {
-      setStatus(`The result could not be shown (${err && err.message ? err.message : err}). Please report this message.`, true);
+      stopProgress(); setStatus(`The result could not be shown (${err && err.message ? err.message : err}). Please report this message.`, true);
     } finally { button.disabled = !canBuild(); }
   });
 
@@ -100,6 +139,10 @@
     if (s.layout_kept) cards.push(["layout_kept", "Devices kept in place"]);
     if (s.carried) cards.push(["carried", "Devices from the previous run"]);
     if (s.replaced) cards.push(["replaced", "Replaced by new captures"]);
+    const notices = (data.notices || []);
+    $("notices").textContent = notices.join(" ");
+    $("notices").classList.toggle("hidden", !notices.length);
+    renderAnonymized();
     $("cards").innerHTML = cards.map(([k, label]) => `<div class="tp-card"><strong>${esc(s[k])}</strong><span>${label}</span></div>`).join("");
     $("downloads").innerHTML = data.downloads.map((d, i) => `<a class="an-btn small${i === 0 ? " primary" : ""}" href="${esc(d.url)}" download="${esc(d.filename || d.name)}">${esc(d.filename || d.name)}</a>`).join("");
     $("findings-count").textContent = data.findings.length;
@@ -111,9 +154,20 @@
     clearTrace();
     $("l3-detail").classList.add("hidden");
     renderTable("links", data.links); renderTable("bundles", data.bundles); renderTable("hosts-table", data.hosts); renderTable("behind", data.behind); renderTable("devices", data.devices);
+    renderTable("priority", data.priority, data.priority_columns); $("priority-count").textContent = (data.priority || []).length; $("tab-priority").classList.toggle("hidden", !(data.priority || []).length);
     result.classList.remove("hidden"); empty.classList.add("hidden");
     switchTab("diagram");
     if (data.skipped.length) setStatus(`${data.skipped.length} file(s) skipped: ` + data.skipped.map((x) => `${x.file} (${x.reason})`).join("; "), true);
+  }
+  // the anonymized copy: where it is, what stays on this computer, and anything the scan found that still looks like an original
+  function renderAnonymized() {
+    const box = $("anonymized"), info = data.anonymized;
+    if (!info) { box.classList.add("hidden"); box.textContent = ""; return; }
+    const left = info.leftovers || [];
+    box.textContent = `Anonymized copy made (${info.replaced} replacements): download keystone-topology-pack-anonymized.zip to share, and keep anonymization-map.csv here, it holds the originals. ` +
+      (left.length ? `Check before you share: ${left.length} value(s) from the captures still appear (${left.slice(0, 6).map((x) => `${x.kind} "${x.value}" in ${x.file}`).join("; ")}${left.length > 6 ? "; ..." : ""}). They are listed as LEFTOVER rows in the key file.`
+                   : "The scan of the finished files found none of the original names, serial numbers or MAC addresses, and none of the original addresses in the saved state.");
+    box.classList.remove("hidden");
   }
   // the view shown first: the one chosen in the form; "all views" opens the first of L3 over L2, L3 route, then the L2 pictures
   function startView(choice) {
@@ -176,10 +230,11 @@
     const rollup = byDevice.length ? `<h4>Findings by device</h4><div class="tp-scroll"><table class="tp-table"><thead><tr><th>Device</th><th>Captured</th><th>Medium</th><th>Low</th><th>Info</th><th>Findings</th></tr></thead><tbody>${byDevice.map((r) => `<tr><td>${esc(r.device)}</td><td>${esc(r.captured)}</td><td>${esc(r.medium)}</td><td>${esc(r.low)}</td><td>${esc(r.info)}</td><td>${esc(r.findings)}</td></tr>`).join("")}</tbody></table></div><h4>All findings</h4>` : "";
     $("findings").innerHTML = rollup + (data.findings.length ? data.findings.map((f) => `<div class="tp-finding"><h4><span class="an-pill" style="--tone:${tone[f.severity] || "var(--muted)"}">${esc(f.severity)}</span> ${esc(f.id)} · ${esc(f.title)}</h4><p>${esc(f.detail)}</p><p><strong>Next step:</strong> ${esc(f.recommendation)}${f.reference ? ` <a href="${esc(f.reference)}" target="_blank" rel="noopener noreferrer">Reference</a>` : ""}</p></div>`).join("") : "<p class='an-hint'>No findings.</p>");
   }
-  function renderTable(role, rows) {
+  function renderTable(role, rows, order) {
     if (!rows || !rows.length) { $(role).innerHTML = "<p class='an-hint'>Nothing to show.</p>"; return; }
-    const cols = [...new Set(rows.flatMap((r) => Object.keys(r)))];
-    $(role).innerHTML = `<div class="tp-scroll"><table class="tp-table"><thead><tr>${cols.map((c) => `<th>${esc(c.replace(/_/g, " "))}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td>${esc(r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+    const found = [...new Set(rows.flatMap((r) => Object.keys(r)))];
+    const cols = order ? [...order.filter((c) => found.includes(c)), ...found.filter((c) => !order.includes(c))] : found;     // the server sends keys alphabetically; a table with a meaningful order names it
+    $(role).innerHTML = `<div class="tp-scroll"><table class="tp-table"><thead><tr>${cols.map((c) => `<th>${esc(c.replace(/_/g, " "))}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${cols.map((c) => `<td${c === "why" || c === "ports_seen" || c === "neighbors" ? ' class="tp-long"' : ""}>${esc(r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
   }
   function switchTab(name) {
     root.querySelectorAll("[data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));

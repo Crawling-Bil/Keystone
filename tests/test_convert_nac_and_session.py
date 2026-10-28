@@ -46,6 +46,35 @@ def test_a_typed_ahead_command_between_the_echo_and_the_output_is_skipped():
     assert "show inventory" not in extracted.text and "SW#" not in extracted.text
 
 
+def _provision_config(count: int = 20) -> str:
+    vlans = "\n".join(f'vlan {n}\n   name "V{n}"\n   untagged {n}\n   exit' for n in range(1, count))
+    return f'Running configuration:\n\n; JL000A Configuration Editor; Created on release #YC.16.06.0006\nhostname "SW-LAB-2540"\nmodule 1 type jl000a\n{vlans}\npassword manager\n'
+
+
+def test_a_show_tech_capture_ends_the_configuration_at_the_next_bare_command():
+    """Aruba ProVision ``show tech`` prints the configuration and then every other ``show`` as a bare line, with no prompt in between."""
+    tail = "".join(f"show thing{n}\n\n Status and Counters {n}\n   some output line {n}\n\n" for n in range(40))
+    text = f"SW-LAB-2540# show tech\nshow system\n System Name : SW-LAB-2540\n\nshow running-config\n\n{_provision_config()}\n{tail}"
+    extracted = extract_config(text)
+    assert extracted.cut and extracted.command == "show running-config"
+    assert extracted.text.rstrip().endswith("password manager")
+    assert "Status and Counters" not in extracted.text and extracted.kept_lines < 120
+
+
+def test_a_banner_sentence_that_starts_with_show_does_not_end_the_configuration():
+    banner = 'banner motd "\nAuthorised use only\nShow your badge at the door\n"\n'
+    text = f"SW-LAB-2540# show running-config\n{_provision_config(5)}{banner}{_provision_config(5)}SW-LAB-2540# \n"
+    extracted = extract_config(text)
+    assert "Show your badge at the door" in extracted.text and extracted.text.count("hostname") == 2
+
+
+def test_a_typed_ahead_echo_in_the_middle_of_the_configuration_does_not_cut_it():
+    body = "\n".join(f"vlan {n}\n name V{n}" for n in range(1, 12))
+    text = f"SW#show run\n!Command: show running-config\nversion 10.5\nhostname SW\n{body}\nshow inventory\nvlan 99\n name LAST\nSW#show inventory\nNAME: x\nSW#\n"
+    extracted = extract_config(text)
+    assert "vlan 99" in extracted.text and "show inventory" not in extracted.text
+
+
 def test_a_capture_without_any_configuration_is_refused(tmp_path):
     text = "".join(f"SW#show {word}\nsome output line {n}\n" for n, word in enumerate(["version", "clock", "inventory", "ntp status", "redundancy"] * 4))
     path = tmp_path / "capture.txt"

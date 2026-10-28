@@ -10,6 +10,8 @@ from .models import HardwareModel, ModuleSlot, PortGroup
 
 C8200_DS = "https://www.cisco.com/c/en/us/products/collateral/routers/catalyst-8200-series-edge-platforms/nb-06-cat8200-series-edge-plat-ds-cte-en.html"
 C8300_DS = "https://www.cisco.com/c/en/us/products/collateral/routers/catalyst-8300-series-edge-platforms/datasheet-c78-744088.html"
+C8200_HIG = "https://www.cisco.com/c/en/us/td/docs/routers/cloud_edge/c8200/hardware_install/b-cat-8200-series-edge-platforms-hig/m-overview-c8200.html"
+C8300_HIG = "https://www.cisco.com/c/en/us/td/docs/routers/cloud_edge/c8300/hardware_installation/b-catalyst-8300-series-edge-platforms-hig/m-overview.html"
 ISR4K_DS = "https://www.cisco.com/c/en/us/products/collateral/routers/4000-series-integrated-services-routers-isr/data_sheet-c78-732542.html"
 ASR1K_DS = "https://www.cisco.com/c/en/us/products/collateral/routers/asr-1000-series-aggregation-services-routers/datasheet-c78-731632.html"
 ISR3800_DS = "https://www.cisco.com/c/dam/en/us/products/collateral/routers/3800-series-integrated-services-routers-isr/product_data_sheet0900aecd8049beb7.pdf"
@@ -19,6 +21,16 @@ _PANIN = ("sample panin switch router",)
 _BOTH = _JALIN + _PANIN
 
 _NIM_GENERIC = "Ethernet, voice, serial, cellular and switching NIMs"
+
+# What Cisco's hardware installation guides for the Catalyst 8200 and 8300 state in text (section "Slots, Subslots-Bay, Ports, and Interfaces"):
+# interfaces are a zero-based slot/bay/port tuple; slot 0 holds the integrated ports (bay 0) and the NIMs; motherboard NIM bays start at bay 1.
+# The guides label "NIM Slot 1", "SM Slot 1" and "PIM Slot 1" only in figures and do not give the tuple of each module in text, so the slot rows
+# below pin the rule and say to confirm the module's own number on the device (``show platform`` or ``show inventory``) instead of a guessed number.
+_C8K_TUPLE = "0/<bay>/<port>: slot 0, bay 1 for the first motherboard NIM bay (bay 0 is the integrated ports); confirm the bay with show platform"
+_C8K_RULE = ("Interfaces are a zero-based slot/bay/port tuple (0/1/2 = slot 0, second bay, third port); slot 0 holds the integrated ports (bay 0) and the NIMs, "
+             "motherboard NIM bays start at bay 1.")
+_C8K_NOT_STATED = ("The guide shows where each module sits only in its figures and does not state the interface tuple of the SM or PIM slot: "
+                   "read it from show platform / show inventory on the device before you convert.")
 
 
 def _gi(first: int, last: int, medium: str, note: str = "") -> PortGroup:
@@ -34,10 +46,11 @@ ROUTER_MODELS: tuple[HardwareModel, ...] = (
         summary="Branch SD-WAN/IOS-XE edge, 8-core CPU. Onboard ports are GigabitEthernet0/0/0-3.",
         groups=(_gi(0, 3, "2x RJ45 + 2x SFP"),),
         slots=(
-            ModuleSlot("NIM slot", "<type>0/<slot>/<port> (type follows the module; slot number per the hardware guide)", _NIM_GENERIC),
-            ModuleSlot("PIM slot", "Cellular0/<slot>/<port>", "Pluggable cellular module"),
+            ModuleSlot("NIM slot", "<type>" + _C8K_TUPLE, _NIM_GENERIC, "one NIM slot (Platform Summary of the hardware installation guide)"),
+            ModuleSlot("PIM slot", "type follows the module; tuple not stated in the guide", "Pluggable cellular module (P-5GS6-GL, P-LTEAP18-GL are named in the guide)"),
         ),
         detect=("C8200-1N-4T",), doc_title="Cisco Catalyst 8200 Series Edge Platforms Data Sheet", doc_url=C8200_DS, samples=_BOTH,
+        notes=(_C8K_RULE, _C8K_NOT_STATED, "Onboard: GigabitEthernet0/0/0-1 are RJ45, 0/0/2-3 are SFP (guide, Chassis Views, Table 1). Source: Hardware Installation Guide for Cisco Catalyst 8200 Series Edge Platforms, " + C8200_HIG),
     ),
     HardwareModel(
         key="C8200L-1N-4T", vendor="Cisco", kind="router", platform="Catalyst 8200L", os_name="IOS-XE",
@@ -45,10 +58,11 @@ ROUTER_MODELS: tuple[HardwareModel, ...] = (
         summary="Same port layout as the C8200, with a 4-core CPU and cloud-delivered security positioning.",
         groups=(_gi(0, 3, "2x RJ45 + 2x SFP"),),
         slots=(
-            ModuleSlot("NIM slot", "<type>0/<slot>/<port> (type follows the module; slot number per the hardware guide)", _NIM_GENERIC),
-            ModuleSlot("PIM slot", "Cellular0/<slot>/<port>", "Pluggable cellular module"),
+            ModuleSlot("NIM slot", "<type>" + _C8K_TUPLE, _NIM_GENERIC, "one NIM slot (Platform Summary of the hardware installation guide)"),
+            ModuleSlot("PIM slot", "type follows the module; tuple not stated in the guide", "Pluggable cellular module (P-5GS6-GL, P-LTEAP18-GL are named in the guide)"),
         ),
         detect=("C8200L-1N-4T",), doc_title="Cisco Catalyst 8200 Series Edge Platforms Data Sheet", doc_url=C8200_DS, samples=_PANIN,
+        notes=(_C8K_RULE, _C8K_NOT_STATED, "Onboard: GigabitEthernet0/0/0-1 are RJ45, 0/0/2-3 are SFP (guide, Chassis Views, Table 1). Source: Hardware Installation Guide for Cisco Catalyst 8200 Series Edge Platforms, " + C8200_HIG),
     ),
     HardwareModel(
         key="C8300-1N1S-6T", vendor="Cisco", kind="router", platform="Catalyst 8300", os_name="IOS-XE",
@@ -56,10 +70,12 @@ ROUTER_MODELS: tuple[HardwareModel, ...] = (
         summary="1RU edge router: six embedded 1G Layer 3 ports (GigabitEthernet0/0/0-5), one NIM, one SM and one PIM slot.",
         groups=(_gi(0, 5, "RJ45 / SFP (see data sheet for the split)"),),
         slots=(
-            ModuleSlot("NIM slot", "<type>0/<slot>/<port> (type follows the module; slot number per the hardware guide)", _NIM_GENERIC),
-            ModuleSlot("SM slot", "type follows the module", "Single-wide service/switch modules (for example C-SM-16P4M2X)"),
+            ModuleSlot("NIM slot", "<type>" + _C8K_TUPLE, _NIM_GENERIC, "NIM Slot 1 (the only NIM slot of this model)"),
+            ModuleSlot("SM slot", "type follows the module; tuple not stated in the guide", "Single-wide service/switch modules (for example C-SM-16P4M2X)", "SM Slot 1 (the only SM slot of this model); a double-wide SM is numbered by its left-most slot"),
+            ModuleSlot("PIM slot", "type follows the module; tuple not stated in the guide", "Pluggable cellular module", "PIM Slot 1 (the only PIM slot of this model)"),
         ),
         detect=("C8300-1N1S-6T",), doc_title="Cisco Catalyst 8300 Series Edge Platforms Data Sheet", doc_url=C8300_DS, samples=_PANIN,
+        notes=(_C8K_RULE, _C8K_NOT_STATED, "Slot counts of C8300-1N1S-6T: 1 NIM, 1 SM, 1 PIM (guide, Chassis Views, Tables 1-2). Source: Hardware Installation Guide for Cisco Catalyst 8300 Series Edge Platforms, " + C8300_HIG),
     ),
     HardwareModel(
         key="ISR4431/K9", vendor="Cisco", kind="router", platform="ISR 4400", os_name="IOS-XE",

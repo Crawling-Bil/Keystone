@@ -893,22 +893,33 @@ def _reported_huawei_total(clean: list[str]) -> int | None:
     return total
 
 
+_PLAIN_NAME_RE = re.compile(r"[\w.\-]+")
+
+
 def _acl_references(statements: list[tuple[str, list[str]]], definitions: list[dict[str, Any]]) -> dict[str, list[str]]:
     """Where an ACL is used OTHER than on an interface or a VTY line: a
     route-map / class-map / NAT / SNMP / traffic classifier names it. Returns
-    {acl: ["route-map GTOPAS permit 10", ...]}."""
+    {acl: ["route-map GTOPAS permit 10", ...]}.
+
+    A name counts when it stands apart: no letter, digit, "_", "." or "-" before or after it.  For a name made only of those characters that is the same as
+    "the name is one of the words of the line" (a word = a run of those characters), so each line is cut into its words once and the names are looked up in
+    that set; a name with any other character (a space, a slash) keeps the regular expression.  A big configuration holds hundreds of ACLs and thousands of
+    lines: looking every name up in every line with a regular expression took seconds."""
     refs: dict[str, list[str]] = {item["name"]: [] for item in definitions}
     if not refs:
         return refs
-    patterns = {name: re.compile(rf"(?<![\w.\-]){re.escape(name)}(?![\w.\-])") for name in refs}
+    plain = {name for name in refs if _PLAIN_NAME_RE.fullmatch(name)}
+    patterns = {name: re.compile(rf"(?<![\w.\-]){re.escape(name)}(?![\w.\-])") for name in refs if name not in plain}
     for header, children in statements:
         low = header.lower()
         if low.startswith(("interface ", "line vty", "user-interface")) or _CISCO_ACL_HEADER.match(header) or _HUAWEI_ACL_HEADER.match(header):
             continue
-        for name, pattern in patterns.items():
-            hit = pattern.search(header) is not None or any(pattern.search(child) for child in children)
-            if not hit:
-                continue
+        words = set(_PLAIN_NAME_RE.findall(header))
+        for child in children:
+            words.update(_PLAIN_NAME_RE.findall(child))
+        hits = list(words & plain)
+        hits += [name for name, pattern in patterns.items() if pattern.search(header) is not None or any(pattern.search(child) for child in children)]
+        for name in hits:
             context = header if len(header) <= 80 else header[:77] + "..."
             if context not in refs[name] and len(refs[name]) < 8:
                 refs[name].append(context)
