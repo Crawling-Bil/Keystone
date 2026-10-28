@@ -387,3 +387,19 @@ def test_ports_beyond_the_target_are_flagged_on_the_24_port_models():
     result = _convert(NM8X, "Huawei", "S5735-S24T4XE-V2")
     row = _row(result, "GigabitEthernet1/0/48")
     assert row["status"] == "missing" and "only 24x 1G" in row["note"]
+
+
+def test_catalyst_8200_and_8300_slots_state_only_what_the_hardware_guides_state():
+    """The guides give the slot/bay/port rule and the slot counts in text; they show where NIM, SM and PIM sit only in figures.  The catalog pins the rule
+    and the counts, names the guide, and leaves the module's own tuple to the device instead of inventing a number."""
+    for key, slots in (("C8200-1N-4T", {"NIM slot", "PIM slot"}), ("C8200L-1N-4T", {"NIM slot", "PIM slot"}), ("C8300-1N1S-6T", {"NIM slot", "SM slot", "PIM slot"})):
+        model = next(m for m in ROUTER_MODELS if m.key == key)
+        assert {s.name for s in model.slots} == slots
+        notes = " ".join(model.notes)
+        assert "bay 0" in notes and "start at bay 1" in notes and "show platform" in notes
+        assert ("cloud_edge/c8200/hardware_install" if key.startswith("C8200") else "cloud_edge/c8300/hardware_installation") in notes
+        nim = next(s for s in model.slots if s.name == "NIM slot")
+        assert "0/<bay>/<port>" in nim.naming and "slot number per the hardware guide" not in nim.naming
+        for slot in model.slots:
+            if slot.name != "NIM slot":
+                assert "not stated in the guide" in slot.naming, "no interface number is pinned for a slot the guide does not number in text"

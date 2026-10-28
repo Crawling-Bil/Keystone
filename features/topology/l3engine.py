@@ -473,6 +473,51 @@ def group_parallel(model: L3Model, graph: Graph) -> None:
         model.grouped.append(line)
 
 
+SEGMENT_OVER = 4        # more shared subnets than this with the very same devices on them (three switches with thirty VLAN interfaces each) are drawn as one node
+
+
+def _subnet_range(subnets: list[str]) -> str:
+    """'10.20.0.0/24 ... 10.20.29.0/24' for a long list, the plain list for a short one (the full list stays in the tables)."""
+    ordered = sorted(subnets, key=lambda t: (int(ipaddress.ip_network(t, strict=False).network_address), t))
+    return ", ".join(ordered) if len(ordered) <= 3 else f"{ordered[0]} ... {ordered[-1]}"
+
+
+def group_segments(model: L3Model, graph: Graph) -> None:
+    """Draw the shared subnets that have the same devices on them (and the same VRF) as one node with one line per device.
+
+    Three distribution switches that own thirty VLAN interfaces each would put thirty ellipses and ninety lines on the page, all with the same three
+    ends; the picture needs one node that says "30 shared subnets".  The members stay in the tables, in the trace and in the click panel.
+    """
+    on: dict[str, list[L3Edge]] = defaultdict(list)
+    for e in model.edges:
+        if e.kind == "segment" and e.b in model.nodes:
+            on[e.b].append(e)
+    clusters: dict[tuple[frozenset, str], list[str]] = defaultdict(list)
+    for seg, edges in on.items():
+        clusters[(frozenset(e.a for e in edges), edges[0].vrf)].append(seg)
+    for (devices, vrf), segs in sorted(clusters.items(), key=lambda item: (sorted(item[0][0]), item[0][1], sorted(item[1]))):
+        if len(segs) <= SEGMENT_OVER:
+            continue
+        n = len(model.grouped) + 1
+        key = f"SEGG:{vrf or 'global'}:{'|'.join(sorted(devices))}"
+        networks = [on[seg][0].subnet for seg in segs]
+        model.nodes[key] = Device(key=key, hostname=f"{len(segs)} shared subnets", captured=False, role_hint="segment",
+                                  model=" · ".join(x for x in (_subnet_range(networks), f"VRF {vrf}" if vrf else "") if x), mgmt_ip=f"{len(devices)} devices")
+        for device in sorted(devices):
+            members = [e for seg in segs for e in on[seg] if e.a == device]
+            ifaces = sorted({m.a_if for m in members if m.a_if})
+            line = L3Edge("segment", device, key, f"{len(ifaces)} interfaces" if len(ifaces) > 1 else (ifaces[0] if ifaces else ""), "", "", "", "", vrf, _group_state(members), members=members)
+            line.ident = f"L3-G{n:02d}"
+            n += 1
+            broken = [m for m in members if m.state == DOWN]
+            if broken:
+                line.add(f"{len(broken)} of {len(members)} shared subnets show a broken state: " + ", ".join(m.subnet or m.a_if for m in broken[:12]))
+            for m in members[:60]:
+                line.add(m.evidence[0] if m.evidence else f"{device} {m.a_if} is on {m.subnet}")
+            line.routes = [r for m in members for r in m.routes]
+            model.grouped.append(line)
+
+
 def group_gateways(model: L3Model, graph: Graph) -> None:
     """Replace the first-hop edges that end at an uncaptured router (``GW:`` nodes) by one line per (device, VRF) to one node per VRF.
 
@@ -516,4 +561,5 @@ def build(graph: Graph, hints: dict[str, Any] | None = None, focus: Focus | None
     if group:
         group_parallel(b.model, graph)
         group_gateways(b.model, graph)
+        group_segments(b.model, graph)
     return b.model

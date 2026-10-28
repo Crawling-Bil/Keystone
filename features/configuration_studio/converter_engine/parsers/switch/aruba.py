@@ -59,6 +59,16 @@ class ArubaSwitchParser:
 
         banner_delimiter = None
         banner_buffer = []
+        banner_kind = "motd"
+        pending_banner_kind = None                   # "banner motd" alone on its line: the quoted text starts on the next one
+
+        def add_banner(text, kind):
+            """Store a banner and its kind (motd / exec / login); ``metadata["banner_kinds"]`` runs parallel to ``banner_commands``."""
+            kinds = config.metadata.setdefault("banner_kinds", [])
+            while len(kinds) < len(config.banner_commands):
+                kinds.append("motd")
+            config.banner_commands.append(text)
+            kinds.append(kind)
 
         for raw_line in lines:
 
@@ -87,9 +97,23 @@ class ArubaSwitchParser:
                             before_delimiter
                         )
 
-                    config.banner_commands.append(
-                        "\n".join(banner_buffer)
-                    )
+                    if banner_delimiter == '"' and any("\\n" in piece for piece in banner_buffer + [raw_line]):
+
+                        # ArubaOS-Switch prints one quoted string with "\n" escapes, wrapped over several physical lines: the line breaks are
+                        # display wraps (a continuation starts with the space it broke at), the "\n" escapes are the banner's own line breaks.
+                        pieces = banner_buffer[:-1] if before_delimiter else banner_buffer
+                        last = raw_line.rstrip("\r\n").split(banner_delimiter, 1)[0]
+                        add_banner(
+                            self.provision_banner_text(pieces + [last]),
+                            banner_kind,
+                        )
+
+                    else:
+
+                        add_banner(
+                            "\n".join(banner_buffer),
+                            banner_kind,
+                        )
 
                     banner_delimiter = None
                     banner_buffer = []
@@ -151,9 +175,27 @@ class ArubaSwitchParser:
             #   "
             # ================================================
 
+            if pending_banner_kind is not None:
+
+                # "banner motd" alone on its line (ArubaOS-Switch, long text): the quoted string starts on the next physical line.
+                kind_waiting = pending_banner_kind
+                pending_banner_kind = None
+
+                if line.startswith('"'):
+
+                    line = f"banner {kind_waiting} {line}"
+                    raw_line = line
+
             if line.startswith("banner "):
 
                 parts = line.split(None, 2)
+
+                banner_kind = parts[1].lower() if len(parts) > 1 else "motd"
+
+                if len(parts) == 2:
+
+                    pending_banner_kind = banner_kind
+                    continue
 
                 if len(parts) >= 3:
 
@@ -163,11 +205,17 @@ class ArubaSwitchParser:
 
                     if delimiter in content:
 
-                        config.banner_commands.append(
-                            content.split(
-                                delimiter,
-                                1
-                            )[0]
+                        text = content.split(
+                            delimiter,
+                            1
+                        )[0]
+
+                        if delimiter == '"' and "\\n" in text:
+                            text = self.provision_banner_text([text])
+
+                        add_banner(
+                            text,
+                            banner_kind,
                         )
 
                     else:
@@ -586,6 +634,20 @@ class ArubaSwitchParser:
                             )
                         )
 
+                        if (
+                            interface.mode == "access"
+                            and interface.access_vlan is not None
+                            and interface.native_vlan is None
+                        ):
+
+                            # The port was untagged in a lower-numbered VLAN: that VLAN is the native one of the trunk it becomes.
+                            interface.native_vlan = interface.access_vlan
+
+                            if str(interface.access_vlan) not in interface.allowed_vlans:
+                                interface.allowed_vlans.append(
+                                    str(interface.access_vlan)
+                                )
+
                         interface.mode = "trunk"
 
                         vlan_string = str(
@@ -623,6 +685,20 @@ class ArubaSwitchParser:
                             )
                         )
 
+                        if interface.mode == "trunk":
+
+                            # The port is already tagged in a lower-numbered VLAN: this untagged VLAN is the native VLAN of the trunk, not an access VLAN.
+                            interface.native_vlan = (
+                                current_vlan.vlan_id
+                            )
+
+                            if str(current_vlan.vlan_id) not in interface.allowed_vlans:
+                                interface.allowed_vlans.append(
+                                    str(current_vlan.vlan_id)
+                                )
+
+                            continue
+
                         interface.mode = "access"
 
                         interface.access_vlan = (
@@ -634,6 +710,34 @@ class ArubaSwitchParser:
                 # AOS-CX "description" under vlan context
                 if line.startswith("description "):
                     continue
+
+                # ArubaOS-Switch writes the layer-3 settings of a VLAN inside "vlan <id>" (they belong to its SVI, Vlan<id>): without this the
+                # management address of an access switch ("vlan 213 / ip address 10.0.0.2 255.255.255.0") was lost in the conversion.
+                # "ip address dhcp-bootp" (a DHCP client) makes the SVI a DHCP client.
+                if (
+                    line.startswith("ip address ")
+                    or line.startswith("ip helper-address ")
+                ):
+
+                    svi = self.get_or_create_interface(
+                        config,
+                        self.normalize_interface_name(
+                            f"vlan {current_vlan.vlan_id}"
+                        )
+                    )
+
+                    self.parse_interface_command(
+                        svi,
+                        line
+                    )
+
+                    continue
+
+                if line == "no ip address":
+                    continue                     # the default of a VLAN without an address
+
+                if line.startswith(("no untagged ", "no tagged ")):
+                    continue                     # removes a port from the VLAN (the default VLAN 1 holds every port first); only the ports listed by "tagged" / "untagged" are carried over
 
                 # "ip igmp", "ip dhcp snooping" etc. under
                 # vlan context — fall through to global handlers
@@ -1140,6 +1244,39 @@ class ArubaSwitchParser:
                 current_section = None
 
             # ================================================
+            # ArubaOS-Switch (ProVision) STRUCTURE LINES
+            #
+            #   ; JL356A Configuration Editor; Created on release #YC.16.06.0006     (";" starts a comment)
+            #   module 1 type jl356a                                                  (the installed module, kept as information)
+            #   exit                                                                  (closes the vlan / interface context)
+            # ================================================
+
+            if line.startswith(";"):
+                continue
+
+            if line == "exit":
+
+                current_interface = None
+                current_vlan = None
+                current_section = None
+
+                continue
+
+            module_match = re.match(
+                r"^module\s+(\S+)\s+type\s+(\S+)$",
+                line,
+                re.IGNORECASE,
+            )
+
+            if module_match:
+
+                config.metadata.setdefault("source_modules", []).append(
+                    f"{module_match.group(1)}:{module_match.group(2)}"
+                )
+
+                continue
+
+            # ================================================
             # GLOBAL COMMAND FALLBACK
             #
             # Anything not matched above is stored as a global
@@ -1207,6 +1344,36 @@ class ArubaSwitchParser:
         if line == "no shutdown":
 
             interface.shutdown = False
+            return
+
+        # ArubaOS-Switch (ProVision / 2540): "interface <port>" holds "disable" for an administratively down port ("enable" is the default and
+        # is printed only when it was set explicitly), "name" is the port description, and "exit" closes the context.
+        # Aruba 2540 Management and Configuration Guide, "interface <port-list> enable | disable" and "interface <port> name <name>"
+        # (https://www.arubanetworks.com/techdocs/ArubaOS-Switch/).
+        if line == "disable":
+
+            interface.shutdown = True
+            return
+
+        if line == "enable":
+
+            interface.shutdown = False
+            return
+
+        if line.startswith("name "):
+
+            interface.description = (
+                line.split(
+                    None,
+                    1
+                )[1]
+                .strip()
+                .strip('"')
+            )
+
+            return
+
+        if line == "exit":
             return
 
         # ================================================
@@ -1399,6 +1566,15 @@ class ArubaSwitchParser:
         ):
 
             parts = line.split()
+
+            if len(parts) >= 3 and parts[2].lower() in ("dhcp", "dhcp-bootp"):
+
+                interface.ip_dhcp = True
+
+                if not interface.mode:
+                    interface.mode = "routed"
+
+                return
 
             if len(parts) >= 3:
 
@@ -2144,6 +2320,38 @@ class ArubaSwitchParser:
         ):
             return
 
+        # A speed and duplex fixed on the port:
+        #   ArubaOS-Switch:  speed-duplex 100-full           (10-half, 10-full, 100-half, 100-full, 1000-full)
+        #   AOS-CX:          speed 100-full | speed 25g      (the "g" forms are full duplex)
+        # "speed-duplex auto-100", "speed auto 1g" ... only limit what is advertised and stay review lines.
+        fixed_pair = re.match(
+            r"^(?:speed-duplex|speed)\s+(\d+)-(full|half)$",
+            line,
+        )
+
+        if fixed_pair:
+
+            interface.speed = fixed_pair.group(1)
+            interface.duplex = fixed_pair.group(2)
+            return
+
+        fixed_gbps = re.match(
+            r"^speed\s+(\d+)g$",
+            line,
+        )
+
+        if fixed_gbps:
+
+            interface.speed = str(int(fixed_gbps.group(1)) * 1000)
+            interface.duplex = "full"
+            return
+
+        # AOS-CX "ip dhcp" (the default VLAN / management interface takes its address from DHCP).
+        if line == "ip dhcp":
+
+            interface.ip_dhcp = True
+            return
+
         # ================================================
         # UNKNOWN INTERFACE COMMAND
         # ================================================
@@ -2441,6 +2649,17 @@ class ArubaSwitchParser:
     # =========================================================
     # NORMALIZE INTERFACE NAME
     # =========================================================
+
+    @staticmethod
+    def provision_banner_text(pieces):
+        """The text of an ArubaOS-Switch banner string: physical lines joined as printed, ``\\n`` escapes turned into line breaks, edge blank lines dropped."""
+
+        text = "".join(pieces).replace(
+            "\\n",
+            "\n"
+        )
+
+        return text.strip("\n")
 
     @staticmethod
     def normalize_interface_name(

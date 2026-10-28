@@ -1100,6 +1100,21 @@ class HuaweiSwitchParser:
             # ip address 10.1.1.1 24
             # =================================================
 
+            if re.match(r"^ip address\s+dhcp-alloc", line, re.IGNORECASE):
+                current_interface.ip_dhcp = True
+                current_interface.mode = "routed"
+                continue
+
+            fixed_speed = re.match(r"^speed\s+(\d+)$", line, re.IGNORECASE)
+            if fixed_speed:
+                current_interface.speed = fixed_speed.group(1)
+                continue
+
+            fixed_duplex = re.match(r"^duplex\s+(full|half)$", line, re.IGNORECASE)
+            if fixed_duplex:
+                current_interface.duplex = fixed_duplex.group(1).lower()
+                continue
+
             ip_match = re.match(r"^ip address\s+(\d+\.\d+\.\d+\.\d+)\s+(\S+)", line, re.IGNORECASE)
             if ip_match:
                 address, mask_or_prefix = ip_match.groups()

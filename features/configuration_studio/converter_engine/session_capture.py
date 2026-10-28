@@ -53,12 +53,18 @@ class Extracted:
         return bool(self.command)
 
 
-def _config_block(lines: list[str], echo: int) -> list[str]:
+def _config_block(lines: list[str], echo: int, original: list[str] | None = None) -> list[str]:
     """Output of the command echoed on ``lines[echo]``: up to the next prompt line.
 
     Not ``capture_text.find_blocks``: that stops at any ``show ...`` text, and a session typed ahead of the device leaves the next command
     (``show inventory``) printed between the echo and the first configuration line (the Nexus backups), which made the block empty.
-    A configuration never contains a line that starts with a CLI prompt."""
+    A configuration never contains a line that starts with a CLI prompt.
+
+    A capture without prompts ends the block at the next bare command echo instead: an Aruba ProVision ``show tech`` prints ``show running-config``
+    and then ``show config status``, ``show device-profile config`` ... each as a bare line, so with the prompt rule alone the block ran to the end of
+    the file (a 2540 capture of 49,000 lines became a 31,000-line "configuration" and every line of it a review marker).  The cut applies only once the
+    block holds a configuration's worth of lines, to an unindented lowercase ``show`` / ``display`` line of command length, so a banner sentence or
+    a typed-ahead echo (the same command typed again after a prompt within the next 400 lines) never ends it early."""
     block: list[str] = []
     for position in range(echo + 1, len(lines)):
         line = lines[position]
@@ -66,10 +72,31 @@ def _config_block(lines: list[str], echo: int) -> list[str]:
             break
         if not line.strip():
             continue
+        if len(block) >= MIN_CONFIG_LINES and _is_bare_command(original[position] if original is not None else line) and capture_text.command_text(line) is not None:
+            if not _typed_ahead(lines, position):
+                break
+            continue                                 # the echo of a command typed ahead; its real prompt line comes later
         if not block and (capture_text.command_text(line) is not None or line.strip().lower() in _ECHO_FRAGMENTS):
             continue                                 # typed-ahead command, or the tail of the echo, before the output starts
-        block.append(line.rstrip())
+        block.append((original[position] if original is not None else line).rstrip())   # the text as the device printed it, not as the echo reader spelled it out
     return block
+
+
+def _is_bare_command(line: str) -> bool:
+    """An unindented, lower-case ``show ...`` / ``display ...`` line of command length, as the device echoed it (not a banner sentence, which is capitalised)."""
+    return line.startswith(("show ", "display ")) and len(line) <= 80
+
+
+_TYPEAHEAD_WINDOW = 400
+
+
+def _typed_ahead(lines: list[str], position: int) -> bool:
+    """True when the bare command on ``lines[position]`` is echoed again after a prompt shortly below, that is, it was typed ahead of the prompt."""
+    command = capture_text.command_text(lines[position])
+    for line in lines[position + 1:position + 1 + _TYPEAHEAD_WINDOW]:
+        if capture_text.is_prompt_line(line) and capture_text.command_text(line) == command:
+            return True
+    return False
 
 
 def _looks_like_config(lines: list[str]) -> bool:
@@ -85,7 +112,8 @@ def extract_config(text: str) -> Extracted:
     if not text or total < MIN_CONFIG_LINES:
         return Extracted(text, total_lines=total, kept_lines=total)
     rendered = terminal.render(text) if ("\x1b" in text or "\x08" in text) else text
-    lines = capture_text.expand_command_echoes(rendered.splitlines())
+    raw = rendered.splitlines()
+    lines = capture_text.expand_command_echoes(raw)           # same length as ``raw``: only command echoes are spelled out
     compiled = [re.compile(pattern) for pattern in _CONFIG_COMMANDS]
     best: tuple[str, list[str]] | None = None
     echoes = 0
@@ -95,7 +123,7 @@ def extract_config(text: str) -> Extracted:
             continue
         echoes += 1
         if any(rx.fullmatch(command) for rx in compiled):
-            block = _config_block(lines, index)
+            block = _config_block(lines, index, raw)
             if best is None or len(block) > len(best[1]):
                 best = (command, block)
     if best is None or len(best[1]) < MIN_CONFIG_LINES:

@@ -27,6 +27,10 @@ def sentence(edge: L3Edge, a: str, b: str) -> str:
     vrf = f" in VRF {edge.vrf}" if edge.vrf else ""
     if kind == "p2p" and not edge.members:
         text = f"{a} {_ip(edge.a_if, edge.a_ip)} and {b} {_ip(edge.b_if, edge.b_ip)} are directly connected on {edge.subnet}{vrf}."
+    elif kind == "segment" and edge.members:
+        subs = sorted({m.subnet for m in edge.members if m.subnet})
+        text = (f"{a} is on {len(subs)} shared subnets{vrf} ({', '.join(subs[:6])}{' ...' if len(subs) > 6 else ''}) with the same devices on every one of them, typically one VLAN interface per VLAN. "
+                "They are drawn as one node; the tables list each subnet.")
     elif kind == "segment":
         text = f"{a} {_ip(edge.a_if, edge.a_ip)} is on the shared subnet {edge.subnet}{vrf}; every device on it can reach the others without a router in between."
     elif kind == "tunnel":
@@ -61,7 +65,7 @@ def links_table(edges: list[tuple[str, L3Edge]], names: dict[str, str], under: d
     rows = []
     for ident, e in edges:
         note = (under or {}).get(ident, "")
-        rows.append({"id": ident, "kind": "SD-WAN overlay (sites not drawn)" if e.kind == "overlay" and e.sites else ("Direct routed links (group)" if e.kind == "p2p" else "Next-hop routers not captured (group)") if e.members else KIND_NAME.get(e.kind, e.kind), "device_a": names.get(e.a, e.a), "interface_a": e.a_if, "address_a": e.a_ip,
+        rows.append({"id": ident, "kind": "SD-WAN overlay (sites not drawn)" if e.kind == "overlay" and e.sites else ("Direct routed links (group)" if e.kind == "p2p" else "Shared subnets (group)" if e.kind == "segment" else "Next-hop routers not captured (group)") if e.members else KIND_NAME.get(e.kind, e.kind), "device_a": names.get(e.a, e.a), "interface_a": e.a_if, "address_a": e.a_ip,
                      "device_b": names.get(e.b, e.b), "interface_b": e.b_if, "address_b": e.b_ip, "subnet": e.subnet, "vrf": e.vrf or "global",
                      "state": STATE_NAME.get(e.state, e.state), "routes": route_summary(e.routes), "meaning": sentence(e, names.get(e.a, e.a), names.get(e.b, e.b)) + (f" {note[0].upper()}{note[1:]}." if note else ""),
                      **({"carried_on": note} if under is not None else {}), "evidence": " | ".join(e.evidence)})

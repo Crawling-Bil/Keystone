@@ -89,7 +89,7 @@ def centre_text(l3: dict[str, Any]) -> str:
         if l3.get("colours"):
             bits.append(" ".join(l3["colours"][:3]) + (" ..." if len(l3["colours"]) > 3 else ""))
     elif l3.get("group"):
-        bits.append((f"{l3['group']} shared subnets" if kind == "p2p" else f"{l3['group']} next hops not captured") + (f" ({l3['broken']} down)" if l3.get("broken") else ""))
+        bits.append((f"{l3['group']} shared subnets" if kind in ("p2p", "segment") else f"{l3['group']} next hops not captured") + (f" ({l3['broken']} down)" if l3.get("broken") else ""))
         if l3.get("vrf"):
             bits.append(f"VRF {l3['vrf']}")
     else:

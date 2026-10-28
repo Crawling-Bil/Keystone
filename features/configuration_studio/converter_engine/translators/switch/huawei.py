@@ -201,7 +201,7 @@ class HuaweiSwitchTranslator:
         # BANNER / USERS / STP / SSH / VTY
         # -----------------------------------------------------
 
-        output.extend(self.translate_banners(config.banner_commands))
+        output.extend(self.translate_banners(config.banner_commands, config.metadata.get("banner_kinds", [])))
         output.extend(self.translate_usernames(config.username_commands))
         output.extend(self.translate_spanning_tree(config.spanning_tree_commands, profile))
 
@@ -268,6 +268,11 @@ class HuaweiSwitchTranslator:
                 "intent before deploying."
             )
 
+        elif str(getattr(config, "source_vendor", "") or "").strip().lower() == "aruba":
+
+            # An Aruba source (AOS-CX, ArubaOS-Switch) runs LLDP by default and has no CDP: nothing to explain.
+            output.append("lldp enable")
+
         else:
 
             # The common case: source never touched LLDP, but also
@@ -296,6 +301,11 @@ class HuaweiSwitchTranslator:
 
         output.extend(self.translate_ssh(config.ssh_commands))
         output.extend(self.translate_line_vty(config.line_vty_commands))
+
+        # A Vlanif / routed port that learns its address ("ip address dhcp-alloc") needs DHCP on before the interface lines.
+        if any(interface.ip_dhcp for interface in config.interfaces):
+            output.append("dhcp enable")
+            output.append("#")
 
         # -----------------------------------------------------
         # VLAN
@@ -699,7 +709,7 @@ class HuaweiSwitchTranslator:
             config.dhcp_commands
             or config.dhcp_pools
             or config.dhcp_snooping_enabled
-        ):
+        ) and "dhcp enable" not in output:
             output.append("dhcp enable")
             output.append("#")
 
@@ -2128,12 +2138,15 @@ class HuaweiSwitchTranslator:
     # BANNER / USERNAME / STP / SSH / VTY
     # =========================================================
 
-    def translate_banners(self, commands):
+    def translate_banners(self, commands, kinds=()):
         output = []
-        for banner in commands:
+        for index, banner in enumerate(commands):
             banner = str(banner).strip()
             if not banner:
                 continue
+
+            # A banner shown after the login (exec) is VRP's "header shell information"; motd / login banners are shown before it ("header login information").
+            header = "shell" if index < len(kinds) and kinds[index] == "exec" else "login"
 
             # Hard, real-hardware-confirmed VRP limit: "header <type>
             # information" text tops out at 480 characters including
@@ -2174,7 +2187,7 @@ class HuaweiSwitchTranslator:
             if delimiter in banner:
                 delimiter = "%"
             output.extend([
-                f"header login information {delimiter}",
+                f"header {header} information {delimiter}",
                 banner,
                 delimiter,
                 "#",
@@ -3268,6 +3281,13 @@ class HuaweiSwitchTranslator:
                     f"{interface.subnet_mask}"
                 )
 
+            elif interface.ip_dhcp:
+
+                # A DHCP client SVI (needs "dhcp enable" globally; VRP Configuration Guide, "Configuring a DHCP Client").
+                output.append(
+                    " ip address dhcp-alloc"
+                )
+
             output.extend(
                 self.resolve_dhcp_mode_lines(interface, dhcp_pools)
             )
@@ -3364,6 +3384,12 @@ class HuaweiSwitchTranslator:
                         " ip address "
                         f"{interface.ip_address} "
                         f"{interface.subnet_mask}"
+                    )
+
+                elif interface.ip_dhcp:
+
+                    output.append(
+                        " ip address dhcp-alloc"
                     )
 
                 output.extend(
@@ -3865,6 +3891,39 @@ class HuaweiSwitchTranslator:
         )
 
         # -----------------------------------------------------
+        # FIXED SPEED / DUPLEX
+        #
+        # VRP: on an electrical port "undo negotiation auto", then "speed 10 | 100" and "duplex full | half"
+        # (Huawei S-series troubleshooting guide, "Checking the Configuration of Electrical Interfaces on Both Ends").
+        # A fixed 1000 Mbps (1000BASE-T needs auto-negotiation), a duplex without a speed and an optical / multi-gigabit port are left to a person.
+        # -----------------------------------------------------
+
+        if interface.speed or interface.duplex:
+
+            if (
+                self._POE_PORT_NAME_RE.match(str(huawei_name))
+                and interface.speed in ("10", "100")
+            ):
+
+                output.append(" undo negotiation auto")
+                output.append(f" speed {interface.speed}")
+
+                if interface.duplex:
+                    output.append(f" duplex {interface.duplex}")
+
+                output.append(
+                    " # REVIEW-SPEED: fixed in the source; the far end must be fixed the same way "
+                    "(one side fixed and the other auto-negotiating gives a duplex mismatch)"
+                )
+
+            else:
+
+                output.append(
+                    f" # REVIEW-SPEED: the source fixed speed {interface.speed or 'auto'} / duplex {interface.duplex or 'auto'}; "
+                    "set it by hand on the target port (a fixed 1000 Mbps electrical port, an optical port or a duplex alone has no safe automatic form)"
+                )
+
+        # -----------------------------------------------------
         # ADMIN STATUS
         # -----------------------------------------------------
 
@@ -3894,6 +3953,25 @@ class HuaweiSwitchTranslator:
             output.append(
                 " undo shutdown"
             )
+
+        # PoE switched off in the source ("power inline never" / "no poe-enable" / "no power-over-ethernet"): VRP powers a PoE port by default, so the
+        # intent is carried with "undo poe enable" on a PoE copper port, and as a review line where the target's PoE capability is not known.
+        if interface.poe_enabled is False and not interface.shutdown:
+
+            if poe_capable and self._is_poe_port_name(
+                huawei_name,
+                interface.name,
+            ):
+
+                output.append(
+                    " undo poe enable"
+                )
+
+            elif self._POE_PORT_NAME_RE.match(str(huawei_name)):
+
+                output.append(
+                    " # REVIEW-POE: the source switched PoE off on this port; add \"undo poe enable\" here if the target model supplies PoE"
+                )
 
         output.append("#")
 

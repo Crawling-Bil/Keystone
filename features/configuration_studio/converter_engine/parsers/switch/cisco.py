@@ -81,6 +81,17 @@ class CiscoSwitchParser:
         self._vrf_context = ""
         banner_delimiter = None
         banner_buffer = []
+        banner_kind = "motd"
+
+        def add_banner(text, kind):
+            """Store a banner and its kind (motd / exec / login): ``metadata["banner_kinds"]`` runs parallel to ``banner_commands``, so a
+            ``banner login`` or ``banner exec`` is not written back as a second ``banner motd``."""
+            kinds = config.metadata.setdefault("banner_kinds", [])
+            while len(kinds) < len(config.banner_commands):
+                kinds.append("motd")
+            config.banner_commands.append(text)
+            kinds.append(kind)
+
         in_pki_chain = False
         self._flow_monitor_name = ""
 
@@ -123,8 +134,9 @@ class CiscoSwitchParser:
                         banner_buffer.append(
                             before_delimiter
                         )
-                    config.banner_commands.append(
-                        "\n".join(banner_buffer)
+                    add_banner(
+                        "\n".join(banner_buffer),
+                        banner_kind,
                     )
                     banner_delimiter = None
                     banner_buffer = []
@@ -234,13 +246,15 @@ class CiscoSwitchParser:
             # ================================================
             if line.startswith("banner "):
                 parts = line.split(None, 2)
+                banner_kind = parts[1].lower() if len(parts) > 1 else "motd"
                 if len(parts) >= 3:
                     payload = parts[2]
                     delimiter = payload[0]
                     content = payload[1:]
                     if delimiter in content:
-                        config.banner_commands.append(
-                            content.split(delimiter, 1)[0]
+                        add_banner(
+                            content.split(delimiter, 1)[0],
+                            banner_kind,
                         )
                     else:
                         banner_delimiter = delimiter
@@ -1978,6 +1992,13 @@ class CiscoSwitchParser:
 
             parts = line.split()
 
+            # "ip address dhcp": the address is learned; nothing to copy, but the interface must stay a DHCP client.
+            if len(parts) >= 3 and parts[2].lower() == "dhcp":
+
+                interface.ip_dhcp = True
+                interface.mode = "routed"
+                return
+
             # CIDR slash notation — "ip address 10.85.28.2/23" — is
             # NX-OS's default form (also valid on IOS-XE) and was
             # previously silently dropped entirely, real IP data loss
@@ -2222,6 +2243,19 @@ class CiscoSwitchParser:
 
         # Auto-negotiation is Huawei's interface default; nothing to translate.
         if line in ("negotiation auto", "speed auto", "duplex auto"):
+            return
+
+        # A speed / duplex fixed on the port ("speed 100", "duplex full"). "speed nonegotiate" and "speed auto 100 1000" stay review lines.
+        fixed_speed = re.match(r"^speed\s+(\d+)$", line)
+
+        if fixed_speed:
+            interface.speed = fixed_speed.group(1)
+            return
+
+        fixed_duplex = re.match(r"^duplex\s+(full|half)$", line)
+
+        if fixed_duplex:
+            interface.duplex = fixed_duplex.group(1)
             return
 
         # OSPF network type — all Cisco IOS variants:

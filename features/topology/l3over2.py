@@ -246,15 +246,17 @@ def l3over2_page(graph: Graph, phys: Page, model: L3Model, colours: dict[str, st
     conns: list[Connection] = []
     kept_index: dict[int, int] = {}                  # index in the physical page -> index here (a guessed cable to a router nobody captured may be left out)
     for old_index, conn in enumerate(phys.connections):
-        n = physical.get(id(conn))
-        rides = carries.get(n, []) if n is not None else []
-        if not rides and _guess_to_uncaptured_router(graph, conn):
+        originals = phys.bundled.get(old_index) or [conn]              # a site bundle of the Overview stands for several cables: they carry what its cables carry
+        numbers = [physical[id(c)] for c in originals if id(c) in physical]
+        rides = list(dict.fromkeys(r for n in numbers for r in carries.get(n, [])))
+        if not rides and all(_guess_to_uncaptured_router(graph, c) for c in originals):
             continue
         kept_index[old_index] = len(conns)
         look = {"role": "under", "colour": rides[0][1] if rides else GREY, "width": 5 if rides else 1.5, "carries": [r[0] for r in rides]}
         if rides:
             look["id"] = rides[0][0]
-            look["meaning"] = f"{conn_text(graph, n)} carries " + ", ".join(r[0] for r in rides) + "."
+            cables = conn_text(graph, numbers[0]) if len(originals) == 1 else f"{len(originals)} cables between two sites"
+            look["meaning"] = f"{cables} carries " + ", ".join(r[0] for r in rides) + "."
         conns.append(dataclasses.replace(conn, l3=look))
     l3conns: list[Connection] = []
     rank: dict[frozenset, int] = defaultdict(int)

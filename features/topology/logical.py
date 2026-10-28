@@ -13,7 +13,7 @@ import copy
 
 from .graph import Connection, Graph, Link
 from .layout import NODE_H, NODE_W
-from .scene import Page, PairBox, _route
+from .scene import Page, PairBox, _route, bundle_sites
 
 FRAME_SIDE = 26          # room left and right of the two icons
 FRAME_TOP = 38           # room for the frame title
@@ -59,7 +59,7 @@ def _collapse(graph: Graph, page: Page, frames: dict[str, PairBox]) -> list[Conn
     frame_of = {member: key for key, frame in frames.items() for member in frame.members}
     groups: dict[tuple, list[Connection]] = {}
     kept: list[Connection] = []
-    for conn in page.connections:
+    for conn in page.unbundled():                               # the vPC pairs are found among the separate lines, a site bundle is built again after them
         end_a, end_b = frame_of.get(conn.a, conn.a), frame_of.get(conn.b, conn.b)
         ident = conn.vpc_id or ",".join(sorted({po for po in (conn.a_po, conn.b_po) if po}))
         touches_frame = end_a in frames or end_b in frames
@@ -103,8 +103,9 @@ def logical_page(graph: Graph, page: Page) -> Page | None:
                  pair_boxes=frames, view="logical", curved=page.curved)
     clone.end_boxes = list(page.end_boxes)
     clone.connections = _collapse(graph, page, frames)
-    if len(clone.connections) == len(page.connections):
+    if len(clone.connections) == len(page.unbundled()):
         return None                                           # nothing collapsed: the physical page already says it all
+    bundle_sites(graph, clone)
     _route(clone)
     return clone
 

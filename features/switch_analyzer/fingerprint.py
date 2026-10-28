@@ -33,6 +33,7 @@ back to the older detector when nothing is conclusive.
 """
 from __future__ import annotations
 
+import functools
 import re
 from dataclasses import dataclass, field
 
@@ -241,13 +242,19 @@ def _identity_text(lines: list[str]) -> str:
     return "\n".join(chunks)
 
 
+@functools.lru_cache(maxsize=None)
+def _compiled(pattern: str) -> "re.Pattern[str]":
+    """The signal tables are fixed, so each pattern is compiled once (``re.search`` looked it up in the module cache for every pattern of every capture)."""
+    return re.compile(pattern, re.MULTILINE | re.IGNORECASE)
+
+
 def _score(table: dict[str, list[tuple[str, int, str]]], text: str, cap: int) -> dict[str, tuple[int, list[str]]]:
     result: dict[str, tuple[int, list[str]]] = {}
     for vendor, signals in table.items():
         total = 0
         hits: list[str] = []
         for pattern, weight, label in signals:
-            if re.search(pattern, text, re.MULTILINE | re.IGNORECASE):
+            if _compiled(pattern).search(text):
                 total += weight
                 hits.append(label)
         result[vendor] = (min(total, cap), hits)

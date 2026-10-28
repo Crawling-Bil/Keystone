@@ -128,13 +128,16 @@ class ArubaSwitchTranslator:
         # not support it — flag as REVIEW.
         # =====================================================
 
-        if config.lldp_enabled is False:
+        # An Aruba source (AOS-CX or ArubaOS-Switch) has no CDP and runs LLDP by default: the two notes below describe a Cisco source.
+        cisco_style_source = str(getattr(config, "source_vendor", "") or "").strip().lower() != "aruba"
+
+        if cisco_style_source and config.lldp_enabled is False:
             output.append(
                 "! REVIEW-LLDP: Source had LLDP disabled; "
                 "AOS-CX enables LLDP by default"
             )
 
-        if config.cdp_disabled is False:
+        if cisco_style_source and config.cdp_disabled is False:
             output.append(
                 "! REVIEW-CDP: Source used CDP (Cisco "
                 "Discovery Protocol); AOS-CX uses LLDP "
@@ -458,7 +461,8 @@ class ArubaSwitchTranslator:
 
             output.extend(
                 self.translate_banner(
-                    config.banner_commands
+                    config.banner_commands,
+                    config.metadata.get("banner_kinds", [])
                 )
             )
 
@@ -532,6 +536,34 @@ class ArubaSwitchTranslator:
     # Comprehensive interface translation covering all
     # SwitchConfig Interface fields for AOS-CX output.
     # =========================================================
+
+    _CX_ADVERTISE = {"10": "10m", "100": "100m", "1000": "1g", "2500": "2.5g", "5000": "5g", "10000": "10g", "25000": "25g", "40000": "40g", "50000": "50g", "100000": "100g"}
+    _CX_FIXED_G = {"10000": "10g", "25000": "25g", "40000": "40g", "50000": "50g", "100000": "100g"}
+
+    @classmethod
+    def _cx_speed_lines(cls, speed, duplex):
+        """AOS-CX lines for a port speed / duplex fixed in the source (see the SPEED / DUPLEX note in the interface translation)."""
+
+        note = (
+            "! REVIEW-SPEED: fixed in the source; the far end must be fixed the same way "
+            "(one side fixed and the other auto-negotiating gives a duplex mismatch)"
+        )
+
+        if speed in ("10", "100") and duplex in ("full", "half"):
+            return [f"speed {speed}-{duplex}", note]
+
+        if speed == "1000" and duplex in ("", "full"):
+            return ["speed 1000-full", note]
+
+        if speed in cls._CX_FIXED_G:
+            return [f"speed {cls._CX_FIXED_G[speed]}", note]
+
+        if speed in cls._CX_ADVERTISE and not duplex:
+            return [f"speed auto {cls._CX_ADVERTISE[speed]}", note]
+
+        return [
+            f"! REVIEW-SPEED: the source fixed speed {speed or 'auto'} / duplex {duplex or 'auto'}, a combination AOS-CX has no single command for; set it by hand"
+        ]
 
     @staticmethod
     def _is_repeated_port_command(command):
@@ -894,6 +926,20 @@ class ArubaSwitchTranslator:
                 lines.append(
                     "    ! REVIEW-IP: the source address has no usable "
                     "mask; ip static needs <ip>/<prefix>"
+                )
+
+        elif interface.ip_dhcp and not interface.ip_address:
+
+            # AOS-CX: "ip dhcp" makes the interface a DHCP client; it is accepted on the management interface and on VLAN 1 only.
+            lines.append(
+                "    ip dhcp"
+            )
+
+            if not is_mgmt and interface_name.lower() != "vlan1":
+
+                lines.append(
+                    "    ! REVIEW-DHCP-CLIENT: the source takes this address from DHCP; AOS-CX accepts "
+                    "\"ip dhcp\" on the management interface and on VLAN 1 only, give this one a static address"
                 )
 
         elif interface.ip_address:
@@ -1306,6 +1352,23 @@ class ArubaSwitchTranslator:
         # Default is PoE enabled on PoE-capable ports.
         # -----------------------------------------------------
 
+        # -----------------------------------------------------
+        # SPEED / DUPLEX fixed by the source
+        #
+        # AOS-CX: "speed 100-full" (10-full, 10-half, 100-full, 100-half, 1000-full), "speed 10g" (25g, 40g ...) and
+        # "speed auto 100m" which advertises one speed only (the equivalent of a source that fixed the speed and left
+        # the duplex to negotiation).  AOS-CX 10.14 Fundamentals, "speed".
+        # -----------------------------------------------------
+
+        if interface.speed or interface.duplex:
+
+            fixed_speed = self._cx_speed_lines(interface.speed, interface.duplex)
+
+            lines.extend(
+                f"    {line}"
+                for line in fixed_speed
+            )
+
         # PoE exists on physical front-panel ports only (not on VLAN,
         # LAG, loopback or the management interface).
         has_poe = not (is_svi or is_lag or is_loopback or is_mgmt)
@@ -1402,7 +1465,7 @@ class ArubaSwitchTranslator:
 
             # A bare "switchport" only enables Layer-2 mode (already expressed by "no routing"), and "hsrp version 2" is
             # HSRP's message format -- the group itself is converted to VRRP.
-            if command.strip() in ("switchport", "hsrp version 2"):
+            if command.strip() in ("switchport", "hsrp version 2", "no ip address"):
                 continue
 
             if self._is_repeated_port_command(command):
@@ -2867,20 +2930,23 @@ class ArubaSwitchTranslator:
 
     @staticmethod
     def translate_banner(
-        commands
+        commands,
+        kinds=()
     ):
 
         output = []
 
-        for cmd in commands:
+        for index, cmd in enumerate(commands):
 
             line = str(cmd).strip()
 
             if not line:
                 continue
 
+            kind = kinds[index] if index < len(kinds) and kinds[index] in ("motd", "exec") else "motd"
+
             output.append(
-                f"banner motd ${line}$"
+                f"banner {kind} ${line}$"
             )
 
         return output
@@ -2955,6 +3021,10 @@ class ArubaSwitchTranslator:
 
         # NX-OS banner / VDC carve-up / feature enablers (see nxos_noise): nothing to convert or decide.
         if nxos_noise.is_noise(line):
+            return None
+
+        # The end marker of a show running-config is not configuration.
+        if lower == "end":
             return None
 
         # NTP — same syntax

@@ -336,7 +336,7 @@ Severity wording follows the existing analyzers. Each finding records its eviden
 
 - Everything runs locally; no capture leaves the machine. The existing request guard (`core/local_guard.py`) applies to the new routes automatically.
 - A `.drawio` file lists hostnames, models, addresses and cabling. Treat it as sensitive as the captures. The page says so next to the download button.
-- **Anonymized export** (new, `anonymize.py`): consistent pseudonyms for hostnames, IPs, MACs, serials and descriptions, keeping structure. Useful for sharing a diagram or a bug report. `analyzer_core/redaction.py` only hides credentials, so this is new code, with a mapping file kept locally so the engineer can reverse it.
+- **Anonymized export** (delivered in 1.6, `anonymize.py`): consistent pseudonyms for hostnames, domain and VRF words, port descriptions, IPs (prefix-preserving), MACs (vendor prefix kept) and serials, keeping the structure, so a diagram or a bug report can be shared. `analyzer_core/redaction.py` only hides credentials, so this is separate code. The twin is rebuilt from the pseudonymized device state, a scan of the finished files reports any original that is left, and the key `anonymization-map.csv` is written apart from the shareable pack. It does not hide the shape of the network; see "Version 1.6" in `topology.md` for the limits.
 - Uploaded files go to the existing `uploads/` and are swept by the existing 30-day cleanup.
 
 ## 15. Phases

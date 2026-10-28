@@ -92,8 +92,3 @@ def test_two_comb_lanes_of_different_switches_at_one_height_are_moved_apart():
     y0 = {i: next(y for (x0, y), (x1, y1) in zip(r, r[1:]) if y == y1 and abs(x0 - x1) > 100) for i, r in page.routes.items()}
     assert abs(y0[0] - y0[1]) >= LANE_NUDGE - 0.1
     assert all(abs(a[0] - b[0]) < 0.5 or abs(a[1] - b[1]) < 0.5 for r in page.routes.values() for a, b in zip(r, r[1:]))      # still orthogonal
-
-
-def test_the_version_is_1_5():
-    from core.modules import TOOLS
-    assert next(t for t in TOOLS if t.key == "topology").version == "1.5"

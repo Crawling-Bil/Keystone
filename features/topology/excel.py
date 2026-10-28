@@ -50,7 +50,7 @@ def _table(workbook: Workbook, title: str, rows: list[dict[str, Any]], fill_colu
 
 def to_xlsx(summary: dict[str, Any], devices: list[dict], links: list[dict], hosts: list[dict], findings: list[dict],
             behind: list[dict] | None = None, bundles: list[dict] | None = None, by_device: list[dict] | None = None,
-            l3: dict[str, list[dict]] | None = None) -> bytes:
+            l3: dict[str, list[dict]] | None = None, priority: list[dict] | None = None) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Summary"
@@ -71,6 +71,8 @@ def to_xlsx(summary: dict[str, Any], devices: list[dict], links: list[dict], hos
         _table(workbook, "Bundles", bundles, "state", STATE_FILL)
     if behind:
         _table(workbook, "Behind devices", behind)
+    if priority:
+        _table(workbook, "Capture next", priority)
     if l3 and l3.get("links"):
         _table(workbook, "L3 links", l3["links"], "state", {"working": "C6E0B4", "configured only": "FFE699", "broken": "F8CBAD"})
         _table(workbook, "L3 routes", l3.get("routes", []))
