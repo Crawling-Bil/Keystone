@@ -315,6 +315,29 @@
     document.getElementById("finding-list").innerHTML = findings.length ? findings.map(item => `<article class="finding-card"><span class="finding-severity ${esc(item.severity)}">${esc(item.severity)}</span><div><h4>${esc(item.title || item.category || "Finding")}</h4><div class="finding-meta">${esc([item.ap_id,item.ap_name,item.status].filter(Boolean).join(" · "))}</div><p>${esc(item.reason || item.description || "")}</p><p><strong>Recommendation:</strong> ${esc(item.recommendation || "Review the AP configuration and operational status.")}</p></div></article>`).join("") : `<div class="empty-state compact">No findings. Wireless assessment is healthy.</div>`;
   }
 
+  function renderRadioPlanning(rp) {
+    const tabButton = document.getElementById("wireless-tab-radio");
+    const has = rp && (rp.rows || []).length;
+    tabButton.classList.toggle("hidden", !has);
+    if (!has) return;
+    const s = rp.summary;
+    document.getElementById("radio-summary").innerHTML = [["APs with own planning", s.aps_planned], ["Radios planned", s.radios],
+      ["Fixed power", s.fixed_power], ["Fixed channel", s.fixed_channel], ["APs on controller", s.aps_total]]
+      .map(([k, v]) => `<article><span>${esc(k)}</span><strong>${esc(v)}</strong></article>`).join("");
+    document.getElementById("radio-findings").innerHTML = (rp.findings || []).map(f => `
+      <details class="cisco-finding sev-${esc(f.severity.toLowerCase())}"><summary><span class="sev">${esc(f.severity)}</span><strong>${esc(f.title)}</strong></summary>
+      <p>${esc(f.detail)}</p>${f.items.length ? `<ul>${f.items.slice(0, 300).map(i => `<li>${esc(i)}</li>`).join("")}</ul>` : ""}</details>`).join("");
+    renderTable("radio-site-table", [{label:"Site",key:"site"},{label:"Radios",key:"radios"},{label:"Fixed power",key:"fixed_power"},
+      {label:"Auto power",key:"auto_power"},{label:"Most used EIRP",key:"eirp"}], rp.sites || []);
+    renderTable("radio-table", [{label:"AP",key:"ap"},{label:"AP ID",key:"ap_id"},{label:"AP Group",key:"group"},{label:"Site",key:"site"},
+      {label:"Radio",value:r => `${r.radio} · ${r.band}`},{label:"Status",key:"status",status:true},{label:"Power",key:"power_mode"},
+      {label:"EIRP",key:"eirp"},{label:"EIRP from",key:"eirp_source"},{label:"Channel",value:r => r.channel ? `${r.channel} (${r.channel_mode})` : r.channel_mode},
+      {label:"Antenna gain",key:"antenna_gain"},{label:"Work mode",key:"work_mode"},{label:"Radio profile",key:"radio_profile"},{label:"Note",key:"note"}], rp.rows);
+    document.getElementById("radio-count").textContent = `${rp.rows.length} radios`;
+    renderTable("radio-group-table", [{label:"AP Group",key:"group"},{label:"Radio",value:r => `${r.radio} · ${r.band}`},{label:"Settings",key:"settings",config:true}], rp.groups || []);
+    renderTable("radio-profile-table", [{label:"Type",key:"kind"},{label:"Name",key:"name"},{label:"Settings",key:"settings",config:true}], rp.profiles || []);
+  }
+
   form.addEventListener("submit", async event => {
     event.preventDefault();
     window.NES.setLoading(button, true, "Analyzing...");
@@ -322,7 +345,7 @@
       const response = await fetch("/wireless/api/analyze", {method:"POST",body:new FormData(form)});
       const payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Analysis failed.");
-      empty.classList.add("hidden"); resultPanel.classList.remove("hidden"); renderResult(payload.result); window.NES.toast("Wireless analysis completed.");
+      empty.classList.add("hidden"); resultPanel.classList.remove("hidden"); renderResult(payload.result); renderRadioPlanning(payload.result.radio_planning); window.NES.toast("Wireless analysis completed.");
     } catch (error) { window.NES.toast(error.message,"error"); }
     finally { window.NES.setLoading(button,false); }
   });

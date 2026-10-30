@@ -96,6 +96,7 @@
             <button type="button" id="wireless-tab-vap" data-tab="vap" role="tab" aria-selected="false" aria-controls="tab-vap" tabindex="-1">VAP Profiles</button>
             <button type="button" id="wireless-tab-groups" data-tab="groups" role="tab" aria-selected="false" aria-controls="tab-groups" tabindex="-1">AP Group / Tags</button>
             <button type="button" id="wireless-tab-profiles" data-tab="profiles" role="tab" aria-selected="false" aria-controls="tab-profiles" tabindex="-1">AP Profiles</button>
+            <button type="button" id="wireless-tab-radio" data-tab="radio" role="tab" aria-selected="false" aria-controls="tab-radio" tabindex="-1">Radio Planning</button>
             <button type="button" id="wireless-tab-users" data-tab="users" role="tab" aria-selected="false" aria-controls="tab-users" tabindex="-1">Local Users</button>
             <button type="button" id="wireless-tab-findings" data-tab="findings" role="tab" aria-selected="false" aria-controls="tab-findings" tabindex="-1">Analysis Log</button>
         </div>
@@ -116,6 +117,16 @@
         </div>
         <div class="tab-content" id="tab-groups" role="tabpanel" aria-labelledby="wireless-tab-groups"><div class="table-tools"><input data-table-search="group-table" aria-label="Search AP groups and tags" placeholder="Search AP group, tag, or SSID..."></div><div class="table-wrap"><table id="group-table"></table></div></div>
         <div class="tab-content" id="tab-profiles" role="tabpanel" aria-labelledby="wireless-tab-profiles"><div class="table-tools"><input data-table-search="profile-table" aria-label="Search AP profiles" placeholder="Search AP profile or WLAN mapping..."></div><div class="table-wrap"><table id="profile-table"></table></div></div>
+        <div class="tab-content" id="tab-radio" role="tabpanel" aria-labelledby="wireless-tab-radio">
+          <div id="radio-summary" class="deployment-summary"></div>
+          <div id="radio-findings" class="cisco-findings"></div>
+          <h3 class="subsection-title">By site</h3><div class="table-wrap radio-wrap"><table id="radio-site-table"></table></div>
+          <h3 class="subsection-title">Per AP and radio</h3>
+          <div class="table-tools"><input data-table-search="radio-table" aria-label="Search radio planning" placeholder="Search AP, site, group, EIRP, note..."><span id="radio-count"></span></div>
+          <div class="table-wrap radio-wrap"><table id="radio-table"></table></div>
+          <h3 class="subsection-title">AP group radio settings</h3><div class="table-wrap radio-wrap"><table id="radio-group-table"></table></div>
+          <h3 class="subsection-title">Radio and RRM profiles</h3><div class="table-wrap radio-wrap"><table id="radio-profile-table"></table></div>
+        </div>
         <div class="tab-content" id="tab-users" role="tabpanel" aria-labelledby="wireless-tab-users"><div class="table-tools"><input data-table-search="user-table" aria-label="Search local users" placeholder="Search local users..."></div><div class="table-wrap"><table id="user-table"></table></div></div>
         <div class="tab-content" id="tab-findings" role="tabpanel" aria-labelledby="wireless-tab-findings"><div id="finding-list" class="finding-list"></div></div>
     </div>
@@ -347,6 +358,7 @@
         <button type="button" id="delta-tab-button-changed" data-delta-tab="changed" role="tab" aria-selected="false" aria-controls="delta-tab-changed" tabindex="-1">Value Mismatch</button>
         <button type="button" id="delta-tab-button-extra" data-delta-tab="extra" role="tab" aria-selected="false" aria-controls="delta-tab-extra" tabindex="-1">Extra on Target</button>
         <button type="button" id="delta-tab-button-mac-auth" data-delta-tab="mac-auth" role="tab" aria-selected="false" aria-controls="delta-tab-mac-auth" tabindex="-1">MAC Authentication</button>
+        <button type="button" id="delta-tab-button-radio" data-delta-tab="radio" role="tab" aria-selected="false" aria-controls="delta-tab-radio" tabindex="-1" data-vendor-only="Huawei">Radio Planning</button>
         <button type="button" id="delta-tab-button-manual" data-delta-tab="manual" role="tab" aria-selected="false" aria-controls="delta-tab-manual" tabindex="-1">Manual Review</button>
         <button type="button" id="delta-tab-button-implementation" data-delta-tab="implementation" role="tab" aria-selected="false" aria-controls="delta-tab-implementation" tabindex="-1">Generated Delta</button>
         <button type="button" id="delta-tab-button-rollback" data-delta-tab="rollback" role="tab" aria-selected="false" aria-controls="delta-tab-rollback" tabindex="-1">Rollback Plan</button>
@@ -362,6 +374,14 @@
         </div>
         <div class="delta-dependency-stages" id="delta-mac-auth-stages" aria-label="MAC authentication dependency stages"></div>
         <div class="table-wrap"><table id="delta-mac-auth-table" class="delta-result-table"></table></div>
+      </div>
+      <div class="delta-tab-content" id="delta-tab-radio" role="tabpanel" aria-labelledby="delta-tab-button-radio">
+        <div class="empty-state compact delta-policy-note" id="delta-radio-note">Per-AP radio planning (EIRP, automatic power and channel, radio profile) matched by AP MAC. If the controllers back each other up, an AP that fails over loses the planning the peer does not have.</div>
+        <div id="delta-radio-summary" class="deployment-summary"></div>
+        <div class="table-tools"><input data-table-search="delta-radio-table" aria-label="Search radio differences" placeholder="Search AP, MAC, value..."></div>
+        <div class="table-wrap radio-wrap"><table id="delta-radio-table"></table></div>
+        <h3 class="subsection-title">AP group radio settings that differ</h3><div class="table-wrap radio-wrap"><table id="delta-radio-group-table"></table></div>
+        <div class="code-panel delta-code"><header><span>Bring the Target radio planning in line with the Source (review before use)</span><button type="button" data-copy="delta-radio-code">Copy</button></header><pre id="delta-radio-code"></pre></div>
       </div>
       <div class="delta-tab-content" id="delta-tab-manual" role="tabpanel" aria-labelledby="delta-tab-button-manual"><div class="empty-state compact delta-policy-note">Review device identity, AP assignment, certificates, licensing, and masked secrets before implementation.</div><div class="table-wrap"><table id="delta-manual-table" class="delta-result-table"></table></div></div>
       <div class="delta-tab-content" id="delta-tab-implementation" role="tabpanel" aria-labelledby="delta-tab-button-implementation"><div class="code-panel delta-code"><header><span>Source → Target implementation candidate</span><button type="button" data-copy="delta-implementation-code">Copy</button></header><pre id="delta-implementation-code"></pre></div></div>

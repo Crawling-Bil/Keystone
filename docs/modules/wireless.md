@@ -12,7 +12,13 @@ Every workspace is locked to the picked controller. A file from the other vendor
 
 ## Huawei
 
-Unchanged: `display current-configuration`, optionally the AP Info CSV/XLSX, and the VAP, AP group and profile tables.
+`display current-configuration`, optionally the AP Info CSV/XLSX, and the VAP, AP group and profile tables.
+
+### Radio Planning tab
+
+Reads the radio settings of every AP (`ap-id ...` → `radio 0/1/2`) and AP group in the `wlan` view, resolves which one applies (the AP overrides its group) and shows per AP and radio: power mode (Fixed when `calibrate auto-txpower-select disable`), EIRP and where it comes from, channel and channel mode, antenna gain, work mode, radio profile, enabled or disabled. Plus a summary per site (prefix of the AP name), AP group radio settings, and radio-2g/5g, RRM and air-scan profiles. Exported as three extra sheets.
+
+Findings: EIRP set while automatic power is still on (ignored), EIRP above 30 dBm (Huawei accepts up to 127, the radio runs at maximum), a fixed channel without `calibrate auto-channel-select disable`, radios in monitor mode, disabled radios, and no channel plan in the config (channels come from calibration; `display radio all` shows the live ones).
 
 ## Cisco Catalyst 9800
 
@@ -38,7 +44,7 @@ Unchanged: `display current-configuration`, optionally the AP Info CSV/XLSX, and
 
 ## Config Delta
 
-Same engine for both vendors, locked to the picked one. For Cisco a `show tech-support wireless` file can be used on either side: only its running-config section is compared.
+Same engine for both vendors, locked to the picked one. On Huawei a **Radio Planning** tab compares the per-AP and AP-group radio settings of both controllers, matched by AP MAC (AP IDs may differ), and writes the commands that bring the Target in line, using the Target's AP IDs. Use it on an HSB pair: an AP that fails over keeps only the planning the other controller has. For Cisco a `show tech-support wireless` file can be used on either side: only its running-config section is compared.
 
 ## AP Role Diff
 

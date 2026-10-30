@@ -983,6 +983,11 @@ def _render_cli(rows: list[dict[str, Any]], vendor: str, rollback: bool = False)
     return "\n".join([start, *body, end, ""])
 
 
+def _radio_compare(source_content: str, target_content: str) -> dict[str, Any]:
+    from .radio_planning import compare
+    return compare(source_content, target_content)
+
+
 def compare_configs(
     source_content: str,
     target_content: str,
@@ -1065,6 +1070,7 @@ def compare_configs(
         "rows": public_rows,
         "implementation_config": implementation,
         "rollback_config": rollback,
+        "radio_planning": _radio_compare(source_content, target_content) if resolved == "Huawei" else {},
         "safety": {
             "direction": "Source to Target",
             "target_only_policy": "Report only; no removal command generated",

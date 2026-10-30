@@ -8,7 +8,7 @@ Newest first. Module versions are listed in `core/modules.py`.
 - Cisco 9800 has its own parser and tables built from `show tech-support wireless`: WLANs, Policy Profiles, Policy/Site/RF Tags, AP Join, Flex and RF profiles, AAA, local users, and every AP with its tags, join state, serial, software and controllers. 9800 findings and an Excel export per table.
 - Config Delta on Cisco accepts show tech files and compares only their running-config.
 - AP Role Diff on Cisco follows N+1/SSO: one controller per AP is healthy, both is Dual Active; Policy, Site and RF Tag are compared.
-- Huawei tables and behaviour are unchanged.
+- Huawei: new Radio Planning tab (per-AP and AP-group EIRP, automatic power and channel, work mode, radio profile, per-site summary, findings, Excel sheets) and a Radio Planning comparison in Config Delta with commands for the Target, matched by AP MAC.
 
 ## Unreleased: Work Plan and Work Report
 

@@ -403,6 +403,8 @@ def export(analysis_id: str):
         cisco_export.export(payload, export_path)
     else:
         export_excel(payload["data"], export_path)
+        from .radio_planning import add_sheets
+        add_sheets(export_path, payload.get("radio_planning") or {})
     hostname = payload.get("data", {}).get("wlc", {}).get("hostname", "WLC") or "WLC"
     download_name = secure_filename(f"{hostname}_Wireless_Analysis.xlsx")
     log_activity("Wireless Center", "Excel report exported", download_name)

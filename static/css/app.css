@@ -1952,3 +1952,7 @@ html[data-theme="dark"] tbody tr:hover { background: rgba(36, 180, 205, .09); }
 #wireless-cisco-workspace .table-wrap { overflow-x: auto; }
 #wireless-cisco-workspace td, #wireless-cisco-workspace th { white-space: nowrap; text-align: left; }
 #wireless-cisco-workspace td details code { white-space: pre; }
+.radio-wrap { overflow-x: auto; }
+.radio-wrap td, .radio-wrap th { white-space: nowrap; text-align: left; }
+.radio-cell { margin: 0; font-size: 12px; white-space: pre; background: none; border: 0; color: inherit; }
+#tab-radio .cisco-findings { margin: 14px 0; }
