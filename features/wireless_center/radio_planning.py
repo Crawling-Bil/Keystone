@@ -240,6 +240,21 @@ def _effective(lines: list[str]) -> list[str]:
     return [line for line in lines if line not in DEFAULT_LINES]
 
 
+def _resolved(parsed: dict[str, Any], ap: dict[str, Any], radio: str) -> dict[str, str]:
+    """What the radio ends up with: AP lines over its AP group, defaults dropped."""
+    a = ap["radios"].get(radio, [])
+    g = parsed["groups"].get(ap["group"], {}).get(radio, [])
+    out = {}
+    for key in ("eirp", "calibrate auto-txpower-select", "calibrate auto-channel-select", "channel",
+                "antenna-gain", "work-mode", "radio-2g-profile", "radio-5g-profile"):
+        value, _ = _setting(a, g, key)
+        if value is not None and f"{key} {value}" not in DEFAULT_LINES:
+            out[key] = value
+    if "radio disable" in a or ("radio disable" in g and "radio enable" not in a):
+        out["radio"] = "disable"
+    return out
+
+
 def compare(source_content: str, target_content: str) -> dict[str, Any]:
     """Per-AP radio planning that differs between two controllers, matched
     by AP MAC (the AP ID can differ). Commands bring the target in line."""
@@ -253,8 +268,8 @@ def compare(source_content: str, target_content: str) -> dict[str, Any]:
             continue
         for radio in sorted(set(ap["radios"]) | set(other["radios"])):
             s, t = sorted(ap["radios"].get(radio, [])), sorted(other["radios"].get(radio, []))
-            if _effective(s) == _effective(t):
-                continue                   # only an explicit default differs
+            if _resolved(src, ap, radio) == _resolved(tgt, other, radio):
+                continue                   # same result once the AP group is applied
             rows.append({"ap": ap["name"] or other["name"], "mac": ap["mac"], "source_ap_id": ap["ap_id"], "target_ap_id": other["ap_id"],
                          "radio": radio, "band": BANDS.get(radio, radio), "source": s, "target": t,
                          "status": "Missing on Target" if not t else ("Extra on Target" if not s else "Different")})
