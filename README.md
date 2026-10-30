@@ -32,7 +32,7 @@ Keystone only listens on your own computer (`127.0.0.1`), so another machine on 
 
 | Group | Tool | What you give it | What you get |
 | --- | --- | --- | --- |
-| Analyze | Wireless Analyzer | Huawei or Cisco 9800 WLC configuration, optional AP inventory | Assessment, AP master validation, AP role diff, source-to-target delta |
+| Analyze | Wireless Analyzer | Pick the controller first. Huawei: `display current-configuration` + AP Info. Cisco 9800: `show tech-support wireless` | Per-vendor tables (Cisco: WLAN, Policy Profile, Policy/Site/RF Tag, AP Join/Flex/RF, APs with tags), findings, AP master validation, AP role diff, source-to-target delta |
 | Analyze | Switch Analyzer | Cisco (Catalyst, Nexus), Huawei, Aruba (ArubaOS-Switch, AOS-CX) configuration and `show` output | Inventory, VLANs, spanning tree, port-channels, vPC/M-LAG, PoE, transceivers, findings, Excel export (with a Health Details sheet) |
 | Analyze | Router Analyzer | Cisco IOS, IOS-XE or SD-WAN capture | Interfaces, routing, BGP/OSPF, VPN, hardening findings |
 | Analyze | Firewall Analyzer | FortiGate, FortiSwitch, Palo Alto (configuration or runtime log), MikroTik RouterOS 6/7 | Policies, NAT, VPN, routing, objects, hardening findings |

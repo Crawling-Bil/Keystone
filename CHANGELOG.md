@@ -2,6 +2,14 @@
 
 Newest first. Module versions are listed in `core/modules.py`.
 
+## Unreleased: Wireless Analyzer 1.12, a workspace per controller
+
+- The Wireless Analyzer opens on a controller picker: Huawei WLC or Cisco Catalyst 9800 (AireOS and Aruba shown as planned). The choice is remembered and every workspace (Analyze, Config Delta, AP Role Diff) is locked to it; Auto Detect is gone, and a file from the other vendor is refused with a hint.
+- Cisco 9800 has its own parser and tables built from `show tech-support wireless`: WLANs, Policy Profiles, Policy/Site/RF Tags, AP Join, Flex and RF profiles, AAA, local users, and every AP with its tags, join state, serial, software and controllers. 9800 findings and an Excel export per table.
+- Config Delta on Cisco accepts show tech files and compares only their running-config.
+- AP Role Diff on Cisco follows N+1/SSO: one controller per AP is healthy, both is Dual Active; Policy, Site and RF Tag are compared.
+- Huawei tables and behaviour are unchanged.
+
 ## Unreleased: Work Plan and Work Report
 
 - LLD Generator projects produce the Work Plan Document (FM-Impl-039) and the Work Report (FM-HW-005), filled onto the original Multipolar Word forms.

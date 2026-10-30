@@ -10,7 +10,9 @@
 
   function setWorkspace(name, updateUrl = true) {
     if (!["analysis", "roles", "delta"].includes(name)) name = "analysis";
-    document.getElementById("wireless-analysis-workspace").classList.toggle("hidden", name !== "analysis");
+    const vendor = document.getElementById("wireless-root")?.dataset.vendor || "Huawei";
+    document.getElementById("wireless-analysis-workspace").classList.toggle("hidden", name !== "analysis" || vendor !== "Huawei");
+    document.getElementById("wireless-cisco-workspace")?.classList.toggle("hidden", name !== "analysis" || vendor !== "Cisco");
     document.getElementById("wireless-role-workspace").classList.toggle("hidden", name !== "roles");
     document.getElementById("wireless-delta-workspace").classList.toggle("hidden", name !== "delta");
     document.querySelectorAll("[data-wireless-workspace]").forEach(button => {

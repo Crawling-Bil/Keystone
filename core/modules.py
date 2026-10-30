@@ -55,9 +55,9 @@ class Tool:
 
 
 TOOLS: tuple[Tool, ...] = (
-    Tool("wireless", "Wireless Analyzer", "analyze", "offline", "1.11.0", "/wireless", "wireless",
-         "Huawei and Cisco 9800 WLC assessment, AP master validation, AP role diff and Source-to-Target config delta.",
-         task="Check AP or WLC inventory, or compare two controllers", keywords=("wlc", "ap", "vap", "ssid")),
+    Tool("wireless", "Wireless Analyzer", "analyze", "offline", "1.12.0", "/wireless", "wireless",
+         "Pick Huawei or Cisco 9800 first: each has its own tables. Assessment, AP master validation, AP role diff and Source-to-Target config delta.",
+         task="Check AP or WLC inventory, or compare two controllers", keywords=("wlc", "ap", "vap", "ssid", "9800", "policy tag", "site tag", "show tech")),
     Tool("switch_analyzer", "Switch Analyzer", "analyze", "offline", "1.2", "/switch-analyzer", "switch",
          "Cisco, Huawei, Aruba and NX-OS switch dashboards: inventory, VLANs, spanning tree, port-channels, PoE, LLDP/CDP, compare and sizing.",
          task="Review a switch capture (VLANs, STP, port-channels, PoE)", keywords=("catalyst", "nexus", "vrp", "aos-cx")),

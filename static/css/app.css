@@ -1921,3 +1921,34 @@ html[data-theme="dark"] tbody tr:hover { background: rgba(36, 180, 205, .09); }
 .cv-settings-hide { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
 .cv-settings-hide:hover { color: var(--text); border-color: var(--blue); }
 .cv-settings-hide.hidden { display: none; }
+
+/* Wireless Analyzer: controller picker and the Cisco workspace */
+.wireless-vendor-picker { padding: 22px; margin-bottom: 18px; }
+.vendor-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 16px; }
+.vendor-card { display: grid; gap: 6px; padding: 18px; text-align: left; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); color: var(--text); cursor: pointer; transition: border-color 180ms var(--ease), transform 180ms var(--ease); }
+.vendor-card strong { font-size: 15px; }
+.vendor-card span { color: var(--text-soft); font-size: 13px; }
+.vendor-card small { color: var(--muted); font-size: 12px; }
+.vendor-card:not(.planned):hover { border-color: var(--blue); transform: translateY(-2px); }
+.vendor-card.planned { opacity: .55; cursor: default; }
+.vendor-card.planned small { color: var(--amber, #d9a441); font-weight: 600; }
+.wireless-vendor-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.wireless-vendor-bar > span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.wireless-vendor-bar strong { flex: 1; }
+.wireless-vendor-bar.hidden, .wireless-vendor-picker.hidden, #wireless-vendor-area.hidden { display: none; }
+.cisco-tab { display: none; padding-top: 14px; }
+.cisco-tab.active { display: block; }
+.cisco-findings { display: grid; gap: 10px; }
+.cisco-finding { border: 1px solid var(--border); border-left: 3px solid var(--muted); border-radius: 10px; background: var(--panel); padding: 10px 14px; }
+.cisco-finding.sev-critical { border-left-color: var(--red); }
+.cisco-finding.sev-warning { border-left-color: var(--amber, #d9a441); }
+.cisco-finding.sev-info { border-left-color: var(--blue); }
+.cisco-finding summary { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.cisco-finding .sev { min-width: 64px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.cisco-finding .cat { color: var(--muted); font-size: 12px; min-width: 96px; }
+.cisco-finding p { margin: 8px 0 4px; color: var(--text-soft); }
+.cisco-finding ul { margin: 4px 0 0 18px; columns: 2; font-size: 12.5px; color: var(--text-soft); }
+@media (max-width: 760px) { .cisco-finding ul { columns: 1; } }
+#wireless-cisco-workspace .table-wrap { overflow-x: auto; }
+#wireless-cisco-workspace td, #wireless-cisco-workspace th { white-space: nowrap; text-align: left; }
+#wireless-cisco-workspace td details code { white-space: pre; }
