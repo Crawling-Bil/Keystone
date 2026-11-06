@@ -79,7 +79,27 @@ _VENDOR_BY_MODEL = (
     ("Palo Alto Networks", re.compile(r"^PA-\d", re.I)),
     ("F5", re.compile(r"^(BIG-IP|BIGIP)", re.I)),
     ("Aruba", re.compile(r"^(Aruba|JL\d|J\d{4})", re.I)),
+    ("Huawei", re.compile(r"^(Huawei|S\d{4}(?:-|$)|CE\d{4}|AR\d{3,4}(?:-|$)|AirEngine|USG\d|NE\d|AC\d{4}(?:-|$))", re.I)),
 )
+# what a neighbor's LLDP system description (free text) names as its maker; only a brand the text states, never a guess from the product line
+_VENDOR_BY_DESCRIPTION = (
+    ("Huawei", re.compile(r"\bHuawei\b|\bYunShan\b|Versatile Routing Platform", re.I)),
+    ("Fortinet", re.compile(r"Forti(?:Gate|OS|Switch|AP)\b", re.I)),
+    ("Palo Alto Networks", re.compile(r"Palo Alto|PAN-OS", re.I)),
+    ("Aruba", re.compile(r"\bAruba\b|\bHPE ANW\b|\bArubaOS", re.I)),
+    ("Cisco", re.compile(r"\bCisco\b|\bMeraki\b", re.I)),
+    ("Juniper", re.compile(r"\bJuniper\b|\bJUNOS\b", re.I)),
+    ("Arista", re.compile(r"\bArista\b", re.I)),
+    ("MikroTik", re.compile(r"\bMikroTik\b|\bRouterOS\b", re.I)),
+    ("Ruckus", re.compile(r"\bRuckus\b", re.I)),
+    ("Ubiquiti", re.compile(r"\bUbiquiti\b|\bUniFi\b", re.I)),
+)
+
+
+def vendor_from_description(description: str) -> str:
+    """'Cisco AP Software, ap3g3-k9w8 ...' -> 'Cisco'; '' when the text names no brand."""
+    text = (description or "")[:240]
+    return next((name for name, pattern in _VENDOR_BY_DESCRIPTION if pattern.search(text)), "")
 
 
 _ARUBA_ANW = re.compile(r"^(?:HPE|Aruba|HP)\s+ANW\s+(?P<model>\S+)\s+(?P<version>[A-Z]{1,3}\.\d+(?:\.\d+)+\S*)\s*$", re.I)

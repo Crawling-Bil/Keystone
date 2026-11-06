@@ -415,6 +415,95 @@ def _is_config_block(block: cap.Block) -> bool:
     return norm in ("list", "show running-config")
 
 
+_POOL_IN_VS = re.compile(r"^\s*\|\s*Ltm::Pool:\s*(?P<name>\S+)\s*$")
+_MEMBER_IN_VS = re.compile(r"^\s*\|\s*Ltm::Pool Member:\s*(?P<rest>\S+)")
+_VS_KV = re.compile(r"^\s*\|\s*(?P<key>[A-Za-z ]+?)\s*:\s*(?P<value>.*?)\s*$")
+
+
+def parse_virtual_detail(text: str) -> list[dict[str, Any]]:
+    """``show ltm virtual detail`` prints the pool a virtual server uses, and that pool's members, nested (``| Ltm::Pool: NAME``, ``| Ltm::Pool Member: ip:port``)
+    under each virtual server.  A capture of ``show`` commands alone has no ``ltm virtual { pool ... }`` stanza, so this is where the virtual server -> pool ->
+    member binding comes from.  Returns ``[{"virtual", "pools": [{"name", "monitor", "members": [{"member", "address"}]}]}]`` for the virtual servers that have a pool; the
+    first pool is the default pool."""
+    out: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    pool: dict[str, Any] | None = None
+    member: dict[str, Any] | None = None
+    for line in text.splitlines():
+        if line.startswith("Ltm::Virtual Server:"):
+            current = {"virtual": line[len("Ltm::Virtual Server:"):].strip(), "pools": []}
+            out.append(current)
+            pool = member = None
+            continue
+        if current is None:
+            continue
+        found = _POOL_IN_VS.match(line)
+        if found:
+            pool = {"name": found["name"], "monitor": "", "members": []}
+            current["pools"].append(pool)
+            member = None
+            continue
+        found = _MEMBER_IN_VS.match(line)
+        if found and pool is not None:
+            member = {"member": found["rest"], "address": ""}
+            pool["members"].append(member)
+            continue
+        pair = _VS_KV.match(line)
+        if pair:
+            key = pair["key"].strip()
+            if member is not None and key == "IP Address":
+                member["address"] = pair["value"]
+            elif pool is not None and member is None and key == "Monitor":
+                pool["monitor"] = pair["value"]
+    return [v for v in out if v["pools"]]
+
+
+_STANZA_HEAD = re.compile(r"^(?:ltm|gtm|net|sys|cm|auth|security|apm)\s+\S.*\{\s*$")
+
+
+def _monitor_expression(shown: str) -> str:
+    """The monitor column of ``show ltm virtual detail`` (``tcp``, ``gateway_icmp and /Common/tcp_half_open``, ``min 1 of /Common/tcp``, each maybe followed by
+    ``(pool monitor)``) as tmsh configuration syntax."""
+    expression = shown.split("(")[0].strip()
+    absolute = lambda name: name if name.startswith("/") else "/Common/" + name
+    minimum = re.match(r"min\s+(\d+)\s+of\s+(.+)$", expression)
+    if minimum:
+        return f"min {minimum.group(1)} of {{ " + " ".join(absolute(n) for n in re.split(r"\s+and\s+", minimum.group(2).strip())) + " }"
+    return " and ".join(absolute(n.strip()) for n in re.split(r"\s+and\s+", expression) if n.strip())
+
+
+def derive_config(capture: Any, bindings: list[dict[str, Any]]) -> str:
+    """Configuration text for a capture that has none: the ``field-fmt`` stanzas it holds, with each virtual server's default pool and each pool's members added from
+    ``show ltm virtual detail``.  Nothing here is invented: every line comes from the capture."""
+    parts = []
+    for block in capture.blocks:
+        first = next((line for line in block.lines if line.strip()), "")
+        if _STANZA_HEAD.match(first.strip()) and not block.error:
+            parts.append(block.text)
+    text = "\n".join(parts)
+    pools: dict[str, dict[str, Any]] = {}
+    for binding in bindings:
+        default = binding["pools"][0]["name"]
+        text = re.sub(r"(?m)^(ltm virtual " + re.escape(binding["virtual"]) + r" \{[ \t\r]*\n)", lambda m: m.group(1) + f"    pool /Common/{default}\n", text, count=1)
+        for pool in binding["pools"]:
+            known = pools.setdefault(pool["name"], {"monitor": pool["monitor"], "members": {}})
+            known["monitor"] = known["monitor"] or pool["monitor"]
+            for member in pool["members"]:
+                known["members"].setdefault(member["member"], member["address"])
+    for name, pool in pools.items():
+        lines = [f"ltm pool {name} {{"]
+        if pool["monitor"] and pool["monitor"].lower() != "none":
+            lines.append("    monitor " + _monitor_expression(pool["monitor"]))
+        if pool["members"]:
+            lines.append("    members {")
+            for member, address in pool["members"].items():
+                lines += [f"        /Common/{member} {{", f"            address {address or member.rsplit(':', 1)[0]}", "        }"]
+            lines.append("    }")
+        lines.append("}")
+        text += "\n" + "\n".join(lines)
+    return text
+
+
 SYS_PARSERS = (
     ("interfaces", "show net interface", sysout.parse_interfaces),
     ("trunks", "show net trunk", sysout.parse_interfaces),
@@ -452,6 +541,15 @@ def gather(content: str) -> dict[str, Any]:
         return unpipe(max(found, key=lambda b: b.line_count).text) if found else ""
 
     data["config_text"] = "\n".join(b.text for b in capture.blocks if _is_config_block(b))
+    # the raw block text: ``unpipe`` would also strip the ``| Ltm::Pool`` lines this output is nested in
+    details = [b for b in capture.blocks if b.norm in ("show ltm virtual detail", "tmsh show ltm virtual detail") and b.is_helpful]
+    bindings = parse_virtual_detail(max(details, key=lambda b: b.line_count).text) if details else []
+    if bindings:
+        data["virtual_pools"] = bindings
+        if not data["config_text"]:
+            derived = derive_config(capture, bindings)
+            if derived:
+                data["config_text"], data["config_derived"] = derived, True
     version = block_text("show sys version")
     if version:
         data["version"] = parse_version(version)

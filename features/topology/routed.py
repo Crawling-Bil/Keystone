@@ -35,7 +35,8 @@ def infer_routed(graph: Graph) -> list[dict[str, Any]]:
     by_ip: dict[str, str] = {}
     for key, node in graph.nodes.items():
         for ip in node.ips | ({node.mgmt_ip} if node.mgmt_ip else set()):
-            by_ip.setdefault(ip, key)
+            if ip not in graph.ambiguous_ips:
+                by_ip.setdefault(ip, key)
     existing: dict[frozenset, list[Connection]] = defaultdict(list)
     for conn in graph.connections:
         existing[frozenset((conn.a, conn.b))].append(conn)

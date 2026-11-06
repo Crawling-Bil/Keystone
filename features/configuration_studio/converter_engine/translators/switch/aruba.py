@@ -48,6 +48,9 @@ class ArubaSwitchTranslator:
     # Source port name -> catalog entry; set per conversion in translate().
     _port_map = {}
 
+    # LAG number -> "active" / "passive" (from the member ports of the source); set per conversion in translate().
+    _lag_lacp = {}
+
     def translate(
         self,
         config
@@ -353,15 +356,35 @@ class ArubaSwitchTranslator:
 
         self._repeated_ports = {}
 
+        # AOS-CX sets the LACP mode on the LAG ("interface lag <id>" / "lacp mode active"), not on the member ports; the source
+        # states it on the members (Cisco "channel-group <id> mode active", Huawei "eth-trunk <id>" with the mode on the Eth-Trunk).
+        # Written on the member it left the LAG static, and a static bundle against an LACP neighbour never comes up.
+        self._lag_lacp = {}
+        for member in config.interfaces:
+            if member.channel_group is not None and self.translate_lacp_mode(member.lacp_mode):
+                self._lag_lacp.setdefault(int(member.channel_group), self.translate_lacp_mode(member.lacp_mode))
+        lag_stanzas = set()
+
         output.extend(self.plan_nac(config))
 
         for interface in config.interfaces:
 
-            output.extend(
-                self.translate_interface(
-                    interface
-                )
+            lines = self.translate_interface(
+                interface
             )
+            if lines and lines[0].lower().startswith("interface lag "):
+                lag_stanzas.add(lines[0].split()[2])
+            output.extend(lines)
+
+        for lag_id, mode in sorted(self._lag_lacp.items()):
+            if str(lag_id) not in lag_stanzas:
+                output.extend([
+                    f"interface lag {lag_id}",
+                    "    ! The source names this bundle only on its member ports; the LAG interface is created here for the LACP mode.",
+                    "    no shutdown",
+                    f"    lacp mode {mode}",
+                    "!",
+                ])
 
         output.extend(self._repeated_port_review())
 
@@ -983,12 +1006,14 @@ class ArubaSwitchTranslator:
 
             # IP HELPER / DHCP RELAY
             #
-            # AOS-CX: ip dhcp-relay <helper-ip>
+            # AOS-CX: ip helper-address <helper-ip>   (config-if-vlan; the relay agent itself is on by default, "dhcp-relay" in global config).
+            # This was written "ip dhcp-relay <ip>", which AOS-CX does not have, so no relay was configured on the converted switch.
+            # https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/HTML/ip_services_4100i-6000-6100/Content/Chp_DHCP/cnf-dhc-rel-age-10.htm
 
             for helper in interface.helper_addresses:
 
                 lines.append(
-                    f"    ip dhcp-relay {helper}"
+                    f"    ip helper-address {helper}"
                 )
 
             # OSPF on interface
@@ -1057,18 +1082,20 @@ class ArubaSwitchTranslator:
                 f"{interface.channel_group}"
             )
 
-            # LACP mode
-            if interface.lacp_mode:
+            # The LACP mode is written under the LAG interface (see translate()); AOS-CX has no "lacp mode" on a member port.
 
-                mode = self.translate_lacp_mode(
-                    interface.lacp_mode
+        if is_lag:
+
+            lag_number = re.search(r"(\d+)\s*$", interface_name)
+            lacp_mode = self._lag_lacp.get(int(lag_number.group(1))) if lag_number else None
+
+            if lacp_mode:
+
+                # AOS-CX Link Aggregation Guide, "lacp mode": config-lag-if, entered with "interface lag <id>".
+                # https://arubanetworking.hpe.com/techdocs/AOS-CX/10.14/HTML/link_aggregation/Content/Chp_LAG/LACP_LAG_cmds/lac-mod.htm
+                lines.append(
+                    f"    lacp mode {lacp_mode}"
                 )
-
-                if mode:
-
-                    lines.append(
-                        f"    lacp mode {mode}"
-                    )
 
         # -----------------------------------------------------
         # STP — PORTFAST / BPDU GUARD / BPDU FILTER /

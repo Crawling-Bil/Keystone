@@ -19,13 +19,14 @@
     </div>
     <div class="action-stack">
         <label class="compact-select"><span>Vendor</span><select name="vendor" id="switch-vendor"><option>Auto Detect</option><option>Cisco</option><option>Huawei</option><option>Aruba</option><option>Mikrotik</option><option>Palo Alto</option></select></label>
+        <label class="compact-select" title="Check NTP, syslog, AAA, DNS, spanning-tree mode and SNMP version against an organisation standard (taken from the converter profiles) and list the deviations in Findings"><span>Baseline</span><select name="baseline" id="switch-baseline"><option value="">None</option>{% for item in baselines %}<option value="{{ item.key }}">{{ item.name }}</option>{% endfor %}</select></label>
         <hr>
         <button class="primary-button" id="switch-analyze-button" type="submit">Analyze Switch</button>
     </div>
 </form>
 <textarea id="switch-config-text" name="config_text" form="switch-form" class="hidden" aria-hidden="true"></textarea>
 
-<div id="switch-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h3>Switch Analyzer workspace is ready</h3><p>Upload or paste a switch (Cisco/Huawei/Aruba) configuration for a full inventory dashboard. Router captures go to the <a href="/router-analyzer">Router Analyzer</a> and firewall configurations (FortiGate, Palo Alto, MikroTik) to the <a href="/firewall-analyzer">Firewall Analyzer</a>, which have their own tables and documentation-linked findings.</p></div>
+<div id="switch-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#switch"></use></svg></div><h2>Switch Analyzer workspace is ready</h2><p>Upload or paste a switch (Cisco/Huawei/Aruba) configuration for a full inventory dashboard. Router captures go to the <a href="/router-analyzer">Router Analyzer</a> and firewall configurations (FortiGate, Palo Alto, MikroTik) to the <a href="/firewall-analyzer">Firewall Analyzer</a>, which have their own tables and documentation-linked findings.</p></div>
 
 <div id="switch-device-bar" class="sw-devices hidden" role="tablist" aria-label="Analyzed devices"></div>
 <div id="switch-result" class="hidden">
@@ -37,8 +38,6 @@
     <div class="tab-shell panel">
         <div class="tab-nav" id="switch-tabs">
             <button type="button" class="active" data-tab="overview">Overview</button>
-            <button type="button" data-tab="findings">Findings</button>
-            <button type="button" data-tab="health">Health<span class="tab-count" id="switch-health-tab-count"></span></button>
             <button type="button" data-tab="interfaces">Interfaces</button>
             <button type="button" data-tab="routing">Routing</button>
             <button type="button" data-tab="arp">ARP<span class="tab-count" id="switch-arp-tab-count"></span></button>
@@ -53,8 +52,11 @@
             <button type="button" data-tab="poe">PoE</button>
             <button type="button" data-tab="dns">DNS</button>
             <button type="button" data-tab="snmp">SNMP</button>
+            <button type="button" data-tab="users">Users</button>
             <button type="button" data-tab="dhcp">DHCP</button>
             <button type="button" data-tab="logs">Logs</button>
+            <button type="button" data-tab="findings">Findings</button>
+            <button type="button" data-tab="health">Health<span class="tab-count" id="switch-health-tab-count"></span></button>
             <button type="button" data-tab="coverage">Coverage</button>
         </div>
         <details id="switch-tabs-missing" class="sw-missing hidden"></details>
@@ -213,6 +215,9 @@
         </div>
         <div class="tab-content" id="switch-tab-portchannels">
             <div id="switch-portchannel-empty" class="empty-state compact hidden">No port-channel / Eth-Trunk data found — include <code>show etherchannel summary</code> / <code>show port-channel summary</code> or <code>display eth-trunk</code> in the capture.</div>
+            <p class="field-hint">Status: <strong>up</strong> = bundle in use, <strong>degraded</strong> = up but a member is down, suspended, stand-alone or waiting (Cisco and NX-OS member flags), <strong>down</strong> = bundle down, <strong>not in use</strong> = no aggregation (<code>SN</code>, <code>RM</code>). The Status column keeps the flags as the switch printed them (<code>SU</code>, <code>SD</code>, <code>RU</code>).</p>
+            <div class="table-tools"><input type="search" data-table-search="switch-portchannel-table" placeholder="Search name, protocol, description or member port..." aria-label="Search port-channels"><span class="table-count" data-table-count="switch-portchannel-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-portchannel-table" aria-label="Filter port-channels by status"></div>
             <div class="table-wrap"><table id="switch-portchannel-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-trunks">
@@ -236,7 +241,8 @@
         </div>
         <div class="tab-content" id="switch-tab-transceivers">
             <div id="switch-transceiver-empty" class="empty-state compact hidden">No transceiver data found — include <code>show interface transceiver</code> / <code>display interface transceiver</code> / <code>show transceiver</code> in the capture.</div>
-            <div class="table-tools"><input data-table-search="switch-transceiver-table" placeholder="Search interface, type, serial..."></div>
+            <div class="table-tools"><input type="search" data-table-search="switch-transceiver-table" placeholder="Search interface, type, serial..." aria-label="Search transceivers"><span class="table-count" data-table-count="switch-transceiver-table"></span></div>
+            <div class="filter-chips" data-chips-for="switch-transceiver-table" aria-label="Filter transceivers by status"></div>
             <div class="table-wrap"><table id="switch-transceiver-table"></table></div>
         </div>
         <div class="tab-content" id="switch-tab-vpcmlag">
@@ -262,6 +268,11 @@
             <div id="switch-snmp-summary" class="kv-list"></div>
             <h3 class="subsection-title">Raw SNMP Commands</h3>
             <div class="table-wrap"><table id="switch-snmp-table"></table></div>
+        </div>
+        <div class="tab-content" id="switch-tab-users">
+            <div id="switch-users-summary" class="kv-list"></div>
+            <div class="table-wrap"><table id="switch-users-table"></table></div>
+            <p class="field-hint">Local accounts only: users of a TACACS+ / RADIUS / LDAP server are not listed. The password itself (hash, cipher text) is read to classify how it is stored and is never shown.</p>
         </div>
         <div class="tab-content" id="switch-tab-dhcp">
             <div id="switch-dhcp-summary" class="kv-list"></div>

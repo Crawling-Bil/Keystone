@@ -70,6 +70,7 @@ PALO = {
     "logging": "https://docs.paloaltonetworks.com/best-practices/10-2/data-center-best-practices/data-center-best-practice-security-policy/log-and-monitor-data-center-traffic/what-data-center-traffic-to-log-and-monitor",
     # added with panos_xml_extra (all returned by a docs.paloaltonetworks.com search on 2026-10-14)
     "admin_access": "https://docs.paloaltonetworks.com/best-practices/10-1/administrative-access-best-practices/administrative-access-best-practices/deploy-administrative-access-best-practices",
+    "ospf_auth": "https://docs.paloaltonetworks.com/ngfw/help/11-1/network/network-virtual-routers/ospf/ospf-auth-profiles-tab",   # returned by a docs.paloaltonetworks.com search on 2026-11-01
     "ssl_tls_profile": "https://docs.paloaltonetworks.com/pan-os/11-0/pan-os-admin/certificate-management/configure-an-ssltls-service-profile",
     "replace_mgmt_cert": "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/certificate-management/replace-the-certificate-for-inbound-management-traffic",
     "ha_config": "https://docs.paloaltonetworks.com/pan-os/10-2/pan-os-admin/high-availability/set-up-activepassive-ha/configure-activepassive-ha",

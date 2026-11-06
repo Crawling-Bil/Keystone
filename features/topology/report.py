@@ -199,6 +199,33 @@ def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], de
     return "".join(out)
 
 
+PRINT_CSS = """
+@page{size:A3 landscape;margin:10mm}
+body{font-family:Segoe UI,Helvetica,Arial,sans-serif;color:#1f2933;margin:0}
+section.sheet{height:275mm;display:flex;flex-direction:column;break-after:page;page-break-after:always}
+section.sheet:last-child{break-after:auto;page-break-after:auto}
+header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #005073;padding-bottom:2mm;margin-bottom:3mm}
+header h1{font-size:18pt;margin:0;color:#005073}header span{font-size:10pt;color:#52606d}
+.fit{flex:1 1 auto;min-height:0}.fit svg{width:100%;height:100%;display:block}
+footer{font-size:8pt;color:#52606d;border-top:1px solid #cbd2d9;padding-top:1.5mm;margin-top:2mm;display:flex;justify-content:space-between}
+@media screen{body{background:#e4e7eb;padding:12px}section.sheet{background:#fff;width:420mm;height:297mm;padding:10mm;margin:0 auto 12px;box-sizing:border-box}}
+"""
+PRINT_KINDS = {"logical": "vPC view", "ip": "IP view", "l3route": "L3 route view", "l3over2": "L3 over L2", "f5map": "F5 map"}
+
+
+def build_print_set(svgs: list[dict], title: str, created: str = "") -> str:
+    """One sheet per diagram page, each scaled to fit one A3 landscape sheet (420 x 297 mm) whatever its size in pixels: open it in a browser and print to PDF (A3, margins as set,
+    no scaling), or print a range of sheets.  A page of 5,000 px is scaled, so zoom the SVG in ``diagrams/`` for the detail; the sheet is for the wall and the folder.
+    No scripts, no external files."""
+    sheets = []
+    for number, page in enumerate(svgs, 1):
+        kind = PRINT_KINDS.get(page.get("view"), "Physical view")
+        sheets.append(f"<section class='sheet'><header><h1>{_e(page['name'])}</h1><span>{_e(kind)} - sheet {number} of {len(svgs)}</span></header>"
+                      f"<div class='fit'>{page['svg']}</div><footer><span>{_e(title)}</span><span>Keystone Topology Builder{(' - ' + _e(created)) if created else ''}</span></footer></section>")
+    return (f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
+            f"<title>{_e(title)} - A3 print set</title><style>{PRINT_CSS}</style></head><body>" + "".join(sheets) + "</body></html>")
+
+
 def slug(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-").lower() or "page"
 
@@ -211,13 +238,15 @@ SETTING_LABELS = (
     ("show_ports", "Show port names on the lines"),
     ("infer_neighbors", "Infer neighbors where CDP/LLDP is silent (order of trust: ARP, then MAC address, then port description)"),
     ("show_link_ips", "Show the address of routed ports and routed port-channels next to the port name on the lines"),
+    ("bundle_members", "Show the member ports of port-channels and Eth-Trunks next to the bundle name on the lines (Po12: Gi1/0/23-24)"),
     ("include_routed", "Add routed /30 and /31 links found in interface addresses"),
     ("hide_mgmt", "Leave out-of-band management links (mgmt0) out of the picture; they stay in links.csv"),
     ("include_hosts", "Draw end hosts learned from MAC tables (up to 3 per port, more become one box)"),
 )
 CHOICE_LABELS = {
     "group": {"auto": "Automatic (one page per site when the network is large)", "none": "One diagram", "prefix1": "Group by first hostname word (BGR, JKT, DRC)", "prefix2": "Group by first two hostname words (JKT-A02)",
-              "prefix3": "Group by first three hostname words (JKT-GD1-LT1)"},
+              "prefix3": "Group by first three hostname words (JKT-GD1-LT1)",
+              "sites": "Sites, smart (hostname families and cables: HQWANR1 and HQ-ACC1 are one site, LT2 and LT02 are one floor)"},
     "view": {"all": "All views (L3 over L2, L3 route view, IP view, physical view, vPC view, F5 map in one file)", "both": "L2 - Physical and vPC view", "physical": "L2 - Physical view only", "logical": "L2 - vPC view only", "ip": "L3 - Logical view only (shared subnets, interface addresses)", "l3route": "L3 - Logical and Route", "l3over2": "L3 over L2", "f5map": "F5 map only (virtual servers, pools, members, nodes)"},
     "overlay_sites": {"captured": "Only the sites I captured", "all": "Every site in the BFD tables"},
     "line_shape": {"angled": "Straight, bent once around a device", "curved": "Curved around a device"},
@@ -240,12 +269,22 @@ def settings_text(settings: dict[str, Any], summary: dict[str, Any] | None = Non
         lines.append(f"{title}: {CHOICE_LABELS[key].get(settings.get(key), settings.get(key, ''))}")
     if settings.get("group") == "auto":
         lines.append(f"Grouping applied by Automatic: {CHOICE_LABELS['group'].get(settings.get('group_used'), settings.get('group_used', ''))}")
+        if settings.get("group_reason"):
+            lines.append(f"Why: {settings['group_reason']}")
     lines.append(f"Add to a previous run: {'yes' if settings.get('previous_state') else 'no'}")
     lines.append(f"Keep my layout: {'yes' if settings.get('keep_layout') else 'no'}")
+    lines.append(f"Site rules typed for the grouping: {settings.get('site_rules', 0)} rule(s)")
     lines.append(f"Provider hints typed for the L3 views: {settings.get('provider_hints', 0)} rule(s)")
     lines.append(f"SD-WAN sites drawn on the L3 pages: {CHOICE_LABELS['overlay_sites'].get(settings.get('overlay_sites'), settings.get('overlay_sites', 'captured'))}")
     lines.append(f"SD-WAN sites typed in the list (drawn exactly, captured or not): {settings.get('focus_sites') or '(none)'}")
     lines.append(f"Group uncaptured next-hop routers and parallel subnets on the L3 pages: {'yes' if settings.get('group_gateways', True) else 'no'}")
+    check = settings.get("layout_check") or []
+    if check:
+        lines += ["", "Layout check (every line taken as the straight segment between two icons; lower is better)"]
+        lines += [f"  {row['page']}: {row['devices']} devices, {row['crossings']} crossings, {row['through']} lines through another icon, {row['length']:,} px of line" for row in check[:40]]
+        if len(check) > 40:
+            lines.append(f"  ... and {len(check) - 40} more pages")
+        lines.append(f"  Total: {sum(r['crossings'] for r in check)} crossings, {sum(r['through'] for r in check)} lines through another icon")
     if notices:
         lines += ["", "Notices"] + [f"  ! {text}" for text in notices]
     return "\r\n".join(lines) + "\r\n"

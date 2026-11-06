@@ -87,7 +87,8 @@ def build(interfaces: list[dict[str, Any]], port_channels: list[dict[str, Any]],
             continue
         live_ids.add(bundle_id)
         for port, flag, meaning in _member_names(pc):
-            remember(port, bundle_id, flag=flag, meaning=meaning, source="bundle table")
+            # Huawei's own mode word (lacp-static, lacp-dynamic, manual) from "display eth-trunk", the way Cisco's active / passive is read from the configuration
+            remember(port, bundle_id, mode=str(pc.get("lacp_mode") or ""), flag=flag, meaning=meaning, source="bundle table")
     for row in lacp_rows or []:
         group = str(row.get("group") or "").strip()
         if group.isdigit() and row.get("port"):

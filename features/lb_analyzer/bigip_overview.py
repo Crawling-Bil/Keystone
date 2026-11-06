@@ -94,7 +94,7 @@ def info(data: dict[str, Any], runtime: dict[str, Any], tree: TmshTree) -> list[
     ucs = data.get("ucs")
     if ucs:
         bundle = ucs["bundle"]
-        pairs += [("Source", "UCS archive"), ("Build", bundle.version.get("Build")), ("License", bundle.license.get("fields", {}).get("Usage") or bundle.license.get("fields", {}).get("Licensed version")),
+        pairs += [("Source", f"{bundle.kind} archive"), ("Build", bundle.version.get("Build")), ("License", bundle.license.get("fields", {}).get("Usage") or bundle.license.get("fields", {}).get("Licensed version")),
                   ("Last configuration change", ucs["facts"]["last_config_change"].strftime("%Y-%m-%d %H:%M UTC") if ucs["facts"]["last_config_change"] else "")]
     return info_rows(pairs)
 
@@ -103,7 +103,7 @@ def coverage(data: dict[str, Any], tree: TmshTree, runtime: dict[str, Any]) -> l
     sysd = data["sys"]
     counts = f"{len(data['virtuals'])} virtual servers, {len(data['pools'])} pools, {len(data['nodes'])} nodes, {len(data['monitors'])} monitors, {len(data['profiles'])} profiles, {len(data['irules'])} iRules"
     dns_only = not sysd["has_ltm"] and bool(data.get("gtm"))
-    rows = [{"command": "ltm (tmsh list ltm ... / bigip.conf)", "status": "analyzed" if sysd["has_ltm"] else ("covered" if dns_only else "missing"), "lines": tree.lines, "note": counts if sysd["has_ltm"] else ("No LTM objects: this is a DNS-only unit; see the DNS (GTM) tab." if dns_only else "No virtual servers, pools or nodes. Add bigip.conf, or run 'tmsh list ltm virtual', 'ltm pool', 'ltm node', 'ltm monitor', 'ltm profile', 'ltm rule'."), "tone": "ok" if sysd["has_ltm"] else ("info" if dns_only else "warn")},
+    rows = [{"command": "ltm (tmsh list ltm ... / bigip.conf)", "status": "analyzed" if sysd["has_ltm"] else ("covered" if dns_only else "missing"), "lines": tree.lines, "note": (counts + (" (rebuilt from 'show ltm virtual detail' and the field-fmt listings: no 'tmsh list' output)" if data.get("config_derived") else "")) if sysd["has_ltm"] else ("No LTM objects: this is a DNS-only unit; see the DNS (GTM) tab." if dns_only else "No virtual servers, pools or nodes. Add bigip.conf, or run 'tmsh list ltm virtual', 'ltm pool', 'ltm node', 'ltm monitor', 'ltm profile', 'ltm rule'."), "tone": "ok" if sysd["has_ltm"] else ("info" if dns_only else "warn")},
             {"command": "net / sys / auth (bigip_base.conf)", "status": "analyzed" if sysd["has_base"] else "missing", "lines": 0,
              "note": (f"{len(data['vlans'])} VLANs, {len(data['selfs'])} self IPs; management-plane rules were evaluated." if sysd["has_base"] else "Not in this export: management rules (GUI/SSH allow lists, SNMP, NTP, syslog, password policy, self IP port lockdown) were skipped. Add bigip_base.conf, or use 'tmsh list' for the whole configuration."),
              "tone": "ok" if sysd["has_base"] else "warn"},
@@ -126,7 +126,7 @@ def coverage(data: dict[str, Any], tree: TmshTree, runtime: dict[str, Any]) -> l
     ucs = data.get("ucs")
     if ucs:
         b = ucs["bundle"]
-        rows.append({"command": "UCS archive (.ucs)", "status": "analyzed", "lines": 0, "note": f"{b.members:,} entries streamed; {len(b.files)} configuration files, {len(b.certs)} public certificates, the license, {len(b.db)} customised sys db values, {len(b.history)} saved-configuration patches, accounts and OS access rules were read. Private keys, the master key store, password files and shell histories were skipped.", "tone": "ok"})
+        rows.append({"command": f"{b.kind} archive (.{b.kind.lower()})", "status": "analyzed", "lines": 0, "note": f"{b.members:,} entries streamed; {len(b.files)} configuration files, {len(b.certs)} public certificates, the license, {len(b.db)} customised sys db values, {len(b.history)} saved-configuration patches, accounts and OS access rules were read. Private keys, the master key store, password files and shell histories were skipped.", "tone": "ok"})
     else:
         rows.append({"command": "UCS archive (.ucs)", "status": "missing", "lines": 0, "note": "Not uploaded: certificate validity beyond what bigip_base.conf states, license subscription dates, the last change / failover times and customised sys db values are only in the UCS.", "tone": "info"})
     rows.append({"command": "tmsh list / bigip.conf: default values", "status": "covered", "lines": 0,

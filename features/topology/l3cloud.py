@@ -31,7 +31,7 @@ COLOUR_TYPE = {"mpls": "mpls", "metro-ethernet": "metro", "biz-internet": "inter
 WORD_TYPE = (("mpls", "mpls"), ("vpls", "metro"), ("metro-e", "metro"), ("metroe", "metro"), ("metro", "metro"), ("internet", "internet"), ("inet", "internet"),
              ("broadband", "internet"), ("ftth", "internet"), ("dia", "internet"), ("isp", "internet"), ("lte", "mobile"), ("4g", "mobile"), ("5g", "mobile"), ("gsm", "mobile"))
 PROVIDERS = ("telkomsel", "telkom", "indihome", "indosat", "biznet", "lintasarta", "moratel", "iforte", "firstmedia", "cbn", "xl", "smartfren", "linknet", "mncplay",
-             "icon+", "oxygen", "verizon", "comcast", "lumen", "level3", "orange", "vodafone", "ntt", "singtel", "pccw", "telstra", "tata", "airtel", "equinix", "att")
+             "icon+", "trigatra", "oxygen", "verizon", "comcast", "lumen", "level3", "orange", "vodafone", "ntt", "singtel", "pccw", "telstra", "tata", "airtel", "equinix", "att")
 _TYPE_WORDS = {"mpls": "mpls", "internet": "internet", "inet": "internet", "metro": "metro", "metro-e": "metro", "metroe": "metro", "lte": "mobile", "mobile": "mobile", "private": "private"}
 
 

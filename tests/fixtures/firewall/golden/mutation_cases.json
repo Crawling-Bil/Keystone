@@ -1,0 +1,814 @@
+[
+ {
+  "id": "c01-fortigate_7",
+  "base": "fortigate_synthetic_7.2.conf",
+  "ops": [
+   [
+    "del",
+    41,
+    94
+   ],
+   [
+    "del",
+    469,
+    469
+   ],
+   [
+    "del",
+    306,
+    306
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-set network interface ethernet ethernet1/1 layer3",
+    "-set network interface ethernet ethernet1/1 layer3 ip 198.18.10.2/30",
+    "-set network interface ethernet ethernet1/1 layer3 interface-management-profile MGMT-http-https-ping-ssh-telnet",
+    "-set network interface ethernet ethernet1/1 comment \"ISP-A\"",
+    "-set network interface ethernet ethernet1/2 layer3",
+    "-set network interface ethernet ethernet1/2 layer3 dhcp-client enable yes",
+    "-set network interface ethernet ethernet1/2 layer3 interface-management-profile MGMT-ping",
+    "-set network interface ethernet ethernet1/2 comment \"ISP-B-LTE\"",
+    "-set network interface ethernet ethernet1/3 layer3",
+    "-set network interface ethernet ethernet1/3 layer3 ip 10.10.0.1/24",
+    "-set network interface ethernet ethernet1/3 layer3 interface-management-profile MGMT-https-ping-ssh",
+    "-set network interface ethernet ethernet1/3 comment \"CORP-LAN\"",
+    "-set network interface ethernet ethernet1/4 layer3",
+    "-set network interface ethernet ethernet1/4 layer3 ip 172.16.50.1/24",
+    "-set network interface ethernet ethernet1/4 layer3 interface-management-profile MGMT-ping",
+    "-set network interface ethernet ethernet1/3 layer3 units ethernet1/3.100 tag 100",
+    "-set network interface ethernet ethernet1/3 layer3 units ethernet1/3.100 ip 10.100.0.1/24",
+    "-set network interface ethernet ethernet1/3 layer3 units ethernet1/3.100 interface-management-profile MGMT-https-ping",
+    "-set network profiles interface-management-profile MGMT-http-https-ping-ssh-telnet http yes",
+    "-set network profiles interface-management-profile MGMT-http-https-ping-ssh-telnet https yes",
+    "-set network profiles interface-management-profile MGMT-http-https-ping-ssh-telnet ping yes",
+    "-set network profiles interface-management-profile MGMT-http-https-ping-ssh-telnet ssh yes",
+    "-set network profiles interface-management-profile MGMT-http-https-ping-ssh-telnet telnet yes",
+    "-set network profiles interface-management-profile MGMT-ping ping yes",
+    "-set network profiles interface-management-profile MGMT-https-ping-ssh https yes",
+    "-set network profiles interface-management-profile MGMT-https-ping-ssh ping yes",
+    "-set network profiles interface-management-profile MGMT-https-ping-ssh ssh yes",
+    "-set network profiles interface-management-profile MGMT-https-ping https yes",
+    "-set network profiles interface-management-profile MGMT-https-ping ping yes",
+    "-set zone TRUSTED network layer3 [ ethernet1/3 ethernet1/3.100 ]",
+    "-set zone wan1 network layer3 [ ethernet1/1 ]",
+    "-set zone dmz network layer3 [ ethernet1/4 ]",
+    "-set network virtual-router default interface [ ethernet1/1 ethernet1/2 ethernet1/3 ethernet1/3.100 ethernet1/4 tunnel.1 tunnel.2 ]",
+    "+set zone TRUSTED network layer3",
+    "+set zone wan1 network layer3",
+    "+set zone dmz network layer3",
+    "+set network virtual-router default interface [ tunnel.1 tunnel.2 ]",
+    "-set address VENDOR-FQDN fqdn support.vendor.example",
+    "+set address VENDOR-FQDN ip-netmask 0.0.0.0/0",
+    "-set rulebase nat rules nat-LAN-to-WAN source-translation dynamic-ip-and-port interface-address interface ethernet1/1",
+    "+# NAT rule nat-LAN-to-WAN: set source-translation dynamic-ip-and-port interface-address interface <egress port>",
+    "-set network virtual-router default routing-table ip static-route route-1 interface ethernet1/1",
+    "-set network virtual-router default protocol bgp peer-group EBGP peer peer-198.18.10.1 local-address interface ethernet1/1",
+    "-set network virtual-router default protocol bgp peer-group IBGP peer peer-10.10.0.254 local-address interface ethernet1/3",
+    "-set network virtual-router default protocol ospf area 0.0.0.0 interface ethernet1/3 enable yes",
+    "-set network ike crypto-profiles ipsec-crypto-profiles HQ-DR-VPN-esp dh-group no-pfs",
+    "+set network ike crypto-profiles ipsec-crypto-profiles HQ-DR-VPN-esp dh-group group14",
+    "-set network ike gateway gw-HQ-DR-VPN local-address interface ethernet1/1",
+    "-set network ike gateway gw-BRANCH-ADVPN local-address interface ethernet1/1"
+   ],
+   "report": [
+    "-interfaces,interface plan,physical ports,Needs review,Ports were assigned to PAN-OS slots in the order of the source: wan1 -> ethernet1/1; wan2 -> ethernet1/2; lan -> ethernet1/3; dmz -> ethernet1/4. Check it against the cabling and give a mapping to change it.,https://docs.paloaltonetworks.com/pan-os\r",
+    "+interfaces,zone,dmz,Needs review,dmz is used in a policy but is neither an interface nor a zone of the configuration.,\r",
+    "+interfaces,zone,wan1,Needs review,wan1 is used in a policy but is neither an interface nor a zone of the configuration.,\r",
+    "+nat,NAT rule,nat-LAN-to-WAN,Needs review,\"The egress zone wan1 does not name exactly one interface, so the address to translate to cannot be told; pick the egress port in the PAN-OS NAT rule.\",https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview\r",
+    "+routes,BGP peer,10.10.0.254,Needs review,\"No interface of the configuration holds a subnet with this neighbor, so the local address of the peer is not set.\",https://docs.paloaltonetworks.com/pan-os\r",
+    "+routes,BGP peer,198.18.10.1,Needs review,\"No interface of the configuration holds a subnet with this neighbor, so the local address of the peer is not set.\",https://docs.paloaltonetworks.com/pan-os\r",
+    "+routes,static route,0.0.0.0/0,Needs review,The exit interface wan1 of the route is not a converted port.,https://docs.paloaltonetworks.com/pan-os\r",
+    "+vpn,tunnel,BRANCH-ADVPN,Needs review,The tunnel's egress interface wan1 is not a converted port; set local-address interface on the gateway.,https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r",
+    "-interfaces,management access,lan,Approximated,\"Access services fgfm (FortiGate protocols such as fgfm, capwap, radius-acct) have no PAN-OS management-profile setting.\",https://docs.paloaltonetworks.com/pan-os\r",
+    "-interfaces,management access,wan2,Approximated,\"Access services fgfm (FortiGate protocols such as fgfm, capwap, radius-acct) have no PAN-OS management-profile setting.\",https://docs.paloaltonetworks.com/pan-os\r",
+    "+vpn,tunnel,HQ-DR-VPN,Needs review,The tunnel's egress interface wan1 is not a converted port; set local-address interface on the gateway.,https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r"
+   ]
+  }
+ },
+ {
+  "id": "c02-panos_edges",
+  "base": "fwconvert_panos_edges_synthetic.txt",
+  "ops": [
+   [
+    "rep",
+    131,
+    "enable",
+    "disable"
+   ],
+   [
+    "rep",
+    122,
+    "enable",
+    "disable"
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-config router bgp",
+    "-    set as 65100",
+    "-    set router-id 10.255.5.5",
+    "-    config neighbor",
+    "-        edit \"10.10.0.2\"",
+    "-            set remote-as 65200",
+    "-            set description \"g1\"",
+    "-        next",
+    "-        edit \"10.10.0.3\"",
+    "-            set remote-as 65200",
+    "-            set description \"g1\"",
+    "-        next",
+    "-        # neighbor 10.10.0.4: peer-as is not in the configuration; add `edit 10.10.0.4` / `set remote-as <AS>`",
+    "-    end",
+    "-end",
+    "-config router ospf",
+    "-    set router-id 10.255.5.5",
+    "-    config area",
+    "-        edit 0.0.0.1",
+    "-        next",
+    "-    end",
+    "-    config network",
+    "-        edit 1",
+    "-            set prefix 10.30.0.0 255.255.255.0",
+    "-            set area 0.0.0.1",
+    "-        next",
+    "-        edit 2",
+    "-            set prefix 10.10.0.0 255.255.255.0",
+    "-            set area 0.0.0.1",
+    "-        next",
+    "-        edit 3",
+    "-            set prefix 10.10.1.0 255.255.255.0",
+    "-            set area 0.0.0.1",
+    "-        next",
+    "-    end",
+    "-end"
+   ],
+   "report": [
+    "-routes,BGP,10.10.0.4,Needs review,The BGP peer has no peer-as in the PAN-OS configuration (it comes from the peer group or is missing); it was not written. Add it with its remote AS.,https://docs.fortinet.com/product/fortigate/\r",
+    "-routes,BGP,AS 65100,Needs review,\"Not converted: policy. Import / export rules, redistribution, dampening and authentication need FortiGate route maps and neighbor settings.\",https://docs.fortinet.com/product/fortigate/\r",
+    "-routes,BGP,AS 65100,Needs review,\"Peers, AS and router ID are converted. The prefixes this router advertises (PAN-OS export rules, redistribution) are not, so add `config network` or redistribution on the FortiGate.\",https://docs.fortinet.com/product/fortigate/\r",
+    "-routes,OSPF,10.255.5.5,Approximated,\"Areas are written as network statements for the subnets of the interfaces that were enabled; costs, authentication, timers, area types and redistribution are not converted.\",https://docs.fortinet.com/product/fortigate/\r"
+   ]
+  }
+ },
+ {
+  "id": "c03-panos_edges",
+  "base": "fwconvert_panos_edges_synthetic.txt",
+  "ops": [
+   [
+    "del",
+    5,
+    5
+   ],
+   [
+    "del",
+    41,
+    41
+   ],
+   [
+    "del",
+    102,
+    102
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-        set member \"port4\" \"port5\"",
+    "+        set member \"port5\"",
+    "-        set dstintf \"outside\"",
+    "+        set dstintf \"any\"",
+    "-        set logtraffic all",
+    "+        set logtraffic disable"
+   ],
+   "report": [
+    "-interfaces,interface plan,physical ports,Needs review,Ports were named in the order of the source: ethernet1/1 -> port1; ethernet1/2 -> port2; ethernet1/3 -> port3; ethernet1/4 -> port4; ethernet1/5 -> port5. Check it against the cabling and give a mapping to change it.,https://docs.fortinet.com/product/fortigate/\r",
+    "+interfaces,interface plan,physical ports,Needs review,Ports were named in the order of the source: ethernet1/1 -> port1; ethernet1/2 -> port2; ethernet1/3 -> port3; ethernet1/5 -> port5. Check it against the cabling and give a mapping to change it.,https://docs.fortinet.com/product/fortigate/\r"
+   ]
+  }
+ },
+ {
+  "id": "c04-panos_edges",
+  "base": "fwconvert_panos_edges_synthetic.txt",
+  "ops": [
+   [
+    "del",
+    29,
+    29
+   ],
+   [
+    "del",
+    14,
+    14
+   ],
+   [
+    "del",
+    133,
+    133
+   ]
+  ],
+  "opts": {
+   "layers": [
+    "interfaces",
+    "nat",
+    "objects",
+    "policies",
+    "vpn"
+   ]
+  },
+  "expect": {
+   "output": [
+    "-    edit \"outside\"",
+    "-        set intrazone allow",
+    "-        set interface \"port1\"",
+    "-    next",
+    "-    edit \"s-udp\"",
+    "-        set udp-portrange 5060",
+    "-    next",
+    "-    edit \"both\"",
+    "-        set member \"s-udp\"",
+    "-    next",
+    "-        set service \"s-udp\"",
+    "-        set logtraffic all",
+    "-        set status disable",
+    "-        set comments \"NOT ENABLED: application dns; PAN-OS applications: dns; source rule r-appsvc2\"",
+    "+        set service \"ALL\"",
+    "+        set logtraffic all",
+    "+        set status disable",
+    "+        set comments \"NOT ENABLED: application dns; services not converted; PAN-OS applications: dns; source rule r-appsvc2\"",
+    "-        set service \"both\"",
+    "+        set service \"ALL\"",
+    "-        set comments \"negated; NOT ENABLED: address bad1 not converted; source rule r-neg\"",
+    "+        set comments \"negated; NOT ENABLED: address bad1 not converted; services not converted; source rule r-neg\""
+   ],
+   "report": [
+    "+objects,service group,both,Needs review,No member of the group could be written; the group is left out.,https://docs.fortinet.com/product/fortigate/\r",
+    "-policies,policy,r-appsvc2,Needs review,Written DISABLED: application dns. Enabling it as it is would allow more than the PAN-OS rule did.,https://docs.fortinet.com/product/fortigate/\r",
+    "+policies,policy,r-appsvc2,Needs review,Written DISABLED: application dns; services not converted. Enabling it as it is would allow more than the PAN-OS rule did.,https://docs.fortinet.com/product/fortigate/\r",
+    "-policies,policy,r-neg,Needs review,Written DISABLED: address bad1 not converted. Enabling it as it is would allow more than the PAN-OS rule did.,https://docs.fortinet.com/product/fortigate/\r",
+    "+policies,policy,r-neg,Needs review,Written DISABLED: address bad1 not converted; services not converted. Enabling it as it is would allow more than the PAN-OS rule did.,https://docs.fortinet.com/product/fortigate/\r"
+   ]
+  }
+ },
+ {
+  "id": "c05-fortigate_7",
+  "base": "fortigate_synthetic_7.2.conf",
+  "ops": [
+   [
+    "del",
+    233,
+    233
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-set network virtual-router default routing-table ip static-route route-1 interface ethernet1/1"
+   ],
+   "report": []
+  }
+ },
+ {
+  "id": "c06-fortigate_vdom_edge",
+  "base": "fortigate_vdom_edge_synthetic.conf",
+  "ops": [
+   [
+    "del",
+    38,
+    38
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-set network virtual-router default interface [ ae1 ]",
+    "+set network interface aggregate-ethernet ae1 layer3 units ae1.100 tag 100",
+    "+set network interface aggregate-ethernet ae1 layer3 units ae1.100 ip 192.0.2.1/30",
+    "+set network interface aggregate-ethernet ae1 layer3 units ae1.100 comment \"DMZ uplink\"",
+    "+set network virtual-router default interface [ ae1 ae1.100 ]"
+   ],
+   "report": []
+  }
+ },
+ {
+  "id": "c07-panos",
+  "base": "fwconvert_panos_synthetic.txt",
+  "ops": [
+   [
+    "rep",
+    1,
+    "1",
+    "2"
+   ],
+   [
+    "del",
+    102,
+    102
+   ],
+   [
+    "rep",
+    26,
+    "10",
+    "17"
+   ]
+  ],
+  "opts": {
+   "disable_widened": false
+  },
+  "expect": {
+   "output": [
+    "+    next",
+    "+    edit \"port2\"",
+    "+        set vdom \"root\"",
+    "-    edit \"port2\"",
+    "+    edit \"port3\"",
+    "-        set interface \"port2\"",
+    "+        set interface \"port3\"",
+    "-    edit \"port3\"",
+    "+    edit \"port4\"",
+    "-        set member \"port4\" \"port5\"",
+    "+        set member \"port5\" \"port6\"",
+    "-        set interface \"port1\"",
+    "+        set interface \"port2\"",
+    "-        set interface \"port1\"",
+    "+        set interface \"port2\"",
+    "-        set interface \"port2\" \"vlan20\" \"agg1\"",
+    "+        set interface \"port3\" \"vlan20\" \"agg1\"",
+    "-        set interface \"port3\"",
+    "+        set interface \"port4\"",
+    "-        set start-ip 10.2.0.20",
+    "+        set start-ip 17.2.0.20",
+    "-        set extintf \"port1\"",
+    "+        set extintf \"port2\"",
+    "-        set dstintf \"untrust\"",
+    "+        set dstintf \"any\"",
+    "-        set device \"port1\"",
+    "+        set device \"port2\"",
+    "-        set device \"port2\"",
+    "+        set device \"port3\""
+   ],
+   "report": [
+    "-interfaces,interface plan,physical ports,Needs review,Ports were named in the order of the source: ethernet1/1 -> port1; ethernet1/2 -> port2; ethernet1/3 -> port3; ethernet1/4 -> port4; ethernet1/5 -> port5. Check it against the cabling and give a mapping to change it.,https://docs.fortinet.com/product/fortigate/\r",
+    "+interfaces,interface plan,physical ports,Needs review,Ports were named in the order of the source: ethernet2/1 -> port1; ethernet1/1 -> port2; ethernet1/2 -> port3; ethernet1/3 -> port4; ethernet1/4 -> port5; ethernet1/5 -> port6. Check it against the cabling and give a mapping to change it.,https://docs.fortinet.com/product/fortigate/\r"
+   ]
+  }
+ },
+ {
+  "id": "c08-panos_edges",
+  "base": "fwconvert_panos_edges_synthetic.txt",
+  "ops": [
+   [
+    "rep",
+    110,
+    "static",
+    "dynamic"
+   ],
+   [
+    "rep",
+    137,
+    "128",
+    "135"
+   ],
+   [
+    "del",
+    86,
+    86
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-        set proposal aes128-sha1",
+    "-        set srcintf \"inside\"",
+    "+        set srcintf \"any\"",
+    "-        set orig-addr \"h1\"",
+    "+        set orig-addr \"all\"",
+    "+    next",
+    "+    edit 2",
+    "+        set type ipv4",
+    "+        set status enable",
+    "+        set srcintf \"any\"",
+    "+        set dstintf \"any\"",
+    "+        set orig-addr \"h1\"",
+    "+        set dst-addr \"all\"",
+    "+        set nat disable"
+   ],
+   "report": [
+    "+nat,NAT rule,no-NAT entries,Needs review,\"A rule that translates nothing is written as a central SNAT entry with `set nat disable`; that setting exists in recent FortiOS releases only, so check the central-snat-map reference of your release (older releases need an IP pool that keeps the address).\",https://docs.fortinet.com/document/fortigate/7.4.1/cli-reference/308620/config-firewall-central-snat-map\r",
+    "+vpn,tunnel,tunA,Needs review,No IKE encryption / hash pair could be mapped to a FortiOS proposal; the proposal is left at the default (aes128-sha256 aes256-sha256 ...).,https://docs.fortinet.com/product/fortigate/\r"
+   ]
+  }
+ },
+ {
+  "id": "c09-fortigate",
+  "base": "fwconvert_fortigate_synthetic.conf",
+  "ops": [
+   [
+    "del",
+    184,
+    184
+   ],
+   [
+    "del",
+    205,
+    215
+   ],
+   [
+    "del",
+    105,
+    105
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "+set zone to-branch network layer3 [ tunnel.1 ]",
+    "-set zone to-branch network layer3 [ tunnel.1 ]",
+    "+set address GEO-BLOCK ip-netmask 0.0.0.0/0",
+    "-set rulebase security rules WAN-to-WEB to [ port3 ]",
+    "+set rulebase security rules WAN-to-WEB to [ any ]",
+    "-set rulebase security rules Block-geo source [ KP ]",
+    "+set rulebase security rules Block-geo source [ GEO-BLOCK ]",
+    "-set rulebase security rules Office-hours from [ INSIDE ]",
+    "-set rulebase security rules Office-hours to [ port3 ]",
+    "-set rulebase security rules Office-hours source [ LAN-NET ]",
+    "-set rulebase security rules Office-hours destination [ WEB-SRV ]",
+    "-set rulebase security rules Office-hours application [ any ]",
+    "-set rulebase security rules Office-hours service [ DUAL APP-SRC ]",
+    "-set rulebase security rules Office-hours action allow",
+    "-set rulebase security rules Office-hours log-end yes",
+    "-set rulebase security rules Office-hours disabled yes",
+    "-set rulebase security rules Office-hours description \"NOT ENABLED: schedule workhours; source policy 5\""
+   ],
+   "report": [
+    "-policies,policy,Office-hours,Needs review,Schedule workhours is not converted (create a PAN-OS schedule object and attach it); until then the rule is written disabled so it is not always on.,https://docs.paloaltonetworks.com/pan-os\r",
+    "-policies,policy,Office-hours,Needs review,Written DISABLED: schedule workhours. Enabling it as it is would allow more than the source rule did.,https://docs.paloaltonetworks.com/pan-os\r",
+    "+policies,policy,WAN-to-WEB,Needs review,The policy names a VIP and no destination zone; PAN-OS matches the zone of the real server (after NAT). Set the destination zone of the rule.,https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview\r",
+    "-objects,address,GEO-BLOCK,Approximated,A country address becomes the region KP used directly in the rule (PAN-OS has no address object for a region).,https://docs.paloaltonetworks.com/pan-os\r"
+   ]
+  }
+ },
+ {
+  "id": "c10-fortigate_vdom_edge",
+  "base": "fortigate_vdom_edge_synthetic.conf",
+  "ops": [
+   [
+    "rep",
+    34,
+    "1",
+    "8"
+   ],
+   [
+    "rep",
+    47,
+    "198",
+    "199"
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-set network interface ethernet ethernet1/1 aggregate-group ae1",
+    "+set network interface ethernet ethernet1/1 layer3",
+    "-set network virtual-router default interface [ ae1 ]",
+    "+set network virtual-router default interface [ ae1 ethernet1/1 ]"
+   ],
+   "report": [
+    "-interfaces,interface plan,physical ports,Needs review,Ports were assigned to PAN-OS slots in the order of the source: port1 -> ethernet1/1; port2 -> ethernet1/2. Check it against the cabling and give a mapping to change it.,https://docs.paloaltonetworks.com/pan-os\r",
+    "+interfaces,interface plan,physical ports,Needs review,Ports were assigned to PAN-OS slots in the order of the source: port1 -> ethernet1/1; port2 -> ethernet1/2; port8 -> ethernet1/3. Check it against the cabling and give a mapping to change it.,https://docs.paloaltonetworks.com/pan-os\r"
+   ]
+  }
+ },
+ {
+  "id": "c11-panos",
+  "base": "fwconvert_panos_synthetic.txt",
+  "ops": [
+   [
+    "del",
+    97,
+    97
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-config firewall vip",
+    "-    edit \"vip-inbound-web\"",
+    "-        set extip 198.51.100.4",
+    "-        set mappedip \"10.2.0.10\"",
+    "-        set extintf \"port1\"",
+    "-        set portforward enable",
+    "-        set protocol tcp",
+    "-        set extport 8443",
+    "-        set mappedport 443",
+    "-    next",
+    "-end",
+    "-        set dstaddr \"vip-inbound-web\"",
+    "+        set dstaddr \"ext-web\""
+   ],
+   "report": [
+    "+nat,NAT rule,inbound-web,Not converted,A destination NAT rule needs one destination address (the external IP) to become a VIP.,https://docs.fortinet.com/document/fortigate/6.2.2/cookbook/155333\r",
+    "-nat,NAT rule,inbound-web,Needs review,The VIP changes port 8443 to 443. The policy that allows it keeps the service of the PAN-OS rule; check on the target that the policy service is the one FortiOS evaluates for a port-forwarding VIP.,https://community.fortinet.com/fortigate-3/technical-tip-how-fortios-handles-vip-lookup-183426\r",
+    "-nat,NAT rule,inbound-web,Converted,Destination NAT written as a VIP; the policy names the VIP as its destination.,https://docs.fortinet.com/document/fortigate/6.2.2/cookbook/155333\r"
+   ]
+  }
+ },
+ {
+  "id": "c12-panos",
+  "base": "fwconvert_panos_synthetic.txt",
+  "ops": [
+   [
+    "del",
+    157,
+    157
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-        set src-subnet 10.1.0.0 255.255.255.0",
+    "-        set dst-subnet 10.50.0.0 255.255.0.0",
+    "+        set src-subnet 0.0.0.0 0.0.0.0",
+    "+        set dst-subnet 0.0.0.0 0.0.0.0"
+   ],
+   "report": []
+  }
+ },
+ {
+  "id": "c13-fortigate",
+  "base": "fwconvert_fortigate_synthetic.conf",
+  "ops": [
+   [
+    "del",
+    346,
+    346
+   ],
+   [
+    "del",
+    301,
+    301
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-set network virtual-router default protocol ospf area 0.0.0.0 interface ae1 enable yes",
+    "-set network tunnel ipsec to-branch auto-key proxy-id proxy-2 local 10.10.0.0/24",
+    "+set network tunnel ipsec to-branch auto-key proxy-id proxy-2 local 0.0.0.0/0"
+   ],
+   "report": []
+  }
+ },
+ {
+  "id": "c14-panos_edges",
+  "base": "fwconvert_panos_edges_synthetic.txt",
+  "ops": [
+   [
+    "rep",
+    1,
+    "enable",
+    "disable"
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [],
+   "report": []
+  }
+ },
+ {
+  "id": "c15-fortigate",
+  "base": "fwconvert_fortigate_synthetic.conf",
+  "ops": [
+   [
+    "rep",
+    10,
+    "203",
+    "210"
+   ],
+   [
+    "del",
+    238,
+    238
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-set network interface ethernet ethernet1/1 layer3 ip 203.0.113.2/30",
+    "+set network interface ethernet ethernet1/1 layer3 ip 210.0.113.2/30",
+    "-set rulebase nat rules nat-DMZ-out-pool source-translation dynamic-ip-and-port translated-address [ 203.0.113.10 ]",
+    "+set rulebase nat rules nat-DMZ-out-pool source-translation dynamic-ip-and-port interface-address interface ethernet1/1",
+    "-set network virtual-router default protocol bgp peer-group EBGP peer peer-203.0.113.1 local-address interface ethernet1/1"
+   ],
+   "report": [
+    "+routes,BGP peer,203.0.113.1,Needs review,\"No interface of the configuration holds a subnet with this neighbor, so the local address of the peer is not set.\",https://docs.paloaltonetworks.com/pan-os\r"
+   ]
+  }
+ },
+ {
+  "id": "c16-fortigate",
+  "base": "fwconvert_fortigate_synthetic.conf",
+  "ops": [
+   [
+    "rep",
+    164,
+    "accept",
+    "deny"
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-set rulebase security rules To-partner action allow",
+    "+set rulebase security rules To-partner action drop",
+    "-set rulebase nat rules nonat-To-partner from [ INSIDE ]",
+    "-set rulebase nat rules nonat-To-partner to [ wan1 ]",
+    "-set rulebase nat rules nonat-To-partner source [ LAN-NET ]",
+    "-set rulebase nat rules nonat-To-partner destination [ PARTNER-NET ]",
+    "-set rulebase nat rules nonat-To-partner service any",
+    "-set rulebase nat rules nonat-To-partner description \"traffic of an accept policy without NAT that a later NAT policy overlaps\""
+   ],
+   "report": [
+    "-nat,NAT rule,nonat-To-partner,Approximated,\"FortiGate applies NAT per policy; PAN-OS NAT is a separate ordered list, so a no-NAT rule was added in front of the later NAT rule that overlaps this policy.\",https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview\r"
+   ]
+  }
+ },
+ {
+  "id": "c17-fortigate_multivdom",
+  "base": "fortigate_multivdom_synthetic.conf",
+  "ops": [
+   [
+    "ins",
+    27,
+    "            edit 1\n                set ip 0.0.0.0 0.0.0.0\n            next"
+   ],
+   [
+    "ins",
+    54,
+    "        set allowaccess ping https ssh"
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "+set network interface ethernet ethernet1/2 layer3",
+    "-set network virtual-router default interface [ ethernet1/1 ]",
+    "+set network virtual-router default interface [ ethernet1/1 ethernet1/2 ]"
+   ],
+   "report": [
+    "-interfaces,interface plan,physical ports,Needs review,Ports were assigned to PAN-OS slots in the order of the source: port1 -> ethernet1/1. Check it against the cabling and give a mapping to change it.,https://docs.paloaltonetworks.com/pan-os\r",
+    "+interfaces,interface plan,physical ports,Needs review,Ports were assigned to PAN-OS slots in the order of the source: port1 -> ethernet1/1; 1 -> ethernet1/2. Check it against the cabling and give a mapping to change it.,https://docs.paloaltonetworks.com/pan-os\r"
+   ]
+  }
+ },
+ {
+  "id": "c18-fortigate",
+  "base": "fwconvert_fortigate_synthetic.conf",
+  "ops": [
+   [
+    "del",
+    325,
+    325
+   ],
+   [
+    "ins",
+    288,
+    "    edit \"WEB-SRV\"\n        set subnet 10.20.0.10 255.255.255.255\n    next"
+   ],
+   [
+    "ins",
+    122,
+    "    next"
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-set service DUAL-tcp protocol tcp port 5000",
+    "-set service DUAL-udp protocol udp port 5001",
+    "-set service-group DUAL members [ DUAL-tcp DUAL-udp ]",
+    "-set service APP-SRC protocol tcp port 9000",
+    "-set service APP-SRC protocol tcp source-port 1024-65535",
+    "-set rulebase security rules Office-hours service [ DUAL APP-SRC ]",
+    "+set rulebase security rules Office-hours service [ any ]",
+    "-set rulebase security rules Office-hours description \"NOT ENABLED: schedule workhours; source policy 5\"",
+    "+set rulebase security rules Office-hours description \"NOT ENABLED: service APP-SRC not converted; schedule workhours; services not converted; source policy 5\"",
+    "+set network virtual-router default protocol bgp peer-group EBGP peer peer-WEB-SRV peer-address ip WEB-SRV",
+    "+set network virtual-router default protocol bgp peer-group EBGP peer peer-WEB-SRV peer-as ",
+    "-set network ike crypto-profiles ike-crypto-profiles to-dr-ike hash [ md5 ]",
+    "-set network ike crypto-profiles ike-crypto-profiles to-dr-ike encryption [ 3des ]",
+    "+set network ike crypto-profiles ike-crypto-profiles to-dr-ike hash [ sha256 ]",
+    "+set network ike crypto-profiles ike-crypto-profiles to-dr-ike encryption [ aes-256-cbc ]"
+   ],
+   "report": [
+    "-policies,policy,Office-hours,Needs review,Written DISABLED: schedule workhours. Enabling it as it is would allow more than the source rule did.,https://docs.paloaltonetworks.com/pan-os\r",
+    "+policies,policy,Office-hours,Needs review,Written DISABLED: service APP-SRC not converted; schedule workhours; services not converted. Enabling it as it is would allow more than the source rule did.,https://docs.paloaltonetworks.com/pan-os\r",
+    "+policies,service,APP-SRC (Office-hours),Needs review,Predefined service APP-SRC is not in the converter's table of FortiGate services; it was left out of the rule.,https://docs.fortinet.com/product/fortigate/\r",
+    "+routes,BGP peer,WEB-SRV,Needs review,\"No interface of the configuration holds a subnet with this neighbor, so the local address of the peer is not set.\",https://docs.paloaltonetworks.com/pan-os\r",
+    "+vpn,tunnel,to-dr,Needs review,\"The IKE proposal is missing an encryption or hash algorithm; the PAN-OS crypto profile is written with the profile defaults (aes-256-cbc, sha256).\",https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r"
+   ]
+  }
+ },
+ {
+  "id": "c19-panos",
+  "base": "fwconvert_panos_synthetic.txt",
+  "ops": [
+   [
+    "del",
+    100,
+    100
+   ],
+   [
+    "del",
+    108,
+    108
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-        set mappedport 443",
+    "+        set mappedport 8443",
+    "-        set dstintf \"untrust\"",
+    "+        set dstintf \"any\""
+   ],
+   "report": [
+    "-nat,NAT rule,inbound-web,Needs review,The VIP changes port 8443 to 443. The policy that allows it keeps the service of the PAN-OS rule; check on the target that the policy service is the one FortiOS evaluates for a port-forwarding VIP.,https://community.fortinet.com/fortigate-3/technical-tip-how-fortios-handles-vip-lookup-183426\r"
+   ]
+  }
+ },
+ {
+  "id": "c20-fortigate",
+  "base": "fwconvert_fortigate_synthetic.conf",
+  "ops": [
+   [
+    "ins",
+    313,
+    "    edit \"port2\""
+   ]
+  ],
+  "opts": {},
+  "expect": {
+   "output": [
+    "-set network ike crypto-profiles ike-crypto-profiles to-branch-ike dh-group [ group14 group5 ]",
+    "-set network ike crypto-profiles ike-crypto-profiles to-branch-ike hash [ sha256 sha1 ]",
+    "-set network ike crypto-profiles ike-crypto-profiles to-branch-ike encryption [ aes-256-cbc aes-128-cbc ]",
+    "-set network ike crypto-profiles ike-crypto-profiles to-branch-ike lifetime hours 8",
+    "+set network ike crypto-profiles ike-crypto-profiles to-branch-ike dh-group [ group14 ]",
+    "+set network ike crypto-profiles ike-crypto-profiles to-branch-ike hash [ sha256 ]",
+    "+set network ike crypto-profiles ike-crypto-profiles to-branch-ike encryption [ aes-256-cbc ]",
+    "+set network ike crypto-profiles ike-crypto-profiles to-branch-ike lifetime days 1",
+    "-set network ike crypto-profiles ipsec-crypto-profiles to-branch-esp dh-group group14",
+    "-set network ike crypto-profiles ipsec-crypto-profiles to-branch-esp lifetime hours 1",
+    "-set network ike gateway gw-to-branch protocol version ikev2",
+    "-set network ike gateway gw-to-branch protocol ikev2 ike-crypto-profile to-branch-ike",
+    "-set network ike gateway gw-to-branch peer-address ip 198.51.100.2",
+    "-set network ike gateway gw-to-branch local-address interface ethernet1/1",
+    "+set network ike crypto-profiles ipsec-crypto-profiles to-branch-esp dh-group no-pfs",
+    "+set network ike crypto-profiles ipsec-crypto-profiles to-branch-esp lifetime hours 12",
+    "+set network ike gateway gw-to-branch protocol version ikev1",
+    "+set network ike gateway gw-to-branch protocol ikev1 ike-crypto-profile to-branch-ike",
+    "+set network ike gateway gw-to-branch peer-address dynamic",
+    "+set network ike gateway gw-to-branch protocol-common passive-mode yes",
+    "-set network tunnel ipsec to-branch auto-key proxy-id proxy-1 local 10.10.0.0/24",
+    "-set network tunnel ipsec to-branch auto-key proxy-id proxy-1 remote 10.50.0.0/16",
+    "-set network tunnel ipsec to-branch auto-key proxy-id proxy-2 local 10.10.0.0/24",
+    "-set network tunnel ipsec to-branch auto-key proxy-id proxy-2 remote 10.60.0.0/16",
+    "-set network ike crypto-profiles ike-crypto-profiles to-dr-ike dh-group [ group2 ]",
+    "-set network ike crypto-profiles ike-crypto-profiles to-dr-ike hash [ md5 ]",
+    "-set network ike crypto-profiles ike-crypto-profiles to-dr-ike encryption [ 3des ]",
+    "-set network ike crypto-profiles ike-crypto-profiles to-dr-ike lifetime days 1",
+    "-set network ike crypto-profiles ipsec-crypto-profiles to-dr-esp esp encryption [ 3des ]",
+    "-set network ike crypto-profiles ipsec-crypto-profiles to-dr-esp esp authentication [ md5 ]",
+    "-set network ike crypto-profiles ipsec-crypto-profiles to-dr-esp dh-group no-pfs",
+    "-set network ike crypto-profiles ipsec-crypto-profiles to-dr-esp lifetime hours 12",
+    "-set network ike gateway gw-to-dr protocol version ikev1",
+    "-set network ike gateway gw-to-dr protocol ikev1 ike-crypto-profile to-dr-ike",
+    "-set network ike gateway gw-to-dr protocol ikev1 exchange-mode aggressive",
+    "-set network ike gateway gw-to-dr peer-address ip 198.51.100.9",
+    "-set network ike gateway gw-to-dr local-address interface ethernet1/1",
+    "-set network ike gateway gw-to-dr authentication pre-shared-key key \"REPLACE-ME\"",
+    "-set network ike gateway gw-to-dr protocol-common nat-traversal enable yes",
+    "-set network ike gateway gw-to-dr protocol-common dpd enable yes",
+    "-set network interface tunnel units tunnel.2",
+    "-set network tunnel ipsec to-dr auto-key ike-gateway gw-to-dr",
+    "-set network tunnel ipsec to-dr auto-key ipsec-crypto-profile to-dr-esp",
+    "-set network tunnel ipsec to-dr tunnel-interface tunnel.2",
+    "-# tunnel to-dr: the peer's pre-shared key is not in a FortiGate export; set it on gateway gw-to-dr"
+   ],
+   "report": [
+    "-vpn,tunnel,to-branch,Needs review,The pre-shared key is never exported by FortiOS (and never read); the PAN-OS gateway is written with the placeholder REPLACE-ME. Enter the real key on both ends.,https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r",
+    "-vpn,tunnel,to-dr,Needs review,The pre-shared key is never exported by FortiOS (and never read); the PAN-OS gateway is written with the placeholder REPLACE-ME. Enter the real key on both ends.,https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r",
+    "-vpn,tunnel,to-dr,Needs review,\"ike-version is not in the configuration (it is at its default, which depends on the FortiOS release); IKEv1 is assumed. Confirm it matches the peer.\",https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r",
+    "+vpn,tunnel,to-branch,Needs review,The tunnel has no phase 2 selector in the configuration.,https://docs.fortinet.com/document/fortigate/6.0.5/cli-reference/487941/vpn-ipsec-phase2-interface-phase2\r",
+    "+vpn,tunnel,to-branch,Needs review,\"ike-version is not in the configuration (it is at its default, which depends on the FortiOS release); IKEv1 is assumed. Confirm it matches the peer.\",https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r",
+    "+vpn,tunnel,to-branch,Needs review,\"The IKE proposal is missing an encryption or hash algorithm; the PAN-OS crypto profile is written with the profile defaults (aes-256-cbc, sha256).\",https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r",
+    "+vpn,tunnel,to-branch,Needs review,A dial-up (dynamic) peer is written with peer-address dynamic and passive mode; add a peer identification and the remote-access design (GlobalProtect or a fixed peer ID).,https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r",
+    "+vpn,tunnel,to-branch,Needs review,The tunnel's egress interface (none) is not a converted port; set local-address interface on the gateway.,https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway\r",
+    "-vpn,tunnel,to-branch,Converted,2 phase 2 selector(s) written as proxy IDs; PAN-OS matches both directions with the same pair.,https://docs.paloaltonetworks.com/network-security/ipsec-vpn/administration/get-started-with-ipsec-vpn-site-to-site/site-to-site-vpn-overview/proxy-id-for-ipsec-vpn\r"
+   ]
+  }
+ }
+]

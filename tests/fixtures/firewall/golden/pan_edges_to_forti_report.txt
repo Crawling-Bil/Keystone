@@ -1,0 +1,53 @@
+Conversion report
+
+interfaces: 15 read, 13 written, 1 approximated, 2 to review, 1 not converted
+objects: 13 read, 10 written, 0 approximated, 3 to review, 1 not converted
+policies: 10 read, 10 written, 1 approximated, 18 to review, 0 not converted
+nat: 2 read, 1 written, 0 approximated, 1 to review, 0 not converted
+routes: 6 read, 6 written, 1 approximated, 4 to review, 1 not converted
+vpn: 3 read, 2 written, 0 approximated, 7 to review, 1 not converted
+
+[Not converted] interfaces / zone tapz: The tap members of the zone are not converted (only layer 3 members). (https://docs.fortinet.com/product/fortigate/)
+[Not converted] objects / service s-sctp: SCTP ports are not written. (https://docs.fortinet.com/product/fortigate/)
+[Not converted] routes / static route s2: A route to another virtual router (next-vr) has no FortiGate counterpart in one VDOM. (https://docs.fortinet.com/product/fortigate/)
+[Not converted] vpn / tunnel tunC: Manual-key and GlobalProtect satellite tunnels are not converted. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] interfaces / interface plan physical ports: Ports were named in the order of the source: ethernet1/1 -> port1; ethernet1/2 -> port2; ethernet1/3 -> port3; ethernet1/4 -> port4; ethernet1/5 -> port5. Check it against the cabling and give a mapping to change it. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] interfaces / interface ae3: The aggregate has no member port that was converted; FortiOS needs at least one `set member` before the aggregate works. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] nat / NAT rule n-static: Several translated addresses are listed in dynamic-ip; only the first is used for the FortiGate IP pool. Widen the pool to the range by hand. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] objects / address group dyn: A dynamic address group (matched by tag) is not converted; its members come from tags that FortiGate does not have. Build an SDN connector or list the members. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] objects / service s-empty: The service has no TCP, UDP or SCTP port definition. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] objects / service s-sctp: The service has no port or ICMP definition that FortiOS can hold; it is not written. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-users: A source-user match needs a FortiGate user group and an authentication source (FSSO, LDAP); the rule is written disabled until it is mapped. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-cat: A URL category match is not converted; use a FortiGuard web filter profile or an external category on the FortiGate. The rule is written disabled. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-sched: Schedule worktime is not converted (create a FortiGate schedule object); the rule is written disabled so it is not always on. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-hip: A GlobalProtect HIP profile match is not converted; the rule is written disabled. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-prof: Security profiles (antivirus, vulnerability, URL filtering ...) are not converted; the rule allows the same traffic without that inspection until FortiGate profiles are attached. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-appany: application any with service application-default means the default ports of every application; a FortiGate service cannot say that, so the rule would match every port. It is written disabled. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-appsvc: Applications without a fixed default port (unknown-app-xyz) cannot be written as a FortiGate service; use an application control profile. The rule is written disabled. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-appsvc2: The rule matches applications (dns) and a service; a FortiGate policy without application control matches the service only, so the rule is written disabled. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-weird: Action mystery is not allow or deny; it is read as deny. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-users: Written DISABLED: user / group match. Enabling it as it is would allow more than the PAN-OS rule did. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-cat: Written DISABLED: URL category. Enabling it as it is would allow more than the PAN-OS rule did. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-sched: Written DISABLED: schedule worktime. Enabling it as it is would allow more than the PAN-OS rule did. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-hip: Written DISABLED: HIP profile. Enabling it as it is would allow more than the PAN-OS rule did. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-appany: Written DISABLED: application-default for any application. Enabling it as it is would allow more than the PAN-OS rule did. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-appsvc: Written DISABLED: application unknown-app-xyz (App-ID). Enabling it as it is would allow more than the PAN-OS rule did. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-appsvc2: Written DISABLED: application dns. Enabling it as it is would allow more than the PAN-OS rule did. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / address bad1 (r-neg): The address is not defined in the configuration (a predefined, shared or Panorama object, or a type FortiOS has no counterpart for); it was left out of the rule. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy r-neg: Written DISABLED: address bad1 not converted. Enabling it as it is would allow more than the PAN-OS rule did. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] routes / static route s1: Path monitoring / BFD on the route is not converted; use a link monitor and the route's monitor setting on the FortiGate. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] routes / BGP AS 65100: Not converted: policy. Import / export rules, redistribution, dampening and authentication need FortiGate route maps and neighbor settings. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] routes / BGP 10.10.0.4: The BGP peer has no peer-as in the PAN-OS configuration (it comes from the peer group or is missing); it was not written. Add it with its remote AS. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] routes / BGP AS 65100: Peers, AS and router ID are converted. The prefixes this router advertises (PAN-OS export rules, redistribution) are not, so add `config network` or redistribution on the FortiGate. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] vpn / tunnel tunB: The gateway names no IKE crypto profile; the FortiGate proposal is left at its default. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] vpn / tunnel tunB: The tunnel names no IPsec crypto profile; the FortiGate phase 2 proposal is left at its default. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] vpn / tunnel tunB: A proxy ID restricted to one protocol is written as an any-protocol selector. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] vpn / tunnel tunA: A dynamic (dial-up) peer is written as type dynamic with peertype any; add the peer identification and the remote-access design. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] vpn / tunnel tunA: The pre-shared key is not in a PAN-OS export; the phase 1 is written with the placeholder REPLACE-ME. Enter the real key on both ends. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] vpn / tunnel tunB: The IKE gateway names no local interface; set `interface` on the phase 1. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] vpn / tunnel tunB: The pre-shared key is not in a PAN-OS export; the phase 1 is written with the placeholder REPLACE-ME. Enter the real key on both ends. (https://docs.fortinet.com/product/fortigate/)
+[Approximated] interfaces / interface ae3: LACP is not enabled on the PAN-OS aggregate; it is written as a static (LACP off) FortiGate aggregate. (https://docs.fortinet.com/product/fortigate/)
+[Approximated] policies / policy r-appsvc: App-ID identifies the application on any port; the FortiGate service carries only its default port(s), so traffic of the application on another port is no longer matched and other traffic on that port is. (https://docs.fortinet.com/product/fortigate/)
+[Approximated] routes / OSPF 10.255.5.5: Areas are written as network statements for the subnets of the interfaces that were enabled; costs, authentication, timers, area types and redistribution are not converted. (https://docs.fortinet.com/product/fortigate/)
+[Converted] interfaces / zones intrazone: Every zone is written with intrazone allow: PAN-OS lets traffic inside a zone pass (the intrazone-default rule), a FortiOS zone does not unless told to. If you changed the intrazone-default rule on PAN-OS, change it here too. (https://docs.paloaltonetworks.com/pan-os)
+[Converted] nat / NAT mode central NAT: The PAN-OS NAT list is written as FortiOS central NAT, which keeps NAT out of the policies and evaluates the entries in order, as PAN-OS does. With central NAT on, the per-policy NAT setting of every FortiGate policy is ignored. (https://docs.fortinet.com/document/fortigate/7.4.2/administration-guide/421028)

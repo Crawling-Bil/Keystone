@@ -1,0 +1,31 @@
+Conversion report
+
+interfaces: 11 read, 12 written, 1 approximated, 1 to review, 1 not converted
+objects: 12 read, 18 written, 2 approximated, 0 to review, 1 not converted
+nat: 5 read, 4 written, 2 approximated, 0 to review, 0 not converted
+policies: 8 read, 8 written, 0 approximated, 4 to review, 1 not converted
+routes: 7 read, 5 written, 3 approximated, 1 to review, 0 not converted
+vpn: 2 read, 2 written, 0 approximated, 3 to review, 0 not converted
+
+[Not converted] interfaces / interface mgmt: Management, HA, FortiLink and SSL-VPN interfaces are not data-plane ports; set up the PAN-OS MGT port and HA ports on the target. (https://docs.paloaltonetworks.com/pan-os)
+[Not converted] objects / address MAC-HOST: Address type mac (interface-subnet, mac, dynamic, wildcard-fqdn and so on) has no PAN-OS address object; objects that use it were left out of their rules. (https://docs.paloaltonetworks.com/pan-os)
+[Not converted] policies / IPv6 policies firewall policy6: IPv6 policies are not converted by this converter; rebuild them on the target. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] interfaces / interface plan physical ports: Ports were assigned to PAN-OS slots in the order of the source: wan1 -> ethernet1/1; port2 -> ethernet1/2; port3 -> ethernet1/3; port4 -> ethernet1/4; port5 -> ethernet1/5. Check it against the cabling and give a mapping to change it. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy WAN-to-WEB: Security profiles (webfilter-profile) are not converted; the rule allows the same traffic but without that inspection until PAN-OS profiles are attached. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy Office-hours: Schedule workhours is not converted (create a PAN-OS schedule object and attach it); until then the rule is written disabled so it is not always on. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy Admins: User and group matches need User-ID on PAN-OS; the rule is written disabled until the users are mapped. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy Office-hours: Written DISABLED: schedule workhours. Enabling it as it is would allow more than the source rule did. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] routes / BGP AS 65010: Not converted: redistribute "connected". Redistribution, route maps, prefix lists and neighbor groups need PAN-OS redistribution profiles and import / export rules. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] vpn / tunnel to-branch: The pre-shared key is never exported by FortiOS (and never read); the PAN-OS gateway is written with the placeholder REPLACE-ME. Enter the real key on both ends. (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Needs review] vpn / tunnel to-dr: The pre-shared key is never exported by FortiOS (and never read); the PAN-OS gateway is written with the placeholder REPLACE-ME. Enter the real key on both ends. (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Needs review] vpn / tunnel to-dr: ike-version is not in the configuration (it is at its default, which depends on the FortiOS release); IKEv1 is assumed. Confirm it matches the peer. (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Approximated] interfaces / management access port2: Access services fgfm (FortiGate protocols such as fgfm, capwap, radius-acct) have no PAN-OS management-profile setting. (https://docs.paloaltonetworks.com/pan-os)
+[Approximated] nat / NAT rule nonat-To-partner: FortiGate applies NAT per policy; PAN-OS NAT is a separate ordered list, so a no-NAT rule was added in front of the later NAT rule that overlaps this policy. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Approximated] nat / NAT rule nat-LAN-to-WAN: PING is matched as a PAN-OS application, and a NAT rule cannot match an application, so the rule matches any service (NAT only touches traffic that a security rule lets through). (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Approximated] objects / address GEO-BLOCK: A country address becomes the region KP used directly in the rule (PAN-OS has no address object for a region). (https://docs.paloaltonetworks.com/pan-os)
+[Approximated] objects / service PING: Matched by the PAN-OS application ping (ICMP and other IP protocols are applications, not services). (https://docs.paloaltonetworks.com/pan-os)
+[Approximated] routes / BGP AS 65010: Peers, router ID and AS are converted; PAN-OS advertises a prefix through an export rule, so the network statements are listed as comments, not applied. (https://docs.paloaltonetworks.com/pan-os)
+[Approximated] routes / OSPF 10.255.0.1: Areas and network statements are converted to the interfaces they cover; costs, authentication, redistribution and area types are not converted. (https://docs.paloaltonetworks.com/pan-os)
+[Approximated] routes / static route 10.99.0.0/16: A disabled route is not written. (https://docs.paloaltonetworks.com/pan-os)
+[Converted] nat / NAT rule WEB-VIP: VIP written as destination NAT; the security rule keeps the external (pre-NAT) address and the zone of the real server. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Converted] vpn / tunnel to-branch: 2 phase 2 selector(s) written as proxy IDs; PAN-OS matches both directions with the same pair. (https://docs.paloaltonetworks.com/network-security/ipsec-vpn/administration/get-started-with-ipsec-vpn-site-to-site/site-to-site-vpn-overview/proxy-id-for-ipsec-vpn)

@@ -8,6 +8,7 @@
 !!! v4: a command your IOS does not know answers '% Invalid input' - harmless, the Coverage tab lists it as rejected. show interface stays last: it is the longest output.
 !!! v7: every command checked against 65 real Catalyst / IOS captures and Cisco's documentation. show run | in route route is now show run | in ip route (the text after 'in' is ONE pattern, so 'route route' matched nothing in 56 of 56 captures). show license summary / usage / all are back: Smart Licensing commands that answered on 16 to 20 captures (Catalyst 9000 class; a 2960 / 3560 / 3650 answers % Invalid input - harmless, the Coverage tab lists it as rejected).
 !!! v7: documentation (opened 2026-10-13): show interfaces counters errors / status err-disabled, show errdisable detect / recovery, show spanning-tree root / inconsistentports, show vtp status, show ntp status / associations, show ip ssh, show ip dhcp snooping, show port-security, show authentication sessions, show monitor session all, show standby, show vrrp brief, show ip ospf neighbor / interface brief / database, show ip protocols, show redundancy, show boot are all documented for Catalyst IOS / IOS-XE; the block after show logging has not been run on a device yet.
+!!! v8: the FIRST command below (write memory) saves the running configuration to startup so that the backup and the startup file agree. It is the only command in this list that changes anything on the device, and it also saves changes someone else left unsaved. Delete that line if you must not save. tests/test_collect_lists.py pins it.
 
 write memory
 

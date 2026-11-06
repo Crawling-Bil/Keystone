@@ -6,11 +6,24 @@
 {% block content %}
 {#- No element ids: the SPA router keeps every visited page mounted; topology.js scopes itself to .tp-page. -#}
 <section class="tp-page" data-api="/topology" data-max-files="{{ max_files }}">
+  <div class="tp-views" role="tablist" aria-label="Topology Builder sections" data-role="views">
+    <button type="button" role="tab" data-view="create" aria-selected="true" tabindex="0">Create topology</button>
+    <button type="button" role="tab" data-view="compare" aria-selected="false" tabindex="-1">Compare two runs</button>
+    <button type="button" role="tab" data-view="runbook" aria-selected="false" tabindex="-1">Cutover runbook</button>
+  </div>
+
+  <div class="tp-view" data-view-panel="create" role="tabpanel">
   <form class="panel tp-intake" data-role="form" enctype="multipart/form-data" novalidate>
     <div class="tp-intake-main">
-      <label class="an-field tp-name"><span class="an-label">Topology name (optional)</span>
-        <input class="tp-text" type="text" maxlength="60" autocomplete="off" data-role="name" placeholder="Used in the download file names and as the title in draw.io">
-      </label>
+      <div class="tp-name-row">
+        <label class="an-field tp-name"><span class="an-label">Topology name (optional)</span>
+          <input class="tp-text" type="text" maxlength="60" autocomplete="off" data-role="name" placeholder="Used in the download file names and as the title in draw.io">
+        </label>
+        <button type="button" class="an-btn tp-history-btn" data-role="history-open" aria-haspopup="dialog" title="Every topology built on this computer: details, download, rename, pin, compare, runbook, delete">
+          <svg class="an-icon" aria-hidden="true"><use href="/static/icons/nes-icons.svg#folder"></use></svg>
+          <span>Topology history</span><span class="tp-history-count" data-role="history-count" hidden></span>
+        </button>
+      </div>
       <fieldset class="tp-card-box">
         <legend class="an-label">Options</legend>
         <label class="tp-opt"><input type="checkbox" data-role="exclude-endpoints" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Exclude IP phones, PCs and servers</strong><small>Draw network devices only: router, firewall, load balancer, switch, access point.</small></span></label>
@@ -18,6 +31,7 @@
         <label class="tp-opt" data-dep="no-exclude no-collapse"><input type="checkbox" data-role="group-endpoints" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Group end points under the same switch</strong><small>One frame per switch, named after it, around its phones, PCs and servers (two or more). Shown only when end points are drawn one by one. Access points that are drawn one by one (the option below is off) are always framed under their switch.</small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="collapse-ap" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Collapse access points into one node per switch</strong><small>Clear it to draw every access point with its own hostname, model and IP address.</small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="ports" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Show port names on the lines</strong><small></small></span></label>
+        <label class="tp-opt"><input type="checkbox" data-role="bundle-members" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Show the member ports of port-channels and Eth-Trunks</strong><small>Po12: Gi1/0/23-24 instead of only Po12.</small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="link-ips" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Show the address of routed ports on the lines</strong><small></small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="infer" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Infer neighbors where CDP/LLDP is silent</strong><small>Order of trust: ARP, then MAC address, then port description.</small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="routed" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Add routed /30 and /31 links found in interface addresses</strong><small></small></span></label>
@@ -25,10 +39,14 @@
         <label class="tp-opt" data-dep="no-exclude"><input type="checkbox" data-role="hosts"><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Draw end hosts learned from MAC tables</strong><small>Up to 3 per port, more become one box. Shown only when end points are drawn.</small></span></label>
       </fieldset>
       <span class="an-label">Device captures</span>
+      <div class="tp-demo" data-role="demo" hidden>
+        <span class="tp-demo-label">No captures at hand? Try invented ones:</span>
+        <span class="tp-demo-buttons" data-role="demo-buttons"></span>
+      </div>
       <label class="an-drop" data-role="drop">
-        <input type="file" data-role="file-input" multiple accept=".txt,.log,.cfg,.conf,.config,.cap,.out,.zip,.ucs">
+        <input type="file" data-role="file-input" multiple accept=".txt,.log,.cfg,.conf,.config,.cap,.out,.xml,.zip,.ucs,.qkview">
         <span class="an-drop-icon"><svg class="an-icon" aria-hidden="true"><use href="/static/icons/nes-icons.svg#upload"></use></svg></span>
-        <span><strong>Select or drop device captures</strong><small>Terminal logs or backups with <code>show cdp neighbors detail</code> and/or <code>show lldp neighbors detail</code>. One file per device, a file holding several devices, or a .zip of captures. A FortiGate configuration is drawn as a firewall. An F5 BIG-IP is drawn as a load balancer from its <code>.ucs</code> archive (System &gt; Archives &gt; Create, or <code>save sys ucs</code>); add a tmsh capture of the same unit (<code>show net interface</code>, <code>show net arp</code>) for port state and ARP. The 'How to read' tab explains how a BIG-IP is drawn. Up to {{ max_files }} devices; the more you add, the more links are confirmed from both ends.</small></span>
+        <span><strong>Select or drop device captures</strong><small>Terminal logs or backups with <code>show cdp neighbors detail</code> and/or <code>show lldp neighbors detail</code>. One file per device, a file holding several devices, or a .zip of captures. A FortiGate configuration or a PAN-OS <code>.xml</code> export is drawn as a firewall; upload a Panorama export together with the firewalls it manages and each firewall is read with its template stack and device group. An F5 BIG-IP is drawn as a load balancer from its <code>.ucs</code> archive (System &gt; Archives &gt; Create, or <code>save sys ucs</code>); add a tmsh capture of the same unit (<code>show net interface</code>, <code>show net arp</code>) for port state and ARP. The 'How to read' tab explains how a BIG-IP is drawn. Up to {{ max_files }} devices; the more you add, the more links are confirmed from both ends.</small></span>
       </label>
       <ul class="an-file-list hidden" data-role="file-list" aria-label="Selected files"></ul>
       <p class="an-hint">Cisco IOS XE, NX-OS and the other vendors the Switch Analyzer reads. Nothing leaves this computer.</p>
@@ -38,6 +56,10 @@
         <legend class="an-label">Diagram</legend>
         <label class="an-field"><span class="tp-sub">Grouping</span>
           <select class="an-select" data-role="group">{% for value, label in group_modes %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select>
+        </label>
+        <label class="an-field"><span class="tp-sub">Site rules (optional)</span>
+          <textarea class="tp-text tp-hints" rows="3" maxlength="4000" spellcheck="false" data-role="site-rules" placeholder="HQ = HQWAN, HQSDWAN, HQ-ACC&#10;DC1 = DCA-, DCB-"></textarea>
+          <small class="an-hint">One line per site: <em>Name = start, start</em>. Every device whose hostname starts with one of the starts is in that site, whatever the grouping above found; the end points of those switches go with them. Used by every grouping except One diagram.</small>
         </label>
         <p class="an-hint tp-warn hidden" data-role="group-warning" role="note">With this many captures, one diagram becomes too wide to read or print (a network of 25 sites is about 26,000 px wide). Choose <em>Automatic</em>: an Overview of the sites and one page per site; every cable stays in the tables.</p>
         <label class="an-field"><span class="tp-sub">Diagram file contains</span>
@@ -93,7 +115,9 @@
   </form>
 
   <div class="tp-result hidden" data-role="result">
+    <div class="panel tp-baseline hidden" data-role="baseline" role="status" aria-live="polite"></div>
     <p class="tp-warn hidden" data-role="notices" role="note"></p>
+    <p class="an-hint hidden" data-role="group-reason" role="note"></p>
     <div class="tp-cards" data-role="cards"></div>
     <p class="an-hint hidden" data-role="anonymized" role="note"></p>
     <div class="panel tp-downloads">
@@ -162,9 +186,102 @@
       <li><code>show mac address-table</code> and <code>show ip arp</code> - end hosts (optional).</li>
       <li><code>show ip interface brief</code> or the running configuration - management IP address.</li>
     </ul>
-    <p><strong>F5 BIG-IP:</strong> upload the <code>.ucs</code> archive (System &gt; Archives &gt; Create, or <code>tmsh save sys ucs name</code>). It holds the configuration only; add a tmsh capture of the same unit with <code>show net interface</code> and <code>show net arp</code> for port state, speed and ARP (<a href="https://techdocs.f5.com/en-us/bigip-16-1-0/big-ip-system-essentials/archives.html" target="_blank" rel="noopener noreferrer">F5 documentation: archives</a>).</p>
+    <p><strong>F5 BIG-IP:</strong> upload the <code>.ucs</code> archive (System &gt; Archives &gt; Create, or <code>tmsh save sys ucs name</code>). It holds the configuration only; add a tmsh capture of the same unit with <code>show net interface</code> and <code>show net arp</code> for port state, speed and ARP. A capture of <code>show</code> commands alone (no UCS) is drawn as well, without self IPs and routes (<a href="https://techdocs.f5.com/en-us/bigip-16-1-0/big-ip-system-essentials/archives.html" target="_blank" rel="noopener noreferrer">F5 documentation: archives</a>).</p>
     <p>The builder matches the two ends of each link by serial number, management IP and hostname, so a device that appears in a neighbor table is placed on the diagram even when you did not capture it (grey box).</p>
   </div>
+  </div>
+
+  <section class="panel tp-compare tp-viewpanel" data-role="diff" data-view-panel="compare" role="tabpanel" hidden>
+    <header class="tp-viewhead"><h2>Compare two runs</h2><p class="an-hint">What changed between two builds: devices, links, speeds, bundles, findings and hosts.</p></header>
+    <form class="tp-compare-form" data-role="diff-form" enctype="multipart/form-data" novalidate>
+      <p class="an-hint">Pick two runs still kept on this computer (see Topology history: the newest twenty for thirty days, plus the ones you pinned), or upload the <em>topology.json</em> (or the whole <em>keystone-topology-pack.zip</em>) of an older build. A device missing from the second run may only mean it was not captured that time; the table says so.</p>
+      <div class="tp-compare-sides">
+        <fieldset class="tp-card-box">
+          <legend class="an-label">Before (older run)</legend>
+          <select class="an-select" data-role="diff-before-run" aria-label="Before: a run kept on this computer"></select>
+          <label class="tp-compare-file">or a file <input type="file" data-role="diff-before-file" accept=".json,.zip,application/json,application/zip"></label>
+        </fieldset>
+        <fieldset class="tp-card-box">
+          <legend class="an-label">After (newer run)</legend>
+          <select class="an-select" data-role="diff-after-run" aria-label="After: a run kept on this computer"></select>
+          <label class="tp-compare-file">or a file <input type="file" data-role="diff-after-file" accept=".json,.zip,application/json,application/zip"></label>
+        </fieldset>
+      </div>
+      <div class="an-actions">
+        <button type="submit" class="an-btn primary" data-role="diff-go">Compare</button>
+        <button type="button" class="an-btn" data-role="diff-swap">Swap before and after</button>
+        <button type="button" class="an-btn hidden" data-role="diff-csv">Download as CSV</button>
+      </div>
+      <p class="tp-status" data-role="diff-status" role="status" aria-live="polite"></p>
+    </form>
+    <div class="tp-compare-result hidden" data-role="diff-result">
+      <div class="tp-cards" data-role="diff-cards"></div>
+      <p class="an-hint" data-role="diff-verdict"></p>
+      <div class="tp-compare-filter">
+        <label class="tp-compare-check"><input type="checkbox" data-role="diff-attention"> Only what needs attention</label>
+        <select class="an-select" data-role="diff-area" aria-label="Show one area"></select>
+      </div>
+      <div class="tp-scroll" data-role="diff-table"></div>
+    </div>
+  </section>
+
+  <section class="panel tp-compare tp-viewpanel" data-role="runbook" data-view-panel="runbook" role="tabpanel" hidden>
+    <header class="tp-viewhead"><h2>Cutover runbook</h2><p class="an-hint">An ordered, printable change plan from a run: impact per device, redundant pairs, port map, checks and rollback.</p></header>
+    <form class="tp-compare-form" data-role="rb-form" enctype="multipart/form-data" novalidate>
+      <p class="an-hint">Pick a run still kept on this computer, or upload its <em>topology.json</em> (or the whole <em>keystone-topology-pack.zip</em>). The order runs from the edge to the core and the impact is read from the captured links. Commands are show / display only; nothing changes a device.</p>
+      <div class="tp-compare-sides">
+        <fieldset class="tp-card-box">
+          <legend class="an-label">Run</legend>
+          <select class="an-select" data-role="rb-run" aria-label="A run kept on this computer"></select>
+          <label class="tp-compare-file">or a file <input type="file" data-role="rb-file" accept=".json,.zip,application/json,application/zip"></label>
+        </fieldset>
+        <fieldset class="tp-card-box">
+          <legend class="an-label">The change</legend>
+          <select class="an-select" data-role="rb-change" aria-label="Type of change"><option value="replace">Replace the hardware</option><option value="upgrade">Upgrade the software</option><option value="config">Change the configuration</option></select>
+          <input class="tp-text" type="text" maxlength="80" placeholder="Title (optional)" data-role="rb-title" aria-label="Title">
+          <input class="tp-text" type="text" maxlength="80" placeholder="Window, for example Sat 22:00-02:00 (optional)" data-role="rb-window" aria-label="Window">
+          <input class="tp-text" type="text" maxlength="60" placeholder="Change record number (optional)" data-role="rb-reference" aria-label="Change record">
+        </fieldset>
+      </div>
+      <label class="tp-compare-file">Only these devices (one per line or comma separated; empty = every captured device)
+        <textarea class="tp-text tp-hints" rows="2" maxlength="4000" spellcheck="false" data-role="rb-devices" aria-label="Devices in the plan"></textarea></label>
+      <div class="an-actions">
+        <button type="submit" class="an-btn primary" data-role="rb-go">Write the runbook</button>
+        <button type="button" class="an-btn hidden" data-role="rb-open">Open runbook (print to PDF)</button>
+        <button type="button" class="an-btn hidden" data-role="rb-html">Download as HTML</button>
+        <button type="button" class="an-btn hidden" data-role="rb-csv">Download steps as CSV</button>
+      </div>
+      <p class="tp-status" data-role="rb-status" role="status" aria-live="polite"></p>
+    </form>
+    <div class="tp-compare-result hidden" data-role="rb-result">
+      <p class="an-hint" data-role="rb-verdict"></p>
+      <div class="tp-scroll" data-role="rb-table"></div>
+    </div>
+  </section>
+
+  <dialog class="tp-history" data-role="history-dialog" aria-label="Topology history">
+    <div class="tp-history-card">
+      <header class="tp-history-head">
+        <div>
+          <h2>Topology history</h2>
+          <p class="an-hint" data-role="history-rule">Every topology you built on this computer.</p>
+        </div>
+        <button type="button" class="an-btn small" data-role="history-close">Close</button>
+      </header>
+      <div class="tp-history-bar">
+        <input type="search" class="tp-text" data-role="history-search" placeholder="Search by name, note or date" aria-label="Search the history" autocomplete="off">
+        <select class="an-select" data-role="history-filter" aria-label="Show"><option value="all">All runs</option><option value="pinned">Pinned</option><option value="unpinned">Not pinned</option><option value="medium">With medium findings</option><option value="noted">With a note</option></select>
+        <select class="an-select" data-role="history-sort" aria-label="Sort by"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name</option><option value="findings">Most findings</option><option value="devices">Most devices</option></select>
+        <button type="button" class="an-btn small" data-role="history-compare" disabled>Compare selected (0 of 2)</button>
+        <span class="tp-history-clear" data-role="history-clear-box">
+          <button type="button" class="an-btn small" data-role="history-clear">Delete all unpinned</button>
+        </span>
+      </div>
+      <p class="tp-status" data-role="history-status" role="status" aria-live="polite"></p>
+      <ul class="tp-history-list" data-role="history-list" aria-label="Kept topologies"></ul>
+      <footer class="tp-history-foot" data-role="history-foot"></footer>
+    </div>
+  </dialog>
 </section>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/topology.js') }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/topology.js') }}"></script><script src="{{ url_for('static', filename='js/topology-views.js') }}"></script><script src="{{ url_for('static', filename='js/topology-diff.js') }}"></script><script src="{{ url_for('static', filename='js/topology-runbook.js') }}"></script><script src="{{ url_for('static', filename='js/topology-history.js') }}"></script><script src="{{ url_for('static', filename='js/topology-demo.js') }}"></script><script src="{{ url_for('static', filename='js/topology-baseline.js') }}"></script>{% endblock %}

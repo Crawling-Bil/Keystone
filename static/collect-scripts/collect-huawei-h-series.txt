@@ -4,6 +4,7 @@
 !!! v4: NEW block at the end = VRP commands no parser reads yet (CPU / memory, NTP, SNMP agent, SSH / Telnet server state, users, error-down recovery, MAC flapping, OSPF state, startup and patch). display vrrp brief is not repeated: display vrrp is already above.
 !!! v5: every command checked against 37 real Huawei captures and the V600R025C00 Command Reference. display m-lag summary / brief removed (not in that reference; an S5700 answered 'Unrecognized command'): the M-LAG overview is display dfs-group m-lag brief, which is already in the block. display current-configuration | include route ignore-case removed (empty in 36 of 36 captures: ignore-case is its own '| ignore-case' stage, so it was searched as part of the pattern; | include route already finds every route line). Added display interface, display device power / fan and display alarm active (answered on real captures) and display device temperature (documented in the reference, not run yet).
 !!! v5: the probe block at the end now uses the V600R025C00 spellings display memory, display ntp status and display ntp sessions; the older display memory-usage and display ntp-service ... follow at the very end for V200R0xx models.
+!!! v8: the FIRST command below (save, answered by the y on the next line) saves the running configuration to startup so that the backup and the startup file agree. It is the only command in this list that changes anything on the device, and it also saves changes someone else left unsaved. Delete that line if you must not save. tests/test_collect_lists.py pins it.
 
 save 
 y

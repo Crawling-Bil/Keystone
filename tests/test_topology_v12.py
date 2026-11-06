@@ -102,7 +102,7 @@ def test_a_curved_page_with_several_switches_has_no_line_that_goes_back_up():
     graph = _two_switches(18)
     page = build_pages(graph, "none", None, True)[0]
     for _, conn, _, path in _combed(page):
-        assert all(b[1] >= a[1] - 1 for a, b in zip(path, path[1:])), conn
+        assert all(b[1] >= a[1] - 1 for a, b in zip(path[1:], path[2:])), conn          # the piece from the middle of the icon to its side lies under the icon
 
 
 def test_a_link_blocked_by_a_device_in_the_same_row_is_a_flat_bridge_not_a_v_peak():

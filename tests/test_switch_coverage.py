@@ -199,7 +199,7 @@ class CollectListConsistencyTests(unittest.TestCase):
     def test_lists_carry_a_version_header(self):
         for name, _family in self.LISTS:
             first = (COLLECT / name).read_text(encoding="utf-8").splitlines()[0]
-            expected = {"collect-cisco-nexus.txt": "(v7 2026-10-13)", "collect-cisco-catalyst.txt": "(v7 2026-10-13)", "collect-aruba-cx.txt": "(v6 2026-10-26)"}.get(name, "(v5 2026-10-13)")
+            expected = {"collect-cisco-nexus.txt": "(v7 2026-10-13)", "collect-cisco-catalyst.txt": "(v7 2026-10-13)", "collect-aruba-cx.txt": "(v7 2026-11-01)"}.get(name, "(v5 2026-10-13)")
             self.assertIn(expected, first, name)
 
     def test_every_expected_command_has_an_aoscx_spelling(self):
@@ -260,7 +260,8 @@ class CollectListEvidenceTests(unittest.TestCase):
 
     def test_aoscx_turns_paging_off_before_anything_else_long(self):
         commands = self.c("collect-aruba-cx.txt")
-        self.assertEqual(commands[0], "no page")
+        self.assertEqual(commands[0], "write memory")            # the save that makes the backup and the startup file agree (v7); tests/test_collect_lists.py pins it
+        self.assertEqual(commands[1], "no page")
         self.assertLess(commands.index("no page"), commands.index("show running-config"))
         self.assertEqual(commands.count("no page"), 1)
 

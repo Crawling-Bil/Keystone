@@ -1,0 +1,246 @@
+# Palo Alto PAN-OS conversion from FortiGate 7.2.5
+set deviceconfig system hostname FW-SYN-01
+# ---- Interfaces and zones
+set network interface ethernet ethernet1/1 layer3
+set network interface ethernet ethernet1/1 layer3 ip 203.0.113.2/30
+set network interface ethernet ethernet1/1 layer3 interface-management-profile MGMT-ping
+set network interface ethernet ethernet1/1 comment "to ISP"
+set network interface ethernet ethernet1/2 layer3
+set network interface ethernet ethernet1/2 layer3 ip 10.10.0.1/24
+set network interface ethernet ethernet1/2 layer3 interface-management-profile MGMT-https-ping-ssh
+set network interface ethernet ethernet1/2 comment "LAN"
+set network interface ethernet ethernet1/3 layer3
+set network interface ethernet ethernet1/3 layer3 ip 10.20.0.1/24
+set network interface ethernet ethernet1/3 layer3 interface-management-profile MGMT-ping
+set network interface ethernet ethernet1/3 comment "DMZ"
+set network interface ethernet ethernet1/4 aggregate-group ae1
+set network interface ethernet ethernet1/5 aggregate-group ae1
+set network interface ethernet ethernet1/2 layer3 units ethernet1/2.30 tag 30
+set network interface ethernet ethernet1/2 layer3 units ethernet1/2.30 ip 10.30.0.1/24
+set network interface ethernet ethernet1/2 layer3 units ethernet1/2.30 interface-management-profile MGMT-ping
+set network interface aggregate-ethernet ae1 layer3
+set network interface aggregate-ethernet ae1 layer3 ip 10.40.0.1/24
+set network interface aggregate-ethernet ae1 layer3 lacp enable yes
+set network interface aggregate-ethernet ae1 layer3 lacp mode active
+set network interface loopback units loopback.0
+set network interface loopback units loopback.0 ip 10.255.0.1/32
+set network profiles interface-management-profile MGMT-ping ping yes
+set network profiles interface-management-profile MGMT-https-ping-ssh https yes
+set network profiles interface-management-profile MGMT-https-ping-ssh ping yes
+set network profiles interface-management-profile MGMT-https-ping-ssh ssh yes
+set zone INSIDE network layer3 [ ethernet1/2 ethernet1/2.30 ]
+set zone wan1 network layer3 [ ethernet1/1 ]
+set zone port3 network layer3 [ ethernet1/3 ]
+set zone to-branch network layer3 [ tunnel.1 ]
+set network virtual-router default interface [ ae1 ethernet1/1 ethernet1/2 ethernet1/2.30 ethernet1/3 loopback.0 tunnel.1 tunnel.2 ]
+# ---- Objects
+set address LAN-NET ip-netmask 10.10.0.0/24
+set address LAN-NET description "office LAN"
+set address WEB-SRV ip-netmask 10.20.0.10/32
+set address PARTNER-NET ip-netmask 10.60.0.0/16
+set address RANGE-A ip-range 10.20.0.100-10.20.0.120
+set address UPDATE-FQDN fqdn updates.example.test
+set address WEB-VIP ip-netmask 203.0.113.20/32
+set address-group INTERNAL static [ LAN-NET WEB-SRV ]
+set service WEB-ALT protocol tcp port 8080,8443
+set service DUAL-tcp protocol tcp port 5000
+set service DUAL-udp protocol udp port 5001
+set service-group DUAL members [ DUAL-tcp DUAL-udp ]
+set service APP-SRC protocol tcp port 9000
+set service APP-SRC protocol tcp source-port 1024-65535
+set service WEB-VIP-tcp-443 protocol tcp port 443
+set service DNS-tcp protocol tcp port 53
+set service DNS-udp protocol udp port 53
+set service-group DNS members [ DNS-tcp DNS-udp ]
+set service HTTPS protocol tcp port 443
+set service HTTP protocol tcp port 80
+set service NTP-tcp protocol tcp port 123
+set service NTP-udp protocol udp port 123
+set service-group NTP members [ NTP-tcp NTP-udp ]
+set service SSH protocol tcp port 22
+set service RDP protocol tcp port 3389
+set service-group WEB-GROUP members [ HTTP HTTPS WEB-ALT ]
+# ---- Security policy
+set rulebase security rules To-partner from [ INSIDE ]
+set rulebase security rules To-partner to [ wan1 ]
+set rulebase security rules To-partner source [ LAN-NET ]
+set rulebase security rules To-partner destination [ PARTNER-NET ]
+set rulebase security rules To-partner application [ any ]
+set rulebase security rules To-partner service [ any ]
+set rulebase security rules To-partner action allow
+set rulebase security rules To-partner log-end yes
+set rulebase security rules To-partner description "source policy 1"
+set rulebase security rules LAN-to-WAN from [ INSIDE ]
+set rulebase security rules LAN-to-WAN to [ wan1 ]
+set rulebase security rules LAN-to-WAN source [ INTERNAL ]
+set rulebase security rules LAN-to-WAN destination [ any ]
+set rulebase security rules LAN-to-WAN application [ any ]
+set rulebase security rules LAN-to-WAN service [ WEB-GROUP DNS ]
+set rulebase security rules LAN-to-WAN action allow
+set rulebase security rules LAN-to-WAN log-end yes
+set rulebase security rules LAN-to-WAN description "source policy 2"
+set rulebase security rules LAN-to-WAN-apps from [ INSIDE ]
+set rulebase security rules LAN-to-WAN-apps to [ wan1 ]
+set rulebase security rules LAN-to-WAN-apps source [ INTERNAL ]
+set rulebase security rules LAN-to-WAN-apps destination [ any ]
+set rulebase security rules LAN-to-WAN-apps application [ ping ]
+set rulebase security rules LAN-to-WAN-apps service [ application-default ]
+set rulebase security rules LAN-to-WAN-apps action allow
+set rulebase security rules LAN-to-WAN-apps log-end yes
+set rulebase security rules LAN-to-WAN-apps description "source policy 2"
+set rulebase security rules WAN-to-WEB from [ wan1 ]
+set rulebase security rules WAN-to-WEB to [ port3 ]
+set rulebase security rules WAN-to-WEB source [ any ]
+set rulebase security rules WAN-to-WEB destination [ WEB-VIP ]
+set rulebase security rules WAN-to-WEB application [ any ]
+set rulebase security rules WAN-to-WEB service [ HTTPS ]
+set rulebase security rules WAN-to-WEB action allow
+set rulebase security rules WAN-to-WEB log-end yes
+set rulebase security rules WAN-to-WEB description "source policy 3"
+set rulebase security rules Block-geo from [ wan1 ]
+set rulebase security rules Block-geo to [ INSIDE ]
+set rulebase security rules Block-geo source [ KP ]
+set rulebase security rules Block-geo destination [ any ]
+set rulebase security rules Block-geo application [ any ]
+set rulebase security rules Block-geo service [ any ]
+set rulebase security rules Block-geo action drop
+set rulebase security rules Block-geo log-end yes
+set rulebase security rules Block-geo description "source policy 4"
+set rulebase security rules Office-hours from [ INSIDE ]
+set rulebase security rules Office-hours to [ port3 ]
+set rulebase security rules Office-hours source [ LAN-NET ]
+set rulebase security rules Office-hours destination [ WEB-SRV ]
+set rulebase security rules Office-hours application [ any ]
+set rulebase security rules Office-hours service [ DUAL APP-SRC ]
+set rulebase security rules Office-hours action allow
+set rulebase security rules Office-hours log-end yes
+set rulebase security rules Office-hours disabled yes
+set rulebase security rules Office-hours description "NOT ENABLED: schedule workhours; source policy 5"
+set rulebase security rules VPN-in from [ to-branch ]
+set rulebase security rules VPN-in to [ INSIDE ]
+set rulebase security rules VPN-in source [ any ]
+set rulebase security rules VPN-in destination [ LAN-NET ]
+set rulebase security rules VPN-in application [ any ]
+set rulebase security rules VPN-in service [ any ]
+set rulebase security rules VPN-in action allow
+set rulebase security rules VPN-in log-end yes
+set rulebase security rules VPN-in description "source policy 6"
+set rulebase security rules DMZ-out-pool from [ port3 ]
+set rulebase security rules DMZ-out-pool to [ wan1 ]
+set rulebase security rules DMZ-out-pool source [ WEB-SRV ]
+set rulebase security rules DMZ-out-pool destination [ any ]
+set rulebase security rules DMZ-out-pool application [ any ]
+set rulebase security rules DMZ-out-pool service [ HTTP HTTPS NTP ]
+set rulebase security rules DMZ-out-pool action allow
+set rulebase security rules DMZ-out-pool log-end yes
+set rulebase security rules DMZ-out-pool description "source policy 7"
+set rulebase security rules Admins from [ INSIDE ]
+set rulebase security rules Admins to [ port3 ]
+set rulebase security rules Admins source [ any ]
+set rulebase security rules Admins destination [ WEB-SRV ]
+set rulebase security rules Admins application [ any ]
+set rulebase security rules Admins service [ SSH RDP ]
+set rulebase security rules Admins action allow
+set rulebase security rules Admins log-end yes
+set rulebase security rules Admins disabled yes
+set rulebase security rules Admins description "source policy 8"
+# ---- NAT policy
+set rulebase nat rules WEB-VIP from [ any ]
+set rulebase nat rules WEB-VIP to [ wan1 ]
+set rulebase nat rules WEB-VIP source [ any ]
+set rulebase nat rules WEB-VIP destination [ WEB-VIP ]
+set rulebase nat rules WEB-VIP service WEB-VIP-tcp-443
+set rulebase nat rules WEB-VIP destination-translation translated-address 10.20.0.10
+set rulebase nat rules WEB-VIP destination-translation translated-port 8443
+set rulebase nat rules nonat-To-partner from [ INSIDE ]
+set rulebase nat rules nonat-To-partner to [ wan1 ]
+set rulebase nat rules nonat-To-partner source [ LAN-NET ]
+set rulebase nat rules nonat-To-partner destination [ PARTNER-NET ]
+set rulebase nat rules nonat-To-partner service any
+set rulebase nat rules nonat-To-partner description "traffic of an accept policy without NAT that a later NAT policy overlaps"
+set rulebase nat rules nat-LAN-to-WAN from [ INSIDE ]
+set rulebase nat rules nat-LAN-to-WAN to [ wan1 ]
+set rulebase nat rules nat-LAN-to-WAN source [ INTERNAL ]
+set rulebase nat rules nat-LAN-to-WAN destination [ any ]
+set rulebase nat rules nat-LAN-to-WAN service any
+set rulebase nat rules nat-LAN-to-WAN source-translation dynamic-ip-and-port interface-address interface ethernet1/1
+set rulebase nat rules nat-LAN-to-WAN description "made from FortiGate policy 2"
+set service-group nat-DMZ-out-pool-nat-services members [ HTTP HTTPS NTP ]
+set rulebase nat rules nat-DMZ-out-pool from [ port3 ]
+set rulebase nat rules nat-DMZ-out-pool to [ wan1 ]
+set rulebase nat rules nat-DMZ-out-pool source [ WEB-SRV ]
+set rulebase nat rules nat-DMZ-out-pool destination [ any ]
+set rulebase nat rules nat-DMZ-out-pool service nat-DMZ-out-pool-nat-services
+set rulebase nat rules nat-DMZ-out-pool source-translation dynamic-ip-and-port translated-address [ 203.0.113.10 ]
+set rulebase nat rules nat-DMZ-out-pool description "made from FortiGate policy 7"
+# ---- Routing
+set network virtual-router default routing-table ip static-route route-1 destination 0.0.0.0/0
+set network virtual-router default routing-table ip static-route route-1 nexthop ip-address 203.0.113.1
+set network virtual-router default routing-table ip static-route route-1 interface ethernet1/1
+set network virtual-router default routing-table ip static-route route-1 admin-dist 10
+set network virtual-router default routing-table ip static-route route-1 metric 1
+set network virtual-router default routing-table ip static-route route-2 destination 10.50.0.0/16
+set network virtual-router default routing-table ip static-route route-2 interface tunnel.1
+set network virtual-router default routing-table ip static-route route-2 admin-dist 20
+set network virtual-router default routing-table ip static-route route-2 metric 5
+set network virtual-router default routing-table ip static-route route-3 destination 192.0.2.0/24
+set network virtual-router default routing-table ip static-route route-3 nexthop discard
+set network virtual-router default routing-table ip static-route route-3 admin-dist 10
+set network virtual-router default routing-table ip static-route route-3 metric 1
+set network virtual-router default protocol bgp enable yes
+set network virtual-router default protocol bgp router-id 10.255.0.1
+set network virtual-router default protocol bgp local-as 65010
+set network virtual-router default protocol bgp peer-group EBGP type ebgp
+set network virtual-router default protocol bgp peer-group EBGP peer peer-203.0.113.1 peer-address ip 203.0.113.1
+set network virtual-router default protocol bgp peer-group EBGP peer peer-203.0.113.1 peer-as 64512
+set network virtual-router default protocol bgp peer-group EBGP peer peer-203.0.113.1 local-address interface ethernet1/1
+# BGP network 10.10.0.0/24: advertise it with a PAN-OS export rule or redistribution profile
+set network virtual-router default protocol ospf enable yes
+set network virtual-router default protocol ospf router-id 10.255.0.1
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1 enable yes
+# ---- Site-to-site VPN
+set network ike crypto-profiles ike-crypto-profiles to-branch-ike dh-group [ group14 group5 ]
+set network ike crypto-profiles ike-crypto-profiles to-branch-ike hash [ sha256 sha1 ]
+set network ike crypto-profiles ike-crypto-profiles to-branch-ike encryption [ aes-256-cbc aes-128-cbc ]
+set network ike crypto-profiles ike-crypto-profiles to-branch-ike lifetime hours 8
+set network ike crypto-profiles ipsec-crypto-profiles to-branch-esp esp encryption [ aes-256-cbc ]
+set network ike crypto-profiles ipsec-crypto-profiles to-branch-esp esp authentication [ sha256 ]
+set network ike crypto-profiles ipsec-crypto-profiles to-branch-esp dh-group group14
+set network ike crypto-profiles ipsec-crypto-profiles to-branch-esp lifetime hours 1
+set network ike gateway gw-to-branch protocol version ikev2
+set network ike gateway gw-to-branch protocol ikev2 ike-crypto-profile to-branch-ike
+set network ike gateway gw-to-branch peer-address ip 198.51.100.2
+set network ike gateway gw-to-branch local-address interface ethernet1/1
+set network ike gateway gw-to-branch authentication pre-shared-key key "REPLACE-ME"
+set network ike gateway gw-to-branch protocol-common nat-traversal enable yes
+set network ike gateway gw-to-branch protocol-common dpd enable yes
+set network interface tunnel units tunnel.1
+set network tunnel ipsec to-branch auto-key ike-gateway gw-to-branch
+set network tunnel ipsec to-branch auto-key ipsec-crypto-profile to-branch-esp
+set network tunnel ipsec to-branch tunnel-interface tunnel.1
+set network tunnel ipsec to-branch auto-key proxy-id proxy-1 local 10.10.0.0/24
+set network tunnel ipsec to-branch auto-key proxy-id proxy-1 remote 10.50.0.0/16
+set network tunnel ipsec to-branch auto-key proxy-id proxy-2 local 10.10.0.0/24
+set network tunnel ipsec to-branch auto-key proxy-id proxy-2 remote 10.60.0.0/16
+# tunnel to-branch: the peer's pre-shared key is not in a FortiGate export; set it on gateway gw-to-branch
+set network ike crypto-profiles ike-crypto-profiles to-dr-ike dh-group [ group2 ]
+set network ike crypto-profiles ike-crypto-profiles to-dr-ike hash [ md5 ]
+set network ike crypto-profiles ike-crypto-profiles to-dr-ike encryption [ 3des ]
+set network ike crypto-profiles ike-crypto-profiles to-dr-ike lifetime days 1
+set network ike crypto-profiles ipsec-crypto-profiles to-dr-esp esp encryption [ 3des ]
+set network ike crypto-profiles ipsec-crypto-profiles to-dr-esp esp authentication [ md5 ]
+set network ike crypto-profiles ipsec-crypto-profiles to-dr-esp dh-group no-pfs
+set network ike crypto-profiles ipsec-crypto-profiles to-dr-esp lifetime hours 12
+set network ike gateway gw-to-dr protocol version ikev1
+set network ike gateway gw-to-dr protocol ikev1 ike-crypto-profile to-dr-ike
+set network ike gateway gw-to-dr protocol ikev1 exchange-mode aggressive
+set network ike gateway gw-to-dr peer-address ip 198.51.100.9
+set network ike gateway gw-to-dr local-address interface ethernet1/1
+set network ike gateway gw-to-dr authentication pre-shared-key key "REPLACE-ME"
+set network ike gateway gw-to-dr protocol-common nat-traversal enable yes
+set network ike gateway gw-to-dr protocol-common dpd enable yes
+set network interface tunnel units tunnel.2
+set network tunnel ipsec to-dr auto-key ike-gateway gw-to-dr
+set network tunnel ipsec to-dr auto-key ipsec-crypto-profile to-dr-esp
+set network tunnel ipsec to-dr tunnel-interface tunnel.2
+# tunnel to-dr: the peer's pre-shared key is not in a FortiGate export; set it on gateway gw-to-dr

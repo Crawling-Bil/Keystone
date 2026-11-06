@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..analyzer_core.result import kv_section, table_section
-from . import forti_profiles
+from . import forti_more, forti_profiles
 from .forti_resolve import Resolver
 from .forti_rules import WEAK_DH_HIGH, WEAK_DH_MEDIUM, _split_proposal, _weak_algorithm, referenced_by_vdom, referenced_names
 
@@ -272,6 +272,10 @@ def system(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
                                                                                           "password": "bad" if a["password"] == "clear" else ""}})
     out.append(table_section("admins", "Administrators", [("name", "Name", "mono"), ("profile", "Profile"), ("vdom", "VDOM", "list"), ("trusthosts", "Trusted hosts", "list"), ("two_factor", "Two-factor"), ("password", "Password"), ("remote", "Remote group")],
                              admins, group="System", empty="No administrators in this export.", hint="Password hashes are never shown; the column only says whether FortiOS stored them encrypted (ENC)."))
+    users = [{"name": u["name"], "type": u["type"], "status": u["status"], "two_factor": u["two_factor"], "server": u["server"] or "-", "password": {"ENC": "encrypted", "clear": "READABLE", "none": "none"}.get(u["password"], u["password"] or "-"),
+              "_tones": {"password": "bad" if u["password"] == "clear" else "", "status": "mute" if u["status"] == "disable" else ""}} for u in data.get("local_users", [])]
+    out.append(table_section("local_users", "Local users (user local)", [("name", "Name", "mono"), ("type", "Type"), ("status", "Status"), ("two_factor", "Two-factor"), ("server", "Auth server", "mono"), ("password", "Password stored")],
+                             users, group="System", empty="No local users (config user local) in this export.", hint="Accounts for firewall authentication, SSL VPN and the captive portal; administrators are listed above. Password hashes are never shown."))
     out.append(table_section("accprofiles", "Administrator profiles", [("name", "Name", "mono"), ("scope", "Scope"), ("perms", "Permissions", "wrap"), ("comments", "Comment", "wrap")],
                              [{"name": p["name"], "scope": p["scope"], "perms": ", ".join(f"{k}:{v}" for k, v in p["perms"].items() if v not in ("none", "disable")), "comments": p["comments"]} for p in data["accprofiles"]], group="System", empty="No custom profiles (built-in super_admin is not printed)."))
     ha = data["ha"]
@@ -385,6 +389,7 @@ def build_all(tree: Any, data: dict[str, Any], findings: list[dict[str, Any]], w
             out.extend(builder(data, res))
         except Exception as exc:                                    # one broken tab must not hide the others
             warnings.append(f"Section builder {builder.__name__} failed ({type(exc).__name__}: {exc}); that tab is incomplete.")
+    out.extend(forti_more.sections(data.get("more_objects") or []))
     try:
         out.extend(hardening(data, res, findings))
     except Exception as exc:

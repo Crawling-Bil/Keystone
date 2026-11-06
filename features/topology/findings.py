@@ -9,6 +9,7 @@ from .layout import natural_key
 from .names import speed_text
 
 DOC_CDP = "https://www3-realm.cisco.com/en/US/docs/ios-xml/ios/cdp/command/cdp-cr-a1.html"
+DOC_CDP_THROUGH = "https://community.cisco.com/t5/switching/cisco-cdp-with-indirect-link/td-p/1955398"
 DOC_LLDP = "https://1.ieee802.org/maintenance/p802-1ab-2016-revision-station-and-media-access-control-connectivity-discovery/"
 DOC_VPC = "https://www.cisco.com/c/it_it/support/docs/switches/nexus-9000-series-switches/218333-understand-and-configure-nexus-9000-vpc.html"
 
@@ -22,7 +23,7 @@ MEMBER_FLAGS = {"D": "down", "I": "individual (not bundled)", "s": "suspended", 
 
 SEVERITY_ORDER = {"medium": 0, "low": 1, "info": 2}
 
-_NO_NEIGHBOR_TABLE = ("fortinet", "f5")       # configurations without a CDP / LLDP table: no gap to report
+_NO_NEIGHBOR_TABLE = ("fortinet", "f5", "palo alto networks")       # configurations without a CDP / LLDP table: no gap to report
 
 
 def _row(code: str, severity: str, title: str, detail: str, devices: list[str], action: str, doc: str = "") -> dict[str, Any]:
@@ -45,6 +46,14 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
         rows.append(_row("TOPO-004", "info", f"{len(infra)} network device(s) advertised by neighbors but not captured",
                          ", ".join(n.hostname for n in infra[:20]) + (" ..." if len(infra) > 20 else ""), [n.hostname for n in infra],
                          "Collect these devices next (same collect list) and add them to the same run; their links become confirmed and their own neighbors appear."))
+    # TOPO-030: one management address advertised by several differently named devices
+    if graph.ambiguous_ips:
+        lines = [f"{ip}: {', '.join(names[:6])}{' ...' if len(names) > 6 else ''}" for ip, names in sorted(graph.ambiguous_ips.items())]
+        rows.append(_row("TOPO-030", "medium", f"{len(lines)} management address(es) advertised by more than one device", _few(lines, 6),
+                         sorted({name for names in graph.ambiguous_ips.values() for name in names}),
+                         "Neighbors send the same management address in their CDP / LLDP frames, so the address cannot tell them apart: the builder matched them by name "
+                         "and chassis ID and drew each one as its own device. The same address on several switches is typically a default or copied address that was never "
+                         "changed; it also breaks SSH, SNMP and ping to those switches. Give every device its own management address.", DOC_LLDP))
     # TOPO-002 conflict
     for issue in graph.issues:
         if issue["type"] == "conflict":
@@ -58,7 +67,7 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
                              [issue["node"]], "Check for a copy-pasted configuration with an unchanged hostname, or for a stack/standby captured twice."))
         elif issue["type"] == "duplicate-capture":
             rows.append(_row("TOPO-003", "low", "The same device was uploaded twice",
-                             f"{issue['node']}: {', '.join(issue['files'])} (same serial number). The first one is used.", [issue["node"]],
+                             f"{issue['node']}: {', '.join(issue['files'])} (same {issue.get('proof', 'serial number')}). The first one is used.", [issue["node"]],
                              "Remove the duplicate upload."))
         elif issue["type"] == "proto-disagree":
             detail = "; ".join(f"{proto}: {', '.join(peers)}" for proto, peers in issue["detail"].items())
@@ -100,7 +109,7 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
     for node in graph.nodes.values():
         if node.captured and not node.halves and node.vendor.lower() in _NO_NEIGHBOR_TABLE:
             rows.append(_row("TOPO-008", "info", f"{node.hostname}: no neighbor table is read from a {node.vendor} configuration", node.source, [node.hostname],
-                             "A FortiGate or BIG-IP configuration has no CDP/LLDP table; its cables are drawn from the other end's neighbors, from ARP / MAC evidence and from port descriptions or aliases written 'HOST - port'."))
+                             "A FortiGate, PAN-OS or BIG-IP configuration has no CDP/LLDP table; its cables are drawn from the other end's neighbors, from ARP / MAC evidence and from port descriptions or aliases written 'HOST - port'."))
         elif node.captured and not node.halves:
             rows.append(_row("TOPO-008", "low", f"{node.hostname}: no CDP or LLDP neighbors in the capture", node.source, [node.hostname],
                              "Add 'show cdp neighbors detail' and 'show lldp neighbors detail' (display lldp neighbor-information verbose on Huawei) to the capture, or enable the protocol."))
@@ -117,7 +126,9 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
     for conn in graph.connections:
         a, b = graph.nodes[conn.a], graph.nodes[conn.b]
         blind = [n for n, po in ((a, conn.a_po), (b, conn.b_po)) if not po and n.coverage and not n.coverage.get("bundles")]
-        if a.captured and b.captured and conn.kind != "rollup" and bool(conn.a_po) != bool(conn.b_po) and not blind:
+        # a FortiGate "redundant" interface is active / backup: its two members face two plain ports (often on two switches), there is no bundle to match
+        backup = any(n.bundle_info.get(po, {}).get("protocol") == "redundant" for n, po in ((a, conn.a_po), (b, conn.b_po)) if po)
+        if a.captured and b.captured and conn.kind != "rollup" and bool(conn.a_po) != bool(conn.b_po) and not blind and not backup:
             rows.append(_row("TOPO-010", "medium", "Bundle mismatch: one end is in a port-channel, the other is not",
                              f"{conn.a} {conn.a_po or [l.a_port for l in conn.links]} vs {conn.b} {conn.b_po or [l.b_port for l in conn.links]}",
                              [conn.a, conn.b], "A port-channel needs both ends in the bundle; a half-configured bundle suspends members or forms a loop.", DOC_VPC))
@@ -126,12 +137,22 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
                              ", ".join(f"{l.a_port}-{l.b_port}" for l in conn.links), [conn.a, conn.b],
                              "Without a port-channel spanning-tree blocks all but one of them; bundle them (LACP) or confirm the redundancy is intended."))
     rows += _capture_gap_findings(graph)
+    rows += _shared_name_findings(graph)
+    rows += _seen_through_findings(graph)
     rows += _inferred_findings(graph)
     rows += _bundle_findings(graph)
     rows += _speed_findings(graph)
     rows += _port_findings(graph)
     rows += _native_vlan_findings(graph)
     rows += _vpc_findings(graph)
+    from .l2findings import l2_findings            # needs _row and _few of this module, so it is imported when the findings are built
+    rows += l2_findings(graph)
+    from .paramfindings import param_findings      # the MTU and OSPF parameters of the two ends (TOPO-036 to 039)
+    rows += param_findings(graph)
+    from .peerfindings import peer_findings        # bundles, OSPF adjacencies, HSRP / VRRP groups and addresses compared between devices (TOPO-040 to 043)
+    rows += peer_findings(graph)
+    from .panolink import panorama_findings       # firewalls read together with the template stack of their Panorama (TOPO-044)
+    rows += panorama_findings(graph)
     rows += _carried_findings(graph)
     rows.sort(key=lambda r: (SEVERITY_ORDER[r["severity"]], r["id"]))
     return rows
@@ -139,6 +160,57 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
 
 def _few(items: list[str], limit: int = 5) -> str:
     return "; ".join(items[:limit]) + (f" ... (+{len(items) - limit})" if len(items) > limit else "")
+
+
+SHARED_NAME_MIN_UNITS = 6       # separate attachments (a port-channel counts once, a plain cable once each) of one uncaptured neighbour from which it is reported as a name shared by several hosts
+SHARED_NAME_ROLES = ("access", "switch", "host", "server", "")
+
+
+def _shared_name_findings(graph: Graph) -> list[dict[str, Any]]:
+    """TOPO-045: one neighbour nobody captured that has many separate attachments (a cable, or a port-channel, each counted once) is almost never one device: a NIC or hypervisor
+    that sends a vendor string ("BROADCOM ADV", "Intel Corporation") as its LLDP system name is every server on those ports, merged into one box by its name.  Two switches
+    joined by one port-channel are one attachment however many members it has."""
+    rows: list[dict[str, Any]] = []
+    for node in sorted(graph.nodes.values(), key=lambda n: n.hostname):
+        if node.captured or "::" in node.key or node.role_hint not in SHARED_NAME_ROLES:
+            continue
+        units: dict[str, int] = {}
+        for conn in graph.connections:
+            if node.key not in (conn.a, conn.b) or conn.kind in graph.hidden_kinds:
+                continue
+            if all(link.note.startswith("seen through") for link in conn.links):
+                continue                                                  # reported through a switch, not a cable of its own (through.py)
+            near = conn.b if conn.a == node.key else conn.a
+            units[near] = units.get(near, 0) + (1 if conn.a_po or conn.b_po else len(conn.links))
+        count = sum(units.values())
+        if count < SHARED_NAME_MIN_UNITS:
+            continue
+        rows.append(_row("TOPO-045", "low", f"{node.hostname}: {count} separate attachments on {len(units)} switch(es) advertise the same neighbor name",
+                         f"{', '.join(f'{name} ({n})' for name, n in sorted(units.items())[:6])}; every attachment is its own cable or port-channel" + (f"; model text '{node.model}'" if node.model else ""),
+                         [node.hostname],
+                         "One device does not normally hang from this many separate cables or port-channels. The name is probably a vendor string sent by the NIC or hypervisor LLDP agent, "
+                         "so the box stands for several different hosts. Read 'show lldp neighbors detail' (port description, chassis ID) on those ports, give the LLDP agent of the "
+                         "servers a real system name or turn the NIC firmware LLDP off, and do not read the picture as one dual-homed device.", DOC_LLDP))
+    return rows
+
+
+def _seen_through_findings(graph: Graph) -> list[dict[str, Any]]:
+    """TOPO-046: a port lists neighbours that are not plugged into it: CDP crossed a switch that does not speak CDP (through.py).  The extra lines were removed or re-homed."""
+    rows: list[dict[str, Any]] = []
+    for issue in graph.issues:
+        if issue.get("type") != "seen-through":
+            continue
+        ends = sorted(set(issue.get("rehomed", [])) | set(issue.get("dropped", [])))
+        rows.append(_row("TOPO-046", "info", f"{issue['node']} {', '.join(issue['ports'])}: {len(ends)} neighbor(s) seen through {issue['anchor']}",
+                         f"{_few(ends, 6)} reached {issue['node']} in CDP on a port whose cable goes to {issue['anchor']}. "
+                         + (f"Re-homed under {issue['anchor']}: {_few(issue['rehomed'], 6)}. " if issue.get("rehomed") else "")
+                         + (f"Already attached elsewhere, extra line dropped: {_few(issue['dropped'], 6)}." if issue.get("dropped") else ""),
+                         [issue["node"], issue["anchor"]],
+                         f"{issue['anchor']} does not forward or send CDP, so it floods the CDP frames of the access points / phones behind it up to {issue['node']}. "
+                         "LLDP is link-local (IEEE 802.1AB) and names the real neighbor, so the picture draws the end points under it. "
+                         f"Capture {issue['anchor']} (show lldp neighbor / display lldp neighbor-information) to confirm each end point on its own port; "
+                         "nothing needs to change on the network.", DOC_CDP_THROUGH))
+    return rows
 
 
 def _bundle_findings(graph: Graph) -> list[dict[str, Any]]:
@@ -350,15 +422,17 @@ def _inferred_findings(graph: Graph) -> list[dict[str, Any]]:
         rows.append(_row("TOPO-027", "low", f"{len(items)} link(s) inferred from ARP, MAC addresses, routes and port descriptions, not from CDP/LLDP", detail, names,
                          "These ports reported no neighbor. Order of trust: ARP (the address on the far end belongs to a known device), then the MAC address learned on the port, "
                          "then the interface description. It is a strong hint, not a proof. Confirm it, and enable LLDP (or CDP) toward the neighbor so the next capture confirms it from both ends." + extra, DOC_ARP))
-    drift = [i for i in graph.issues if i["type"] == "description-drift"] + [i for i in items if i.get("conflict")]
+    drift = [i for i in graph.issues if i["type"] in ("description-drift", "description-elsewhere")] + [i for i in items if i.get("conflict")]
     if drift:
         def host(i: dict[str, Any], end: str) -> str:
             return i.get(f"{end}_host") or (graph.nodes[i[end]].hostname if i[end] in graph.nodes else i[end])
 
         def line(i: dict[str, Any]) -> str:
+            if i["type"] == "description-elsewhere":
+                return f"{host(i, 'a')} {i['a_port']} is described as {i['says']}, which reports itself on {host(i, 'b')}"
             return f"{host(i, 'a')} {i['a_port']} faces {host(i, 'b')} but its description names {i.get('says') or i.get('conflict')}"
         names = sorted({host(i, "a") for i in drift} | {host(i, "b") for i in drift})
-        rows.append(_row("TOPO-028", "low", f"{len(drift)} port description(s) name another device than the one the port faces", _few([line(i) for i in drift], 8), names,
+        rows.append(_row("TOPO-028", "low", f"{len(drift)} port description(s) name another device than the one the port faces" + (", or a device that reports itself on another switch" if any(i["type"] == "description-elsewhere" for i in drift) else ""), _few([line(i) for i in drift], 8), names,
                          "CDP/LLDP, ARP and MAC addresses come from the device itself; a description is typed by a person. Where they disagree the line follows the device data. "
                          "Correct the description (or the cabling, if the description is the right one) so the next engineer is not misled.", DOC_CDP))
     twice = [i for i in graph.issues if i["type"] == "port-claimed-twice"]
@@ -381,8 +455,10 @@ def _capture_gap_findings(graph: Graph) -> list[dict[str, Any]]:
         return []
     scrolled = any("scrolled" in why for _, why in cut)
     return [_row("TOPO-024", "medium" if scrolled else "low", f"{len(cut)} capture(s) are incomplete", _few([f"{host}: {why}" for host, why in cut], 8), [host for host, _ in cut],
-                 "The terminal buffer was too small and the first commands scrolled away. Raise the scrollback (or log the session to a file) and collect again; "
-                 "the links, bundles and VLANs that were in the missing part are not in the diagram.")]
+                 ("The terminal buffer was too small and the first commands scrolled away. Raise the scrollback (or log the session to a file) and collect again; "
+                  "the links, bundles and VLANs that were in the missing part are not in the diagram." if scrolled else
+                  "Collect the configuration as well (the F5 UCS, or the collect list for the device) and add it to the run; "
+                  "what the capture lacks is not guessed, so those links, addresses and VLANs are not in the diagram."))]
 
 
 def _carried_findings(graph: Graph) -> list[dict[str, Any]]:

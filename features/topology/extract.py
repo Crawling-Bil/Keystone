@@ -22,6 +22,7 @@ class HalfEdge:
     remote_serial: str = ""
     remote_platform: str = ""
     remote_caps: str = ""
+    remote_descr: str = ""     # the LLDP system description (free text), first 240 characters
     native_vlan: str = ""
     duplex: str = ""
     remote_chassis: str = ""   # 12 hex digits, lower case
@@ -58,10 +59,16 @@ class Device:
     vpc_keepalive: str = ""
     vpc_ids: dict[str, str] = field(default_factory=dict)             # Po name -> vPC id
     stp_blocking: set[str] = field(default_factory=set)               # canonical ports
+    stp_protocol: str = ""                                            # rstp / mstp / pvst ... as printed by "show spanning-tree"
+    stp_root_for: list[str] = field(default_factory=list)             # instances ("VLAN0010", "MST0") this switch is the root bridge of
+    stp_root_default: list[str] = field(default_factory=list)         # the subset whose root priority is the factory default (32768 plus the instance number)
+    port_allowed: dict[str, str] = field(default_factory=dict)        # canonical trunk port -> "Vlans allowed on trunk" as printed, blanks removed ("1-4094", "10,21-23")
+    port_active: dict[str, str] = field(default_factory=dict)         # canonical trunk port -> "Vlans allowed and active in management domain"
     mac_table: list[dict[str, Any]] = field(default_factory=list)
     arp_table: list[dict[str, Any]] = field(default_factory=list)
     role_hint: str = ""
     caps: str = ""
+    descr: str = ""            # what the neighbor said about itself in LLDP (system description); only a neighbor that was never captured has one
     coverage: dict[str, bool] = field(default_factory=dict)   # which commands the capture contained
     l3: list[dict[str, Any]] = field(default_factory=list)    # routed interfaces: name, ip, prefix_len, vrf, kind
     host_ports: dict[str, int] = field(default_factory=dict)
@@ -75,6 +82,7 @@ class Device:
     port_state: dict[str, str] = field(default_factory=dict)          # canonical port -> up / down / admin down
     capture_gap: str = ""                                             # why the capture is incomplete (cut at the top, no running-config ...)
     wireless_clients: dict[str, int] = field(default_factory=dict)    # canonical access-point port -> client MACs learned behind it
+    ifparams: dict[str, Any] = field(default_factory=dict)            # MTU and OSPF parameters per interface, read from the configuration (see ifparams.py)
     l3facts: dict[str, Any] = field(default_factory=dict)             # routes by next hop, routing neighbors, SD-WAN sessions, tunnels (see l3facts.py)
     chassis: str = ""                                                 # a firewall drawn as one node per VDOM / vsys: the name of the box they share ...
     unit: str = ""                                                    # ... the VDOM / vsys this node is ...
@@ -194,6 +202,17 @@ def _dotted(mac: str) -> str:
     return f"{mac[0:4]}.{mac[4:8]}.{mac[8:12]}"
 
 
+_NAME_ENDS_IN_MAC = re.compile(r"^[A-Za-z][A-Za-z_-]*([0-9A-Fa-f]{12})$")
+
+
+def mac_in_name(name: str) -> str:
+    """Some probes and appliances build their CDP device ID from a prefix and their own MAC address (``NPOINT069F81027403``), while the
+    switch next to them reports the same box by LLDP with that MAC as its chassis ID.  The 12 hex digits at the end of such a name are the
+    chassis ID, so both reports resolve to one device.  A name that is only a MAC is handled by ``mac12``; a name with fewer or more digits gives ''."""
+    found = _NAME_ENDS_IN_MAC.match(name.strip())
+    return found.group(1).lower() if found else ""
+
+
 def _halves(neighbors: list[dict[str, Any]]) -> list[HalfEdge]:
     merged: dict[tuple[str, str], HalfEdge] = {}
     for row in neighbors:
@@ -225,6 +244,7 @@ def _halves(neighbors: list[dict[str, Any]]) -> list[HalfEdge]:
         if platform and not (str(row.get("protocol", "")).upper() == "LLDP" and ("Software" in platform or len(platform) > 40)):
             half.remote_platform = half.remote_platform or platform      # an LLDP OS banner is not a model
         half.remote_caps = half.remote_caps or _value(row.get("capabilities"))
+        half.remote_descr = half.remote_descr or _value(row.get("system_description"))
         half.native_vlan = half.native_vlan or _value(row.get("native_vlan"))
         half.duplex = half.duplex or str(row.get("duplex", "")).strip()
     return _one_device_per_port(list(merged.values()))
@@ -257,7 +277,7 @@ def _one_device_per_port(halves: list[HalfEdge]) -> list[HalfEdge]:
                 twin.remote_name = half.remote_name
             twin.protocols |= half.protocols
             twin.remote_port = twin.remote_port or half.remote_port
-            for field_name in ("remote_serial", "remote_chassis", "remote_ip", "remote_platform", "remote_caps", "remote_port_desc", "native_vlan", "duplex"):
+            for field_name in ("remote_serial", "remote_chassis", "remote_ip", "remote_platform", "remote_caps", "remote_descr", "remote_port_desc", "native_vlan", "duplex"):
                 if not getattr(twin, field_name):
                     setattr(twin, field_name, getattr(half, field_name))
         result.extend(kept)
@@ -327,7 +347,10 @@ def device_from_analysis(result: dict[str, Any], source: str) -> Device:
         name = canon_port(str(bundle.get("name", "")))
         members = [canon_port(m.strip()) for m in str(bundle.get("members", "")).split(",") if m.strip()]
         device.bundles[name] = members
-        device.bundle_info[name] = {"protocol": str(bundle.get("protocol", "")), "status": str(bundle.get("status", "")),
+        protocol = str(bundle.get("protocol", ""))
+        if bundle.get("lacp_mode"):                      # Huawei prints the generic "Eth-Trunk"; its working mode says whether LACP runs (lacp-static, lacp-dynamic) or not (manual)
+            protocol = "LACP" if str(bundle["lacp_mode"]).startswith("lacp") else "static"
+        device.bundle_info[name] = {"protocol": protocol, "status": str(bundle.get("status", "")),
                                     "description": str(bundle.get("description", "")), "mode": str(bundle.get("mode", ""))}
         for member in members:
             device.bundle_of[member] = name
@@ -371,6 +394,15 @@ def device_from_analysis(result: dict[str, Any], source: str) -> Device:
             device.port_native[port] = native
             if str(row.get("mode", "")).lower() in ("trunk", "on", "desirable", "auto") or "trunk" in str(row.get("status", "")).lower():
                 device.port_modes.setdefault(port, "trunk")
+    for row in (result.get("trunks") or {}).get("rows") or []:
+        port = canon_port(str(row.get("port", "")))
+        status, mode = str(row.get("status", "")).strip().lower(), str(row.get("mode", "")).strip().lower()
+        allowed = re.sub(r"\s+", "", str(row.get("allowed", "") or ""))[:4096]
+        if port and allowed and (status.startswith("trunking") or (not status and mode in ("trunk", "on"))):
+            device.port_allowed[port] = allowed
+            active = re.sub(r"\s+", "", str(row.get("active", "") or ""))[:4096]
+            if active:
+                device.port_active[port] = active
     for bundle in result.get("port_channels") or []:
         for state in bundle.get("member_states") or []:
             flag, member = str(state.get("flag", "")).strip(), canon_port(str(state.get("port", "")))
@@ -392,6 +424,15 @@ def device_from_analysis(result: dict[str, Any], source: str) -> Device:
             if member.get("port") and member.get("id"):
                 device.vpc_ids[canon_port(str(member["port"]))] = str(member["id"])
     stp = result.get("spanning_tree") or {}
+    device.stp_protocol = str(stp.get("protocol", "") or "")
+    for instance in (stp.get("instances") or [])[:512]:
+        if not instance.get("is_root"):
+            continue
+        name = str(instance.get("id", ""))
+        number = instance.get("vlan") if isinstance(instance.get("vlan"), int) else int(re.sub(r"\D", "", name) or -1)
+        device.stp_root_for.append(name)
+        if number >= 0 and instance.get("root_priority") in (32768, 32768 + number):
+            device.stp_root_default.append(name)
     for row in stp.get("ports") or []:
         role = str(row.get("role", "")).lower()
         # Aruba CX prints a port that is down as role Disabled / state Down; the analyzer shortens that to DIS. It is not blocking.

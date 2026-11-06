@@ -66,7 +66,7 @@
 
   function updateSingleFileSelection() {
     const file = fileInput.files[0];
-    fileLabel.textContent = file?.name || "TXT, CFG, CONF or LOG";
+    fileLabel.textContent = file?.name || "TXT, CFG, CONF, LOG or XML";
     selectedConfigName.textContent = file?.name || "—";
     fileSelection.classList.toggle("hidden", !file);
   }
@@ -165,6 +165,7 @@
       const field = form.querySelector(`[name="${name}"]`);
       formData.append(name, field?.value || "");
     });
+    if (form.querySelector('[name="hide_secrets"]')?.checked) formData.append("hide_secrets", "1");
 
     window.NES.setLoading(batchButton, true, "Converting batch...");
     try {
@@ -218,6 +219,8 @@
   // ---- Interface map tab (switch converts): every source port -> the port it becomes on the target model. ----
   const interfaceMapPanel = document.getElementById("interface-map-panel");
   const preflightPanel = document.getElementById("preflight-panel");
+  const roundtripPanel = document.getElementById("roundtrip-panel");
+  const fwReportPanel = document.getElementById("fwreport-panel");
   const configView = document.getElementById("config-view");
   const resultTabs = document.querySelectorAll(".cv-result-tab");
   const showUnusedToggle = document.getElementById("interface-map-show-unused");
@@ -231,7 +234,9 @@
     });
     interfaceMapPanel?.classList.toggle("hidden", name !== "interface-map");
     preflightPanel?.classList.toggle("hidden", name !== "preflight");
-    configView?.classList.toggle("hidden", name === "interface-map" || name === "preflight");
+    roundtripPanel?.classList.toggle("hidden", name !== "roundtrip");
+    fwReportPanel?.classList.toggle("hidden", name !== "fwreport");
+    configView?.classList.toggle("hidden", name === "interface-map" || name === "preflight" || name === "roundtrip" || name === "fwreport");
   }
   resultTabs.forEach(tab => tab.addEventListener("click", () => setResultTab(tab.dataset.resultTab)));
 
@@ -343,6 +348,54 @@
       : '<tbody><tr><td>No review markers in the converted configuration.</td></tr></tbody>';
   }
 
+  const ROUNDTRIP_VERDICT = {
+    equivalent: ["Reads back the same", "tone-ok"],
+    flagged: ["Differences, all marked REVIEW", "tone-warn"],
+    differences: ["Silent differences: check before use", "tone-bad"],
+    unreadable: ["Could not be read back", "tone-bad"],
+    empty: ["Nothing to compare", "tone-mute"],
+  };
+  const ROUNDTRIP_STATUS = { missing: ["Missing on target", "tone-bad"], changed: ["Changed", "tone-warn"] };
+
+  // Round-trip tab (switch converts): the converted text read back by the target parser and compared with the source.
+  function renderRoundtrip(rt) {
+    if (!roundtripPanel) return;
+    const tab = [...resultTabs].find(t => t.dataset.resultTab === "roundtrip");
+    if (!rt || !rt.verdict) {
+      tab?.classList.add("hidden");
+      return;
+    }
+    tab?.classList.remove("hidden");
+    const esc = window.NES.escape;
+    const count = document.getElementById("roundtrip-tab-count");
+    if (count) count.textContent = rt.silent ? String(rt.silent) : "";
+    const [label, tone] = ROUNDTRIP_VERDICT[rt.verdict] || [rt.verdict, ""];
+    document.getElementById("roundtrip-lead").textContent = label;
+    const chip = (text, n, t) => `<span class="cell-status ${t}">${esc(text)} ${esc(n)}</span>`;
+    document.getElementById("roundtrip-summary").innerHTML = [
+      `<span class="cell-status ${tone}">${esc(label)}</span>`,
+      chip("Checked", rt.checked || 0, "tone-mute"),
+      chip("Same", rt.same || 0, "tone-ok"),
+      chip("Silent differences", rt.silent || 0, rt.silent ? "tone-bad" : "tone-ok"),
+      chip("Marked REVIEW", rt.flagged || 0, rt.flagged ? "tone-warn" : "tone-ok"),
+    ].join("");
+    document.getElementById("roundtrip-note").textContent = rt.reason
+      ? rt.reason
+      : "A silent difference is something the source configures that the converted text does not, with no REVIEW line to tell the engineer. Lines the target adds on its own are not counted.";
+    const areas = document.getElementById("roundtrip-areas");
+    areas.innerHTML = (rt.areas || []).length
+      ? `<thead><tr><th>Area</th><th>Same</th><th>Changed</th><th>Missing</th><th>Silent</th></tr></thead><tbody>${rt.areas.map(a => `<tr><td>${esc(a.area)}</td><td>${esc(a.same)}</td><td>${esc(a.changed)}</td><td>${esc(a.missing)}</td><td>${a.silent ? `<span class="cell-status tone-bad">${esc(a.silent)}</span>` : "0"}</td></tr>`).join("")}</tbody>`
+      : "";
+    const table = document.getElementById("roundtrip-table");
+    const rows = rt.rows || [];
+    table.innerHTML = rows.length
+      ? `<thead><tr><th>Area</th><th>Item</th><th>Status</th><th>Source</th><th>Target</th><th>REVIEW line</th><th>Note</th></tr></thead><tbody>${rows.map(row => {
+          const [statusLabel, statusTone] = ROUNDTRIP_STATUS[row.status] || [row.status, ""];
+          return `<tr class="im-row"><td>${esc(row.area)}</td><td><code>${esc(row.item)}</code></td><td><span class="cell-status ${statusTone}">${esc(statusLabel)}</span></td><td>${esc(row.source)}</td><td>${esc(row.target)}</td><td>${row.flagged ? '<span class="cell-status tone-ok">yes</span>' : '<span class="cell-status tone-bad">none</span>'}</td><td>${esc(row.note || "")}</td></tr>`;
+        }).join("")}</tbody>`
+      : '<tbody><tr><td>No difference found between the source and the converted text.</td></tr></tbody>';
+  }
+
   function renderInterfaceMap(map) {
     if (!interfaceMapPanel) return;
     currentInterfaceMap = map || null;
@@ -374,6 +427,136 @@
   }
   showUnusedToggle?.addEventListener("change", renderInterfaceMapTable);
 
+  // ---- FortiGate <-> PAN-OS conversion report (firewall page): what did not carry over, by layer, with the documentation link. ----
+  const FW_STATUS_TONE = { "Not converted": "tone-bad", "Needs review": "tone-warn", "Approximated": "tone-mute", "Converted": "tone-ok" };
+  const FW_LAYER_LABEL = { interfaces: "Interfaces and zones", objects: "Objects", policies: "Security policy", nat: "NAT", routes: "Routing", vpn: "Site-to-site VPN" };
+  let currentFwReport = null;
+
+  function renderFwReportTable() {
+    const table = document.getElementById("fwreport-table");
+    if (!table || !currentFwReport) return;
+    const esc = window.NES.escape;
+    const filter = document.getElementById("fwreport-filter")?.value || "";
+    const rows = (currentFwReport.rows || []).filter(row => filter === "all" ? true : filter ? row.status === filter : row.status !== "Converted");
+    table.innerHTML = rows.length
+      ? `<thead><tr><th>Status</th><th>Layer</th><th>What</th><th>Why, and what to do</th><th>Read</th></tr></thead><tbody>${rows.map(row => `<tr class="im-row ${row.status === "Not converted" ? "im-missing" : row.status === "Needs review" ? "im-review" : ""}"><td><span class="cell-status ${FW_STATUS_TONE[row.status] || ""}">${esc(row.status)}</span></td><td>${esc(FW_LAYER_LABEL[row.layer] || row.layer)}</td><td><code>${esc(row.kind)} ${esc(row.name)}</code></td><td>${esc(row.message)}</td><td>${/^https:\/\//.test(row.documentation || "") ? `<a href="${esc(row.documentation)}" target="_blank" rel="noopener noreferrer">Documentation</a>` : "—"}</td></tr>`).join("")}</tbody>`
+      : '<tbody><tr><td>Nothing in this view.</td></tr></tbody>';
+  }
+
+  function renderFwReport(report, downloadUrl) {
+    const tabs = document.getElementById("fw-tabs");
+    if (!tabs || !fwReportPanel) return;
+    if (!report) {
+      tabs.classList.add("hidden");
+      currentFwReport = null;
+      return;
+    }
+    currentFwReport = report;
+    tabs.classList.remove("hidden");
+    setResultTab("config");
+    const esc = window.NES.escape;
+    const counts = report.counts || {};
+    const attention = (counts.review || 0) + (counts.not_converted || 0);
+    const count = document.getElementById("fwreport-tab-count");
+    if (count) count.textContent = attention ? String(attention) : "";
+    const chip = (text, n, tone) => `<span class="cell-status ${tone}">${esc(text)} ${esc(n)}</span>`;
+    document.getElementById("fwreport-summary").innerHTML = [
+      chip("Not converted", counts.not_converted || 0, counts.not_converted ? "tone-bad" : "tone-ok"),
+      chip("Needs review", counts.review || 0, counts.review ? "tone-warn" : "tone-ok"),
+      chip("Approximated", counts.approximated || 0, "tone-mute"),
+      chip("Converted", counts.converted || 0, "tone-ok"),
+    ].join("");
+    const layers = Object.entries(report.summary || {});
+    document.getElementById("fwreport-layers").innerHTML = layers.length
+      ? `<thead><tr><th>Layer</th><th>Read</th><th>Written</th><th>Approximated</th><th>Needs review</th><th>Not converted</th></tr></thead><tbody>${layers.map(([layer, row]) => `<tr><td>${esc(FW_LAYER_LABEL[layer] || layer)}</td><td>${esc(row.read)}</td><td>${esc(row.written)}</td><td>${esc(row.approximated)}</td><td>${row.review ? `<span class="cell-status tone-warn">${esc(row.review)}</span>` : "0"}</td><td>${row.not_converted ? `<span class="cell-status tone-bad">${esc(row.not_converted)}</span>` : "0"}</td></tr>`).join("")}</tbody>`
+      : "";
+    const link = document.getElementById("fwreport-download");
+    if (link) {
+      link.href = downloadUrl || "#";
+      link.classList.toggle("hidden", !downloadUrl);
+    }
+    renderFwReportTable();
+  }
+  document.getElementById("fwreport-filter")?.addEventListener("change", renderFwReportTable);
+
+  // The FortiGate <-> PAN-OS options (layers, VDOM) show when the chosen pair is converted by that converter.
+  const fwOptions = document.getElementById("fw-options");
+  const sourceVendorSelect = document.getElementById("source-vendor");
+  let panoramaFound = false;   // the chosen file is a Panorama export: the page asks for a device group instead of a VDOM
+  function updateFwOptions() {
+    if (!fwOptions || !targetVendorSelect) return;
+    const source = (sourceVendorSelect?.value || "").toLowerCase();
+    const target = (targetVendorSelect.value || "").toLowerCase();
+    const pair = (source === "fortigate" && target === "palo alto") || (source === "palo alto" && target === "fortigate") || (source.startsWith("auto") && (target === "fortigate" || target === "palo alto"));
+    fwOptions.classList.toggle("hidden", !(pair || panoramaFound));
+    if (previewMappingButton && source === "fortigate") previewMappingButton.classList.add("hidden");
+  }
+  sourceVendorSelect?.addEventListener("change", () => { updatePreviewMappingVisibility(); updateFwOptions(); });
+  targetVendorSelect?.addEventListener("change", updateFwOptions);
+  updateFwOptions();
+
+  // A Panorama export has no firewall of its own. When the chosen file is one, the VDOM field becomes a device-group picker
+  // (name, or name:serial to keep only the rules pushed to one firewall) fed by /configuration/api/panorama-scopes.
+  async function detectPanorama() {
+    const input = document.getElementById("fw-vdom");
+    const list = document.getElementById("fw-vdom-list");
+    const label = document.getElementById("fw-vdom-label");
+    const note = document.getElementById("fw-panorama-note");
+    if (!input || !list || !label) return;
+    panoramaFound = false;
+    list.innerHTML = "";
+    label.innerHTML = "FortiGate VDOM <small>(empty = the first one)</small>";
+    input.placeholder = "root";
+    note?.classList.add("hidden");
+    const file = fileInput.files[0];
+    if (file) {
+      try {
+        const head = await file.slice(0, 2048).text();
+        if (/^\s*(<\?xml|<config)/.test(head)) {
+          const form = new FormData();
+          form.append("config_file", file);
+          const data = await (await fetch("/configuration/api/panorama-scopes", { method: "POST", body: form })).json();
+          if (data.ok && data.panorama) {
+            panoramaFound = true;
+            label.innerHTML = "Panorama device group <small>(name, or name:serial for one firewall)</small>";
+            input.placeholder = data.groups.length ? data.groups[0].group : "";
+            data.groups.forEach((g) => {
+              const option = document.createElement("option");
+              option.value = g.group;
+              option.label = `${g.rules} rules, ${g.firewalls.length} firewall(s)`;
+              list.appendChild(option);
+              g.firewalls.forEach((f) => {
+                const sub = document.createElement("option");
+                sub.value = `${g.group}:${f.serial}`;
+                sub.label = f.stack ? `one firewall, stack ${f.stack}` : "one firewall";
+                list.appendChild(sub);
+              });
+            });
+            if (note) {
+              note.textContent = `Panorama export: ${data.groups.length} device group(s). Pick one; the converter flattens it (shared and parent objects, pre/post rules in order, the template stack's interfaces, zones and routing) and converts that.`;
+              note.classList.remove("hidden");
+            }
+          }
+        }
+      } catch (_) { /* not a Panorama file, or the check could not run: the page behaves as before */ }
+    }
+    updateFwOptions();
+  }
+  fileInput.addEventListener("change", detectPanorama);
+  clearConfigFile.addEventListener("click", detectPanorama);
+
+  function renderSecretsNote(secrets) {
+    const note = document.getElementById("secrets-note");
+    if (!note) return;
+    const lines = secrets && secrets.lines ? secrets.lines : 0;
+    note.classList.toggle("hidden", !lines);
+    if (!lines) return;
+    const count = `${lines} line${lines === 1 ? "" : "s"}`;
+    document.getElementById("secrets-note-text").textContent = secrets.hidden
+      ? `${count} carried a password hash, SNMP community or shared key in the source; the values are hidden (<hidden>) in this output and in the download.`
+      : `${count} carry a password hash, SNMP community or shared key copied from the source. Treat the output and the download like a credential file, or tick "Hide passwords and keys in the output" and convert again before you share it.`;
+  }
+
   function renderConvertResult(data) {
     document.getElementById("detected-platform").textContent = `${data.source_vendor} ${data.source_device_type}`;
     document.getElementById("detected-hostname").textContent = data.hostname;
@@ -389,11 +572,14 @@
     const download = document.getElementById("download-config");
     download.href = data.download_url;
     download.setAttribute("download", data.download_name);
+    renderSecretsNote(data.secrets);
     empty.classList.add("hidden");
     batchResultPanel.classList.add("hidden");
     mappingResultPanel?.classList.add("hidden");
     renderInterfaceMap(data.interface_map);
     renderPreflight(data.preflight);
+    renderRoundtrip(data.roundtrip);
+    renderFwReport(data.fwconvert, data.report_download_url);
     resultPanel.classList.remove("hidden");
     window.NES.toast(`Converted ${data.hostname} successfully.`);
   }

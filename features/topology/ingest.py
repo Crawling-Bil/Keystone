@@ -54,8 +54,8 @@ def _zip_members(name: str, data: bytes) -> list[tuple[str, bytes]]:
 
 
 def _ucs(name: str, data: bytes) -> str | None:
-    """A BIG-IP UCS archive (gzip tar) as its configuration text; None for any other file.  The archive is read as a stream, so its size is not held in memory twice."""
-    if not name.lower().endswith(".ucs"):
+    """A BIG-IP UCS archive or QKView (gzip tar) as its configuration text; None for any other file.  The archive is read as a stream, so its size is not held in memory twice."""
+    if not name.lower().endswith((".ucs", ".qkview")):
         return None
     from features.lb_analyzer.bigip_ucs import read_upload
     try:

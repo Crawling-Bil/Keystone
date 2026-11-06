@@ -60,7 +60,7 @@ def test_a_disabled_provision_port_is_shut_down_and_its_name_becomes_the_descrip
     assert " shutdown" in _block(cisco, "interface GigabitEthernet1/0/16")
     assert " description Uplink to core" in _block(cisco, "interface GigabitEthernet1/0/20")
     huawei = _convert(tmp_path, PROVISION, "Huawei")
-    assert " shutdown" in _block(huawei, "interface 16")
+    assert " shutdown" in _block(huawei, "interface GE1/0/16")           # the bare source name "16" used to be written as "interface 16", which Huawei rejects
 
 
 def test_a_port_tagged_in_one_vlan_and_untagged_in_a_later_one_stays_a_trunk(tmp_path):
@@ -75,7 +75,7 @@ def test_a_port_untagged_in_an_earlier_vlan_and_tagged_in_a_later_one_keeps_its_
     """Port 1 is untagged in VLAN 1 and tagged in VLAN 99: the trunk carries both, the allowed list must hold the native VLAN too."""
     cisco = _block(_convert(tmp_path, PROVISION, "Cisco"), "interface GigabitEthernet1/0/1")
     assert " switchport mode trunk" in cisco and " switchport trunk allowed vlan 1,99" in cisco
-    huawei = _block(_convert(tmp_path, PROVISION, "Huawei"), "interface 1")
+    huawei = _block(_convert(tmp_path, PROVISION, "Huawei"), "interface GE1/0/1")
     assert " port trunk pvid vlan 1" in huawei and " port trunk allow-pass vlan 1 99" in huawei
 
 

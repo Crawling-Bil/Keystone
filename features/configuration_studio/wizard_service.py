@@ -31,7 +31,7 @@ class WizardError(ValueError):
 
 
 def _session_dir(root: Path, token: str) -> Path:
-    if not _TOKEN_RE.match(token or ""):
+    if not _TOKEN_RE.fullmatch(token or ""):
         raise WizardError("Unknown wizard session.")
     path = root / token
     if not path.is_dir():

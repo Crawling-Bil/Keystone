@@ -1,0 +1,205 @@
+HQ-FGWAN1 # get system status
+Version: FortiGate-600F v7.2.8,build1639,240123 (GA.M)
+Serial-Number: FG6H0F5H24000201
+BIOS version: 04000029
+Operation Mode: NAT
+Current virtual domain: root
+Max number of virtual domains: 10
+Virtual domains status: 1 in NAT mode, 0 in TP mode
+Virtual domain configuration: disable
+Current HA mode: a-p, primary
+Cluster uptime: 112 days, 3 hours, 10 minutes, 44 seconds
+Hostname: HQ-FGWAN1
+System time: Sat Nov  1 09:12:41 2026
+
+HQ-FGWAN1 # get system ha status
+HA Health Status: OK
+Model: FortiGate-600F
+Mode: HA A-P
+Group Name: HQ-FGWAN-HA
+Group ID: 20
+Debug: 0
+Cluster Uptime: 112 days 3:10:44
+Cluster state change time: 2026-07-12 11:01:30
+Primary selected using:
+    <2026/07/12 11:01:30> FG6H0F5H24000201 is selected as the primary because it has the largest value of override priority.
+ses_pickup: disable
+load_balance: disable
+schedule: none
+Master: HQ-FGWAN1          FG6H0F5H24000201  0
+Slave : HQ-FGWAN2          FG6H0F5H24000202  1
+number of vcluster: 1
+vcluster 1: work 169.254.0.1
+Master:0 FG6H0F5H24000201
+Slave :1 FG6H0F5H24000202
+
+HQ-FGWAN1 # show full-configuration
+#config-version=FortiGate-600F-7.2.8-FW-build1639-240123:opmode=0:vdom=0:user=admin
+config system global
+    set admintimeout 10
+    set hostname "HQ-FGWAN1"
+    set timezone "Asia/Jakarta"
+    set strong-crypto enable
+end
+config system interface
+    edit "port1"
+        set vdom "root"
+        set type physical
+        set alias "to HQ-EDGE1 - Eth1/11"
+    next
+    edit "port2"
+        set vdom "root"
+        set type physical
+        set alias "to HQ-EDGE2 - Eth1/11"
+    next
+    edit "mgmt"
+        set vdom "root"
+        set ip 10.10.0.43 255.255.255.0
+        set allowaccess ping https ssh
+        set type physical
+        set alias "out-of-band management"
+    next
+    edit "agg-edge"
+        set vdom "root"
+        set type aggregate
+        set member "port1" "port2"
+        set lacp-mode active
+        set lacp-speed fast
+        set alias "HQ-EDGE vPC 211"
+    next
+    edit "agg-edge.911"
+        set vdom "root"
+        set ip 10.10.253.1 255.255.255.248
+        set allowaccess ping
+        set interface "agg-edge"
+        set vlanid 911
+        set alias "TRANSIT to EDGE"
+        set role lan
+    next
+    edit "wan1"
+        set vdom "root"
+        set ip 198.18.1.2 255.255.255.248
+        set allowaccess ping
+        set type physical
+        set alias "INET TELKOM (internet, BGP)"
+        set role wan
+    next
+    edit "wan2"
+        set vdom "root"
+        set ip 198.18.2.2 255.255.255.248
+        set allowaccess ping
+        set type physical
+        set alias "INET ICON+ (internet, BGP)"
+        set role wan
+    next
+end
+config system ha
+    set group-id 20
+    set group-name "HQ-FGWAN-HA"
+    set mode a-p
+    set hbdev "port7" 50
+    set session-pickup enable
+    set override enable
+    set priority 200
+end
+config router ospf
+    set router-id 10.10.255.31
+    set default-information-originate always
+    config area
+        edit 0.0.0.0
+        next
+    end
+    config ospf-interface
+        edit "edge"
+            set interface "agg-edge.911"
+            set network-type broadcast
+        next
+    end
+    config network
+        edit 1
+            set prefix 10.10.253.0 255.255.255.248
+        next
+    end
+    config redistribute "connected"
+        set status enable
+    end
+end
+config router bgp
+    set as 65010
+    set router-id 10.10.255.31
+    config neighbor
+        edit "198.18.1.1"
+            set remote-as 64701
+            set description "INET TELKOM"
+            set soft-reconfiguration enable
+        next
+        edit "198.18.2.1"
+            set remote-as 64703
+            set description "INET ICON+"
+            set soft-reconfiguration enable
+        next
+    end
+    config network
+        edit 1
+            set prefix 198.19.10.0 255.255.255.0
+        next
+    end
+end
+HQ-FGWAN1 # get router info routing-table all
+Codes: K - kernel, C - connected, S - static, R - RIP, B - BGP
+       O - OSPF, IA - OSPF inter area
+       N1 - OSPF NSSA external type 1, N2 - OSPF NSSA external type 2
+       E1 - OSPF external type 1, E2 - OSPF external type 2
+       i - IS-IS, L1 - IS-IS level-1, L2 - IS-IS level-2, ia - IS-IS inter area
+       * - candidate default
+
+Routing table for VRF=0
+B*      0.0.0.0/0 [20/0] via 198.18.1.1, wan1, 3d04h
+B*      0.0.0.0/0 [20/0] via 198.18.2.1, wan2, 3d04h
+O       10.10.110.0/24 [110/20] via 10.10.253.2, agg-edge.911, 3d04h
+O       10.10.110.0/24 [110/20] via 10.10.253.3, agg-edge.911, 3d04h
+O       10.10.199.0/24 [110/20] via 10.10.253.2, agg-edge.911, 3d04h
+O       10.10.199.0/24 [110/20] via 10.10.253.3, agg-edge.911, 3d04h
+O       10.10.101.0/24 [110/20] via 10.10.253.2, agg-edge.911, 3d04h
+O       10.10.101.0/24 [110/20] via 10.10.253.3, agg-edge.911, 3d04h
+O       10.10.102.0/24 [110/20] via 10.10.253.2, agg-edge.911, 3d04h
+O       10.10.102.0/24 [110/20] via 10.10.253.3, agg-edge.911, 3d04h
+O       10.10.103.0/24 [110/20] via 10.10.253.2, agg-edge.911, 3d04h
+O       10.10.103.0/24 [110/20] via 10.10.253.3, agg-edge.911, 3d04h
+O E2    10.101.0.0/16 [110/100] via 10.10.253.2, agg-edge.911, 3d04h
+O E2    10.101.0.0/16 [110/100] via 10.10.253.3, agg-edge.911, 3d04h
+O E2    10.102.0.0/16 [110/100] via 10.10.253.2, agg-edge.911, 3d04h
+O E2    10.102.0.0/16 [110/100] via 10.10.253.3, agg-edge.911, 3d04h
+O E2    10.103.0.0/16 [110/100] via 10.10.253.2, agg-edge.911, 3d04h
+O E2    10.103.0.0/16 [110/100] via 10.10.253.3, agg-edge.911, 3d04h
+O E2    10.104.0.0/16 [110/100] via 10.10.253.2, agg-edge.911, 3d04h
+O E2    10.104.0.0/16 [110/100] via 10.10.253.3, agg-edge.911, 3d04h
+O E2    10.105.0.0/16 [110/100] via 10.10.253.2, agg-edge.911, 3d04h
+O E2    10.105.0.0/16 [110/100] via 10.10.253.3, agg-edge.911, 3d04h
+O E2    10.106.0.0/16 [110/100] via 10.10.253.2, agg-edge.911, 3d04h
+O E2    10.106.0.0/16 [110/100] via 10.10.253.3, agg-edge.911, 3d04h
+C       10.10.0.0/24 is directly connected, mgmt
+C       10.10.253.0/29 is directly connected, agg-edge.911
+C       198.18.1.0/29 is directly connected, wan1
+C       198.18.2.0/29 is directly connected, wan2
+
+HQ-FGWAN1 # get router info ospf neighbor
+
+OSPF process 0:
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+10.10.255.3       1   Full/Backup     00:00:35    10.10.253.2     agg-edge.911
+10.10.255.4       1   Full/DR     00:00:35    10.10.253.3     agg-edge.911
+
+HQ-FGWAN1 # get router info bgp summary
+VRF 0 BGP router identifier 10.10.255.31, local AS number 65010
+BGP table version is 9
+1 BGP AS-PATH entries
+0 BGP community entries
+
+Neighbor        V         AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+198.18.1.1      4      64701 1432 1429      9 0 0 3d04h          1
+198.18.2.1      4      64703 1432 1429      9 0 0 3d04h          1
+
+Total number of neighbors 2
+
+HQ-FGWAN1 # 

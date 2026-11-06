@@ -1,0 +1,25 @@
+Conversion report
+
+interfaces: 13 read, 12 written, 1 approximated, 1 to review, 0 not converted
+objects: 10 read, 13 written, 0 approximated, 0 to review, 0 not converted
+policies: 7 read, 7 written, 2 approximated, 3 to review, 0 not converted
+nat: 10 read, 4 written, 0 approximated, 2 to review, 1 not converted
+routes: 7 read, 6 written, 1 approximated, 1 to review, 0 not converted
+vpn: 1 read, 1 written, 0 approximated, 1 to review, 0 not converted
+
+[Not converted] nat / NAT rule static-one: Static source NAT (static-ip) needs a VIP for the inbound direction and a one-to-one IP pool for the outbound one; build both by hand. (https://docs.fortinet.com/document/fortigate/6.2.2/cookbook/155333)
+[Needs review] interfaces / interface plan physical ports: Ports were named in the order of the source: ethernet1/1 -> port1; ethernet1/2 -> port2; ethernet1/3 -> port3; ethernet1/4 -> port4; ethernet1/5 -> port5. Check it against the cabling and give a mapping to change it. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] nat / NAT rule inbound-web: The VIP changes port 8443 to 443. The policy that allows it keeps the service of the PAN-OS rule; check on the target that the policy service is the one FortiOS evaluates for a port-forwarding VIP. (https://community.fortinet.com/fortigate-3/technical-tip-how-fortios-handles-vip-lookup-183426)
+[Needs review] nat / NAT rule no-NAT entries: A rule that translates nothing is written as a central SNAT entry with `set nat disable`; that setting exists in recent FortiOS releases only, so check the central-snat-map reference of your release (older releases need an IP pool that keeps the address). (https://docs.fortinet.com/document/fortigate/7.4.1/cli-reference/308620/config-firewall-central-snat-map)
+[Needs review] policies / policy social: Applications without a fixed default port (facebook-base) cannot be written as a FortiGate service; use an application control profile. The rule is written disabled. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy admins: A source-user match needs a FortiGate user group and an authentication source (FSSO, LDAP); the rule is written disabled until it is mapped. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy social: Written DISABLED: application facebook-base (App-ID). Enabling it as it is would allow more than the PAN-OS rule did. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] routes / BGP AS 65020: Peers, AS and router ID are converted. The prefixes this router advertises (PAN-OS export rules, redistribution) are not, so add `config network` or redistribution on the FortiGate. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] vpn / tunnel tun-remote: The pre-shared key is not in a PAN-OS export; the phase 1 is written with the placeholder REPLACE-ME. Enter the real key on both ends. (https://docs.fortinet.com/product/fortigate/)
+[Approximated] interfaces / management profile MGMT-ADMIN (ethernet1/2): Services userid-service have no allowaccess word on a FortiGate interface (userid, response pages, http-ocsp ...). (https://docs.fortinet.com/product/fortigate/)
+[Approximated] policies / policy allow-web: App-ID identifies the application on any port; the FortiGate service carries only its default port(s), so traffic of the application on another port is no longer matched and other traffic on that port is. (https://docs.fortinet.com/product/fortigate/)
+[Approximated] policies / policy ping: App-ID identifies the application on any port; the FortiGate service carries only its default port(s), so traffic of the application on another port is no longer matched and other traffic on that port is. (https://docs.fortinet.com/product/fortigate/)
+[Approximated] routes / OSPF 10.255.1.1: Areas are written as network statements for the subnets of the interfaces that were enabled; costs, authentication, timers, area types and redistribution are not converted. (https://docs.fortinet.com/product/fortigate/)
+[Converted] interfaces / zones intrazone: Every zone is written with intrazone allow: PAN-OS lets traffic inside a zone pass (the intrazone-default rule), a FortiOS zone does not unless told to. If you changed the intrazone-default rule on PAN-OS, change it here too. (https://docs.paloaltonetworks.com/pan-os)
+[Converted] nat / NAT rule inbound-web: Destination NAT written as a VIP; the policy names the VIP as its destination. (https://docs.fortinet.com/document/fortigate/6.2.2/cookbook/155333)
+[Converted] nat / NAT mode central NAT: The PAN-OS NAT list is written as FortiOS central NAT, which keeps NAT out of the policies and evaluates the entries in order, as PAN-OS does. With central NAT on, the per-policy NAT setting of every FortiGate policy is ignored. (https://docs.fortinet.com/document/fortigate/7.4.2/administration-guide/421028)

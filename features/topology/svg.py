@@ -7,6 +7,7 @@ from .graph import Graph
 from .layout import NODE_H, NODE_W
 from .scene import ROW_H, Page, PairBox, Shape, table_columns
 from .styles import line_look
+from .titles import end_title_spot, page_label_rects, page_segments
 
 _ROLE_GLYPH = {"loadbalancer": "LB", "segment": "NET", "core": "L3", "aggregation": "L3", "access": "L2", "switch": "L2", "firewall": "FW", "router": "RT", "wlc": "WLC",
                "fabric": "FI", "ap": "AP", "phone": "IP", "host": "PC", "server": "SRV", "cloud": "WAN"}
@@ -159,9 +160,12 @@ def to_svg(page: Page, graph: Graph, show_ports: bool = True, line_style: str = 
     for title, x, y, w, h in page.boxes:
         out.append(f'<rect x="{x:.0f}" y="{y:.0f}" width="{w:.0f}" height="{h:.0f}" fill="none" stroke="#000000" stroke-width="2"/>'
                    f'<text x="{x + 12:.0f}" y="{y + 26:.0f}" font-size="16" font-weight="700" fill="#8a5a50">{_esc(title)}</text>')
+    title_segments = page_segments(page) if page.end_boxes else []
+    title_labels = page_label_rects(page, graph) if page.end_boxes and show_ports else []
     for title, x, y, w, h in page.end_boxes:                 # end points grouped under one switch
+        spot = end_title_spot(page, (title, x, y, w, h), title_segments, title_labels)          # the name slides to a gap between lines
         out.append(f'<rect x="{x:.0f}" y="{y:.0f}" width="{w:.0f}" height="{h:.0f}" rx="8" fill="#F7F9FB" stroke="#8FA0AE" stroke-width="1.5"><title>End points of {_esc(title)}</title></rect>'
-                   f'<text x="{x + 10:.0f}" y="{y + 20:.0f}" font-size="12" font-weight="700" fill="#3E4C59">{_esc(title)}</text>')
+                   f'<text x="{x + spot:.0f}" y="{y + 20:.0f}" font-size="12" font-weight="700" fill="#3E4C59">{_esc(title)}</text>')
     for frame in page.pair_boxes.values():
         out.append(f'<rect x="{frame.x:.0f}" y="{frame.y:.0f}" width="{frame.w:.0f}" height="{frame.h:.0f}" rx="14" fill="#F2F8FC" stroke="#005073" '
                    f'stroke-width="2" stroke-dasharray="8 5"><title>{_esc(frame.title)}</title></rect>'

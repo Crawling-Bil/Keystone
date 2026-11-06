@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from features.configuration_studio.service import create_engine
-from . import aoscx, bundles, capture_text, coverage, finding_context, findings, fingerprint, fhrp, fhrp_live, health, health_aoscx, l3, live_state, logs, nxos_extras, nxos_routes, ntp, ospf_db, ospf_live, parts, redundancy, runtime_parser, serials, show_tables, stp_detail, stp_inconsistent, tabs
+from features.analyzer_core.redaction import mask_community, redact_line, redact_snmp_line
+from . import aoscx, baseline as baseline_check, bundles, capture_text, coverage, finding_context, findings, fingerprint, fhrp, fhrp_live, health, health_aoscx, l3, live_state, local_users, logs, nxos_extras, nxos_routes, ntp, ospf_db, ospf_live, parts, redundancy, runtime_parser, serials, show_tables, stp_detail, stp_inconsistent, tabs
 
 IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 
@@ -49,7 +50,7 @@ SNMP_PATTERNS = {
 }
 
 
-def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: str = "Auto Detect") -> dict[str, Any]:
+def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: str = "Auto Detect", baseline: str = "") -> dict[str, Any]:
     """Parse a switch configuration and return an analyzer-friendly summary.
 
     Reuses the same Cisco/Huawei/Aruba switch parsers that power
@@ -302,10 +303,11 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
         "ospf_live": ospf_view,
         "logs": logs_view,
         "pbr": pbr_summary,
-        "spanning_tree_commands": list(getattr(config, "spanning_tree_commands", [])),
-        "ntp_commands": list(getattr(config, "ntp_commands", [])),
-        "aaa_commands": list(getattr(config, "aaa_commands", [])),
-        "logging_commands": list(getattr(config, "logging_commands", [])),
+        "spanning_tree_commands": [redact_line(line) for line in getattr(config, "spanning_tree_commands", [])],
+        # Raw command lists: an NTP authentication key, a local-user hash or a TACACS/RADIUS key is hidden, everything else is shown as written.
+        "ntp_commands": [redact_line(line) for line in getattr(config, "ntp_commands", [])],
+        "aaa_commands": [redact_line(line) for line in getattr(config, "aaa_commands", [])],
+        "logging_commands": [redact_line(line) for line in getattr(config, "logging_commands", [])],
         "cards": {
             "total_interfaces": len(interfaces),
             "interfaces_up": up_count,
@@ -336,6 +338,12 @@ def analyze(text: str, *, filename: str = "pasted-switch-config.txt", vendor: st
     }
     # Findings, Coverage and the tab map are built from the finished result, in this order.
     result["coverage"] = coverage.build_coverage(clean_all, detected_vendor, result)
+    # Local accounts (who can log in without a central server): the Users tab, and a card on the Overview.
+    result["local_users"] = local_users.extract(clean, result["coverage"].get("family") or coverage.vendor_key(detected_vendor), baseline_check.has_config(clean, result["coverage"].get("present")))
+    result["cards"]["local_users"] = result["local_users"]["summary"]["count"]
+    if baseline:
+        # An organisation standard read out of a converter profile (TAM Standard ...); its deviations join the Findings tab.
+        result["baseline"] = baseline_check.evaluate(baseline, clean, vendor=detected_vendor, config_present=baseline_check.has_config(clean, result["coverage"].get("present")))
     result["findings"] = findings.build_findings(result)
     finding_context.attach(result)       # neighbour, bundle, vPC and log detail next to each finding
     result["cards"]["findings_total"] = len(result["findings"])
@@ -676,6 +684,9 @@ def _build_interfaces(
             "allowed_vlans": extra["allowed_vlans"],
             "poe_enabled": False,
             "source": "show/display",
+            # speed and duplex of "show interfaces status": without them a capture that lists the ports only in the status table
+            # (no running-config block per port) lost the negotiated speed the Topology Builder reads for TOPO-025 / TOPO-026 / TOPO-034
+            **{key: resolved[key] for key in ("speed_mbps", "speed_auto", "duplex", "duplex_auto") if key in resolved},
         })
 
     # A few runtime-only rows from the legacy brief parser that the newer
@@ -1566,8 +1577,8 @@ def _extract_snmp(config) -> dict[str, Any]:
 
         for pattern in SNMP_PATTERNS["community"]:
             match = pattern.match(text)
-            if match and match.groups() and match.group(1) not in summary["communities"]:
-                summary["communities"].append(match.group(1))
+            if match and match.groups() and mask_community(match.group(1)) not in summary["communities"]:
+                summary["communities"].append(mask_community(match.group(1)))      # a shared secret never reaches the screen or the export
 
         for pattern in SNMP_PATTERNS["location"]:
             match = pattern.match(text)
@@ -1587,5 +1598,5 @@ def _extract_snmp(config) -> dict[str, Any]:
     return {
         "enabled": bool(commands),
         "summary": summary,
-        "raw_commands": commands,
+        "raw_commands": [redact_snmp_line(line) for line in commands],
     }

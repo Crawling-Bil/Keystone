@@ -44,7 +44,7 @@ def _archive(bundle: Any, facts: dict[str, Any], today: date) -> list[dict[str, 
              ("Custom /config/startup commands", "yes - review" if bundle.has_startup_additions else "none", "warn" if bundle.has_startup_additions else "")]
     for label, count in bundle.omitted.items():
         pairs.append((f"Deliberately not read: {label}", count))
-    out = [kv_section("ucs_archive", "UCS archive", pairs, group=GROUP, hint="Read as a stream; private keys, password files, the master key store, shell histories and the license registration key are skipped.")]
+    out = [kv_section("ucs_archive", f"{bundle.kind} archive", pairs, group=GROUP, hint="Read as a stream; private keys, password files, the master key store, shell histories and the license registration key are skipped.")]
     stamps = [("Last configuration change", facts["last_config_change"]), ("Last config sync (local)", facts["last_sync"]), ("Last time this unit became active", facts["last_active"]), ("Last time this unit became standby", facts["last_standby"]), ("Last UCS load / restore", facts["last_ucs_load"])]
     rows = [{"event": label, "when": when.strftime("%Y-%m-%d %H:%M UTC"), "age": f"{(today - when.date()).days} days ago"} for label, when in stamps if when]
     out.append(table_section("ucs_timeline", "Change and failover timeline", [("event", "Event"), ("when", "When (UTC)", "mono"), ("age", "Age")], rows, group=GROUP,

@@ -127,19 +127,19 @@ def read_inventory(path: Path, vendor: str) -> dict[str, Any]:
         records.append(record)
 
         if not any(record.get(k) for k in ("ap_name", "serial_number", "mac_address")):
-            issues.append({"row": index, "severity": "Critical", "field": "Identity", "message": "AP Name, Serial Number, dan MAC Address semuanya kosong."})
+            issues.append({"row": index, "severity": "Critical", "field": "Identity", "message": "AP Name, Serial Number and MAC Address are all empty."})
         status = record.get("deployment_status", "")
         if status and status.title() not in VALID_STATUSES:
-            issues.append({"row": index, "severity": "Warning", "field": "Deployment Status", "message": f"Status '{status}' tidak termasuk status standar NES."})
+            issues.append({"row": index, "severity": "Warning", "field": "Deployment Status", "message": f"Status '{status}' is not one of the standard deployment statuses."})
         mac = normalize_mac(record.get("mac_address"))
         if record.get("mac_address") and len(mac) != 12:
-            issues.append({"row": index, "severity": "Warning", "field": "MAC Address", "message": "Format MAC Address tidak valid atau tidak lengkap."})
+            issues.append({"row": index, "severity": "Warning", "field": "MAC Address", "message": "The MAC Address format is invalid or incomplete."})
         for field in ("ap_name", "serial_number", "mac_address"):
             value = normalize_mac(record[field]) if field == "mac_address" else normalize_text(record[field])
             if not value:
                 continue
             if value in seen[field]:
-                issues.append({"row": index, "severity": "Critical", "field": field.replace("_", " ").title(), "message": f"Duplikat dengan row {seen[field][value]}."})
+                issues.append({"row": index, "severity": "Critical", "field": field.replace("_", " ").title(), "message": f"Duplicate of row {seen[field][value]}."})
             else:
                 seen[field][value] = index
 

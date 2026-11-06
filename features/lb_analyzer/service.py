@@ -25,6 +25,10 @@ def looks_like_bigip(text: str) -> bool:
     return bool(_F5.search(text[:3_000_000]))
 
 
+# Rules that judge the ABSENCE of something a show-only capture does not print.
+DERIVED_UNJUDGEABLE = frozenset({"LB-VS-001", "LB-VS-004", "LB-VS-005", "LB-VS-007", "LB-REF-001", "LB-OBJ-001", "LB-OBJ-002"})
+
+
 def analyze(content: str, filename: str = "", platform: str = "auto", today: date | None = None) -> dict[str, Any]:
     today = today or date.today()
     live = getattr(content, "live", "")                                          # a UCS merged with the capture of the same unit (bigip_ucs.merge_same_unit)
@@ -42,6 +46,13 @@ def analyze(content: str, filename: str = "", platform: str = "auto", today: dat
     bigip_enrich.enrich(tree, data, bigip_ucs.bundle_of(content), today)        # security modules, certificate details, UCS facts
     findings = bigip_rules.evaluate(tree, data, today, runtime)
     warnings: list[str] = list(tree.warnings)
+    if runtime.get("config_derived"):
+        data["config_derived"] = True
+        # A capture of 'show' commands only: the configuration was rebuilt from 'show ltm virtual detail' and the field-fmt listings (virtual servers, their default
+        # pool, the pool members). Whatever that output does not print - profiles, iRules, policies, VLAN lists, SNAT, monitors in detail - is unknown, not absent.
+        findings = [f for f in findings if f["id"] not in DERIVED_UNJUDGEABLE]
+        warnings.append("This capture has no 'tmsh list' output: the configuration was rebuilt from 'show ltm virtual detail' and the 'field-fmt' listings (virtual servers, default pool and pool "
+                        "members). Rules about profiles, iRules, policies, VLAN lists, SNAT and unreferenced objects need 'tmsh list' and were not evaluated.")
     sections = bigip_sections.build_all(data, findings, warnings, today)
     sections += bigip_sections_live.live_sections(runtime)
     dns_tabs = [x for x in sections if x["group"] == "DNS (GTM)"]

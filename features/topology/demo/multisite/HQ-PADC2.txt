@@ -1,0 +1,70 @@
+set deviceconfig system hostname HQ-PADC2
+set deviceconfig system ip-address 10.10.0.32
+set deviceconfig system netmask 255.255.255.0
+set deviceconfig system default-gateway 10.10.0.1
+set deviceconfig system dns-setting servers primary 10.10.0.5
+set deviceconfig system ntp-servers primary-ntp-server ntp-server-address 10.10.0.5
+set deviceconfig system timezone Asia/Jakarta
+set deviceconfig system domain demo.example.test
+set deviceconfig high-availability enabled yes
+set deviceconfig high-availability group group-id 1
+set deviceconfig high-availability group peer-ip 10.10.254.1
+set deviceconfig high-availability group mode active-passive
+set deviceconfig high-availability group election-option device-priority 110
+set deviceconfig high-availability group election-option preemptive yes
+set deviceconfig high-availability interface ha1 port ha1-a
+set deviceconfig high-availability interface ha1 ip-address 10.10.254.2
+set deviceconfig high-availability interface ha1 netmask 255.255.255.252
+set deviceconfig high-availability interface ha2 port ha2-a
+set network interface ethernet ethernet1/1 aggregate-group ae2
+set network interface ethernet ethernet1/1 comment "HQ-CORE1 - Eth1/14"
+set network interface ethernet ethernet1/2 aggregate-group ae2
+set network interface ethernet ethernet1/2 comment "HQ-CORE2 - Eth1/14"
+set network interface ethernet ethernet1/3 aggregate-group ae1
+set network interface ethernet ethernet1/3 comment "HQ-SF1 - Eth1/12"
+set network interface ethernet ethernet1/4 aggregate-group ae1
+set network interface ethernet ethernet1/4 comment "HQ-SF2 - Eth1/12"
+set network interface aggregate-ethernet ae1 layer3 lacp enable yes
+set network interface aggregate-ethernet ae1 layer3 lacp mode active
+set network interface aggregate-ethernet ae1 layer3 interface-management-profile MGMT-PING
+set network interface aggregate-ethernet ae1 comment "Server farm vPC (SF1/SF2)"
+set network interface aggregate-ethernet ae2 layer3 lacp enable yes
+set network interface aggregate-ethernet ae2 layer3 lacp mode active
+set network interface aggregate-ethernet ae2 layer3 interface-management-profile MGMT-PING
+set network interface aggregate-ethernet ae2 comment "Core vPC (CORE1/CORE2)"
+set network interface aggregate-ethernet ae1 layer3 units ae1.101 tag 101
+set network interface aggregate-ethernet ae1 layer3 units ae1.101 ip 10.10.101.1/24
+set network interface aggregate-ethernet ae1 layer3 units ae1.101 interface-management-profile MGMT-PING
+set network interface aggregate-ethernet ae1 layer3 units ae1.101 comment "VLAN 101 dc-web servers"
+set network interface aggregate-ethernet ae1 layer3 units ae1.102 tag 102
+set network interface aggregate-ethernet ae1 layer3 units ae1.102 ip 10.10.102.1/24
+set network interface aggregate-ethernet ae1 layer3 units ae1.102 interface-management-profile MGMT-PING
+set network interface aggregate-ethernet ae1 layer3 units ae1.102 comment "VLAN 102 dc-app servers"
+set network interface aggregate-ethernet ae1 layer3 units ae1.103 tag 103
+set network interface aggregate-ethernet ae1 layer3 units ae1.103 ip 10.10.103.1/24
+set network interface aggregate-ethernet ae1 layer3 units ae1.103 interface-management-profile MGMT-PING
+set network interface aggregate-ethernet ae1 layer3 units ae1.103 comment "VLAN 103 dc-db servers"
+set network interface aggregate-ethernet ae2 layer3 units ae2.902 tag 902
+set network interface aggregate-ethernet ae2 layer3 units ae2.902 ip 10.10.252.1/29
+set network interface aggregate-ethernet ae2 layer3 units ae2.902 interface-management-profile MGMT-PING
+set network interface aggregate-ethernet ae2 layer3 units ae2.902 comment "TRANSIT to CORE"
+set network profiles interface-management-profile MGMT-PING ping yes
+set network virtual-router default interface [ ae1.101 ae1.102 ae1.103 ae2.902 ]
+set zone DC-WEB network layer3 [ ae1.101 ]
+set zone DC-APP network layer3 [ ae1.102 ]
+set zone DC-DB network layer3 [ ae1.103 ]
+set zone TRANSIT-CORE network layer3 [ ae2.902 ]
+set network virtual-router default protocol ospf router-id 10.10.255.22
+set network virtual-router default protocol ospf enable yes
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae2.902 enable yes
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae2.902 metric 10
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae2.902 link-type broadcast
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1.101 enable yes
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1.101 metric 10
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1.101 passive yes
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1.102 enable yes
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1.102 metric 10
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1.102 passive yes
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1.103 enable yes
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1.103 metric 10
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1.103 passive yes

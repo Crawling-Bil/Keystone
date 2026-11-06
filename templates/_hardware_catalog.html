@@ -29,7 +29,7 @@
         <button type="button" class="hw-expand" data-hw-action="collapse">Collapse all</button>
         <span class="hw-hint">Vendor &rsaquo; product line / OS &rsaquo; series &rsaquo; model</span>
     </div>
-    <div class="hw-tree" role="tree">
+    <div class="hw-tree">
     {% for vendor in hardware_tree %}
         <details class="hw-node hw-vendor" data-level="vendor">
             <summary><span class="hw-node-name">{{ vendor.name }}</span><span class="hw-node-count">{{ vendor.count }} model{{ '' if vendor.count == 1 else 's' }}</span></summary>

@@ -1,0 +1,115 @@
+{
+ "baseline": {
+  "checks": [
+   {
+    "check": "NTP servers",
+    "expected": "ntp.toyota.astra.co.id, 0.id.pool.ntp.org, 1.id.pool.ntp.org, 2.id.pool.ntp.org, 3.id.pool.ntp.org",
+    "found": "ntp.toyota.astra.co.id, 0.id.pool.ntp.org, 1.id.pool.ntp.org, 2.id.pool.ntp.org, 3.id.pool.ntp.org",
+    "id": "SW-BASE-001",
+    "status": "pass"
+   },
+   {
+    "check": "Syslog hosts",
+    "expected": "10.85.80.187",
+    "found": "10.85.80.187",
+    "id": "SW-BASE-002",
+    "status": "pass"
+   },
+   {
+    "check": "AAA: local users only",
+    "expected": "local users only",
+    "found": "local only",
+    "id": "SW-BASE-003",
+    "status": "pass"
+   },
+   {
+    "check": "DNS removed",
+    "expected": "no DNS configuration",
+    "found": "dns server 192.0.2.53",
+    "id": "SW-BASE-004",
+    "status": "fail"
+   },
+   {
+    "check": "Spanning-tree mode",
+    "expected": "vbst",
+    "found": "rstp",
+    "id": "SW-BASE-005",
+    "status": "fail"
+   },
+   {
+    "check": "SNMP version",
+    "expected": "v2c, v3",
+    "found": "v2c, v3",
+    "id": "SW-BASE-006",
+    "status": "pass"
+   }
+  ],
+  "failed": 2,
+  "key": "tam_standard",
+  "name": "TAM Standard",
+  "passed": 4
+ },
+ "cards": {
+  "acl_count": 0,
+  "arp_entries": 0,
+  "default_route": "",
+  "dhcp_pool_count": 0,
+  "dhcp_snooping_enabled": false,
+  "dns_servers": 0,
+  "findings_high": 0,
+  "findings_medium": 2,
+  "findings_total": 4,
+  "has_custom_routing": false,
+  "health_attention": 1,
+  "health_findings": 2,
+  "interfaces_admin_down": 0,
+  "interfaces_down": 0,
+  "interfaces_unknown": 1,
+  "interfaces_up": 0,
+  "l3_finding_count": 0,
+  "l3_interface_count": 1,
+  "local_users": 0,
+  "mac_entries": 0,
+  "neighbor_count": 0,
+  "ospf_status": "Not configured",
+  "poe_port_count": 0,
+  "port_channel_count": 0,
+  "stack_mode": "Unknown",
+  "stp_broken_ports": 0,
+  "stp_instances": 0,
+  "total_interfaces": 1,
+  "total_routes": 0,
+  "total_vlans": 0,
+  "transceiver_count": 0,
+  "trunk_count": 0,
+  "vpc_mlag_count": 0
+ },
+ "findings": [
+  {
+   "id": "SW-BASE-005",
+   "object": "TAM Standard",
+   "severity": "medium",
+   "title": "Spanning-tree mode differs from TAM Standard"
+  },
+  {
+   "id": "SW-SNMP-005",
+   "object": "",
+   "severity": "medium",
+   "title": "SNMP is not restricted by an ACL"
+  },
+  {
+   "id": "SW-BASE-004",
+   "object": "TAM Standard",
+   "severity": "low",
+   "title": "DNS configured, but TAM Standard has no DNS"
+  },
+  {
+   "id": "SW-SNMP-001",
+   "object": "",
+   "severity": "low",
+   "title": "1 SNMP v1/v2c community string(s)"
+  }
+ ],
+ "hostname": "HW1",
+ "vendor": "Huawei"
+}

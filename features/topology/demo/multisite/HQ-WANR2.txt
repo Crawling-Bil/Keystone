@@ -1,0 +1,231 @@
+HQ-WANR2#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], ASR1001-X Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.9.4a
+cisco ASR1001-X (1RU) processor with 1795979K/6147K bytes of memory.
+Processor board ID FXS2412Q0W2
+HQ-WANR2 uptime is 16 weeks, 2 days, 4 hours, 12 minutes
+
+HQ-WANR2#show inventory
+NAME: "Chassis",  DESCR: "ASR1001-X"
+PID: ASR1001-X         ,  VID: V01 ,  SN: FXS2412Q0W2
+
+HQ-WANR2#show running-config
+Building configuration...
+
+Current configuration : 9812 bytes
+!
+version 17.9
+service timestamps log datetime msec
+!
+hostname HQ-WANR2
+!
+no aaa new-model
+ip routing
+
+ip domain name demo.example.test
+lldp run
+cdp run
+!
+interface Loopback0
+ ip address 10.10.255.6 255.255.255.255
+ ip ospf 1 area 0
+!
+interface GigabitEthernet0/0/0
+ description to HQ-EDGE1 Eth1/22 (OSPF)
+ ip address 10.10.241.10 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+!
+interface GigabitEthernet0/0/1
+ description to HQ-EDGE2 Eth1/22 (OSPF)
+ ip address 10.10.241.14 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+!
+interface GigabitEthernet0/0/2
+ description MPLS ICON+ (BGP AS 64703)
+ ip address 192.0.2.2 255.255.255.252
+!
+interface GigabitEthernet0/0/3
+ description MPLS TRIGATRA (BGP AS 64704)
+ ip address 198.18.0.2 255.255.255.252
+!
+router ospf 1
+ router-id 10.10.255.6
+ log-adjacency-changes
+ redistribute bgp 65010 subnets metric 100 metric-type 2
+ passive-interface GigabitEthernet0/0/2
+ passive-interface GigabitEthernet0/0/3
+!
+router bgp 65010
+ bgp router-id 10.10.255.6
+ bgp log-neighbor-changes
+ neighbor 192.0.2.1 remote-as 64703
+ neighbor 192.0.2.1 description MPLS ICON+ PE
+ neighbor 198.18.0.1 remote-as 64704
+ neighbor 198.18.0.1 description MPLS TRIGATRA PE
+ !
+ address-family ipv4
+  network 10.10.0.0 mask 255.255.0.0
+  network 10.0.0.0 mask 255.0.0.0
+  network 0.0.0.0 mask 0.0.0.0
+  neighbor 192.0.2.1 activate
+  neighbor 198.18.0.1 activate
+ exit-address-family
+!
+ip route 10.10.0.0 255.255.0.0 Null0
+ip route 10.0.0.0 255.0.0.0 Null0
+line vty 0 15
+ transport input ssh
+!
+end
+
+HQ-WANR2#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        U - in use      N - not in use, no aggregation
+
+Number of channel-groups in use: 0
+Number of aggregators:           0
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+
+
+HQ-WANR2#show cdp neighbors detail
+-------------------------
+Device ID:HQ-EDGE1(FDO2412ED1)
+Entry address(es): 
+  IP address: 10.10.0.13
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: GigabitEthernet0/0/0,  Port ID (outgoing port): Ethernet1/22
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.13
+-------------------------
+Device ID:HQ-EDGE2(FDO2412ED2)
+Entry address(es): 
+  IP address: 10.10.0.14
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: GigabitEthernet0/0/1,  Port ID (outgoing port): Ethernet1/22
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.14
+
+HQ-WANR2#show lldp neighbors detail
+------------------------------------------------
+Local Intf: Gi0/0/0
+Chassis id: 0a1b.0000.0003
+Port id: Eth1/22
+Port Description: Ethernet1/22
+System Name: HQ-EDGE1
+
+System Description: 
+N9K-C93180YC-FX3 edge
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.10.0.13
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi0/0/1
+Chassis id: 0a1b.0000.0004
+Port id: Eth1/22
+Port Description: Ethernet1/22
+System Name: HQ-EDGE2
+
+System Description: 
+N9K-C93180YC-FX3 edge
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.10.0.14
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+
+Total entries displayed: 2
+HQ-WANR2#show interfaces status
+
+Port      Name               Status       Vlan       Duplex  Speed Type
+Gi0/0/0   to HQ-EDGE1 Eth1/2 connected    routed     a-full  10G    10/100/1000BaseTX
+Gi0/0/1   to HQ-EDGE2 Eth1/2 connected    routed     a-full  10G    10/100/1000BaseTX
+
+HQ-WANR2#show ip interface brief
+Interface                  IP-Address      OK? Method Status                Protocol
+Loopback0                 10.10.255.6     YES manual up                    up
+GigabitEthernet0/0/0      10.10.241.10    YES manual up                    up
+GigabitEthernet0/0/1      10.10.241.14    YES manual up                    up
+GigabitEthernet0/0/2      192.0.2.2       YES manual up                    up
+GigabitEthernet0/0/3      198.18.0.2      YES manual up                    up
+
+HQ-WANR2#show ip route
+Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP
+       D - EIGRP, O - OSPF, IA - OSPF inter area, E1/E2 - OSPF external type 1/2
+
+Gateway of last resort is 10.10.241.9 to network 0.0.0.0
+
+O        10.10.110.0/24 [110/20] via 10.10.241.9, 3d04h, Gi0/0/0
+O        10.10.110.0/24 [110/20] via 10.10.241.13, 3d04h, Gi0/0/1
+O        10.10.199.0/24 [110/20] via 10.10.241.9, 3d04h, Gi0/0/0
+O        10.10.199.0/24 [110/20] via 10.10.241.13, 3d04h, Gi0/0/1
+O        10.10.101.0/24 [110/20] via 10.10.241.9, 3d04h, Gi0/0/0
+O        10.10.101.0/24 [110/20] via 10.10.241.13, 3d04h, Gi0/0/1
+O        10.10.102.0/24 [110/20] via 10.10.241.9, 3d04h, Gi0/0/0
+O        10.10.102.0/24 [110/20] via 10.10.241.13, 3d04h, Gi0/0/1
+O        10.10.103.0/24 [110/20] via 10.10.241.9, 3d04h, Gi0/0/0
+O        10.10.103.0/24 [110/20] via 10.10.241.13, 3d04h, Gi0/0/1
+O        10.10.253.0/29 [110/20] via 10.10.241.9, 3d04h, Gi0/0/0
+O        10.10.253.0/29 [110/20] via 10.10.241.13, 3d04h, Gi0/0/1
+O*E2     0.0.0.0/0 [110/1] via 10.10.241.9, 3d04h, Gi0/0/0
+O*E2     0.0.0.0/0 [110/1] via 10.10.241.13, 3d04h, Gi0/0/1
+B        10.102.0.0/16 [20/0] via 192.0.2.1, 3d04h, Gi0/0/2
+B        10.104.0.0/16 [20/0] via 192.0.2.1, 3d04h, Gi0/0/2
+B        10.106.0.0/16 [20/0] via 192.0.2.1, 3d04h, Gi0/0/2
+B        10.103.0.0/16 [20/0] via 198.18.0.1, 3d04h, Gi0/0/3
+B        10.104.0.0/16 [20/0] via 198.18.0.1, 3d04h, Gi0/0/3
+B        10.105.0.0/16 [20/0] via 198.18.0.1, 3d04h, Gi0/0/3
+
+HQ-WANR2#show ip ospf neighbor
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+10.10.255.3       1   FULL/BDR         00:00:33    10.10.241.9     Gi0/0/0
+10.10.255.4       1   FULL/DR         00:00:33    10.10.241.13    Gi0/0/1
+
+HQ-WANR2#show ip bgp summary
+BGP router identifier 10.10.255.6, local AS number 65010
+BGP table version is 17, main routing table version 17
+2 network entries using 496 bytes of memory
+
+Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+192.0.2.1       4      64703    1432    1429        17    0    0 3d04h            3
+198.18.0.1      4      64704    1432    1429        17    0    0 3d04h            3
+
+HQ-WANR2#

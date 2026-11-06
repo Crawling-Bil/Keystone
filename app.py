@@ -16,6 +16,8 @@ from features.wireless_center.routes import bp as wireless_bp
 from features.router_analyzer.routes import bp as router_analyzer_bp
 from features.firewall_analyzer.routes import bp as firewall_analyzer_bp
 from features.lb_analyzer.routes import bp as lb_analyzer_bp
+from features.topology import routes as topology_routes
+from features.topology.retention import prune_runs
 from features.topology.routes import bp as topology_bp
 from features.switch_analyzer.routes import bp as switch_analyzer_bp
 from features.ztp.routes import bp as ztp_bp
@@ -35,6 +37,12 @@ CLEANUP_DIRS = [
     BASE_DIR / "uploads",
     BASE_DIR / "features" / "lifecycle_manager" / "backups",
 ]
+
+# Topology Builder writes one folder (about 2 MB) to exports/topology for every build. A run is only needed while its page
+# is open (downloads, path trace) and by the Topology history panel, so those folders are kept to the newest TOPOLOGY_KEEP_RUNS and to TOPOLOGY_MAX_AGE_DAYS (pinned runs are never removed),
+# at startup and after every build. See features/topology/retention.py.
+TOPOLOGY_KEEP_RUNS = 20
+TOPOLOGY_MAX_AGE_DAYS = 30
 
 
 def _get_or_create_secret_key() -> str:
@@ -62,22 +70,49 @@ def _get_or_create_secret_key() -> str:
         return secrets.token_hex(32)
 
 
+def _sweep_directory(directory: Path, cutoff: float, skip: tuple[Path, ...] = ()) -> None:
+    """Delete files older than ``cutoff`` below ``directory`` and the sub-folders that are empty and not newer than ``cutoff``.
+    ``directory`` itself and ``.gitkeep`` stay. Anything below a path in ``skip`` is left alone (exports/topology has its own rules:
+    runs a person pinned must keep every file)."""
+    entries = [p for p in directory.rglob("*") if not any(p == s or s in p.parents for s in skip)]
+    old_folders = []
+    for path in entries:                                     # read the folder times before deleting: removing a file refreshes its folder
+        try:
+            if path.is_dir() and not path.is_symlink() and path.stat().st_mtime < cutoff:
+                old_folders.append(path)
+        except OSError:
+            continue
+    for path in entries:
+        try:
+            if path.is_file() and path.name != ".gitkeep" and path.stat().st_mtime < cutoff:
+                path.unlink(missing_ok=True)
+        except OSError:
+            continue
+    for folder in sorted(old_folders, key=lambda p: len(p.parts), reverse=True):    # deepest first, so a parent empties after its children
+        try:
+            folder.rmdir()                                   # fails, as wanted, while anything is inside
+        except OSError:
+            continue
+
+
 def _sweep_stale_files() -> None:
-    """Best-effort startup cleanup of old generated files. Never raises —
+    """Best-effort startup cleanup of old generated files and the empty folders they leave. Never raises —
     a failure here should not prevent the app from starting."""
     cutoff = time.time() - (CLEANUP_MAX_AGE_DAYS * 86400)
     for directory in CLEANUP_DIRS:
         try:
-            if not directory.exists():
-                continue
-            for path in directory.rglob("*"):
-                try:
-                    if path.is_file() and path.stat().st_mtime < cutoff:
-                        path.unlink(missing_ok=True)
-                except OSError:
-                    continue
+            if directory.exists():
+                _sweep_directory(directory, cutoff, skip=(topology_routes.EXPORT_DIR,))
         except OSError:
             continue
+
+
+def _prune_topology_exports() -> None:
+    """Keep exports/topology to the newest runs (never raises)."""
+    try:
+        prune_runs(topology_routes.EXPORT_DIR, keep=TOPOLOGY_KEEP_RUNS, max_age_days=TOPOLOGY_MAX_AGE_DAYS)
+    except Exception:                                        # noqa: BLE001 - housekeeping must not stop the app
+        pass
 
 
 def create_app() -> Flask:
@@ -99,7 +134,9 @@ def create_app() -> Flask:
     )
 
     initialize()
+    _prune_topology_exports()
     _sweep_stale_files()
+    app.config.update(TOPOLOGY_KEEP_RUNS=TOPOLOGY_KEEP_RUNS, TOPOLOGY_MAX_AGE_DAYS=TOPOLOGY_MAX_AGE_DAYS)
     local_guard.register(app)
     app.register_blueprint(configuration_bp)
     app.register_blueprint(convert_pages_bp)

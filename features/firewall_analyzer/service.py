@@ -16,7 +16,7 @@ from typing import Any
 from ..analyzer_core.findings import severity_counts, sort_findings
 from ..analyzer_core.result import card, info_rows, kv_section, new_result, table_section
 from ..analyzer_core.vendor_hint import wrong_page_hint
-from . import forti_extra, forti_extract, forti_rules, forti_runtime, forti_sections, forti_switch, legacy, panos_capture, scope
+from . import forti_extra, forti_extract, forti_rules, forti_runtime, forti_sections, forti_switch, legacy, panorama_analyze, panorama_parse, panos_capture, scope
 from .forti_resolve import Resolver
 from .forti_tree import parse_forti
 
@@ -50,6 +50,21 @@ def _wrong_page_hint(text: str) -> str:
 
 
 def analyze(content: str, filename: str = "", platform: str = "auto", today: date | None = None) -> dict[str, Any]:
+    """The analysis of one upload; a Panorama and the firewalls it manages that were matched together (``panorama_fusion``) carry what was matched into the result."""
+    result = _analyze(content, filename, platform, today)
+    if getattr(content, "role", ""):
+        from . import panorama_fusion
+        panorama_fusion.decorate(result, content)
+    return result
+
+
+def _analyze(content: str, filename: str = "", platform: str = "auto", today: date | None = None) -> dict[str, Any]:
+    if platform in ("auto", "paloalto") and panorama_parse.looks_like_panorama(content):
+        try:
+            return panorama_analyze.analyze(content, filename, today)
+        except ValueError as exc:                                          # well-formed XML that is not a Panorama export falls through to the firewall path
+            if "not a Panorama" not in str(exc):
+                raise
     vendor = platform if platform in ("fortigate", "fortiswitch", "paloalto", "mikrotik") else detect_vendor(content)
     if not vendor:
         raise ValueError(

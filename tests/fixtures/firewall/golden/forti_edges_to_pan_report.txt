@@ -1,0 +1,63 @@
+Conversion report
+
+interfaces: 2 read, 4 written, 0 approximated, 1 to review, 0 not converted
+objects: 1 read, 2 written, 0 approximated, 0 to review, 0 not converted
+policies: 6 read, 6 written, 0 approximated, 11 to review, 1 not converted
+
+[Not converted] policies / recurring schedules firewall schedule recurring: recurring schedules are not converted by this converter; rebuild them on the target. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] interfaces / interface plan physical ports: Ports were assigned to PAN-OS slots in the order of the source: port1 -> ethernet1/1; port2 -> ethernet1/2. Check it against the cabling and give a mapping to change it. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy sched: Schedule work is not converted (create a PAN-OS schedule object and attach it); until then the rule is written disabled so it is not always on. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy users: User and group matches need User-ID on PAN-OS; the rule is written disabled until the users are mapped. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy app: Security profiles (application-list) are not converted; the rule allows the same traffic but without that inspection until PAN-OS profiles are attached. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy isdb: Internet Service (ISDB) objects are not converted; match the same destinations with an external dynamic list or a PAN-OS application. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / address NOPE (ghost): Address NOPE could not be converted (unknown object or a type PAN-OS has no counterpart for); it was left out of the rule. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / service NOPE-SVC (ghost): Predefined service NOPE-SVC is not in the converter's table of FortiGate services; it was left out of the rule. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy sched: Written DISABLED: schedule work. Enabling it as it is would allow more than the source rule did. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy users: Written DISABLED: user / group match. Enabling it as it is would allow more than the source rule did. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy app: Written DISABLED: application control. Enabling it as it is would allow more than the source rule did. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy isdb: Written DISABLED: Internet Service object. Enabling it as it is would allow more than the source rule did. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] policies / policy ghost: Written DISABLED: address NOPE not converted; service NOPE-SVC not converted. Enabling it as it is would allow more than the source rule did. (https://docs.paloaltonetworks.com/pan-os)
+
+Conversion report
+
+interfaces: 2 read, 4 written, 0 approximated, 1 to review, 0 not converted
+objects: 2 read, 5 written, 0 approximated, 0 to review, 1 not converted
+nat: 6 read, 4 written, 0 approximated, 2 to review, 2 not converted
+policies: 4 read, 4 written, 0 approximated, 2 to review, 0 not converted
+
+[Not converted] nat / VIP VIP-LB: VIP type load-balance (load-balance, fqdn, access-proxy, ...) is not converted; policies that use it lose that destination. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Not converted] nat / VIP VIP-NOMAP: The VIP has no mapped address. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Not converted] objects / address HOST-MAC: Address type mac (interface-subnet, mac, dynamic, wildcard-fqdn and so on) has no PAN-OS address object; objects that use it were left out of their rules. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] interfaces / interface plan physical ports: Ports were assigned to PAN-OS slots in the order of the source: port1 -> ethernet1/1; port2 -> ethernet1/2. Check it against the cabling and give a mapping to change it. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] nat / VIP VIP-RANGE: Mapped range 10.1.0.20-10.1.0.22: PAN-OS translates to one address or an address object; the first address is used. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Needs review] nat / VIP VIP-RANGE: The VIP's source filter is not converted; the destination NAT rule matches any source. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Needs review] policies / address HOST-MAC (noicon): Address HOST-MAC could not be converted (unknown object or a type PAN-OS has no counterpart for); it was left out of the rule. (https://docs.fortinet.com/product/fortigate/)
+[Needs review] policies / policy noicon: Written DISABLED: address HOST-MAC not converted. Enabling it as it is would allow more than the source rule did. (https://docs.paloaltonetworks.com/pan-os)
+[Converted] nat / NAT rule VIP-WEB: VIP written as destination NAT; the security rule keeps the external (pre-NAT) address and the zone of the real server. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Converted] nat / NAT rule VIP-RANGE: VIP written as destination NAT; the security rule keeps the external (pre-NAT) address and the zone of the real server. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+
+Conversion report
+
+interfaces: 5 read, 6 written, 0 approximated, 1 to review, 0 not converted
+objects: 3 read, 3 written, 0 approximated, 0 to review, 0 not converted
+nat: 4 read, 3 written, 0 approximated, 2 to review, 0 not converted
+routes: 4 read, 4 written, 2 approximated, 0 to review, 2 not converted
+vpn: 2 read, 2 written, 0 approximated, 8 to review, 1 not converted
+
+[Not converted] routes / static route 4: A static route by Internet Service, SD-WAN zone or address object that is not a subnet is not converted. (https://docs.fortinet.com/product/fortigate/)
+[Not converted] routes / static route 5: A static route by Internet Service, SD-WAN zone or address object that is not a subnet is not converted. (https://docs.fortinet.com/product/fortigate/)
+[Not converted] vpn / tunnel T3: Peer type ddns is not converted; PAN-OS accepts an FQDN peer address, add it by hand. (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Needs review] interfaces / interface plan physical ports: Ports were assigned to PAN-OS slots in the order of the source: port1 -> ethernet1/1; port2 -> ethernet1/2; port3 -> ethernet1/3; dmz -> ethernet1/4. Check it against the cabling and give a mapping to change it. (https://docs.paloaltonetworks.com/pan-os)
+[Needs review] nat / NAT rule snat-2: The egress interface of this central SNAT entry is not one interface; pick it in the PAN-OS NAT rule. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Needs review] nat / NAT rule snat-3: The protocol and port match of the central SNAT entry is not converted. (https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)
+[Needs review] vpn / tunnel T1: IKE proposal blowfish-md5 uses an algorithm that PAN-OS does not offer; it was left out. (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Needs review] vpn / tunnel T1: The phase 2 entries use different proposals; the first one is used for the PAN-OS IPsec crypto profile. (https://docs.paloaltonetworks.com/pan-os/11-0/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-ipsec/set-up-an-ipsec-tunnel)
+[Needs review] vpn / tunnel T1: The pre-shared key is never exported by FortiOS (and never read); the PAN-OS gateway is written with the placeholder REPLACE-ME. Enter the real key on both ends. (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Needs review] vpn / tunnel T2: XAUTH, mode-config and EAP settings (remote access) are not converted. (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Needs review] vpn / tunnel T2: The tunnel has no phase 2 selector in the configuration. (https://docs.fortinet.com/document/fortigate/6.0.5/cli-reference/487941/vpn-ipsec-phase2-interface-phase2)
+[Needs review] vpn / tunnel T2: ike-version is not in the configuration (it is at its default, which depends on the FortiOS release); IKEv1 is assumed. Confirm it matches the peer. (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Needs review] vpn / tunnel T1: Certificate authentication is not converted; import the certificate and set the gateway's certificate profile. (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Needs review] vpn / tunnel T2: A dial-up (dynamic) peer is written with peer-address dynamic and passive mode; add a peer identification and the remote-access design (GlobalProtect or a fixed peer ID). (https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn/set-up-an-ike-gateway)
+[Approximated] routes / OSPF 1.1.1.1: Areas and network statements are converted to the interfaces they cover; costs, authentication, redistribution and area types are not converted. (https://docs.paloaltonetworks.com/pan-os)
+[Approximated] routes / static route 10.2.0.0/24: A disabled route is not written. (https://docs.paloaltonetworks.com/pan-os)
+[Converted] vpn / tunnel T1: 2 phase 2 selector(s) written as proxy IDs; PAN-OS matches both directions with the same pair. (https://docs.paloaltonetworks.com/network-security/ipsec-vpn/administration/get-started-with-ipsec-vpn-site-to-site/site-to-site-vpn-overview/proxy-id-for-ipsec-vpn)

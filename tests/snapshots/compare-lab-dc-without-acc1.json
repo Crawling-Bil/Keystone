@@ -1,0 +1,148 @@
+{
+ "rows": [
+  {
+   "after": "no (seen by neighbors)",
+   "area": "Devices",
+   "before": "yes",
+   "change": "changed",
+   "field": "captured",
+   "impact": "attention",
+   "item": "LAB-ACC1",
+   "why": "no longer captured: its own tables are missing from the second run"
+  },
+  {
+   "after": "",
+   "area": "Devices",
+   "before": "17.12.5",
+   "change": "changed",
+   "field": "os_version",
+   "impact": "info",
+   "item": "LAB-ACC1",
+   "why": ""
+  },
+  {
+   "after": "",
+   "area": "Devices",
+   "before": "1",
+   "change": "changed",
+   "field": "stack_members",
+   "impact": "info",
+   "item": "LAB-ACC1",
+   "why": ""
+  },
+  {
+   "after": "single",
+   "area": "Links",
+   "before": "confirmed",
+   "change": "changed",
+   "field": "state",
+   "impact": "attention",
+   "item": "LAB-ACC1 Gi1/0/23 - LAB-AGG1 Eth1/1",
+   "why": "the link is now seen from fewer ends, or the two ends disagree"
+  },
+  {
+   "after": "",
+   "area": "Links",
+   "before": "Po40",
+   "change": "changed",
+   "field": "bundle at LAB-ACC1 Gi1/0/23",
+   "impact": "attention",
+   "item": "LAB-ACC1 Gi1/0/23 - LAB-AGG1 Eth1/1",
+   "why": "the port is no longer a member of a port-channel"
+  },
+  {
+   "after": "single",
+   "area": "Links",
+   "before": "confirmed",
+   "change": "changed",
+   "field": "state",
+   "impact": "attention",
+   "item": "LAB-ACC1 Gi1/0/24 - LAB-AGG2 Eth1/1",
+   "why": "the link is now seen from fewer ends, or the two ends disagree"
+  },
+  {
+   "after": "",
+   "area": "Links",
+   "before": "Po40",
+   "change": "changed",
+   "field": "bundle at LAB-ACC1 Gi1/0/24",
+   "impact": "attention",
+   "item": "LAB-ACC1 Gi1/0/24 - LAB-AGG2 Eth1/1",
+   "why": "the port is no longer a member of a port-channel"
+  },
+  {
+   "after": "LAB-ACC1, LAB-FW1",
+   "area": "Findings",
+   "before": "LAB-FW1",
+   "change": "changed",
+   "field": "devices",
+   "impact": "info",
+   "item": "TOPO-004 2 network device(s) advertised by neighbors but not captured",
+   "why": "the finding is still reported, for other devices"
+  },
+  {
+   "after": "LAB-AGG2",
+   "area": "Findings",
+   "before": "LAB-ACC1, LAB-AGG2",
+   "change": "changed",
+   "field": "devices",
+   "impact": "info",
+   "item": "TOPO-013 1 capture(s) without 'show lldp neighbors detail'",
+   "why": "the finding is still reported, for other devices"
+  }
+ ],
+ "summary": {
+  "after": {
+   "devices": 4,
+   "findings": 2,
+   "hosts": 0,
+   "links": 5
+  },
+  "areas": {
+   "Behind devices": {
+    "added": 0,
+    "changed": 0,
+    "removed": 0,
+    "same": 0
+   },
+   "Devices": {
+    "added": 0,
+    "captured_in_both": 2,
+    "changed": 1,
+    "removed": 0,
+    "same": 3
+   },
+   "Findings": {
+    "added": 0,
+    "changed": 2,
+    "resolved": 0,
+    "same": 0
+   },
+   "Hosts": {
+    "added": 0,
+    "changed": 0,
+    "moved": 0,
+    "removed": 0,
+    "same": 0
+   },
+   "Links": {
+    "added": 0,
+    "changed": 2,
+    "moved": 0,
+    "removed": 0,
+    "same": 3
+   }
+  },
+  "attention": 5,
+  "before": {
+   "devices": 4,
+   "findings": 2,
+   "hosts": 0,
+   "links": 5
+  },
+  "captured_in_both": 2,
+  "differences": 5,
+  "truncated": {},
+  "verdict": "attention"
+ }
+}

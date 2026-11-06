@@ -25,6 +25,7 @@ tmsh list gtm global-settings metrics
 tmsh list ltm profile dns all-properties
 tmsh list ltm virtual all-properties
 tmsh list ltm virtual-address all-properties
+tmsh list auth user
 
 # ---- DNS Express, resolvers and DNSSEC (zone names, key names and public keys only).
 tmsh list ltm dns zone
@@ -70,5 +71,11 @@ tmsh show sys performance gtm
 tmsh show sys performance dnsexpress
 tmsh show sys performance dnssec
 tmsh show net interface
+tmsh show net trunk
+tmsh show net vlan
+tmsh show ltm virtual detail
 # tmsh show net lldp-neighbors
+# tmsh list net self
+# tmsh list net vlan
+# tmsh list net route
 # tmsh show sys performance all-stats

@@ -460,7 +460,8 @@
         1px solid var(--border);
 }
 
-.ops-css .card-header h3 {
+.ops-css .card-header h3,
+.ops-css .card-header h2 {
     margin-bottom: 3px;
 
     color: var(--text);
@@ -886,7 +887,7 @@
 
 .ops-css .ztp-activity-log .empty-state {
     background: transparent;
-    color: #8a93a6;
+    color: var(--muted);
 }
 
 .ops-css .ztp-activity-entry {
@@ -929,7 +930,7 @@
     letter-spacing: 0.03em;
 
     background: #2d333b;
-    color: #8a93a6;
+    color: var(--muted);
 }
 
 .ops-css .ztp-activity-entry-esn {
@@ -997,7 +998,7 @@
     margin: 8px 0 0;
     font-size: 12px;
     line-height: 1.5;
-    color: var(--text-muted, #8a93a6);
+    color: var(--muted);
 }
 
 .ops-css .form-group {
@@ -1012,7 +1013,7 @@
 }
 
 .ops-css .form-group label {
-    color: #435765;
+    color: var(--label);
 
     font-size: 11px;
     font-weight: 600;
@@ -1574,7 +1575,7 @@
 .ops-css .review-job-name label {
     display: block;
     margin-bottom: 6px;
-    color: #435765;
+    color: var(--label);
     font-size: 11px;
     font-weight: 600;
 }
@@ -1898,7 +1899,8 @@
     font-size: 13px;
 }
 
-.ops-css .card-header h3 {
+.ops-css .card-header h3,
+.ops-css .card-header h2 {
     font-size: 16px;
 }
 
@@ -2048,7 +2050,8 @@
     font-size: 14px !important;
 }
 
-.ops-css .card-header h3 {
+.ops-css .card-header h3,
+.ops-css .card-header h2 {
     font-size: 17px !important;
 }
 
@@ -2168,7 +2171,7 @@
 }
 
 .ops-css .execution-log-line span {
-    color: #7f9bad;
+    color: var(--muted);
 }
 
 .ops-css .execution-log-line.error strong {
@@ -2269,7 +2272,7 @@
 
 .ops-css .live-command-row .live-command-output {
     grid-column: 2;
-    color: #7f9bad;
+    color: var(--muted);
     font-size: 11.5px;
     white-space: pre-wrap;
     word-break: break-word;
@@ -2278,7 +2281,7 @@
 
 .ops-css .live-command-empty {
     padding: 10px 16px;
-    color: #7f9bad;
+    color: var(--muted);
     font-size: 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -2363,7 +2366,7 @@
 
 .ops-css .live-logs-console-empty {
     padding: 60px 20px;
-    color: #81919c;
+    color: var(--muted);
     text-align: center;
     font-size: 12px;
 }
@@ -2414,7 +2417,7 @@
 }
 
 .ops-css .live-logs-device-head span {
-    color: #7f9bad;
+    color: var(--muted);
     font-size: 11px;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -2624,7 +2627,7 @@
     color: var(--text);
     background: var(--panel-2);
 }
-.ops-css #lifecycle-scope .card-header h3,.ops-css #lifecycle-scope .job-card-header strong,.ops-css #lifecycle-scope .precheck-title,.ops-css #lifecycle-scope .precheck-item strong,.ops-css #lifecycle-scope .assignment-device strong,.ops-css #lifecycle-scope .assignment-info strong,.ops-css #lifecycle-scope .review-device strong,.ops-css #lifecycle-scope .review-job-name label { color: var(--text); }
+.ops-css #lifecycle-scope .card-header h3,.ops-css #lifecycle-scope .card-header h2,.ops-css #lifecycle-scope .job-card-header strong,.ops-css #lifecycle-scope .precheck-title,.ops-css #lifecycle-scope .precheck-item strong,.ops-css #lifecycle-scope .assignment-device strong,.ops-css #lifecycle-scope .assignment-info strong,.ops-css #lifecycle-scope .review-device strong,.ops-css #lifecycle-scope .review-job-name label { color: var(--text); }
 .ops-css #lifecycle-scope .card-header p,.ops-css #lifecycle-scope .job-card-header span,.ops-css #lifecycle-scope .precheck-item span,.ops-css #lifecycle-scope .assignment-device span,.ops-css #lifecycle-scope .assignment-info span,.ops-css #lifecycle-scope .review-device span,.ops-css #lifecycle-scope .job-progress-info { color: var(--muted); }
 
 .ops-css #lifecycle-scope table { color: var(--text-soft); background: var(--panel); }
@@ -2703,7 +2706,7 @@
 .ops-css #lifecycle-scope .stat-value { color: var(--text); font: 620 27px/1.15 "Archivo NES", sans-serif; }
 .ops-css #lifecycle-scope .content-card,.ops-css #lifecycle-scope .job-card,.ops-css #lifecycle-scope .precheck-item,.ops-css #lifecycle-scope .firmware-assignment,.ops-css #lifecycle-scope .review-device,.ops-css #lifecycle-scope .precheck-raw-item { box-shadow: none; }
 .ops-css #lifecycle-scope .card-header { padding: 18px 20px; }
-.ops-css #lifecycle-scope .card-header h3 { font-family: "Archivo NES", sans-serif; font-weight: 620; letter-spacing: -.015em; }
+.ops-css #lifecycle-scope .card-header h3, .ops-css #lifecycle-scope .card-header h2 { font-family: "Archivo NES", sans-serif; font-weight: 620; letter-spacing: -.015em; }
 .ops-css .button { border-radius: 8px; font-family: "Archivo NES", sans-serif; font-size: 12px; font-weight: 650; }
 .ops-css .button-primary:hover { box-shadow: 0 3px 10px color-mix(in srgb, var(--blue) 24%, transparent); }
 .ops-css #lifecycle-scope input,.ops-css #lifecycle-scope select,.ops-css #lifecycle-scope textarea { background: var(--panel); font-family: "Atkinson NES", sans-serif; }
@@ -2728,7 +2731,7 @@
 
 .ops-css .live-logs-rail-section-label {
     padding: 10px 14px 4px;
-    color: #7f9bad;
+    color: var(--muted);
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.06em;

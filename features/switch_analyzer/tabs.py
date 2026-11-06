@@ -18,8 +18,6 @@ from . import coverage
 # tab key -> (label, coverage spec keys that fill it)
 TAB_ORDER: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("overview", "Overview", ()),
-    ("findings", "Findings", ()),
-    ("health", "Health", ("stp_summary", "lacp", "env", "licence")),
     ("interfaces", "Interfaces", ("interfaces",)),
     ("routing", "Routing", ("route",)),
     ("arp", "ARP", ("arp",)),
@@ -34,15 +32,18 @@ TAB_ORDER: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("poe", "PoE", ("poe",)),
     ("dns", "DNS", ()),
     ("snmp", "SNMP", ()),
+    ("users", "Users", ()),
     ("dhcp", "DHCP", ()),
     ("logs", "Logs", ("logs",)),
+    ("findings", "Findings", ()),
+    ("health", "Health", ("stp_summary", "lacp", "env", "licence")),
     ("coverage", "Coverage", ()),
 )
 
 
 # Tabs whose badge is a plain row count. Routing shows the routes of the device's own table, Health /
 # DNS / SNMP / DHCP show no number (their "count" would add unlike things together).
-_COUNT_TABS = frozenset({"interfaces", "arp", "mac", "vlans", "neighbors", "portchannels", "trunks", "transceivers", "vpcmlag", "poe"})
+_COUNT_TABS = frozenset({"users", "interfaces", "arp", "mac", "vlans", "neighbors", "portchannels", "trunks", "transceivers", "vpcmlag", "poe"})
 
 
 def _len(value: Any) -> int:
@@ -87,6 +88,7 @@ def _counts(result: dict[str, Any]) -> dict[str, int | None]:
         "vpcmlag": _len(vpc.get("members")) + (1 if vpc.get("summary") else 0),
         "poe": _len(result.get("poe")),
         "dns": _len(dns.get("servers")) + (1 if dns.get("domain") else 0),
+        "users": _len((result.get("local_users") or {}).get("rows")),
         "snmp": (1 if snmp.get("enabled") else 0) + _len(snmp.get("raw_commands")),
         "dhcp": (1 if snooping.get("enabled") else 0) + _len(dhcp.get("pools")) + _len(dhcp.get("helper_addresses")) + _len(snooping.get("trusted_interfaces")) + _len(snooping.get("rate_limited_interfaces")),
         "health": 1 if health_data else 0,
@@ -126,7 +128,7 @@ def build_tabs(result: dict[str, Any]) -> list[dict[str, Any]]:
             number = counts.get(key, 0) or 0
             # the Health tab judges only vendors it supports: a captured command alone does not earn the tab
             captured = key != "health" and any(spec in present for spec in spec_keys)
-            entry["has"] = bool(number) or captured or key in extra_tabs
+            entry["has"] = bool(number) or captured or key in extra_tabs or (key == "users" and bool((result.get("local_users") or {}).get("captured")))     # "no local user" is an answer once a configuration is in the capture
             if key in _COUNT_TABS:
                 entry["count"] = number or None
             elif key == "routing":

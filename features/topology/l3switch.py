@@ -74,7 +74,8 @@ def _fhrp(result: dict[str, Any]) -> list[dict[str, Any]]:
         if not vip:
             continue
         groups.append({"interface": canon_port(str(row.get("interface", ""))), "group": str(row.get("group", "")), "virtual_ip": vip, "state": str(row.get("state", "")),
-                       "priority": str(row.get("priority", "")), "active": str(row.get("active", "")), "standby": str(row.get("standby", "")), "protocol": str(row.get("protocol") or row.get("type") or "hsrp"),
+                       "priority": str(row.get("priority", "")), "version": str(row.get("version", "")), "preempt": str(row.get("preempt", "")),
+                       "hello": str(row.get("hello", "")), "hold": str(row.get("hold", "")), "active": str(row.get("active", "")), "standby": str(row.get("standby", "")), "protocol": str(row.get("protocol") or row.get("type") or "hsrp"),
                        "name": str(row.get("name", ""))})
     return groups
 

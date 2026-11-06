@@ -1,0 +1,99 @@
+DC1-CORE2# show version
+Cisco Nexus Operating System (NX-OS) Software
+  NXOS: version 10.3(5)
+  cisco Nexus9000 N9K-C93180YC-FX3 Chassis
+  Device name: DC1-CORE2
+
+DC1-CORE2# show inventory
+NAME: "Chassis",  DESCR: "Nexus9000 N9K-C93180YC-FX3 Chassis"
+PID: N9K-C93180YC-FX3    ,  VID: V01 ,  SN: FDO10000002
+
+DC1-CORE2# show running-config
+interface mgmt0
+  vrf member management
+  ip address 10.20.0.12/24
+
+DC1-CORE2# show port-channel summary
+Flags:  D - Down        P - Up in port-channel (members)
+--------------------------------------------------------------------------------
+Group Port-       Type     Protocol  Member Ports
+      Channel
+--------------------------------------------------------------------------------
+110   Po110(SU)   Eth      LACP      Eth1/10(P)
+111   Po111(SU)   Eth      LACP      Eth1/11(P)
+240   Po240(SU)   Eth      LACP      Eth1/47(P)    Eth1/48(P)
+
+DC1-CORE2# show vpc
+
+Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 240 
+Peer status                       : peer adjacency formed ok      
+vPC keep-alive status             : peer is alive                 
+Configuration consistency status  : success 
+vPC role                          : secondary
+Number of vPCs configured         : 1   
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ -------------------------------------------------
+1     Po240   up     1,10
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ------------
+101   Po101         up     success     success               1,10
+
+DC1-CORE2# show cdp neighbors detail
+
+----------------------------------------
+Device ID:DC1-CORE1.dc1.example.test(FDO10000001)
+
+Interface address(es): 1
+    IPv4 Address: 10.20.0.11
+Platform: cisco N9K-C93180YC-FX3, Capabilities: Switch IGMP
+Interface: Ethernet1/47, Port ID (outgoing port): Ethernet1/47
+Holdtime: 150 sec
+
+Version:
+Cisco test image
+
+Advertisement Version: 2
+
+Native VLAN: 10
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 10.20.0.11
+----------------------------------------
+Device ID:DC1-CORE1.dc1.example.test(FDO10000001)
+
+Interface address(es): 1
+    IPv4 Address: 10.20.0.11
+Platform: cisco N9K-C93180YC-FX3, Capabilities: Switch IGMP
+Interface: Ethernet1/48, Port ID (outgoing port): Ethernet1/48
+Holdtime: 150 sec
+
+Version:
+Cisco test image
+
+Advertisement Version: 2
+
+Native VLAN: 10
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 10.20.0.11
+
+DC1-CORE2# show lldp neighbors
+
+Capability codes:
+  (R) Router, (B) Bridge, (T) Telephone, (C) DOCSIS Cable Device
+  (W) WLAN Access Point, (P) Repeater, (S) Station, (O) Other
+Device ID            Local Intf      Hold-time  Capability  Port ID  
+DC1-FW1              Ethernet1/10    120        BR          port2  
+DC1-LB1              Ethernet1/11    120        BR          1.2  
+Total entries displayed: 2
+
+DC1-CORE2# 

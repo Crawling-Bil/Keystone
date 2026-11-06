@@ -132,6 +132,33 @@ def _vlan_rows(data: dict[str, Any], result: Device, names: dict[str, str]) -> l
     return rows
 
 
+def _arp_vlan_rows(arp: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """VLAN rows for a capture that holds ``show net arp`` but no ``net vlan``: the VLAN names the ARP table uses, how many hosts answered on each,
+    and a gateway when a Cisco HSRP virtual MAC (0000.0c07.acNN, group NN) or a VRRP one (0000.5e00.01NN) answers.  Tag, ports and self IPs are not in
+    ``show`` output, so they stay empty instead of being guessed.  HSRP: https://www.cisco.com/c/en/us/support/docs/ip/hot-standby-router-protocol-hsrp/9234-hsrpguidetoc.html"""
+    by_vlan: dict[str, list[dict[str, Any]]] = {}
+    for row in arp or []:
+        name = str(row.get("vlan") or "").rsplit("/", 1)[-1]
+        if name:
+            by_vlan.setdefault(name, []).append(row)
+    out = []
+    for name in sorted(by_vlan, key=str.lower):
+        rows = by_vlan[name]
+        answered = [r for r in rows if str(r.get("mac") or "").lower() not in ("", "incomplete")]
+        gateways = []
+        for r in answered:
+            mac = str(r["mac"]).lower().replace("-", ":")
+            if mac.startswith("00:00:0c:07:ac:"):
+                gateways.append(f"{r.get('address')} (HSRP {int(mac[-2:], 16)})")
+            elif mac.startswith("00:00:5e:00:01:"):
+                gateways.append(f"{r.get('address')} (VRRP {int(mac[-2:], 16)})")
+        note = f"ARP: {len(answered)} host(s)" + (f", {len(rows) - len(answered)} incomplete" if len(rows) > len(answered) else "")
+        if gateways:
+            note += "; gw " + ", ".join(gateways)
+        out.append({"vlan": name, "tag": "", "interfaces": [], "self_ips": [], "floating_ips": [], "route_domain": "", "description": note})
+    return out
+
+
 def device(data: dict[str, Any], runtime: dict[str, Any], source: str) -> Device:
     """The topology device of one extracted BIG-IP configuration (``bigip_extract.extract`` output) and its optional ``show`` output."""
     info = data.get("info") or {}
@@ -201,7 +228,7 @@ def device(data: dict[str, Any], runtime: dict[str, Any], source: str) -> Device
         tree = _map_nodes(data, runtime)
     except Exception:                    # the map is an addition: a configuration it cannot read still has its routed interfaces
         tree = []
-    result.l3facts["f5"] = {"map": tree, "vlans": _vlan_rows(data, result, names),
+    result.l3facts["f5"] = {"map": tree, "vlans": _vlan_rows(data, result, names) or _arp_vlan_rows(runtime.get("arp") or []),
                             "interfaces": [{"name": n, "status": str(r.get("status", "")), "media": str(r.get("media", "")), "trunk": str(r.get("trunk", ""))} for n, r in live.items() if n != "mgmt"],
                             "trunks": {k: list(v) for k, v in result.bundles.items()}, "failover": failover, "gtm": bool(data.get("gtm"))}
     return result
@@ -272,7 +299,11 @@ def read_units(text: str, source: str) -> list[Device]:
     live = getattr(text, "live", "")
     runtime = bigip_runtime.gather(live or text)
     config = (str(text) if live else runtime["config_text"]) or str(text)
-    data = bigip_extract.extract(parse_tmsh(config))
+    tree = parse_tmsh(config)
+    data = bigip_extract.extract(tree)
+    if not data.get("gtm"):
+        from ..lb_analyzer import bigip_gtm
+        data["gtm"] = bigip_gtm.extract(tree)             # the Load Balancer Analyzer adds it in bigip_enrich: without it a BIG-IP DNS unit has no wide IP map
     if data.get("vcmp_guests"):
         return guests(data, source)
     return [device(data, runtime, source)]

@@ -25,7 +25,7 @@ from xml.etree import ElementTree as ET
 
 from ..analyzer_core.findings import finding
 from ..analyzer_core.result import kv_section, table_section
-from . import panos_xml_network
+from . import panos_xml_more, panos_xml_network
 from .refs import PALO
 
 WEAK_TLS = {"tls1-0": "TLS 1.0", "tls1-1": "TLS 1.1", "sslv3": "SSL 3.0"}
@@ -99,10 +99,12 @@ def extract(content: str) -> dict[str, Any] | None:
     shared = root.find("shared")
     out: dict[str, Any] = {
         "system": _system(device), "ha": _ha(device), "certificates": _certificates(root), "tls_profiles": _tls_profiles(root),
-        "server_profiles": _server_profiles(root), "auth_profiles": _auth_profiles(root), "admins": _admins(root), "syslog": _syslog(root),
+        "server_profiles": _server_profiles(root), "auth_profiles": _auth_profiles(root), "admins": _admins(root), "local_users": _local_users(root), "admin_roles": _admin_roles(root), "syslog": _syslog(root),
         "vsys": _vsys(device), "globalprotect": _globalprotect(root),
     }
     out["log_forwarding"] = _log_forwarding(shared)
+    out["interface_address_names"] = _interface_address_names(root, device)
+    out["more_objects"] = panos_xml_more.extract(root)
     net = panos_xml_network.extract(root, device)
     out["network"] = net
     if out["system"] and net["updates"]:                                    # readable schedule instead of the bare element names
@@ -134,7 +136,8 @@ def _system(device: ET.Element | None) -> dict[str, Any]:
         "snmp_v2c": v2c is not None, "snmp_v3_users": v3_users, "snmp_location": _t(snmp, "snmp-system/location"), "snmp_contact": _t(snmp, "snmp-system/contact"),
         "services": {k.replace("disable-", ""): _t(sysnode, f"service/{k}") for k in ("disable-telnet", "disable-http", "disable-https", "disable-ssh", "disable-snmp", "disable-icmp") if _has(sysnode, f"service/{k}")},
         "update_schedule": _children_tags(updates), "update_schedule_present": updates is not None,
-        "panorama": [v for v in (_t(sysnode, "panorama-server"), _t(sysnode, "panorama-server-2")) if v],
+        "panorama": [v for v in (_t(sysnode, "panorama-server"), _t(sysnode, "panorama-server-2"), _t(sysnode, "panorama/local-panorama/panorama-server"),
+                                 _t(sysnode, "panorama/local-panorama/panorama-server-2")) if v],           # the second spelling is what PAN-OS 10.x and 11.x write
         "idle_timeout": _t(setting, "idle-timeout"), "ip_type": (_children_tags(sysnode.find("type")) or [""])[0],
     }
 
@@ -162,6 +165,21 @@ def _ha(device: ET.Element | None) -> dict[str, Any]:
         "ha1_backup": _has(node, "interface/ha1-backup/port"), "ha2_backup": _has(node, "interface/ha2-backup/port"),
         "passive_link_state": _t(group, "mode/active-passive/passive-link-state"),
     }
+
+
+_LITERAL_ADDRESS = re.compile(r"^(\d{1,3}(\.\d{1,3}){3}|[0-9A-Fa-f:]*:[0-9A-Fa-f:]+)(/\d{1,3})?$")
+
+
+def _interface_address_names(root: ET.Element, device: ET.Element | None) -> dict[str, Any]:
+    """Interface addresses given as the *name* of an address object, and how many of those objects are in this export.
+
+    PAN-OS lets a layer 3 interface take an address object instead of a literal address; on a Panorama-managed firewall the object is usually in Panorama's
+    Shared location, so the firewall's own export cannot say what the address is."""
+    if device is None:
+        return {"named": 0, "unknown": []}
+    defined = {e.get("name") for e in root.iter("entry") if e.find("ip-netmask") is not None or e.find("ip-range") is not None or e.find("fqdn") is not None}
+    named = [e.get("name", "") for e in device.findall("network/interface//ip/entry") if e.get("name") and not _LITERAL_ADDRESS.match(e.get("name", ""))]
+    return {"named": len(named), "unknown": [n for n in named if n not in defined]}
 
 
 def _certificates(root: ET.Element) -> list[dict[str, Any]]:
@@ -213,7 +231,8 @@ def _tls_profiles(root: ET.Element) -> list[dict[str, Any]]:
             minimum = _t(entry, "protocol-settings/min-version") or "tls1-0"
             out.append({"name": entry.get("name", ""), "certificate": _t(entry, "certificate"), "min_version": minimum, "min_is_default": not _has(entry, "protocol-settings/min-version"),
                         "max_version": _t(entry, "protocol-settings/max-version") or "max", "sha1": _yes(entry, "protocol-settings/auth-algo-sha1"), "rsa_kex": _yes(entry, "protocol-settings/keyxchg-algo-rsa"),
-                        "cbc": any(_yes(entry, f"protocol-settings/{k}") for k in ("enc-algo-aes-128-cbc", "enc-algo-aes-256-cbc", "enc-algo-3des"))})
+                        "cbc": any(_yes(entry, f"protocol-settings/{k}") for k in ("enc-algo-aes-128-cbc", "enc-algo-aes-256-cbc", "enc-algo-3des")),
+                        "rc4": _yes(entry, "protocol-settings/enc-algo-rc4") is True, "des3": _yes(entry, "protocol-settings/enc-algo-3des") is True})
     return out
 
 
@@ -257,6 +276,35 @@ def _admins(root: ET.Element) -> list[dict[str, Any]]:
             profile = _t(role_node, "custom/profile")
         out.append({"name": entry.get("name", ""), "role": role or "(none)", "role_profile": profile, "auth_profile": _t(entry, "authentication-profile"), "local_password": _has(entry, "phash"),
                     "client_cert_only": _yes(entry, "client-certificate-only") is True, "superuser": role.startswith("superuser")})
+    return out
+
+
+def _admin_roles(root: ET.Element) -> list[dict[str, Any]]:
+    """Custom administrator roles (``shared/admin-role``): how many features each interface (web UI, XML API, REST API, CLI) grants as enable, read-only or disable."""
+    out = []
+    for entry in root.findall("shared/admin-role/entry") + root.findall("devices/entry/admin-role/entry"):
+        role = entry.find("role")
+        kind = (_children_tags(role) or [""])[0] if role is not None else ""
+        scope = role.find(kind) if role is not None and kind else None
+        row: dict[str, Any] = {"name": entry.get("name", ""), "type": kind or "-", "description": _t(entry, "description")}
+        for part in ("webui", "xmlapi", "restapi", "cli"):
+            node = scope.find(part) if scope is not None else None
+            leaves = [(e.text or "").strip().lower() for e in node.iter() if len(e) == 0 and (e.text or "").strip()] if node is not None else []
+            row[part] = (f"{leaves.count('enable')} on / {leaves.count('read-only')} read-only / {leaves.count('disable')} off" if part != "cli" else (leaves[0] if leaves else "-")) if node is not None else "-"
+        out.append(row)
+    return out
+
+
+def _local_users(root: ET.Element) -> list[dict[str, Any]]:
+    """Device > Local User Database > Users (``local-user-database/user``): the accounts that GlobalProtect, Captive Portal and an authentication profile of type
+    'Local Database' check.  They are not administrators (those are ``mgt-config/users``).  The password hash is never copied; only whether one exists."""
+    out = []
+    holders = [("shared", root.find("shared"))] + [(v.get("name", "vsys"), v) for v in root.findall("devices/entry/vsys/entry")]
+    for scope, holder in holders:
+        if holder is None:
+            continue
+        for entry in holder.findall("local-user-database/user/entry"):
+            out.append({"name": entry.get("name", ""), "scope": scope, "enabled": "no" if _yes(entry, "disabled") is True else "yes", "password": "stored" if _has(entry, "phash") else "none"})
     return out
 
 
@@ -328,6 +376,11 @@ def evaluate(extra: dict[str, Any], today: date | None = None) -> list[dict[str,
             out.append(finding("PAN-TLS-001", "medium", "Management", f"SSL/TLS service profile allows {WEAK_TLS[prof['min_version']]}", obj=f"ssl-tls-service-profile {prof['name']}",
                                detail=f"min-version is {prof['min_version']}{suffix}, so clients can negotiate a protocol with known weaknesses to the management GUI or portal.",
                                recommendation="Set the minimum version to TLS 1.2 (or 1.3 where all clients support it).", reference=PALO["ssl_tls_profile"]))
+        elif prof["rc4"] or prof["des3"]:
+            ciphers = " and ".join(n for n, on in (("RC4", prof["rc4"]), ("3DES", prof["des3"])) if on)
+            out.append(finding("PAN-TLS-003", "medium", "Management", f"SSL/TLS service profile allows {ciphers}", obj=f"ssl-tls-service-profile {prof['name']}",
+                               detail=f"{ciphers} {'is' if ' and ' not in ciphers else 'are'} enabled in protocol-settings. RC4 is prohibited for TLS by RFC 7465 and 3DES is vulnerable to Sweet32 (CVE-2016-2183).",
+                               recommendation="Disable the legacy ciphers and keep AES-GCM.", reference=PALO["ssl_tls_profile"]))
         elif prof["sha1"] is True:
             out.append(finding("PAN-TLS-002", "low", "Management", "SSL/TLS service profile allows SHA-1 authentication", obj=f"ssl-tls-service-profile {prof['name']}",
                                detail="auth-algo-sha1 is enabled.", recommendation="Disable SHA-1 and keep SHA-256 or SHA-384.", reference=PALO["ssl_tls_profile"]))
@@ -359,6 +412,14 @@ def evaluate(extra: dict[str, Any], today: date | None = None) -> list[dict[str,
             out.append(finding("PAN-UPD-001", "low", "Operations", "No content update schedule is configured", obj="deviceconfig/system/update-schedule",
                                detail="Application, threat and antivirus content is only updated when somebody installs it by hand, so signatures can fall behind.", recommendation="Schedule recurring downloads and installs under Device > Dynamic Updates (or confirm Panorama pushes them).", reference=PALO["admin_access"]))
 
+    names = extra.get("interface_address_names") or {}
+    if names.get("unknown"):
+        count = len(names["unknown"])
+        out.append(finding("PAN-NET-001", "info", "Network", f"{count} interface address(es) are address-object names that this export does not define", obj=f"network/interface ({count})",
+                           detail=("Layer 3 interfaces take an address object instead of a literal address" + (", and on a Panorama-managed firewall the object is usually in Panorama's Shared location. " if managed else ". ")
+                                   + "The addresses of these interfaces are therefore not known from this file alone."),
+                           recommendation="Upload the Panorama export that manages this firewall to the Topology Builder together with this file: it resolves the names from the Shared objects and adds the template stack's interfaces, zones and routing.",
+                           reference="https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/configure-interfaces/layer-3-interfaces/configure-layer-3-interfaces"))
     if ha and ha["enabled"]:
         if ha["ha1_encryption"] is False:
             out.append(finding("PAN-HA-001", "low", "High availability", "HA1 control link is not encrypted", obj=f"HA1 {ha['ha1_port'] or ''} {ha['ha1_ip']}".strip(),
@@ -461,6 +522,15 @@ def sections(extra: dict[str, Any]) -> list[dict[str, Any]]:
         out.append(table_section("pan_admins", "Administrator accounts", [("name", "User", "mono"), ("role", "Role"), ("role_profile", "Role profile"), ("auth_profile", "Authentication profile"), ("local_password", "Local password")],
                                  [dict(a, local_password="stored" if a["local_password"] else "none", _tones={"role": "warn" if a["superuser"] else "", "auth_profile": "mute" if a["auth_profile"] and a["auth_profile"] not in defined else ""}) for a in extra["admins"]],
                                  group="System", hint="Password hashes are never displayed. A muted profile name is not defined in this file (probably pushed by Panorama)."))
+    if extra.get("admin_roles"):
+        out.append(table_section("pan_admin_roles", "Administrator roles (custom)", [("name", "Role", "mono"), ("type", "Type"), ("webui", "Web UI"), ("xmlapi", "XML API"), ("restapi", "REST API"), ("cli", "CLI"), ("description", "Description", "wrap")],
+                                 extra["admin_roles"], group="System", hint="Counts of permissions the role grants per interface. Built-in roles (superuser, deviceadmin, ...) are not listed because they are not stored in the configuration."))
+    if extra.get("local_users"):
+        out.append(table_section("pan_local_users", "Local users (local user database)", [("name", "User", "mono"), ("scope", "Scope"), ("enabled", "Enabled"), ("password", "Password")],
+                                 [dict(u, _tones={"password": "warn" if u["password"] == "none" else ""}) for u in extra["local_users"]], group="System",
+                                 hint="The accounts of Device > Local User Database (GlobalProtect, Captive Portal and 'Local Database' authentication profiles). Password hashes are never displayed. Administrators are in the table above."))
+    elif extra.get("admins") is not None:
+        out.append(table_section("pan_local_users", "Local users (local user database)", [("name", "User", "mono")], [], group="System", empty="No local user database users in this export."))
     if extra.get("syslog"):
         out.append(table_section("pan_syslog", "Syslog server profiles", [("profile", "Profile", "mono"), ("server", "Server", "mono"), ("transport", "Transport"), ("port", "Port"), ("format", "Format"), ("facility", "Facility")], extra["syslog"], group="System"))
     lf = extra.get("log_forwarding") or {}
@@ -472,4 +542,5 @@ def sections(extra: dict[str, Any]) -> list[dict[str, Any]]:
     if extra.get("globalprotect"):
         out.append(table_section("globalprotect", "GlobalProtect / large-scale VPN objects", [("kind", "Kind"), ("name", "Name", "mono"), ("tunnel_interface", "Tunnel interface")], extra["globalprotect"], group="VPN"))
     out += panos_xml_network.sections(extra.get("network") or {})
+    out += panos_xml_more.sections(extra.get("more_objects") or [])
     return out

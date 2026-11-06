@@ -519,7 +519,7 @@ class HuaweiSwitchTranslator:
             )
 
             output.append(
-                "# Huawei tidak mendukung EIGRP secara native."
+                "# Huawei does not support EIGRP natively."
             )
 
             for command in config.eigrp_commands:
@@ -4416,6 +4416,12 @@ class HuaweiSwitchTranslator:
                 "before trusting this as GE",
             )
 
+        # A name with no keyword at all (ArubaOS-Switch "1" .. "24", AOS-CX "1/1/1"): none of the prefix tables above can place it,
+        # but the interface map can.  Before this the bare source name was written as the Huawei interface
+        # ("interface 1/1/1"), which the switch rejects, and no REVIEW line said so.
+        if entry and entry.get("target") and entry.get("target") != interface_name and entry.get("status") != "missing":
+            return (entry["target"], entry.get("note"))
+
         return (interface_name, None)
 
     def _normalize_physical_suffix(
@@ -5120,8 +5126,8 @@ class HuaweiSwitchTranslator:
 
                 if not key_noted:
                     others.append(
-                        "# REVIEW-TACACS-KEY: Cisco encrypted key "
-                        "harus dimasukkan ulang."
+                        "# REVIEW-TACACS-KEY: the Cisco encrypted key "
+                        "must be entered again."
                     )
                     key_noted = True
                 continue
@@ -5155,8 +5161,8 @@ class HuaweiSwitchTranslator:
                 if not key_noted:
                     others.append(
                         "# REVIEW-TACACS-KEY: "
-                        "Cisco encrypted key "
-                        "harus dimasukkan ulang."
+                        "the Cisco encrypted key "
+                        "must be entered again."
                     )
                     key_noted = True
 

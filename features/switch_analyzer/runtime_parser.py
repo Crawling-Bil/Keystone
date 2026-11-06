@@ -459,6 +459,28 @@ def _parse_cdp_detail(lines: list[str]) -> list[dict]:
 
 
 _HUAWEI_LLDP_BLOCK_HEADER_RE = re.compile(r"^(\S+)\s+has\s+(\d+)\s+neighbor\(s\)", re.IGNORECASE)
+# a Huawei model name inside a system description: "Huawei Switch S5731-S24P4X", "HUAWEI CloudEngine S5735-L-V2", a bare "S5735-S24T4X"
+_HUAWEI_MODEL_RE = re.compile(r"\b(S\d{4}[A-Z0-9]*(?:-[A-Z0-9]+)*|CE\d{4,5}[A-Z0-9]*(?:-[A-Z0-9]+)*|AR\d{3,4}[A-Z0-9]*(?:-[A-Z0-9]+)*|"
+                              r"AC\d{4}[A-Z0-9]*(?:-[A-Z0-9]+)*|USG\d+[A-Z0-9]*(?:-[A-Z0-9]+)*|AirEngine\d+[A-Z0-9]*(?:-[A-Z0-9]+)*)\b")
+
+
+def _huawei_lldp_platform(description: list[str]) -> str:
+    """What a Huawei neighbor says it is.  A Huawei description holds the model ("HUAWEI CloudEngine S5735-L-V2", "Huawei Switch S5731-S24P4X") or only a
+    generic banner ("Huawei Switch", "Huawei YunShan OS"), which is no model.  Another vendor's description keeps the product the Cisco way
+    (``_cisco_lldp_platform``: Aruba "JL356A 2540-24G ...", the family of a Cisco IOS switch)."""
+    text = " ".join(description)
+    if re.search(r"huawei", text, re.IGNORECASE) or (len(description) == 1 and _HUAWEI_MODEL_RE.fullmatch(description[0].strip())):
+        for line in description:
+            found = _HUAWEI_MODEL_RE.search(line)
+            if found:
+                return found.group(1)
+        return ""
+    return _cisco_lldp_platform(description)
+
+
+
+# a field of the detail dump: the key is padded to a fixed column ("Management address type            :IPv4"), the free text of a description is not
+_HUAWEI_LLDP_FIELD_RE = re.compile(r"^(?:[A-Za-z][\w ()/.-]*?\s{2,}:|(?:system capabilities|management address|expired time|port vlan id|device \d+ infomation)\b)", re.IGNORECASE)
 
 
 def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
@@ -504,12 +526,22 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
             return
         entries: list[dict] = []
         entry: dict = {}
+        in_description = False
         for raw in block_lines:
             if raw.lower().startswith("neighbor index"):
                 if entry:
                     entries.append(entry)
                 entry = {}
+                in_description = False
                 continue
+            if in_description:
+                # the description is free text over several lines ("Technical Support: http://..." has a colon too); the next field line ends it
+                # (YunShan prints "System capabilities supported" next, older VRP goes straight to "Management address ...")
+                if _HUAWEI_LLDP_FIELD_RE.match(raw.strip()):
+                    in_description = False
+                else:
+                    entry.setdefault("description", []).append(raw.strip())
+                    continue
             if ":" not in raw:
                 continue
             key, _, value = raw.partition(":")
@@ -517,6 +549,11 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
             value = value.strip()
             if value == "--":
                 value = ""
+            if key == "system description":
+                in_description = True
+                if value:
+                    entry.setdefault("description", []).append(value)
+                continue
             if key == "port id":
                 entry["port_id"] = value
             elif key == "system name":
@@ -527,10 +564,18 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
                 entry["chassis_id"] = value
             elif key == "port description":
                 entry["port_description"] = value
-            elif key == "management address value" and "management_address" not in entry:
-                entry["management_address"] = value
+            elif key in ("management address", "management address value") and "management_address" not in entry and _IPV4_RE.search(value):
+                entry["management_address"] = value                # "Management address :10.1.1.1" (YunShan, V600R02x) or "... value :10.1.1.1" (older VRP)
+            elif key == "opermau":
+                mau = re.search(r"duplex\s*\((full|half)\)", value, re.IGNORECASE)
+                if mau:
+                    entry["duplex"] = mau.group(1).lower()
             elif key == "port vlan id(pvid)":
                 entry["native_vlan"] = value
+            elif key == "system capabilities enabled" and value:
+                entry["capabilities"] = value                    # "bridge router", "telephone", "wlan-access-point": tells a phone or an AP from a switch
+            elif key == "system capabilities supported" and value:
+                entry.setdefault("capabilities_supported", value)
             elif key == "device serial number" and "serial" not in entry:
                 entry["serial"] = value
         if entry:
@@ -541,10 +586,11 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
                 "neighbor_id": parsed_entry.get("system_name", ""),
                 "local_interface": iface,
                 "remote_interface": parsed_entry.get("port_id", ""),
-                "platform": parsed_entry.get("model", ""),
+                "platform": parsed_entry.get("model") or _huawei_lldp_platform(parsed_entry.get("description") or []),
                 **_lldp_extras(parsed_entry.get("chassis_id", ""), parsed_entry.get("management_address", ""),
-                               parsed_entry.get("port_description", ""), "", parsed_entry.get("serial", ""),
-                               parsed_entry.get("native_vlan", "")),
+                               parsed_entry.get("port_description", ""), parsed_entry.get("capabilities") or parsed_entry.get("capabilities_supported", ""),
+                               parsed_entry.get("serial", ""), parsed_entry.get("native_vlan", ""),
+                               system_description=" ".join(parsed_entry.get("description") or []), duplex=parsed_entry.get("duplex", "")),
             })
 
     for line in section:
@@ -619,7 +665,8 @@ _IPV4_RE = re.compile(r"\d{1,3}(?:\.\d{1,3}){3}")
 _SERIAL_LIKE_RE = re.compile(r"^[A-Za-z0-9]{8,16}$")
 
 
-def _lldp_extras(chassis_id="", management_address="", port_description="", capabilities="", serial="", native_vlan="", link_agg_id="") -> dict:
+def _lldp_extras(chassis_id="", management_address="", port_description="", capabilities="", serial="", native_vlan="", link_agg_id="",
+                 system_description="", duplex="") -> dict:
     """The neighbor identity facts beyond name and ports. Only non-empty values are added, so rows from
     captures that do not carry them keep their original shape."""
     extras = {}
@@ -627,7 +674,9 @@ def _lldp_extras(chassis_id="", management_address="", port_description="", capa
     for key, value in (("chassis_id", (chassis_id or "").strip()), ("management_address", ip.group(0) if ip else ""),
                        ("port_description", (port_description or "").strip()), ("capabilities", (capabilities or "").strip()),
                        ("serial", serial if _SERIAL_LIKE_RE.match(serial or "") else ""),
-                       ("native_vlan", (native_vlan or "").strip()), ("link_agg_id", (link_agg_id or "").strip())):
+                       ("native_vlan", (native_vlan or "").strip()), ("link_agg_id", (link_agg_id or "").strip()),
+                       ("system_description", re.sub(r"\s+", " ", system_description or "").strip()[:240]),
+                       ("duplex", duplex if duplex in ("full", "half") else "")):
         if value:
             extras[key] = value
     return extras
@@ -681,7 +730,8 @@ def _parse_cisco_lldp_detail(lines: list[str]) -> list[dict]:
                 "platform": _cisco_lldp_platform(description),
                 **_lldp_extras(current.get("chassis id", ""), current.get("management address", ""),
                                current.get("port description", ""), current.get("system capabilities", ""),
-                               current.get("system uuid", ""), current.get("vlan id", ""), current.get("link agg id", "")),
+                               current.get("system uuid", ""), current.get("vlan id", ""), current.get("link agg id", ""),
+                               system_description=" ".join(description)),
             })
 
     for line in section:
@@ -1159,6 +1209,12 @@ def parse_port_channels(lines: list[str]) -> list[dict]:
     # vocabularies instead of only the newer one.
     operate_status_re = re.compile(r"Operat(?:e|ing)\s+[Ss]tatus[:\s]+(\S+)", re.IGNORECASE)
     member_line_re = re.compile(r"^(\S+)\s+(Selected|Unselect|Individual|Up|Down)\b", re.IGNORECASE)
+    # "LAG ID: 1   Working Mode: Static" (YunShan, V600R02x) or "WorkingMode: STATIC" (VRP5): Normal = manual load balancing (no LACP), Static = static LACP
+    # (``mode lacp-static``), Dynamic = dynamic LACP (``mode lacp-dynamic``).
+    working_mode_re = re.compile(r"Working\s*Mode\s*:\s*(\w+)", re.IGNORECASE)
+    partner_row_re = re.compile(r"^(\S+)\s+\d+\s+([0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4})\s+\d+", re.IGNORECASE)
+    member_flag = {"selected": ("P", "Selected: bundled, carries traffic"), "up": ("P", "Up: in the trunk"), "down": ("D", "Down"),
+                   "unselect": ("I", "Unselected: not bundled, carries no traffic"), "individual": ("I", "Individual: works as a stand-alone port")}
 
     current_trunk = None
     for raw_line in lines:
@@ -1187,6 +1243,16 @@ def parse_port_channels(lines: list[str]) -> list[dict]:
             continue
         if current_trunk is None:
             continue
+        mode_match = working_mode_re.search(stripped)
+        if mode_match and "lacp_mode" not in current_trunk:
+            current_trunk["lacp_mode"] = {"normal": "manual", "static": "lacp-static", "dynamic": "lacp-dynamic"}.get(mode_match.group(1).lower(), "")
+            continue
+        partner_match = partner_row_re.match(stripped)
+        if partner_match and "lacp_partner" not in current_trunk:
+            digits = partner_match.group(2).replace("-", "").lower()
+            if digits != "0" * 12:
+                current_trunk["lacp_partner"] = f"{digits[0:4]}.{digits[4:8]}.{digits[8:12]}"          # Cisco's spelling, so one partner compares equal on both vendors
+            continue
         status_match = operate_status_re.search(stripped)
         if status_match:
             current_trunk["status"] = status_match.group(1)
@@ -1195,7 +1261,10 @@ def parse_port_channels(lines: list[str]) -> list[dict]:
         if member_match:
             # "10GE1/0/3(r)": (r) marks the reference port and (h) a high
             # priority port; they are flags on the row, not part of the name.
-            current_trunk["members"].append(re.sub(r"\((?:r|h|rh|hr)\)$", "", member_match.group(1), flags=re.IGNORECASE))
+            port = re.sub(r"\((?:r|h|rh|hr)\)$", "", member_match.group(1), flags=re.IGNORECASE)
+            current_trunk["members"].append(port)
+            flag, meaning = member_flag[member_match.group(2).lower()]
+            current_trunk.setdefault("member_states", []).append({"port": port, "flag": flag, "meaning": meaning})
 
     if current_trunk:
         results.append(current_trunk)

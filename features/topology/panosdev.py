@@ -186,7 +186,49 @@ def units(config: Any, source: str) -> list[Device]:
     return [_device(config, source, v, [i for i in interfaces if _owner(i, groups) == v], vr_of, True) for v in names]
 
 
+def panorama_units(text: str, source: str) -> list[Device]:
+    """A Panorama export as one firewall node per template stack that has a managed firewall.
+
+    A stack is what gives a firewall its interfaces, zones, routing and HA settings, so the stack (with the policy of its device group resolved in)
+    is drawn as one firewall - named after the stack, with the number of managed units in the model - and the cables come from the other end's LLDP / CDP
+    and from interface comments, as for any PAN-OS box.  Credentials are removed while the stack is flattened (see ``panorama_effective``).
+    """
+    from ..configuration_studio.service import create_engine
+    from ..firewall_analyzer import panorama_effective as pe
+    from ..firewall_analyzer import panorama_parse as pp
+    pano = pp.parse(text)
+    engine = create_engine()
+    out: list[Device] = []
+    for stack in pano.stacks.values():
+        serials = [s for s in stack.devices if s in pano.devices and pano.devices[s].device_group]
+        if not serials:
+            continue
+        xml, eff = pe.build_standalone(pano, pano.devices[serials[0]].device_group, serials[0])
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "stack.xml"
+            path.write_text(xml, encoding="utf-8")
+            config = engine.parse(path, source_vendor="Palo Alto", source_device_type="Firewall")
+        config.hostname = stack.name
+        found = units(config, source)
+        for device in found:
+            device.model = f"PAN-OS firewall (Panorama stack, {len(serials)} managed unit{'s' if len(serials) != 1 else ''})"
+            device.os_version = f"PAN-OS {pano.version}" if pano.version else ""
+            device.capture_gap = ""
+            device.l3facts["panorama_stack"] = stack.name           # panolink drops this node when a real unit of the stack is uploaded
+        out.extend(found)
+    if not out:
+        raise ValueError("no template stack of this Panorama has a managed firewall")
+    return out
+
+
 def read_units(text: str, source: str) -> list[Device]:
+    from ..firewall_analyzer import panorama_parse as _pp
+    if _pp.looks_like_panorama(text):
+        try:
+            return panorama_units(text, source)
+        except ValueError as exc:
+            if "not a Panorama" not in str(exc):
+                raise
     from ..configuration_studio.service import create_engine
     engine = create_engine()
     with tempfile.TemporaryDirectory() as folder:

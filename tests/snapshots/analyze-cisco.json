@@ -1,0 +1,59 @@
+{
+ "cards": {
+  "acl_count": 0,
+  "arp_entries": 0,
+  "default_route": "",
+  "dhcp_pool_count": 0,
+  "dhcp_snooping_enabled": false,
+  "dns_servers": 0,
+  "findings_high": 0,
+  "findings_medium": 1,
+  "findings_total": 3,
+  "has_custom_routing": false,
+  "health_attention": 1,
+  "health_findings": 3,
+  "interfaces_admin_down": 0,
+  "interfaces_down": 0,
+  "interfaces_unknown": 1,
+  "interfaces_up": 0,
+  "l3_finding_count": 1,
+  "l3_interface_count": 0,
+  "local_users": 0,
+  "mac_entries": 0,
+  "neighbor_count": 0,
+  "ospf_status": "Not configured",
+  "poe_port_count": 0,
+  "port_channel_count": 0,
+  "stack_mode": "Unknown",
+  "stp_broken_ports": 0,
+  "stp_instances": 0,
+  "total_interfaces": 1,
+  "total_routes": 0,
+  "total_vlans": 0,
+  "transceiver_count": 0,
+  "trunk_count": 0,
+  "vpc_mlag_count": 0
+ },
+ "findings": [
+  {
+   "id": "SW-AAA-001",
+   "object": "",
+   "severity": "medium",
+   "title": "AAA is not enabled"
+  },
+  {
+   "id": "SW-SNMP-001",
+   "object": "",
+   "severity": "low",
+   "title": "1 SNMP v1/v2c community string(s)"
+  },
+  {
+   "id": "SW-SSH-001",
+   "object": "",
+   "severity": "info",
+   "title": "SSH version 2 is not set explicitly"
+  }
+ ],
+ "hostname": "SW1",
+ "vendor": "Cisco"
+}

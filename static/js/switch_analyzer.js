@@ -81,6 +81,16 @@
     document.querySelector(`#switch-tabs button[data-tab="${tabName}"]`)?.classList.remove("hidden");
     document.querySelectorAll("#switch-tabs button").forEach(item => item.classList.toggle("active", item.dataset.tab === tabName));
     document.querySelectorAll("#switch-result .tab-content").forEach(item => item.classList.toggle("active", item.id === `switch-tab-${tabName}`));
+    revealTab(tabName);
+  }
+  // The strip scrolls sideways when there are many tabs: bring the chosen tab fully into view.
+  function revealTab(tabName) {
+    const nav = document.getElementById("switch-tabs");
+    const button = nav && nav.querySelector(`button[data-tab="${tabName}"]`);
+    if (!button || button.classList.contains("hidden")) return;
+    const a = button.getBoundingClientRect(), n = nav.getBoundingClientRect();
+    if (a.left < n.left) nav.scrollLeft -= n.left - a.left + 12;
+    else if (a.right > n.right) nav.scrollLeft += a.right - n.right + 12;
   }
   document.getElementById("switch-tabs").addEventListener("click", event => {
     const tabButton = event.target.closest("button[data-tab]");
@@ -118,7 +128,7 @@
 
   // Tone of a status pill. "admin down" is amber (intentional shutdown) and
   // deliberately not the red of a port that is down by itself.
-  const STATUS_TONE = { "same": "ok", "changed": "warn", "moved": "warn", "only on a": "warn", "only on b": "warn", "applied": "ok", "referenced": "ok", "not applied": "mute", "up": "ok", "down": "bad", "admin down": "warn", "unknown": "mute", "both": "ok", "only here": "warn", "incomplete": "warn", "unresolved": "mute", "system": "mute", "high": "bad", "medium": "warn", "low": "mute", "info": "mute", "healthy": "ok", "not bundled": "bad", "good": "ok", "green": "ok", "normal": "ok", "ok": "ok", "yellow": "warn", "warning": "warn", "red": "bad", "critical": "bad", "bad": "bad", "emergencies": "bad", "alerts": "bad", "errors": "bad", "warnings": "warn", "notifications": "mute", "informational": "mute", "debugging": "mute", "analyzed": "ok", "covered": "ok", "ignored": "mute", "not parsed": "warn", "error": "bad", "missing": "warn", "active": "ok", "act/unsup": "mute", "suspended": "warn", "suspend": "warn", "config only": "warn", "device only": "mute", "trunking": "ok", "not-trunking": "warn", "forwarding": "ok", "blocking": "warn", "learning": "warn", "listening": "warn", "broken (inconsistent)": "bad", "this switch": "ok", "root bridge": "ok", "off": "mute", "on": "ok", "faulty": "bad", "deny": "bad", "searching": "warn" };
+  const STATUS_TONE = { "same": "ok", "changed": "warn", "moved": "warn", "only on a": "warn", "only on b": "warn", "applied": "ok", "referenced": "ok", "not applied": "mute", "up": "ok", "down": "bad", "degraded": "warn", "not in use": "warn", "admin down": "warn", "unknown": "mute", "both": "ok", "only here": "warn", "incomplete": "warn", "unresolved": "mute", "system": "mute", "high": "bad", "medium": "warn", "low": "mute", "info": "mute", "healthy": "ok", "not bundled": "bad", "good": "ok", "green": "ok", "normal": "ok", "ok": "ok", "yellow": "warn", "warning": "warn", "red": "bad", "critical": "bad", "bad": "bad", "emergencies": "bad", "alerts": "bad", "errors": "bad", "warnings": "warn", "notifications": "mute", "informational": "mute", "debugging": "mute", "analyzed": "ok", "covered": "ok", "ignored": "mute", "not parsed": "warn", "error": "bad", "missing": "warn", "active": "ok", "act/unsup": "mute", "suspended": "warn", "suspend": "warn", "config only": "warn", "device only": "mute", "trunking": "ok", "not-trunking": "warn", "forwarding": "ok", "blocking": "warn", "learning": "warn", "listening": "warn", "broken (inconsistent)": "bad", "this switch": "ok", "root bridge": "ok", "off": "mute", "on": "ok", "faulty": "bad", "deny": "bad", "searching": "warn" };
   const toneOf = value => STATUS_TONE[String(value ?? "").toLowerCase()] || "";
 
   function rowMarkup(columns, row, statusColumn) {
@@ -138,13 +148,22 @@
     }).join("")}</tr>`;
   }
 
-  function headMarkup(columns) {
-    return `<thead><tr>${columns.map(column => `<th>${esc(column.label)}</th>`).join("")}</tr></thead>`;
+  // With ``sort`` ({id, index, dir}) every header is a button: a click sorts the table by that column, a second click reverses it.
+  function headMarkup(columns, sort) {
+    return `<thead><tr>${columns.map((column, index) => {
+      if (!sort) return `<th>${esc(column.label)}</th>`;
+      const active = sort.index === index;
+      const mark = active ? (sort.dir === 1 ? "\u25B2" : "\u25BC") : "";
+      return `<th aria-sort="${active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}"><button type="button" class="th-sort" data-sort-table="${esc(sort.id)}" data-sort-col="${index}" title="Sort by ${esc(column.label)}">${esc(column.label)}<span class="th-sort-mark" aria-hidden="true">${mark}</span></button></th>`;
+    }).join("")}</tr></thead>`;
   }
 
+  // Every result table sorts by a click on a header (the same machinery as the filterable tables, with no row cap and no search box);
+  // only the paired Compare tables stay as they are, because they line up row by row.
   function renderTable(id, columns, rows, options = {}) {
     const table = document.getElementById(id);
     if (options.hideEmpty) columns = dropEmptyColumns(columns, rows).columns;
+    if (table && !id.startsWith("switch-compare-")) { renderFilterable(id, columns, rows, { cap: Infinity }); return; }
     const statusColumn = columns.find(column => column.status);
     const body = rows.length ? rows.map(row => rowMarkup(columns, row, statusColumn)).join("") : `<tr><td colspan="${columns.length}">No data found.</td></tr>`;
     table.innerHTML = headMarkup(columns) + `<tbody>${body}</tbody>`;
@@ -183,6 +202,7 @@
       const cells = columns.map(column => String(display(column.value ? column.value(row) : row[column.key]) ?? ""));
       return {
         row,
+        cells,
         text: cells.join("\n").toLowerCase(),
         hex: columns.map((column, index) => (column.mac ? hexOnly(cells[index]) : "")).filter(Boolean).join(" "),
         chip: options.chip ? String(options.chip(row) ?? "").toLowerCase() : "",
@@ -191,7 +211,9 @@
     });
     return {
       id, columns, statusColumn, entries,
-      query: "", chip: "", chip2: "", cap: ROW_CAP,
+      query: "", chip: "", chip2: "", cap: options.cap ?? ROW_CAP,
+      sortable: options.sortable ?? !id.startsWith("switch-compare-"),     // the two panes of Compare line up row by row: sorting one would break that
+      sortIndex: -1, sortDir: 1,
       options,
       chipOrder: options.chipOrder || null,
       chipOrder2: options.chipOrder2 || null,
@@ -206,11 +228,27 @@
       && terms.every(item => entry.text.includes(item.term) || (item.mac && entry.hex.includes(item.mac))));
   }
 
+  const cellCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+  const sortSpec = state => state.sortable ? { id: state.id, index: state.sortIndex, dir: state.sortDir } : null;
+
+  // Natural order (Gi1/0/2 before Gi1/0/10, 10.0.0.2 before 10.0.0.13); empty cells come last whichever way the table is sorted.
+  function sortEntries(state, entries) {
+    if (!state.sortable || state.sortIndex < 0) return entries;
+    const at = state.sortIndex;
+    return [...entries].sort((a, b) => {
+      const x = String(a.cells[at] ?? "").trim(), y = String(b.cells[at] ?? "").trim();
+      const blankX = isBlank(x), blankY = isBlank(y);
+      if (blankX || blankY) return blankX === blankY ? 0 : blankX ? 1 : -1;
+      return state.sortDir * cellCollator.compare(x, y);
+    });
+  }
+
   function paintFilterable(state) {
     const table = document.getElementById(state.id);
     if (!table) return;
-    if (!table.tHead) table.insertAdjacentHTML("afterbegin", headMarkup(state.columns));
-    const matched = matchEntries(state);
+    if (state.sortable && table.tHead) table.tHead.remove();          // the sort arrows are part of the header: draw it again
+    if (!table.tHead) table.insertAdjacentHTML("afterbegin", headMarkup(state.columns, sortSpec(state)));
+    const matched = sortEntries(state, matchEntries(state));
     const shown = matched.slice(0, state.cap);
     let body;
     if (!shown.length) {
@@ -246,7 +284,7 @@
       if (groupIds(input.dataset.tableSearch).includes(id)) input.value = "";
     });
     const table = document.getElementById(id);
-    if (table) table.innerHTML = headMarkup(columns) + "<tbody></tbody>";
+    if (table) table.innerHTML = headMarkup(columns, sortSpec(state)) + "<tbody></tbody>";
     paintFilterable(state);
     refreshChips();
     return state;
@@ -259,9 +297,10 @@
     if (!old) return;
     const state = filterableState(id, columns, old.entries.map(entry => entry.row), old.options);
     state.query = old.query; state.chip = old.chip; state.chip2 = old.chip2; state.cap = old.cap;
+    if (old.sortIndex >= 0 && old.sortIndex < columns.length && old.columns[old.sortIndex]?.label === columns[old.sortIndex]?.label) { state.sortIndex = old.sortIndex; state.sortDir = old.sortDir; }
     filterable.set(id, state);
     const table = document.getElementById(id);
-    if (table) table.innerHTML = headMarkup(columns) + "<tbody></tbody>";
+    if (table) table.innerHTML = headMarkup(columns, sortSpec(state)) + "<tbody></tbody>";
     paintFilterable(state);
     refreshChips();
   }
@@ -314,6 +353,15 @@
     const scroll = event.target.closest("[data-scroll-to]");
     if (scroll) {
       document.getElementById(scroll.dataset.scrollTo)?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      return;
+    }
+    const sortButton = event.target.closest("[data-sort-table]");
+    if (sortButton) {
+      const state = filterable.get(sortButton.dataset.sortTable);
+      if (!state) return;
+      const index = Number(sortButton.dataset.sortCol);
+      if (state.sortIndex === index) state.sortDir *= -1; else { state.sortIndex = index; state.sortDir = 1; }
+      paintFilterable(state);
       return;
     }
     const chip = event.target.closest(".filter-chip");
@@ -606,6 +654,23 @@
   ];
   const VLAN_CHIP_ORDER = ["config + device", "device only", "config only", "config"];
   const TRUNK_CHIP_ORDER = ["trunking", "trnk-bndl", "not-trunking"];
+  const TRANSCEIVER_CHIP_ORDER = ["up", "down", "admin down", "unknown"];
+  const PORTCHANNEL_CHIP_ORDER = ["up", "degraded", "down", "not in use", "unknown"];
+
+  // The state of a port-channel / Eth-Trunk as one word for the filter buttons. Cisco and NX-OS print flags
+  // ("SU" = layer 2 and in use, "SD" = down, "RU" = layer 3 and in use, "SN" / "RM" = not in use); Huawei and Aruba
+  // print a word (Up, Down). A bundle that is up but has a member that is down, suspended, stand-alone, waiting or
+  // unsuitable is "degraded": traffic still flows, over fewer links than were cabled.
+  const PORTCHANNEL_MEMBER_PROBLEMS = new Set(["D", "I", "s", "w", "u", "f", "d", "down", "no LACP"]);
+  function portChannelState(row) {
+    const raw = String(row.status ?? "").trim();
+    const word = raw.toLowerCase();
+    let state = "unknown";
+    if (word === "up" || word === "down") state = word;
+    else if (/^[A-Za-z]{1,3}$/.test(raw)) state = raw.includes("D") ? "down" : raw.includes("U") ? "up" : /[NM]/.test(raw) ? "not in use" : "unknown";
+    if (state === "up" && (row.member_states || []).some(item => PORTCHANNEL_MEMBER_PROBLEMS.has(String(item.flag ?? "")))) state = "degraded";
+    return state;
+  }
   const STP_STATE_ORDER = ["forwarding", "blocking", "broken (inconsistent)", "learning", "listening", "disabled"];
   const POE_CHIP_ORDER = ["on", "off", "faulty", "deny", "searching"];
 
@@ -1095,6 +1160,7 @@
       { label: "MAC Entries", value: cards.mac_entries || 0, color: "#6f6fd6", tab: "mac", filter: "" },
       { label: "Total Routes", value: cards.total_routes || 0, color: "#8e6fd6", tab: "routing", filter: "" },
       { label: "DNS Servers", value: cards.dns_servers || 0, color: "#5bb8b0", tab: "dns", filter: "" },
+      ...(result.local_users?.captured ? [{ label: "Local Users", value: cards.local_users || 0, color: "#c9a23a", tab: "users", filter: "" }] : []),
     ];
 
     const width = 900, height = 300;
@@ -1250,17 +1316,21 @@
 
     const neighbors = result.neighbors || [];
     document.getElementById("switch-neighbors-empty").classList.toggle("hidden", neighbors.length > 0);
-    renderTable("switch-neighbor-table", NEIGHBOR_COLUMNS, neighbors, { hideEmpty: true });
+    renderFilterable("switch-neighbor-table", NEIGHBOR_COLUMNS, neighbors, { hideEmpty: true, noun: "neighbors", emptyText: "No CDP/LLDP neighbors found." });
 
     const portChannels = result.port_channels || [];
     document.getElementById("switch-portchannel-empty").classList.toggle("hidden", portChannels.length > 0);
-    renderTable("switch-portchannel-table", PORTCHANNEL_COLUMNS, portChannels, { hideEmpty: true });
+    renderFilterable("switch-portchannel-table", PORTCHANNEL_COLUMNS, portChannels, {
+      chip: portChannelState, chipOrder: PORTCHANNEL_CHIP_ORDER, noun: "port-channels", emptyText: "No port-channel data found.", hideEmpty: true,
+    });
     renderHealth(result.health);
     renderExtraTables(result.extra_tables);
 
     const transceivers = result.transceivers || [];
     document.getElementById("switch-transceiver-empty").classList.toggle("hidden", transceivers.length > 0);
-    renderTable("switch-transceiver-table", TRANSCEIVER_COLUMNS, transceivers, { hideEmpty: true });
+    renderFilterable("switch-transceiver-table", TRANSCEIVER_COLUMNS, transceivers, {
+      chip: row => String(row.status || "unknown").toLowerCase(), chipOrder: TRANSCEIVER_CHIP_ORDER, noun: "transceivers", emptyText: "No transceiver data found.", hideEmpty: true,
+    });
 
     const vpcMlag = result.vpc_mlag || { summary: {}, members: [], source: "none" };
     document.getElementById("switch-vpcmlag-empty").classList.toggle("hidden", vpcMlag.members.length > 0 || Object.keys(vpcMlag.summary || {}).length > 0);
@@ -1309,6 +1379,13 @@
     renderTable("switch-snmp-table", [
       { label: "Raw Command", key: "command" },
     ], (snmp.raw_commands || []).map(command => ({ command })));
+
+    const localUsers = result.local_users || {};
+    renderKVList("switch-users-summary", { local_users: localUsers.summary?.text || "—" });
+    renderTable("switch-users-table", [
+      { label: "User", key: "user" }, { label: "Privilege", key: "privilege" }, { label: "Role / group", key: "role" }, { label: "Services", key: "services" },
+      { label: "Credential", key: "credential" }, { label: "Stored as", key: "storage" }, { label: "Strength", key: "strength" },
+    ], (localUsers.rows || []).map(row => ({ ...row, privilege: row.privilege || "—", role: row.role || "—", services: row.services || "—", credential: row.credential || "—", storage: row.storage || "—", strength: row.strength || "—" })));
 
     const dhcp = result.dhcp || {};
     const snooping = dhcp.snooping || {};
@@ -2257,6 +2334,7 @@
   form.addEventListener("submit", async event => {
     event.preventDefault();
     const vendor = form.querySelector('[name="vendor"]')?.value || "Auto Detect";
+    const baseline = form.querySelector('[name="baseline"]')?.value || "";
     // Pasted text only counts when no file is in the list (the paste box is hidden unless a page script shows it).
     const pasted = (document.getElementById("switch-config-text")?.value || "").trim();
     if (!queue.length && pasted) {
@@ -2265,8 +2343,8 @@
     }
     if (!queue.length) { window.NES.toast("Add a switch capture first.", "error"); return; }
     // New files, files that failed before, and files analyzed with another vendor choice.
-    const pending = queue.filter(entry => entry.status !== "done" || entry.vendor !== vendor);
-    if (!pending.length) { window.NES.toast("Every file in the list is already analyzed. Add a file, remove one, or change the vendor to analyze again."); return; }
+    const pending = queue.filter(entry => entry.status !== "done" || entry.vendor !== vendor || (entry.baseline || "") !== baseline);
+    if (!pending.length) { window.NES.toast("Every file in the list is already analyzed. Add a file, remove one, or change the vendor or baseline to analyze again."); return; }
     const before = devices.length;
     window.NES.setLoading(button, true, "Analyzing...");
     try {
@@ -2274,6 +2352,7 @@
         if (pending.length > 1) button.innerHTML = `Analyzing ${index + 1} of ${pending.length}...`;
         const data = new FormData();
         data.append("vendor", vendor);
+        if (baseline) data.append("baseline", baseline);
         if (entry.file) data.append("config_file", entry.file, entry.name); else data.append("config_text", entry.text);
         try {
           entry.result = await analyzeOne(data);
@@ -2285,6 +2364,7 @@
           entry.status = "failed";
         }
         entry.vendor = vendor;
+        entry.baseline = baseline;
         syncDevices();
         renderFileList();
         renderDeviceBar();
