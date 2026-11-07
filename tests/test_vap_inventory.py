@@ -1,4 +1,5 @@
 import unittest
+from contextlib import ExitStack, closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -97,10 +98,10 @@ class VAPInventoryTest(unittest.TestCase):
         self.assertEqual(result["cards"]["vap_profiles"], 3)
 
     def test_excel_export_adds_vap_profiles_without_replacing_wlan_ssid(self):
-        with TemporaryDirectory() as directory:
+        with TemporaryDirectory() as directory, ExitStack() as stack:     # the workbook closes first, then the folder goes (Windows cannot delete an open file)
             path = Path(directory) / "wireless.xlsx"
             ExcelExporter(self.data, self.analyzer).export(path)
-            workbook = load_workbook(path, read_only=True)
+            workbook = stack.enter_context(closing(load_workbook(path, read_only=True)))
             self.assertIn("WLAN SSID", workbook.sheetnames)
             self.assertIn("VAP Profiles", workbook.sheetnames)
             sheet = workbook["VAP Profiles"]

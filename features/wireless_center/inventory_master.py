@@ -88,8 +88,10 @@ def _read_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
 def _read_xlsx(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     from openpyxl import load_workbook
     wb = load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    rows = list(ws.iter_rows(values_only=True))
+    try:
+        rows = list(wb.active.iter_rows(values_only=True))
+    finally:
+        wb.close()
     if not rows:
         return [], []
     headers = [str(v or "").strip() for v in rows[0]]

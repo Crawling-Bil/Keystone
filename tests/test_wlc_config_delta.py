@@ -1,4 +1,5 @@
 import unittest
+from contextlib import ExitStack, closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -279,10 +280,10 @@ class WLCConfigDeltaTest(unittest.TestCase):
 
     def test_excel_export_includes_mac_auth_detail_and_stage_summary(self):
         result = compare_configs(HUAWEI_MAC_SOURCE, HUAWEI_MAC_TARGET, "Huawei")
-        with TemporaryDirectory() as directory:
+        with TemporaryDirectory() as directory, ExitStack() as stack:     # the workbook closes first, then the folder goes (Windows cannot delete an open file)
             path = Path(directory) / "delta.xlsx"
             export_delta_comparison(result, path)
-            workbook = load_workbook(path, read_only=True)
+            workbook = stack.enter_context(closing(load_workbook(path, read_only=True)))
             self.assertIn("MAC Authentication", workbook.sheetnames)
             self.assertIn("MAC Auth Dependency", workbook.sheetnames)
             self.assertEqual(len(workbook.sheetnames), 10)

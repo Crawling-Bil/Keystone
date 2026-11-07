@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from contextlib import ExitStack, closing
 from pathlib import Path
 
 from features.wireless_center.ap_role_diff import (
@@ -159,11 +160,11 @@ class APRoleDiffTest(unittest.TestCase):
         a = self.inventory([self.ap("AP-01", "0011-2233-4401", "normal")])
         b = self.inventory([self.ap("AP-01", "0011-2233-4401", "standby")])
         result = compare_ap_roles(a, b)
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:     # the workbook closes first, then the folder goes (Windows cannot delete an open file)
             output = Path(directory) / "role-diff.xlsx"
             export_ap_role_diff(result, output)
             from openpyxl import load_workbook
-            workbook = load_workbook(output, read_only=True, data_only=True)
+            workbook = stack.enter_context(closing(load_workbook(output, read_only=True, data_only=True)))
             self.assertIn("AP Role Matrix", workbook.sheetnames)
             self.assertIn("Group Summary", workbook.sheetnames)
             self.assertIn("AP by Group", workbook.sheetnames)

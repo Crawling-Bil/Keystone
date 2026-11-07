@@ -149,22 +149,22 @@ def _write_run(target: Path, result: dict[str, Any], name_text: str, readme: str
     priority = capture_priority(graph)
     findings_rows = [{**{k: v for k, v in f.items() if k != "devices"}, "devices": ", ".join(f["devices"])} for f in result["findings"]]
     (target / "topology.drawio").write_text(result["drawio"], encoding="utf-8")
-    (target / "devices.csv").write_text(to_csv(devices), encoding="utf-8-sig")
-    (target / "links.csv").write_text(to_csv(links), encoding="utf-8-sig")
-    (target / "findings.csv").write_text(to_csv(findings_rows), encoding="utf-8-sig")
-    (target / "findings-by-device.csv").write_text(to_csv(result["findings_by_device"]), encoding="utf-8-sig")
-    (target / "hosts.csv").write_text(to_csv(hosts), encoding="utf-8-sig")
-    (target / "behind.csv").write_text(to_csv(behind), encoding="utf-8-sig")
-    (target / "bundles.csv").write_text(to_csv(bundles), encoding="utf-8-sig")
+    (target / "devices.csv").write_text(to_csv(devices), encoding="utf-8-sig", newline="")
+    (target / "links.csv").write_text(to_csv(links), encoding="utf-8-sig", newline="")
+    (target / "findings.csv").write_text(to_csv(findings_rows), encoding="utf-8-sig", newline="")
+    (target / "findings-by-device.csv").write_text(to_csv(result["findings_by_device"]), encoding="utf-8-sig", newline="")
+    (target / "hosts.csv").write_text(to_csv(hosts), encoding="utf-8-sig", newline="")
+    (target / "behind.csv").write_text(to_csv(behind), encoding="utf-8-sig", newline="")
+    (target / "bundles.csv").write_text(to_csv(bundles), encoding="utf-8-sig", newline="")
     if priority:
-        (target / "capture-priority.csv").write_text(to_csv(priority), encoding="utf-8-sig")
+        (target / "capture-priority.csv").write_text(to_csv(priority), encoding="utf-8-sig", newline="")
     l3 = {"links": result["l3_links"], "routes": result["l3_routes"], "unresolved": result["l3_unresolved"], "overlay": result["l3_overlay"], "sites": result["l3_sites"]}
     if result["l3_links"]:
-        (target / "l3-links.csv").write_text(to_csv(result["l3_links"]), encoding="utf-8-sig")
-        (target / "l3-routes.csv").write_text(to_csv(result["l3_routes"]), encoding="utf-8-sig")
+        (target / "l3-links.csv").write_text(to_csv(result["l3_links"]), encoding="utf-8-sig", newline="")
+        (target / "l3-routes.csv").write_text(to_csv(result["l3_routes"]), encoding="utf-8-sig", newline="")
         if result["l3_overlay"]:
-            (target / "l3-sdwan-overlay.csv").write_text(to_csv(result["l3_overlay"]), encoding="utf-8-sig")
-            (target / "l3-sdwan-sites.csv").write_text(to_csv(result["l3_sites"]), encoding="utf-8-sig")
+            (target / "l3-sdwan-overlay.csv").write_text(to_csv(result["l3_overlay"]), encoding="utf-8-sig", newline="")
+            (target / "l3-sdwan-sites.csv").write_text(to_csv(result["l3_sites"]), encoding="utf-8-sig", newline="")
         (target / "_trace.json").write_text(json.dumps(result["l3_trace"], separators=(",", ":")), encoding="utf-8")
     progress.report("write", 0.3, "Excel workbook")
     (target / "topology.xlsx").write_bytes(to_xlsx(result["summary"], devices, links, hosts, result["findings"], behind, bundles, result["findings_by_device"], l3, priority))
@@ -230,7 +230,7 @@ def _write_anonymized(target: Path, files: list, carried: list | None, options: 
     leftovers = find_leftovers(anon, _pack_texts(tables["pack"]))
     (target / ANON_ZIP).write_bytes((folder / "keystone-topology-pack.zip").read_bytes())
     rows = anon.mapping + [{"kind": "LEFTOVER", "original": item["value"], "replacement": f"{item['kind']} still present in {item['file']}"} for item in leftovers]
-    (target / "anonymization-map.csv").write_text(to_csv(rows), encoding="utf-8-sig")
+    (target / "anonymization-map.csv").write_text(to_csv(rows), encoding="utf-8-sig", newline="")
     return {"leftovers": leftovers, "replaced": len(anon.mapping)}
 
 

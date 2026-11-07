@@ -151,8 +151,12 @@ def read_inventory_file(name: str, data: bytes) -> list[dict[str, str]]:
         import openpyxl
 
         workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-        sheet = workbook["Inventory"] if "Inventory" in workbook.sheetnames else workbook.worksheets[0]
-        return _rows_from_table([list(r) for r in sheet.iter_rows(values_only=True)])
+        try:
+            sheet = workbook["Inventory"] if "Inventory" in workbook.sheetnames else workbook.worksheets[0]
+            table = [list(r) for r in sheet.iter_rows(values_only=True)]
+        finally:
+            workbook.close()
+        return _rows_from_table(table)
     text = data.decode("utf-8-sig", errors="ignore")
     dialect = csv.Sniffer().sniff(text.splitlines()[0] if text else ",", delimiters=",;\t")
     return _rows_from_table([row for row in csv.reader(io.StringIO(text), dialect)])

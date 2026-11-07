@@ -127,6 +127,13 @@ def parse_workbook(file_stream):
     except Exception as exc:
         raise DeviceImportError(f"Could not read this file as an .xlsx workbook: {exc}") from exc
 
+    try:
+        return _read_device_rows(workbook)
+    finally:
+        workbook.close()    # a read-only workbook keeps the file open; Windows then refuses to delete it
+
+
+def _read_device_rows(workbook):
     sheet = workbook.active
     rows_iter = sheet.iter_rows(values_only=True)
     try:

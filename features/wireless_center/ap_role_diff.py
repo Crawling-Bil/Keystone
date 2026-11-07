@@ -127,22 +127,25 @@ def _read_tabular(path: Path) -> tuple[list[str], list[dict[str, str]]]:
         from openpyxl import load_workbook
 
         workbook = load_workbook(path, read_only=True, data_only=True)
-        worksheet = workbook.active
-        values = worksheet.iter_rows(values_only=True)
-        first = next(values, None)
-        if first is None:
-            return [], []
-        headers = [_clean(value) for value in first]
-        rows = []
-        for row_values in values:
-            if not any(_clean(value) for value in row_values):
-                continue
-            rows.append({
-                headers[index]: _clean(value)
-                for index, value in enumerate(row_values[:len(headers)])
-                if headers[index]
-            })
-        return headers, rows
+        try:
+            worksheet = workbook.active
+            values = worksheet.iter_rows(values_only=True)
+            first = next(values, None)
+            if first is None:
+                return [], []
+            headers = [_clean(value) for value in first]
+            rows = []
+            for row_values in values:
+                if not any(_clean(value) for value in row_values):
+                    continue
+                rows.append({
+                    headers[index]: _clean(value)
+                    for index, value in enumerate(row_values[:len(headers)])
+                    if headers[index]
+                })
+            return headers, rows
+        finally:
+            workbook.close()
 
     with path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as handle:
         sample = handle.read(4096)

@@ -231,3 +231,15 @@ def test_a_loop_is_kept_when_a_bend_is_not_shorter_or_cannot_clear():
     wall = [(1000.0, -3000.0, 1400.0, 3000.0)]                                                        # no bend within reach clears a wall this tall
     loop = [(60.0, -460.0), (2440.0, -460.0)]
     assert _detour_corner(page, centres, conn, centres["A"], centres["B"], (2500.0, 0.0), (0.0, 1.0), wall, loop) is None
+
+
+def test_every_csv_of_a_run_is_written_without_newline_translation():
+    """``to_csv`` already ends its lines with CRLF.  ``Path.write_text`` in text mode turns each LF of that into CRLF again on Windows, which gave CR CR LF
+    (a blank line between rows in Excel).  Passing ``newline=""`` stops the translation; this checks every CSV write of a run does."""
+    import re
+    from pathlib import Path
+
+    source = (Path(__file__).resolve().parents[1] / "features" / "topology" / "routes.py").read_text(encoding="utf-8")
+    writes = re.findall(r"write_text\(to_csv\([^\n]*", source)
+    assert len(writes) >= 13
+    assert all('newline=""' in line for line in writes), [line for line in writes if 'newline=""' not in line]
