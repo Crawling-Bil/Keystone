@@ -6,6 +6,9 @@ module streams through it once and keeps only what the Load Balancer Analyzer ca
 * the TMSH configuration files (``bigip.conf``, ``bigip_base.conf``, ``bigip_gtm.conf``, ``bigip_user.conf``, ``bigip_script.conf``;
   ``bigip_gtm.conf`` is where a BIG-IP DNS unit keeps its wide IPs, GTM pools, servers, data centers and listeners,
   and an administrative partition keeps its own ``config/partitions/<name>/bigip.conf`` and ``bigip_gtm.conf``);
+* a QKView (``qkview`` / iHealth diagnostic archive, gzip tar) has the same ``config/`` files at its root, so it is read by the same whitelist; its
+  ``VERSION.LTM`` and ``PLATFORM`` replace ``ucs_version`` and ``.ucs_platform``, and its public certificates sit in ``config/ssl/ssl.crt/``.  The rest of a
+  QKView (``var/log``, ``var/core``, ``var/tmstat``, ``mcp_module.xml``, ``proc_module.xml``, command output) is diagnostic data that may hold secrets and is never read;
 * ``ucs_version``, ``.ucs_platform``, ``bigip.license`` (module list and dates only), ``BigDB.dat`` (customised
   ``sys db`` values) and ``/config/startup``                                   -> ``ucs_files``;
 * the *public* certificates in the file store                                  -> ``ucs_x509``;
@@ -46,9 +49,10 @@ MAX_SMALL_BYTES = 8 * 1024 * 1024            # per small OS / license / db file
 MAX_CERT_BYTES = 256 * 1024                  # per certificate file (bundles are skipped)
 CONFIG_FILES = ("config/bigip.conf", "config/bigip_base.conf", "config/bigip_gtm.conf", "config/bigip_user.conf", "config/bigip_script.conf")
 _PARTITION_CONFIG = re.compile(r"^config/partitions/[^/]+/bigip(?:_gtm)?\.conf$")      # objects of an administrative partition
-CERT_DIRS = ("/certificate_d/", "/trust_certificate_d/")
+CERT_DIRS = ("/certificate_d/", "/trust_certificate_d/", "/ssl.crt/")           # the last one is where a QKView keeps the public certificates
+QKVIEW_MARKERS = ("manifest.xml", "qkview_run.data")
 DEFAULT_HTTPD_CONF = {"auth_pam.conf"}
-SECRET_PATHS = ("/ssl.key/", "_key_d/", "config/bigip/kstore/", "etc/shadow", "etc/gshadow", "/.ssh/", "etc/ssh/ssh_host_")
+SECRET_PATHS = ("/ssl.key/", "_key_d/", "config/bigip/kstore/", "etc/shadow", "etc/gshadow", "/.ssh/", "etc/ssh/ssh_host_", "/ssl.csr/", "RegKey.license", "var/core/", "/.f5km")
 
 
 class UcsError(ValueError):
@@ -72,6 +76,7 @@ class UcsBundle:
     tcp_wrappers: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     packages: list[dict[str, str]] = field(default_factory=list)      # iApp LX RPMs, by file name
     custom_files: list[dict[str, Any]] = field(default_factory=list)  # {"path", "bytes", "kind"}: present, content not kept
+    kind: str = "UCS"                                                 # "UCS" or "QKView": what the archive was saved as
     members: int = 0
     total_bytes: int = 0
     omitted: dict[str, int] = field(default_factory=dict)             # what was deliberately not read (label -> count)
@@ -80,7 +85,7 @@ class UcsBundle:
 
 # --------------------------------------------------------------------------- entry point
 def is_ucs(filename: str, head: bytes) -> bool:
-    return filename.lower().endswith(".ucs") or head[:2] == b"\x1f\x8b"
+    return filename.lower().endswith((".ucs", ".qkview")) or head[:2] == b"\x1f\x8b"
 
 
 def read_ucs(stream: BinaryIO) -> UcsBundle:
@@ -102,6 +107,8 @@ def read_ucs(stream: BinaryIO) -> UcsBundle:
                 raise UcsError(f"The archive expands to more than {MAX_UNCOMPRESSED_BYTES // 1024 ** 3} GB, far beyond a normal UCS, and was not read.")
             if time.monotonic() - started > MAX_SECONDS:
                 raise UcsError(f"Reading the archive took longer than {MAX_SECONDS} seconds and was stopped. Upload bigip.conf and bigip_base.conf instead.")
+            if name in QKVIEW_MARKERS and "/" not in name:
+                bundle.kind = "QKView"
             if member.isfile():
                 _dispatch(bundle, texts, archive, member, name)
     except (tarfile.TarError, OSError, EOFError) as exc:
@@ -212,6 +219,8 @@ def _set(attr: str, parse):
 _SMALL = {
     "config/ucs_version": _set("version", lambda t: ucs_files.keyvalue(t, ":")),
     "config/.ucs_platform": _set("platform", lambda t: ucs_files.keyvalue(t, "=")),
+    "VERSION.LTM": _set("version", lambda t: ucs_files.keyvalue(t, ":")),             # QKView: Product / Version / Build / Edition / Date
+    "PLATFORM": _set("platform", lambda t: ucs_files.keyvalue(t, "=")),
     "config/bigip.license": _set("license", ucs_files.parse_license),
     "config/BigDB.dat": _set("db", ucs_files.parse_bigdb),
     "config/startup": _startup,

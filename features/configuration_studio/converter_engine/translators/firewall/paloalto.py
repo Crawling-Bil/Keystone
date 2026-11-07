@@ -204,6 +204,11 @@ class PaloAltoFirewallTranslator:
         self._synthetic_vlan_unit = 900
 
     def translate(self, config, mapping=None, target_model=None):
+        if type(config).__name__ == "PaloAltoNativeConfig":
+            raise ValueError(
+                "This file is already a PAN-OS configuration (set, curly or XML export), so there is nothing to convert to PAN-OS. "
+                "The converter writes PAN-OS from a MikroTik export. Open the PAN-OS file in the Firewall Analyzer to review it."
+            )
         # Synthetic vlan.N numbering restarts per conversion, so the same
         # input always gives the same output (the wizard re-runs translate).
         self._synthetic_vlan_unit = 900

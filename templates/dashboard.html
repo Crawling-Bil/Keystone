@@ -78,7 +78,7 @@
             <div><h2 id="activity-title">Recent activity</h2><p>Latest local operations across the suite.</p></div>
             <span>Last 10</span>
         </div>
-        <div class="activity-list">
+        <div class="activity-list" tabindex="0" role="region" aria-label="Recent activity entries">
         {% if activities %}
             {% for item in activities %}
             <div class="activity-item"><i class="{{ item.status }}"></i><div><strong>{{ item.action }}</strong><span>{{ item.module }}{% if item.detail %} · {{ item.detail }}{% endif %}</span></div><time>{{ item.created_at[11:16] }}</time></div>

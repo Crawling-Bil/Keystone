@@ -1,0 +1,159 @@
+set deviceconfig system hostname PA-SYN-01
+set network interface ethernet ethernet1/1 layer3 ip 198.51.100.2/29
+set network interface ethernet ethernet1/1 layer3 interface-management-profile MGMT-PING
+set network interface ethernet ethernet1/1 comment "uplink"
+set network interface ethernet ethernet1/2 layer3 ip 10.1.0.1/24
+set network interface ethernet ethernet1/2 layer3 interface-management-profile MGMT-ADMIN
+set network interface ethernet ethernet1/2 layer3 units ethernet1/2.20 tag 20
+set network interface ethernet ethernet1/2 layer3 units ethernet1/2.20 ip 10.1.20.1/24
+set network interface ethernet ethernet1/3 layer3 ip 10.2.0.1/24
+set network interface ethernet ethernet1/4 aggregate-group ae1
+set network interface ethernet ethernet1/5 aggregate-group ae1
+set network interface aggregate-ethernet ae1 layer3 ip 10.3.0.1/24
+set network interface aggregate-ethernet ae1 layer3 lacp enable yes
+set network interface aggregate-ethernet ae1 layer3 lacp mode active
+set network interface loopback units loopback.1 ip 10.255.1.1/32
+set network interface tunnel units tunnel.1
+set network profiles interface-management-profile MGMT-PING ping yes
+set network profiles interface-management-profile MGMT-ADMIN ping yes
+set network profiles interface-management-profile MGMT-ADMIN https yes
+set network profiles interface-management-profile MGMT-ADMIN ssh yes
+set network profiles interface-management-profile MGMT-ADMIN userid-service yes
+set zone untrust network layer3 ethernet1/1
+set zone trust network layer3 [ ethernet1/2 ethernet1/2.20 ae1 ]
+set zone dmz network layer3 ethernet1/3
+set zone vpn network layer3 tunnel.1
+set address srv-web ip-netmask 10.2.0.10/32
+set address srv-range ip-range 10.2.0.20-10.2.0.29
+set address lan ip-netmask 10.1.0.0/24
+set address ext-web ip-netmask 198.51.100.4/32
+set address partner fqdn partner.example.test
+set address remote-lan ip-netmask 10.50.0.0/16
+set address-group servers static [ srv-web srv-range ]
+set service tcp-8443 protocol tcp port 8443
+set service dns-src protocol udp port 53
+set service dns-src protocol udp source-port 1024-65535
+set service-group web-svcs members [ tcp-8443 service-https ]
+set rulebase security rules allow-web from trust
+set rulebase security rules allow-web to untrust
+set rulebase security rules allow-web source lan
+set rulebase security rules allow-web destination any
+set rulebase security rules allow-web application [ ssl web-browsing ]
+set rulebase security rules allow-web service application-default
+set rulebase security rules allow-web action allow
+set rulebase security rules allow-web log-end yes
+set rulebase security rules in-web from untrust
+set rulebase security rules in-web to dmz
+set rulebase security rules in-web source any
+set rulebase security rules in-web destination ext-web
+set rulebase security rules in-web application any
+set rulebase security rules in-web service web-svcs
+set rulebase security rules in-web action allow
+set rulebase security rules in-web log-end yes
+set rulebase security rules block-geo from untrust
+set rulebase security rules block-geo to any
+set rulebase security rules block-geo source [ KP RU ]
+set rulebase security rules block-geo destination any
+set rulebase security rules block-geo application any
+set rulebase security rules block-geo service any
+set rulebase security rules block-geo action drop
+set rulebase security rules social from trust
+set rulebase security rules social to untrust
+set rulebase security rules social source any
+set rulebase security rules social destination any
+set rulebase security rules social application facebook-base
+set rulebase security rules social service application-default
+set rulebase security rules social action allow
+set rulebase security rules admins from trust
+set rulebase security rules admins to dmz
+set rulebase security rules admins source-user [ example\netadmins ]
+set rulebase security rules admins source any
+set rulebase security rules admins destination servers
+set rulebase security rules admins application any
+set rulebase security rules admins service [ service-https dns-src ]
+set rulebase security rules admins action allow
+set rulebase security rules admins disabled yes
+set rulebase security rules ping from trust
+set rulebase security rules ping to any
+set rulebase security rules ping source any
+set rulebase security rules ping destination any
+set rulebase security rules ping application ping
+set rulebase security rules ping service application-default
+set rulebase security rules ping action allow
+set rulebase security rules vpn-out from trust
+set rulebase security rules vpn-out to vpn
+set rulebase security rules vpn-out source lan
+set rulebase security rules vpn-out destination remote-lan
+set rulebase security rules vpn-out application any
+set rulebase security rules vpn-out service any
+set rulebase security rules vpn-out action allow
+set rulebase nat rules no-nat-vpn from trust
+set rulebase nat rules no-nat-vpn to vpn
+set rulebase nat rules no-nat-vpn source lan
+set rulebase nat rules no-nat-vpn destination remote-lan
+set rulebase nat rules no-nat-vpn service any
+set rulebase nat rules inbound-web from untrust
+set rulebase nat rules inbound-web to untrust
+set rulebase nat rules inbound-web source any
+set rulebase nat rules inbound-web destination ext-web
+set rulebase nat rules inbound-web service tcp-8443
+set rulebase nat rules inbound-web destination-translation translated-address 10.2.0.10
+set rulebase nat rules inbound-web destination-translation translated-port 443
+set rulebase nat rules outbound from trust
+set rulebase nat rules outbound to untrust
+set rulebase nat rules outbound source lan
+set rulebase nat rules outbound destination any
+set rulebase nat rules outbound service any
+set rulebase nat rules outbound source-translation dynamic-ip-and-port interface-address interface ethernet1/1
+set rulebase nat rules dmz-pool from dmz
+set rulebase nat rules dmz-pool to untrust
+set rulebase nat rules dmz-pool source srv-web
+set rulebase nat rules dmz-pool destination any
+set rulebase nat rules dmz-pool service any
+set rulebase nat rules dmz-pool source-translation dynamic-ip-and-port translated-address 198.51.100.6
+set rulebase nat rules static-one from dmz
+set rulebase nat rules static-one to untrust
+set rulebase nat rules static-one source srv-range
+set rulebase nat rules static-one destination any
+set rulebase nat rules static-one service any
+set rulebase nat rules static-one source-translation static-ip translated-address 198.51.100.7
+set network virtual-router default interface [ ethernet1/1 ethernet1/2 ae1 tunnel.1 ]
+set network virtual-router default routing-table ip static-route default destination 0.0.0.0/0
+set network virtual-router default routing-table ip static-route default nexthop ip-address 198.51.100.1
+set network virtual-router default routing-table ip static-route default interface ethernet1/1
+set network virtual-router default routing-table ip static-route default admin-dist 10
+set network virtual-router default routing-table ip static-route default metric 10
+set network virtual-router default routing-table ip static-route remote destination 10.50.0.0/16
+set network virtual-router default routing-table ip static-route remote interface tunnel.1
+set network virtual-router default routing-table ip static-route null destination 192.0.2.0/24
+set network virtual-router default routing-table ip static-route null nexthop discard
+set network virtual-router default routing-table ip static-route viaold destination 10.77.0.0/16
+set network virtual-router default routing-table ip static-route viaold nexthop ip-address 10.1.0.254
+set network virtual-router default protocol bgp enable yes
+set network virtual-router default protocol bgp router-id 10.255.1.1
+set network virtual-router default protocol bgp local-as 65020
+set network virtual-router default protocol bgp peer-group isp peer isp1 peer-address ip 198.51.100.1
+set network virtual-router default protocol bgp peer-group isp peer isp1 peer-as 64512
+set network virtual-router default protocol ospf enable yes
+set network virtual-router default protocol ospf router-id 10.255.1.1
+set network virtual-router default protocol ospf area 0.0.0.0 interface ae1
+set network ike crypto-profiles ike-crypto-profiles ike-aes dh-group [ group14 group19 ]
+set network ike crypto-profiles ike-crypto-profiles ike-aes hash [ sha256 sha384 ]
+set network ike crypto-profiles ike-crypto-profiles ike-aes encryption [ aes-256-cbc aes-128-cbc ]
+set network ike crypto-profiles ike-crypto-profiles ike-aes lifetime hours 8
+set network ike crypto-profiles ipsec-crypto-profiles esp-gcm esp encryption [ aes-256-gcm ]
+set network ike crypto-profiles ipsec-crypto-profiles esp-gcm esp authentication [ none ]
+set network ike crypto-profiles ipsec-crypto-profiles esp-gcm dh-group group19
+set network ike crypto-profiles ipsec-crypto-profiles esp-gcm lifetime hours 1
+set network ike gateway gw-remote protocol version ikev2
+set network ike gateway gw-remote protocol ikev2 ike-crypto-profile ike-aes
+set network ike gateway gw-remote peer-address ip 203.0.113.50
+set network ike gateway gw-remote local-address interface ethernet1/1
+set network ike gateway gw-remote authentication pre-shared-key key "SyntheticPskNotReal-0000"
+set network ike gateway gw-remote protocol-common nat-traversal enable yes
+set network ike gateway gw-remote protocol-common dpd enable yes
+set network tunnel ipsec tun-remote auto-key ike-gateway gw-remote
+set network tunnel ipsec tun-remote auto-key ipsec-crypto-profile esp-gcm
+set network tunnel ipsec tun-remote tunnel-interface tunnel.1
+set network tunnel ipsec tun-remote auto-key proxy-id p1 local 10.1.0.0/24
+set network tunnel ipsec tun-remote auto-key proxy-id p1 remote 10.50.0.0/16

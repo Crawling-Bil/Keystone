@@ -159,9 +159,11 @@ def test_a_ucs_upload_is_read_and_merged_with_the_capture_of_the_same_unit():
     assert devices[0].port_state["1.2"] == "up" and len(devices[0].arp_table) == 1
 
 
-def test_a_show_capture_alone_is_skipped_with_a_reason_that_names_the_fix():
+def test_a_show_capture_alone_is_drawn_and_reports_what_it_lacks():
+    """It used to be skipped. Its ports and ARP table are real, so the unit is drawn; self IPs and routes are not in it and are not guessed (TOPO-024)."""
     devices, skipped = service.read_devices([("show.txt", SHOW)])
-    assert devices == [] and "UCS" in skipped[0]["reason"] and "net self" in skipped[0]["reason"]
+    assert skipped == [] and len(devices) == 1
+    assert devices[0].capture_gap == service.SHOW_ONLY_GAP and not devices[0].l3 and devices[0].arp_table
 
 
 def test_a_pair_shares_the_floating_address_and_the_page_is_drawn():

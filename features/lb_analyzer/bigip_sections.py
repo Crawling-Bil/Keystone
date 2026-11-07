@@ -268,6 +268,14 @@ def network(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]:
                              [dict(r, _tone="info" if r["default"] else "") for r in data["routes"]], group="Network", empty="No static routes (management routes are listed under System)."))
     out.append(table_section("trunks", "Trunks", [("short", "Trunk", "mono"), ("interfaces", "Interfaces", "list"), ("lacp", "LACP", "status"), ("lacp_mode", "LACP mode"), ("lacp_timeout", "Timeout"), ("link_select", "Link select")],
                              [dict(t, _tones={"lacp": "ok" if t["lacp"] == "enabled" else ("warn" if len(t["interfaces"]) > 1 else "mute")}) for t in data["trunks"]], group="Network", empty="No trunks."))
+    out.append(table_section("interfaces", "Interfaces", [("short", "Port", "mono"), ("enabled", "Enabled", "status"), ("media_fixed", "Media"), ("bundle", "Bundle"), ("bundle_speed", "Bundle speed"), ("lldp_admin", "LLDP"), ("flow_control", "Flow control"),
+                                                         ("forward_error_correction", "FEC"), ("mtu", "MTU"), ("description", "Description", "wrap")],
+                             [dict(i, enabled="enabled" if i["enabled"] else "disabled", _tones={"enabled": "ok" if i["enabled"] else "mute"}) for i in data.get("interfaces", [])], group="Network",
+                             empty="No physical interface settings in the export (defaults are not written to the configuration)."))
+    out.append(table_section("vcmp_guests", "vCMP guests", [("short", "Guest", "mono"), ("hostname", "Hostname", "mono"), ("management_ip", "Management IP", "mono"), ("management_gw", "Gateway", "mono"), ("state", "State", "status"),
+                                                           ("cores_per_slot", "Cores/slot"), ("assigned_slots", "Slots", "list"), ("virtual_disk", "Virtual disk"), ("initial_image", "Image", "wrap"), ("ssl_mode", "SSL mode"), ("vlans", "VLANs", "list")],
+                             [dict(g, vlans=[short(v) for v in g["vlans"]], _tones={"state": "ok" if g["state"] == "deployed" else ("warn" if g["state"] else "")}) for g in data.get("vcmp_guests", [])], group="Network",
+                             empty="No vCMP guests (this is not a vCMP host).", hint="Guests are defined on the vCMP host. The guest's sym-unit-key is a secret and is never read."))
     out.append(table_section("route_domains", "Route domains", [("short", "Route domain", "mono"), ("id", "ID", "id"), ("parent", "Parent"), ("vlans", "VLANs", "list"), ("strict", "Strict isolation")], data["route_domains"], group="Network", empty="No route domains beyond the default."))
     return out
 
@@ -308,7 +316,7 @@ def system_sections(data: dict[str, Any], res: Resolver) -> list[dict[str, Any]]
     out.append(table_section("snmp", "SNMP", [("kind", "Type"), ("name", "Name", "mono"), ("access", "Access"), ("detail", "Detail", "wrap")], srows, group="System", empty="SNMP is not configured in this export. Community names and passwords are never displayed.",
                              hint="Allowed addresses: " + (", ".join(snmp["allowed"]) if snmp["allowed"] else "not listed (documented default 127.0.0.0/8)")))
     urows = [{"name": u["name"], "shell": u["shell"], "roles": u["roles"], "description": u["description"], "_tones": {"shell": "warn" if u["shell"] == "bash" else ""}} for u in auth["users"]]
-    out.append(table_section("users", "Local accounts", [("name", "User", "mono"), ("shell", "Shell"), ("roles", "Partition access / role", "list"), ("description", "Description", "wrap")], urows, group="System", empty="No local accounts in the export. Password hashes are never displayed."))
+    out.append(table_section("users", "Local accounts", [("name", "User", "mono"), ("shell", "Shell"), ("roles", "Partition access / role", "list"), ("description", "Description", "wrap")], urows, group="System", empty=("Not in this capture: it holds no 'tmsh list' output. Run 'tmsh list auth user' (collect list) to see the local accounts." if data.get("config_derived") else "No local accounts in the export. Password hashes are never displayed.")))
     remote = [{"kind": "LDAP", "name": l["name"], "detail": f"{', '.join(l['servers'])} · port {l['port']} · ssl {l['ssl']} · check-peer {l['check_peer']}", "_tones": {"detail": "bad" if l["ssl"] != "enabled" else ("warn" if l["check_peer"] != "enabled" else "ok")}} for l in auth["ldap"]]
     remote += [{"kind": "RADIUS", "name": r["name"], "detail": ", ".join(r["servers"]), "_tones": {}} for r in auth["radius"]]
     remote += [{"kind": "TACACS+", "name": t["name"], "detail": f"{', '.join(t['servers'])} · encryption {t['encryption']}", "_tones": {"detail": "bad" if t["encryption"].lower() == "disabled" else ""}} for t in auth["tacacs"]]

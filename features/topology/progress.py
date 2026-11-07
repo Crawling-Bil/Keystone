@@ -80,7 +80,7 @@ class Tracker:
 
 def start(build_id: str) -> Build | None:
     """Register a build under the id the page chose (None when the id is not acceptable: the build then runs without a bar)."""
-    if not ID_RE.match(build_id or ""):
+    if not ID_RE.fullmatch(build_id or ""):
         return None
     now = time.time()
     with _LOCK:

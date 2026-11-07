@@ -177,6 +177,8 @@ class FortiTree:
 def _secret_kind(path: str, key: str, values: list[str]) -> str | None:
     """Return the secret kind for a ``set`` line, or None when the value is harmless."""
     low = key.lower()
+    if values and values[0] == "ENC":              # FortiOS marks every encrypted value with ENC, whatever the setting is called (seed, passphrase, auth-key ...)
+        return "ENC"
     if low == "private-key":
         return "blob"
     if low in BLOB_KEYS:

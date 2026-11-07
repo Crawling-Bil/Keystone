@@ -140,7 +140,8 @@ def classify_by_name(parsed: dict) -> SourcePort | None:
     if speed and len(nums) == 3:
         member, slot, port = nums
         role = "access" if slot == 0 else "uplink"
-        return SourcePort(name, role, speed, member, port, "", True, f"slot {slot}", modelled=False)
+        # A standalone Huawei switch is unit 0 ("GigabitEthernet0/0/1"); a target stack member starts at 1 ("0/1/1" is not an AOS-CX port).
+        return SourcePort(name, role, speed, member or 1, port, "", True, f"slot {slot}", modelled=False)
     if speed and nums == (0, 0):
         return SourcePort(name, "mgmt", speed, 1, 1, "RJ45", True, "management", modelled=False)
     if speed and len(nums) == 2:

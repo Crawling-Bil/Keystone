@@ -1,0 +1,180 @@
+JKT-RTR1#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], ISR4331/K9 Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.9.4a
+cisco ISR4331/K9 (1RU) processor with 1795979K/6147K bytes of memory.
+Processor board ID FDO2410R0A1
+JKT-RTR1 uptime is 16 weeks, 2 days, 4 hours, 12 minutes
+
+JKT-RTR1#show inventory
+NAME: "Chassis",  DESCR: "ISR4331/K9"
+PID: ISR4331/K9        ,  VID: V01 ,  SN: FDO2410R0A1
+
+JKT-RTR1#show running-config
+Building configuration...
+
+Current configuration : 9812 bytes
+!
+version 17.9
+service timestamps log datetime msec
+!
+hostname JKT-RTR1
+!
+no aaa new-model
+ip routing
+
+ip domain name demo.example.test
+lldp run
+cdp run
+!
+interface Loopback0
+ ip address 10.101.255.1 255.255.255.255
+ ip ospf 1 area 0
+!
+interface GigabitEthernet0/0/2
+ description to JKT-SW1 GigabitEthernet1/1/3 (LAN gateway, OSPF)
+ ip address 10.101.0.1 255.255.255.192
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+!
+interface GigabitEthernet0/0/0
+ description MPLS TELKOM (BGP AS 64701)
+ ip address 198.51.100.6 255.255.255.252
+!
+interface GigabitEthernet0/0/1
+ description MPLS LINTASARTA (BGP AS 64702)
+ ip address 203.0.113.6 255.255.255.252
+!
+router ospf 1
+ router-id 10.101.255.1
+ log-adjacency-changes
+ default-information originate
+ passive-interface GigabitEthernet0/0/0
+ passive-interface GigabitEthernet0/0/1
+!
+router bgp 65101
+ bgp router-id 10.101.255.1
+ bgp log-neighbor-changes
+ neighbor 198.51.100.5 remote-as 64701
+ neighbor 198.51.100.5 description MPLS TELKOM PE
+ neighbor 203.0.113.5 remote-as 64702
+ neighbor 203.0.113.5 description MPLS LINTASARTA PE
+ !
+ address-family ipv4
+  network 10.101.0.0 mask 255.255.0.0
+  neighbor 198.51.100.5 activate
+  neighbor 203.0.113.5 activate
+ exit-address-family
+!
+ip route 10.101.0.0 255.255.0.0 Null0
+line vty 0 15
+ transport input ssh
+!
+end
+
+JKT-RTR1#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        U - in use      N - not in use, no aggregation
+
+Number of channel-groups in use: 0
+Number of aggregators:           0
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+
+
+JKT-RTR1#show cdp neighbors detail
+-------------------------
+Device ID:JKT-SW1.demo.example.test
+Entry address(es): 
+  IP address: 10.101.99.1
+Platform: cisco C9200L-24P-4G,  Capabilities: Switch IGMP
+Interface: GigabitEthernet0/0/2,  Port ID (outgoing port): GigabitEthernet1/1/3
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.101.99.1
+
+JKT-RTR1#show lldp neighbors detail
+------------------------------------------------
+Local Intf: Gi0/0/2
+Chassis id: 0a1b.0000.0111
+Port id: Gi1/1/3
+Port Description: GigabitEthernet1/1/3
+System Name: JKT-SW1
+
+System Description: 
+C9200L-24P-4G gateway
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.101.99.1
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+
+Total entries displayed: 1
+JKT-RTR1#show interfaces status
+
+Port      Name               Status       Vlan       Duplex  Speed Type
+Gi0/0/2   to JKT-SW1 Gigabit connected    1          a-full  a-1000 10/100/1000BaseTX
+
+JKT-RTR1#show ip interface brief
+Interface                  IP-Address      OK? Method Status                Protocol
+Loopback0                 10.101.255.1    YES manual up                    up
+GigabitEthernet0/0/2      10.101.0.1      YES manual up                    up
+GigabitEthernet0/0/0      198.51.100.6    YES manual up                    up
+GigabitEthernet0/0/1      203.0.113.6     YES manual up                    up
+
+JKT-RTR1#show ip arp
+Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+Internet  10.101.0.2         3   0a1b.0000.0111  ARPA   GigabitEthernet0/0/2
+
+JKT-RTR1#show ip route
+Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP
+       D - EIGRP, O - OSPF, IA - OSPF inter area, E1/E2 - OSPF external type 1/2
+
+Gateway of last resort is 198.51.100.5 to network 0.0.0.0
+
+B*       0.0.0.0/0 [20/0] via 198.51.100.5, 3d04h, Gi0/0/0
+B        10.10.0.0/16 [20/0] via 198.51.100.5, 3d04h, Gi0/0/0
+B        10.0.0.0/8 [20/0] via 198.51.100.5, 3d04h, Gi0/0/0
+B        10.102.0.0/16 [20/0] via 198.51.100.5, 3d04h, Gi0/0/0
+B        10.105.0.0/16 [20/0] via 198.51.100.5, 3d04h, Gi0/0/0
+B*       0.0.0.0/0 [20/0] via 203.0.113.5, 3d04h, Gi0/0/1
+B        10.10.0.0/16 [20/0] via 203.0.113.5, 3d04h, Gi0/0/1
+B        10.0.0.0/8 [20/0] via 203.0.113.5, 3d04h, Gi0/0/1
+B        10.103.0.0/16 [20/0] via 203.0.113.5, 3d04h, Gi0/0/1
+B        10.106.0.0/16 [20/0] via 203.0.113.5, 3d04h, Gi0/0/1
+O        10.101.10.0/24 [110/2] via 10.101.0.2, 3d04h, Gi0/0/2
+O        10.101.20.0/24 [110/2] via 10.101.0.2, 3d04h, Gi0/0/2
+O        10.101.30.0/24 [110/2] via 10.101.0.2, 3d04h, Gi0/0/2
+O        10.101.99.0/24 [110/2] via 10.101.0.2, 3d04h, Gi0/0/2
+
+JKT-RTR1#show ip ospf neighbor
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+10.101.255.11     1   FULL/BDR         00:00:33    10.101.0.2      Gi0/0/2
+
+JKT-RTR1#show ip bgp summary
+BGP router identifier 10.101.255.1, local AS number 65101
+BGP table version is 17, main routing table version 17
+2 network entries using 496 bytes of memory
+
+Neighbor        V           AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+198.51.100.5    4      64701    1432    1429        17    0    0 3d04h            5
+203.0.113.5     4      64702    1432    1429        17    0    0 3d04h            5
+
+JKT-RTR1#

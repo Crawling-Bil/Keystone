@@ -121,7 +121,8 @@ def _ip_index(graph: Graph) -> dict[str, str]:
     index: dict[str, str] = {}
     for key, node in graph.nodes.items():
         for ip in node.ips | ({node.mgmt_ip} if node.mgmt_ip else set()):
-            index.setdefault(ip, key)
+            if ip not in graph.ambiguous_ips:
+                index.setdefault(ip, key)
     return index
 
 
@@ -244,6 +245,9 @@ def description_drift(graph: Graph) -> list[dict[str, Any]]:
     return facts
 
 
+SINGLE_HOMED = ("ap", "phone")        # end points with one cable: a confirmed link beats a description on another switch
+
+
 def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
     """Add inferred links for ports that have no CDP/LLDP link. Order of trust: ARP, then MAC address, then port description. Returns the facts for TOPO-027."""
     taken = _evidence(graph)
@@ -311,6 +315,12 @@ def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
                 if claimed[(key, port)] == far_key:
                     continue                    # the same cable again, said from the other end
                 facts.append({"type": "port-claimed-twice", "a": key, "a_port": port, "first": claimed[(key, port)], "second": far_key})
+            if how <= {"DESC"} and far_key in graph.nodes and graph.nodes[far_key].role_hint in SINGLE_HOMED:
+                reported = next((c for c in graph.connections if far_key in (c.a, c.b) and key not in (c.a, c.b) and any(link.state != "inferred" for link in c.links)), None)
+                if reported is not None:       # an access point or a phone has one cable and its own CDP/LLDP says where: a description on another switch is a label nobody updated
+                    near = reported.b if reported.a == far_key else reported.a
+                    facts.append({"type": "description-elsewhere", "a": key, "a_port": port, "b": near, "b_port": "", "a_host": device.hostname, "b_host": graph.nodes[near].hostname, "says": graph.nodes[far_key].hostname, "description": description})
+                    continue
             joined = [c for c in graph.connections if far_key in (c.a, c.b) and key in (c.a, c.b)]
             if any(c.kind != "inferred" for c in joined):
                 continue                        # the two devices are already joined by a line (the other ports of that bundle are TOPO-015's business)

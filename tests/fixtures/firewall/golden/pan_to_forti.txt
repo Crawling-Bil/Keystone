@@ -1,0 +1,337 @@
+# FortiGate (FortiOS) conversion from PAN-OS
+config system global
+    set hostname "PA-SYN-01"
+end
+# ---- Interfaces
+config system interface
+    edit "port1"
+        set vdom "root"
+        set mode static
+        set ip 198.51.100.2 255.255.255.248
+        set allowaccess ping
+        set description "uplink"
+    next
+    edit "port2"
+        set vdom "root"
+        set mode static
+        set ip 10.1.0.1 255.255.255.0
+        set allowaccess ping https ssh
+    next
+    edit "vlan20"
+        set vdom "root"
+        set interface "port2"
+        set vlanid 20
+        set mode static
+        set ip 10.1.20.1 255.255.255.0
+    next
+    edit "port3"
+        set vdom "root"
+        set mode static
+        set ip 10.2.0.1 255.255.255.0
+    next
+    edit "agg1"
+        set vdom "root"
+        set type aggregate
+        set member "port4" "port5"
+        set lacp-mode active
+        set mode static
+        set ip 10.3.0.1 255.255.255.0
+    next
+    edit "lo1"
+        set vdom "root"
+        set type loopback
+        set mode static
+        set ip 10.255.1.1 255.255.255.255
+    next
+end
+# ---- Site-to-site VPN
+config vpn ipsec phase1-interface
+    edit "tun-remote"
+        set interface "port1"
+        set ike-version 2
+        set proposal aes256-sha256 aes256-sha384 aes128-sha256 aes128-sha384
+        set dhgrp 14 19
+        set remote-gw 203.0.113.50
+        set keylife 28800
+        set nattraversal enable
+        set dpd on-demand
+        set psksecret REPLACE-ME
+    next
+end
+config vpn ipsec phase2-interface
+    edit "tun-remote-p2-1"
+        set phase1name "tun-remote"
+        set proposal aes256gcm
+        set pfs enable
+        set dhgrp 19
+        set keylifeseconds 3600
+        set src-subnet 10.1.0.0 255.255.255.0
+        set dst-subnet 10.50.0.0 255.255.0.0
+    next
+end
+# ---- Zones
+config system zone
+    edit "untrust"
+        set intrazone allow
+        set interface "port1"
+    next
+    edit "trust"
+        set intrazone allow
+        set interface "port2" "vlan20" "agg1"
+    next
+    edit "dmz"
+        set intrazone allow
+        set interface "port3"
+    next
+    edit "vpn"
+        set intrazone allow
+        set interface "tun-remote"
+    next
+end
+# ---- Objects
+config firewall address
+    edit "srv-web"
+        set subnet 10.2.0.10 255.255.255.255
+    next
+    edit "srv-range"
+        set type iprange
+        set start-ip 10.2.0.20
+        set end-ip 10.2.0.29
+    next
+    edit "lan"
+        set subnet 10.1.0.0 255.255.255.0
+    next
+    edit "ext-web"
+        set subnet 198.51.100.4 255.255.255.255
+    next
+    edit "partner"
+        set type fqdn
+        set fqdn "partner.example.test"
+    next
+    edit "remote-lan"
+        set subnet 10.50.0.0 255.255.0.0
+    next
+    edit "geo-KP"
+        set type geography
+        set country "KP"
+        set comment "region KP"
+    next
+    edit "geo-RU"
+        set type geography
+        set country "RU"
+        set comment "region RU"
+    next
+end
+config firewall addrgrp
+    edit "servers"
+        set member "srv-web" "srv-range"
+    next
+end
+config firewall service custom
+    edit "tcp-8443"
+        set tcp-portrange 8443
+    next
+    edit "dns-src"
+        set udp-portrange 53:1024-65535
+    next
+    edit "service-https"
+        set tcp-portrange 443
+        set comment "predefined PAN-OS service"
+    next
+end
+config firewall service group
+    edit "web-svcs"
+        set member "tcp-8443" "service-https"
+    next
+end
+config firewall vip
+    edit "vip-inbound-web"
+        set extip 198.51.100.4
+        set mappedip "10.2.0.10"
+        set extintf "port1"
+        set portforward enable
+        set protocol tcp
+        set extport 8443
+        set mappedport 443
+    next
+end
+config firewall ippool
+    edit "pool-dmz-pool"
+        set type overload
+        set startip 198.51.100.6
+        set endip 198.51.100.6
+    next
+end
+# ---- Firewall policy
+config firewall policy
+    edit 1
+        set name "allow-web"
+        set srcintf "trust"
+        set dstintf "untrust"
+        set srcaddr "lan"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "HTTPS" "HTTP"
+        set logtraffic all
+        set comments "PAN-OS applications: ssl, web-browsing; source rule allow-web"
+    next
+    edit 2
+        set name "in-web"
+        set srcintf "untrust"
+        set dstintf "dmz"
+        set srcaddr "all"
+        set dstaddr "vip-inbound-web"
+        set action accept
+        set schedule "always"
+        set service "web-svcs"
+        set logtraffic all
+        set comments "source rule in-web"
+    next
+    edit 3
+        set name "block-geo"
+        set srcintf "untrust"
+        set dstintf "any"
+        set srcaddr "geo-KP" "geo-RU"
+        set dstaddr "all"
+        set action deny
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set comments "source rule block-geo"
+    next
+    edit 4
+        set name "social"
+        set srcintf "trust"
+        set dstintf "untrust"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set status disable
+        set comments "NOT ENABLED: application facebook-base (App-ID); PAN-OS applications: facebook-base; source rule social"
+    next
+    edit 5
+        set name "admins"
+        set srcintf "trust"
+        set dstintf "dmz"
+        set srcaddr "all"
+        set dstaddr "servers"
+        set action accept
+        set schedule "always"
+        set service "service-https" "dns-src"
+        set logtraffic all
+        set status disable
+        set comments "source rule admins"
+    next
+    edit 6
+        set name "ping"
+        set srcintf "trust"
+        set dstintf "any"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "PING"
+        set logtraffic all
+        set comments "PAN-OS applications: ping; source rule ping"
+    next
+    edit 7
+        set name "vpn-out"
+        set srcintf "trust"
+        set dstintf "vpn"
+        set srcaddr "lan"
+        set dstaddr "remote-lan"
+        set action accept
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set comments "source rule vpn-out"
+    next
+end
+config firewall central-snat-map
+    edit 1
+        set type ipv4
+        set status enable
+        set srcintf "trust"
+        set dstintf "vpn"
+        set orig-addr "lan"
+        set dst-addr "remote-lan"
+        set nat disable
+    next
+    edit 2
+        set type ipv4
+        set status enable
+        set srcintf "trust"
+        set dstintf "untrust"
+        set orig-addr "lan"
+        set dst-addr "all"
+        set nat enable
+    next
+    edit 3
+        set type ipv4
+        set status enable
+        set srcintf "dmz"
+        set dstintf "untrust"
+        set orig-addr "srv-web"
+        set dst-addr "all"
+        set nat enable
+        set nat-ippool "pool-dmz-pool"
+    next
+end
+config system settings
+    set central-nat enable
+end
+# ---- Routing
+config router static
+    edit 1
+        set gateway 198.51.100.1
+        set device "port1"
+        set distance 10
+        set priority 10
+    next
+    edit 2
+        set dst 10.50.0.0 255.255.0.0
+        set device "tun-remote"
+        set distance 10
+        set priority 10
+    next
+    edit 3
+        set dst 192.0.2.0 255.255.255.0
+        set blackhole enable
+        set distance 10
+        set priority 10
+    next
+    edit 4
+        set dst 10.77.0.0 255.255.0.0
+        set gateway 10.1.0.254
+        set device "port2"
+        set distance 10
+        set priority 10
+    next
+end
+config router bgp
+    set as 65020
+    set router-id 10.255.1.1
+    config neighbor
+        edit "198.51.100.1"
+            set remote-as 64512
+            set description "isp"
+        next
+    end
+end
+config router ospf
+    set router-id 10.255.1.1
+    config area
+        edit 0.0.0.0
+        next
+    end
+    config network
+        edit 1
+            set prefix 10.3.0.0 255.255.255.0
+            set area 0.0.0.0
+        next
+    end
+end

@@ -12,6 +12,7 @@ from . import labels
 from .graph import Graph
 from .layout import NODE_H, NODE_W
 from .scene import Page
+from .titles import TITLE_LEFT, title_width
 
 CHAR_W = 5.4          # width of one character at font-size 10
 LABEL_H = 13
@@ -43,6 +44,8 @@ def _node_boxes(page: Page, graph: Graph) -> list[Rect]:
             boxes.append((cx - half, pos.y + NODE_H + 3, cx + half, pos.y + NODE_H + 18 + 14 * len(lines)))
     for frame in page.pair_boxes.values():              # the frame title strip
         boxes.append((frame.x, frame.y, frame.x + frame.w, frame.y + 24))
+    for title, x, y, w, h in page.end_boxes:             # the name of a frame of end points, where it stands when no line is in its way (``titles``): a port label keeps off it
+        boxes.append((x + 4, y + 6, x + TITLE_LEFT + title_width(title), y + 28))
     return boxes
 
 
@@ -78,22 +81,34 @@ class _LineIndex:
     """The drawn lines in a coarse grid, so a label can count how many OTHER lines run under it."""
 
     def __init__(self) -> None:
-        self.cells: dict[tuple[int, int], list[tuple[int, tuple[float, float], tuple[float, float]]]] = {}
+        # per cell: (owner, a, b, left, top, right, bottom) -- the segment's own box lets most segments be dismissed without clipping
+        self.cells: dict[tuple[int, int], list[tuple[int, tuple[float, float], tuple[float, float], float, float, float, float]]] = {}
 
     def add(self, owner: int, points: list[tuple[float, float]]) -> None:
         for a, b in zip(points, points[1:]):
-            for cx in range(int(min(a[0], b[0]) // CELL), int(max(a[0], b[0]) // CELL) + 1):
-                for cy in range(int(min(a[1], b[1]) // CELL), int(max(a[1], b[1]) // CELL) + 1):
-                    self.cells.setdefault((cx, cy), []).append((owner, a, b))
+            left, right = (a[0], b[0]) if a[0] <= b[0] else (b[0], a[0])
+            top, bottom = (a[1], b[1]) if a[1] <= b[1] else (b[1], a[1])
+            entry = (owner, a, b, left, top, right, bottom)
+            for cx in range(int(left // CELL), int(right // CELL) + 1):
+                for cy in range(int(top // CELL), int(bottom // CELL) + 1):
+                    self.cells.setdefault((cx, cy), []).append(entry)
 
-    def crossed(self, rect: Rect, own: int) -> int:
+    def crossed(self, rect: Rect, own: int, cap: float = float("inf")) -> int:
+        """How many other lines run under ``rect``; counting stops at ``cap`` (the caller only needs to know the count is at least that)."""
         seen: set[int] = set()
         x0, y0, x1, y1 = rect
+        cells = self.cells
         for cx in range(int(x0 // CELL), int(x1 // CELL) + 1):
             for cy in range(int(y0 // CELL), int(y1 // CELL) + 1):
-                for owner, a, b in self.cells.get((cx, cy), ()):
-                    if owner != own and owner not in seen and _clips(rect, a, b):
+                for owner, a, b, left, top, right, bottom in cells.get((cx, cy), ()):
+                    if owner == own or owner in seen:
+                        continue
+                    if right < x0 or left > x1 or bottom < y0 or top > y1:       # the segment's box misses the label: it cannot cross it
+                        continue
+                    if _clips(rect, a, b):
                         seen.add(owner)
+                        if len(seen) >= cap:
+                            return len(seen)
         return len(seen)
 
 
@@ -190,7 +205,10 @@ def place_labels(page: Page, graph: Graph, show_ports: bool = True) -> None:
             for shift in (MID_SHIFTS if slot == "mid" else SHIFTS):
                 cx, cy = x + nx * shift, y + ny * shift
                 rect = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-                score = _hit(rect, obstacles) * 6 + _hit(rect, taken) * 4 + lines.crossed(rect, index) + (1 if shift else 0) + (1 if abs(shift) > 26 else 0)
+                score = _hit(rect, obstacles) * 6 + _hit(rect, taken) * 4 + (1 if shift else 0) + (1 if abs(shift) > 26 else 0)
+                if best is not None and score >= best[0]:                  # already no better than the best spot: the lines under it cannot change that
+                    continue
+                score += lines.crossed(rect, index, float("inf") if best is None else best[0] - score)
                 if best is None or score < best[0]:
                     best = (score, cx, cy, along / total)
                 if score == 0:
@@ -206,7 +224,10 @@ def place_labels(page: Page, graph: Graph, show_ports: bool = True) -> None:
                 for shift in WIDE_SHIFTS:
                     cx, cy = x + nx * shift, y + ny * shift
                     rect = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-                    score = _hit(rect, obstacles) * 6 + _hit(rect, taken) * 4 + lines.crossed(rect, index) + abs(shift) // 28 + (1 if shift else 0)
+                    score = _hit(rect, obstacles) * 6 + _hit(rect, taken) * 4 + abs(shift) // 28 + (1 if shift else 0)
+                    if score >= best[0]:
+                        continue
+                    score += lines.crossed(rect, index, best[0] - score)
                     if score < best[0]:
                         best = (score, cx, cy, (total * fraction if slot != "b" else total * (1 - fraction)) / total)
                 if best[0] < 4:

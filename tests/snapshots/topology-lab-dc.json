@@ -1,0 +1,138 @@
+{
+ "devices": [
+  {
+   "captured": "yes",
+   "device": "LAB-ACC1",
+   "management_ip": "10.99.0.21",
+   "model": "C9300L-48P-4X",
+   "os_version": "17.12.5",
+   "role": "access",
+   "stack_members": 1,
+   "vendor": "Cisco",
+   "vpc_domain": "",
+   "vpc_role": ""
+  },
+  {
+   "captured": "yes",
+   "device": "LAB-AGG1",
+   "management_ip": "10.99.0.11",
+   "model": "N9K-C93180YC-FX3",
+   "os_version": "10.3(5)",
+   "role": "aggregation",
+   "stack_members": 1,
+   "vendor": "Cisco",
+   "vpc_domain": "240",
+   "vpc_role": "primary"
+  },
+  {
+   "captured": "yes",
+   "device": "LAB-AGG2",
+   "management_ip": "10.99.0.12",
+   "model": "N9K-C93180YC-FX3",
+   "os_version": "10.3(5)",
+   "role": "aggregation",
+   "stack_members": 1,
+   "vendor": "Cisco",
+   "vpc_domain": "240",
+   "vpc_role": "secondary"
+  },
+  {
+   "captured": "no (seen by neighbors)",
+   "device": "LAB-FW1",
+   "management_ip": "",
+   "model": "",
+   "os_version": "",
+   "role": "firewall",
+   "stack_members": "",
+   "vendor": "",
+   "vpc_domain": "",
+   "vpc_role": ""
+  }
+ ],
+ "findings": [
+  {
+   "devices": [
+    "LAB-FW1"
+   ],
+   "id": "TOPO-004",
+   "severity": "info",
+   "title": "1 network device(s) advertised by neighbors but not captured"
+  },
+  {
+   "devices": [
+    "LAB-ACC1",
+    "LAB-AGG2"
+   ],
+   "id": "TOPO-013",
+   "severity": "info",
+   "title": "2 capture(s) without 'show lldp neighbors detail'"
+  }
+ ],
+ "links": [
+  {
+   "bundle_a": "Po40",
+   "bundle_b": "Po101",
+   "device_a": "LAB-ACC1",
+   "device_b": "LAB-AGG1",
+   "kind": "bundle",
+   "port_a": "Gi1/0/23",
+   "port_b": "Eth1/1",
+   "speed_a": "",
+   "speed_b": "",
+   "state": "confirmed",
+   "vpc_id": "101"
+  },
+  {
+   "bundle_a": "Po40",
+   "bundle_b": "Po101",
+   "device_a": "LAB-ACC1",
+   "device_b": "LAB-AGG2",
+   "kind": "bundle",
+   "port_a": "Gi1/0/24",
+   "port_b": "Eth1/1",
+   "speed_a": "",
+   "speed_b": "",
+   "state": "confirmed",
+   "vpc_id": "101"
+  },
+  {
+   "bundle_a": "",
+   "bundle_b": "",
+   "device_a": "LAB-AGG1",
+   "device_b": "LAB-FW1",
+   "kind": "link",
+   "port_a": "Eth1/40",
+   "port_b": "port5",
+   "speed_a": "",
+   "speed_b": "",
+   "state": "single",
+   "vpc_id": ""
+  },
+  {
+   "bundle_a": "Po240",
+   "bundle_b": "Po240",
+   "device_a": "LAB-AGG1",
+   "device_b": "LAB-AGG2",
+   "kind": "peer-link",
+   "port_a": "Eth1/47",
+   "port_b": "Eth1/47",
+   "speed_a": "",
+   "speed_b": "",
+   "state": "confirmed",
+   "vpc_id": ""
+  },
+  {
+   "bundle_a": "Po240",
+   "bundle_b": "Po240",
+   "device_a": "LAB-AGG1",
+   "device_b": "LAB-AGG2",
+   "kind": "peer-link",
+   "port_a": "Eth1/48",
+   "port_b": "Eth1/48",
+   "speed_a": "",
+   "speed_b": "",
+   "state": "confirmed",
+   "vpc_id": ""
+  }
+ ]
+}

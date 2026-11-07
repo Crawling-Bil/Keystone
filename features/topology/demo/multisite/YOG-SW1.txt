@@ -1,0 +1,293 @@
+<YOG-SW1>display version
+Huawei Versatile Routing Platform Software
+VRP (R) software, Version 5.170 (S5735-S24T4X V200R022C00SPC500)
+Copyright (C) 2000-2023 HUAWEI TECH CO., LTD
+HUAWEI S5735-S24T4X Routing Switch uptime is 120 days, 5 hours, 42 minutes
+
+<YOG-SW1>display esn
+ESN of master board: 2102353310K0001
+
+<YOG-SW1>display device
+S5735-S24T4X's Device status:
+Slot Sub  Type                   Online    Power    Register     Status   Role
+-------------------------------------------------------------------------------
+0    -    S5735-S24T4X           Present   PowerOn  Registered   Normal   Master
+
+<YOG-SW1>display current-configuration
+#
+sysname YOG-SW1
+#
+vlan batch 10 20 30 99
+#
+dhcp enable
+#
+vlan 10
+ name USERS
+#
+vlan 20
+ name WIFI
+#
+vlan 30
+ name VOICE
+#
+vlan 99
+ name MGMT
+#
+ip pool YOG-USERS
+ gateway-list 10.103.10.1
+ network 10.103.10.0 mask 255.255.255.0
+ excluded-ip-address 10.103.10.2 10.103.10.99
+ lease day 0 hour 8 minute 0
+ dns-list 10.10.101.11
+#
+ip pool YOG-WIFI
+ gateway-list 10.103.20.1
+ network 10.103.20.0 mask 255.255.255.0
+ excluded-ip-address 10.103.20.2 10.103.20.99
+ lease day 0 hour 8 minute 0
+ dns-list 10.10.101.11
+#
+ip pool YOG-VOICE
+ gateway-list 10.103.30.1
+ network 10.103.30.0 mask 255.255.255.0
+ excluded-ip-address 10.103.30.2 10.103.30.99
+ lease day 0 hour 8 minute 0
+ dns-list 10.10.101.11
+ option 150 ip-address 10.10.102.30
+#
+interface Vlanif10
+ description USERS wired
+ ip address 10.103.10.1 255.255.255.0
+ dhcp select global
+#
+interface Vlanif20
+ description WIFI users
+ ip address 10.103.20.1 255.255.255.0
+ dhcp select global
+#
+interface Vlanif30
+ description VOICE phones
+ ip address 10.103.30.1 255.255.255.0
+ dhcp select global
+#
+interface Vlanif99
+ description MGMT
+ ip address 10.103.99.1 255.255.255.0
+#
+interface XGigabitEthernet0/0/1
+ description to YOG-SW2 XGE0/0/2
+ port link-type trunk
+ port trunk pvid vlan 99
+ port trunk allow-pass vlan 10 20 30 99
+#
+interface GigabitEthernet0/0/24
+ description to YOG-RTR1 Gi0/0/2 (OSPF)
+ undo portswitch
+ ip address 10.103.0.2 255.255.255.192
+ ospf network-type p2p
+#
+interface GigabitEthernet0/0/1
+ description YOG-PC1
+ port link-type access
+ port default vlan 10
+ stp edged-port enable
+#
+interface GigabitEthernet0/0/2
+ description YOG-PC2
+ port link-type access
+ port default vlan 10
+ stp edged-port enable
+#
+interface GigabitEthernet0/0/3
+ description YOG-PHONE1
+ port link-type access
+ port default vlan 10
+ stp edged-port enable
+ voice-vlan 30 enable
+#
+interface GigabitEthernet0/0/4
+ description YOG-AP1
+ port link-type trunk
+ port trunk pvid vlan 99
+ port trunk allow-pass vlan 20 99
+#
+ospf 1 router-id 10.103.255.11
+ silent-interface Vlanif10
+ silent-interface Vlanif20
+ silent-interface Vlanif30
+ silent-interface Vlanif99
+ area 0.0.0.0
+  network 10.103.10.0 0.0.0.255
+  network 10.103.20.0 0.0.0.255
+  network 10.103.30.0 0.0.0.255
+  network 10.103.99.0 0.0.0.255
+  network 10.103.0.0 0.0.0.63
+#
+return
+
+<YOG-SW1>display eth-trunk
+
+<YOG-SW1>display lldp neighbor brief
+Local Interface         Exptime(s) Neighbor Interface      Neighbor Device
+XGigabitEthernet0/0/1   105        XGigabitEthernet0/0/2  YOG-SW2
+GigabitEthernet0/0/24   105        Gi0/0/2                YOG-RTR1
+GigabitEthernet0/0/3    105        1                      YOG-PHONE1
+GigabitEthernet0/0/4    105        Gi0                    YOG-AP1
+
+<YOG-SW1>display lldp neighbor
+XGigabitEthernet0/0/1 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :0a1b-0000-0132
+Port ID subtype                    :Interface Name
+Port ID                            :XGigabitEthernet0/0/2
+Port description                   :
+System name                        :YOG-SW2
+System description                 :S5735-S24T4X
+System capabilities supported      :bridge router
+System capabilities enabled        :bridge router
+Management address type            :ipv4
+Management address value           :10.103.99.12
+Port VLAN ID(PVID)                 :1
+
+GigabitEthernet0/0/24 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :0a1b-0000-0130
+Port ID subtype                    :Interface Name
+Port ID                            :Gi0/0/2
+Port description                   :
+System name                        :YOG-RTR1
+System description                 :ISR4331/K9
+System capabilities supported      :router
+System capabilities enabled        :router
+Management address type            :ipv4
+Management address value           :10.103.255.1
+Port VLAN ID(PVID)                 :1
+
+GigabitEthernet0/0/3 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :02e1-0000-3201
+Port ID subtype                    :Interface Name
+Port ID                            :1
+Port description                   :
+System name                        :YOG-PHONE1
+System description                 :Cisco endpoint
+System capabilities supported      :telephone
+System capabilities enabled        :telephone
+Management address type            :ipv4
+Management address value           :10.103.30.101
+Port VLAN ID(PVID)                 :1
+
+GigabitEthernet0/0/4 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :02a9-0000-3401
+Port ID subtype                    :Interface Name
+Port ID                            :Gi0
+Port description                   :
+System name                        :YOG-AP1
+System description                 :Cisco endpoint
+System capabilities supported      :wlan-access-point
+System capabilities enabled        :wlan-access-point
+Management address type            :ipv4
+Management address value           :10.103.99.21
+Port VLAN ID(PVID)                 :1
+
+<YOG-SW1>display ip interface brief
+*down: administratively down
+^down: standby
+(l): loopback
+(s): spoofing
+(d): Dampening Suppressed
+Interface                         IP Address/Mask      Physical   Protocol
+Vlanif10                      10.103.10.1/24      up        up
+Vlanif20                      10.103.20.1/24      up        up
+Vlanif30                      10.103.30.1/24      up        up
+Vlanif99                      10.103.99.1/24      up        up
+GigabitEthernet0/0/24         10.103.0.2/26       up        up
+
+<YOG-SW1>display mac-address
+Flags: * - Backup
+       # - forwarding logical interface, operations cannot be performed based
+           on the interface.
+BD   : bridge-domain   Age : dynamic MAC learned time in seconds
+-------------------------------------------------------------------------------
+MAC Address    VLAN/VSI/BD   Learned-From        Type                Age
+-------------------------------------------------------------------------------
+02c0-0000-3101 10/-/-         GigabitEthernet0/0/1 dynamic             600
+02c0-0000-3102 10/-/-         GigabitEthernet0/0/2 dynamic             601
+02e1-0000-3201 30/-/-         GigabitEthernet0/0/3 dynamic             602
+02a9-0000-3401 99/-/-         GigabitEthernet0/0/4 dynamic             603
+02f1-0000-3301 20/-/-         GigabitEthernet0/0/4 dynamic             604
+02f1-0000-3302 20/-/-         GigabitEthernet0/0/4 dynamic             605
+02c0-0000-3103 10/-/-         XGigabitEthernet0/0/1 dynamic             606
+02c0-0000-3104 10/-/-         XGigabitEthernet0/0/1 dynamic             607
+02e1-0000-3202 30/-/-         XGigabitEthernet0/0/1 dynamic             608
+02a9-0000-3402 99/-/-         XGigabitEthernet0/0/1 dynamic             609
+02f1-0000-3303 20/-/-         XGigabitEthernet0/0/1 dynamic             610
+02f1-0000-3304 20/-/-         XGigabitEthernet0/0/1 dynamic             611
+02c0-0000-3105 10/-/-         XGigabitEthernet0/0/1 dynamic             612
+02c0-0000-3106 10/-/-         XGigabitEthernet0/0/1 dynamic             613
+02e1-0000-3203 30/-/-         XGigabitEthernet0/0/1 dynamic             614
+02a9-0000-3403 99/-/-         XGigabitEthernet0/0/1 dynamic             615
+02f1-0000-3305 20/-/-         XGigabitEthernet0/0/1 dynamic             616
+02f1-0000-3306 20/-/-         XGigabitEthernet0/0/1 dynamic             617
+-------------------------------------------------------------------------------
+Total items displayed = 18
+
+<YOG-SW1>display arp
+ARP Entry Types: D - Dynamic, S - Static, I - Interface
+EXP: Expire-time
+
+IP ADDRESS      MAC ADDRESS    EXP(M) TYPE/VLAN       INTERFACE        VPN-INSTANCE
+----------------------------------------------------------------------------------------
+10.103.10.101   02c0-0000-3101    9   D/10           Vlanif10
+10.103.10.102   02c0-0000-3102    9   D/10           Vlanif10
+10.103.30.101   02e1-0000-3201    9   D/30           Vlanif30
+10.103.99.21    02a9-0000-3401    9   D/99           Vlanif99
+10.103.20.101   02f1-0000-3301    9   D/20           Vlanif20
+10.103.20.102   02f1-0000-3302    9   D/20           Vlanif20
+10.103.10.103   02c0-0000-3103    9   D/10           Vlanif10
+10.103.10.104   02c0-0000-3104    9   D/10           Vlanif10
+10.103.30.102   02e1-0000-3202    9   D/30           Vlanif30
+10.103.99.22    02a9-0000-3402    9   D/99           Vlanif99
+10.103.20.103   02f1-0000-3303    9   D/20           Vlanif20
+10.103.20.104   02f1-0000-3304    9   D/20           Vlanif20
+10.103.10.105   02c0-0000-3105    9   D/10           Vlanif10
+10.103.10.106   02c0-0000-3106    9   D/10           Vlanif10
+10.103.30.103   02e1-0000-3203    9   D/30           Vlanif30
+10.103.99.23    02a9-0000-3403    9   D/99           Vlanif99
+10.103.20.105   02f1-0000-3305    9   D/20           Vlanif20
+10.103.20.106   02f1-0000-3306    9   D/20           Vlanif20
+10.103.99.12    0a1b-0000-0132    9   D/99           Vlanif99
+10.103.99.13    0a1b-0000-0133    9   D/99           Vlanif99
+10.103.0.1      0a1b-0000-0130    9   D/GigabitEthernet0/0/24 GigabitEthernet0/0/24
+----------------------------------------------------------------------------------------
+Total:21       Dynamic:21       Static:0    Interface:0
+
+<YOG-SW1>display ip routing-table
+Route Flags: R - relay, D - download to fib
+------------------------------------------------------------------------------
+Routing Tables: Public
+         Destinations : 1       Routes : 1
+
+Destination/Mask    Proto   Pre  Cost        Flags NextHop         Interface
+
+            0.0.0.0/0   O_ASE   150  1           D   10.103.0.1      GigabitEthernet0/0/24
+
+<YOG-SW1>display ospf peer brief
+
+	 OSPF Process 1 with Router ID 10.103.255.11
+		  Peer Statistic Information
+ ----------------------------------------------------------------------------
+ Area Id          Interface                        Neighbor id      State    
+ 0.0.0.0          GE0/0/24                         10.103.255.1     Full
+ ----------------------------------------------------------------------------
+
+<YOG-SW1>

@@ -7,7 +7,7 @@ Convert has five pages, one per kind of device, the same five as Analyze:
 | Wireless | `/convert/wireless` | none yet |
 | Switch | `/convert/switch` | Cisco / Aruba / Huawei switches (Huawei VRP target, standard config profiles), hardware catalog and Interface map |
 | Router | `/convert/router` | none yet (router hardware catalog and interface-name reference only) |
-| Firewall | `/convert/firewall` | MikroTik RouterOS 6/7 to Palo Alto (interface/zone mapping, IPsec, SD-WAN, Panorama) |
+| Firewall | `/convert/firewall` | MikroTik RouterOS 6/7 to Palo Alto (interface/zone mapping, IPsec, SD-WAN, Panorama); FortiGate to PAN-OS and PAN-OS to FortiGate (policy, NAT, objects, routing, site-to-site VPN, with a conversion report) |
 | Load Balancer | `/convert/load-balancer` | none yet |
 
 `/convert/` and `/configuration/` redirect to the Switch page. The JSON API stays under `/configuration/api/*`; the page sends a `domain` field with every request.
@@ -134,6 +134,25 @@ Documentation: Cisco Nexus 9000 NX-OS Security Configuration Guide 10.3(x), "Con
 
 Documentation: Cisco, "Understand the vPC Election Process" (https://www.cisco.com/c/en/us/support/docs/ios-nx-os-software/nx-os-software/212589-understanding-vpc-election-process.html); HPE Aruba Networking VSX examples (https://developer.arubanetworks.com/aoscx/v10.04/docs/architecture-ii-dedicated-data-center-two-tier , https://arubanetworking.hpe.com/techdocs/VSG/docs/050-dc-deploy/esp-dc-deploy-730-central-two-tier-lossless-core/); Huawei CloudEngine S6730-H-V2 25GE product page (https://e.huawei.com/en/products/switches/campus-switches/s6730-h-v2-25g); Huawei M-LAG white paper, DFS group priority (https://actfornet.com/ueditor/php/upload/file/20181230/1546128876958575.pdf, third-party copy of the Huawei document; the V600R025C00 page itself refused the fetch).
 
+### Round-trip check
+
+After every switch conversion `roundtrip.py` reads the converted text back with the parser of the target vendor and compares it with the source, so a line that was dropped or changed without a word in the output is found before the text is pasted on a device. It is the Round-trip check tab of the result.
+
+- **How it compares.** The source is parsed again (A) and the converted text is parsed with the target parser (B). Top-level `REVIEW` comment lines are removed from B first (`reading_copy`), because some parsers cut the config at a quoted `show running-config` that a REVIEW echo contains. The two models are compared with no vendor syntax in the way: VLANs, port mode/VLANs/speed/duplex/description/shutdown, bundles (members and LACP or static mode), SVI / loopback / management addresses, static routes (VRF and default gateway included), DHCP pools and relay, ACL rule counts and bindings, and the services (NTP, syslog, SNMP trap hosts, TACACS+, RADIUS, DNS, local users, SNMP communities, banner). Ports are paired through the Interface map (`metadata["port_map"]`), then by the position numbers when the map has no name for a port.
+- **Flagged and silent.** A difference that a `REVIEW` line covers (by its code words, by the quoted unsupported text, by an interface stanza REVIEW or by a REVIEW that names the source port) is *flagged*: the engineer was told. Any other difference is *silent*, a defect of the converter. Rows that match are only counted. Verdicts: equivalent, flagged, differences, unreadable, empty.
+- **Targets without a parser** (firewalls, load balancers) return nothing and the tab stays hidden. The check never raises; a failure is shown as `unreadable` with the reason.
+- **Regression guard.** `tests/test_convert_roundtrip.py` converts every synthetic switch fixture to the three targets and requires `silent == 0`. Any new silent loss fails the suite.
+
+The first runs found seven defects that were silent before, all fixed:
+
+1. ArubaOS-Switch (`1`..`24`) and AOS-CX (`1/1/1`) ports were written to Huawei as `interface 1/1/1`; the Interface map name (`GE1/0/1`) is now used.
+2. LACP mode was written on the member port for AOS-CX; it belongs to the LAG (`interface lag N`, `lacp mode active|passive`, HPE AOS-CX 10.14 link aggregation guide: https://arubanetworking.hpe.com/techdocs/AOS-CX/10.14/HTML/link_aggregation/Content/Chp_LAG/LACP_LAG_cmds/lac-mod.htm).
+3. DHCP relay on an AOS-CX SVI is `ip helper-address <ip>`, not `ip dhcp-relay` (https://arubanetworking.hpe.com/techdocs/AOS-CX/10.13/HTML/ip_services_4100i-6000-6100/Content/Chp_DHCP/cnf-dhc-rel-age-10.htm).
+4. Huawei `snmp-agent community` and `sys-info` were dropped when converting to Cisco; plain communities are converted, cipher communities become a commented template with a REVIEW (the original string cannot be decrypted).
+5. Huawei `ip route-static vpn-instance NAME ...` read the instance name as the destination; the VRF is now kept (and the AOS-CX `vrf` suffix too).
+6. NX-OS `logging server <ip>` was not read, so syslog servers were lost.
+7. A Huawei standalone switch (`GigabitEthernet0/0/1`, unit 0) mapped to member 0 on the target; it is member 1.
+
 ## Guided firewall conversion (MikroTik to Palo Alto)
 
 The Convert Firewall page has a second path next to the one-click convert: "Guided Conversion (step by step)". It exists because a firewall config is a graph of references. A security rule names zones, a zone names interfaces, NAT names zones, interfaces and objects. A one-shot conversion that guesses one port wrong breaks references three sections later, and the mistake shows up only at commit.
@@ -156,6 +175,35 @@ What it does not do
 - Sources other than MikroTik RouterOS are refused (the PAN-OS source has no translation path to a firewall target yet).
 - Port counts come from `PALOALTO_TARGET_MODELS` (data sheets). Which number is RJ45 and which is SFP is not modelled; confirm once per model with `show interface hardware` on a real unit.
 
+## FortiGate and PAN-OS conversion
+
+Pick FortiGate as the source and Palo Alto as the target (or the reverse) on Convert > Firewall. The conversion is a two-step translation through a neutral firewall model (`converter_engine/fwconvert/`): a reader (`forti_read.py`, `pan_read.py`) fills the model, a writer (`pan_write.py`, `forti_write.py`) prints the target. A **Conversion report** tab lists every object by layer (interfaces and zones, NAT, objects, security policy, routing, site-to-site VPN) with one of four statuses: converted, approximated, needs review, not converted, plus the vendor documentation to read for that item. The same report downloads as CSV.
+
+Choices on the page: which layers to write, the FortiGate VDOM to read (a multi-VDOM backup converts one VDOM at a time), and whether a rule that was restricted in a way the target cannot carry is written **disabled** (default) or enabled.
+
+What differs between the two platforms, and what the converter does about it
+- PAN-OS matches a security rule on the address *before* NAT and the zone *after* it. A FortiGate VIP is therefore written as an address object plus a destination NAT rule, and the policy that used the VIP names the address object (NAT policy overview: https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview).
+- A PAN-OS service holds one protocol. A FortiGate service with TCP and UDP ranges becomes one object per protocol; ICMP and IP protocols are applications on PAN-OS.
+- FortiGate NAT set on a policy becomes ordered NAT rules; where a later NAT policy overlaps, a no-NAT rule is written first so the order keeps its meaning. FortiGate central NAT (`config firewall central-snat-map`) maps one to one.
+- PAN-OS NAT to FortiGate is written as central NAT (`config system settings`, `set central-nat enable`), with VIPs for destination NAT (https://docs.fortinet.com/document/fortigate/7.4.2/administration-guide/421028/central-snat).
+- PAN-OS application-based rules become FortiGate services on the application's default ports (`tables.APP_PORTS`; https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/app-id/application-default.html); an application the table does not know disables the rule.
+- Not carried, so the rule is written disabled and the reason is in its description: schedule, user and group match, Internet Service (ISDB), application control, URL category, HIP profile.
+- IPsec: IKE and ESP proposals map by token (`aes256-sha256` to an IKE crypto profile with AES-256-CBC and SHA-256; GCM to `aes256gcm`), selectors map to proxy IDs, `admin-dist` to `distance` and `metric` to `priority`. Pre-shared keys are never read or written: the PAN-OS gateway gets the placeholder `REPLACE-ME` and the report says so.
+- Not converted at all (the report says why): IPv6 policies, MAC and dynamic address types, load-balance and FQDN VIPs, ddns VPN peers, SSL-VPN, HA and management ports.
+
+Input: FortiOS `show` / `show full-configuration` text, or PAN-OS `set` commands, XML (`show config running`) or curly view. XML with a DOCTYPE or entity is refused. Input larger than 20 MB is refused.
+
+Tests: `tests/test_fwconvert_mutation_cases.py` (20 edits of the fixtures found by mutation testing; each stores the difference the edit makes, `--update` rewrites the expected differences after an intended change) and `tests/test_fwconvert_reader_edges.py` (hand-written FortiGate corners), plus `tests/test_fwconvert.py` (golden outputs under `tests/fixtures/firewall/golden/`, per-feature cases, round trip, random-input fuzz) and `tests/test_fwconvert_studio.py` (page and download). The golden files change only when the converter's output is meant to change: read the diff before accepting it.
+
+References
+- FortiOS CLI reference, `config firewall central-snat-map`: https://docs.fortinet.com/document/fortigate/7.4.1/cli-reference/308620/config-firewall-central-snat-map
+- FortiGate VIP (cookbook): https://docs.fortinet.com/document/fortigate/6.2.2/cookbook/155333
+- PAN-OS IPsec site-to-site (IKE gateway, IPsec tunnel): https://docs.paloaltonetworks.com/pan-os/10-1/pan-os-admin/vpns/set-up-site-to-site-vpn
+
+## Hiding credentials in the output
+
+The converter keeps the credential values it copies from the source: Cisco local-user hashes appear in the Huawei `REVIEW-PASSWORD-HASH` and `SOURCE-PASSWORD` lines, SNMP communities and shared keys are carried or quoted in REVIEW comments. That is deliberate (the engineer pastes working commands and compares with the source), so the output is a credential file. The Convert Switch page has **Hide passwords and keys in the output** (form field `hide_secrets=1`, also honoured by the batch endpoint). `converter_engine/secret_mask.py` then replaces the values by `<hidden>`: first by command patterns, then by a sweep for the exact values the same patterns find in the source. The pre-flight and round-trip checks read the real output; only the shown text, the download and the batch ZIP are masked. `result.secrets.lines` counts the lines that carry a value and drives the notice above the result. To support another vendor syntax, add a pattern to `_PATTERNS` and a row to `test_mask_line_shapes`; the canary fixtures in `tests/fixtures/secrets/` show every source shape. References: Cisco password types https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/sec_usr_cfg/configuration/xe-16/sec-usr-cfg-xe-16-book/sec-cfg-pw-privilege.html ; Huawei `cipher` keywords https://support.huawei.com/enterprise/en/doc/EDOC1100333463 ; AOS-CX user and key commands https://arubanetworking.hpe.com/techdocs/AOS-CX/ .
+
 ## Adding a converter
 
 1. Write the parser under `parsers/<domain>/` and the translator under `translators/<domain>/`.
@@ -168,7 +216,7 @@ What it does not do
 
 - Router classification identifies Cisco IOS/IOS-XE and Huawei routers only when there is strong evidence; thin captures stay "unknown".
 - Wireless, Router and Load Balancer have no converter. Each page lists what is needed (a source backup, a mapping decision, and a known-good target for comparison).
-- FortiGate and FortiSwitch are analyzed, not converted. Palo Alto is a conversion target only.
+- FortiSwitch is analyzed, not converted. FortiGate and PAN-OS convert in both directions (section below); MikroTik converts to Palo Alto only.
 - A Palo Alto source file may be XML, `set` commands, or a terminal capture of `show config running` (curly view). A capture with only operational output (no configuration) gives identity and interfaces but no policy; the Firewall Analyzer reads it for health and lifecycle findings.
 - Terminal logs (PuTTY, SecureCRT) are replayed through `features/analyzer_core/terminal.py` before parsing, so prompt repaints, pager lines and wrapped rows do not reach the parsers.
 

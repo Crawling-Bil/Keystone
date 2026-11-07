@@ -57,6 +57,23 @@
     renderFiles();
   }
   input.addEventListener("change", () => { addFiles([...input.files]); input.value = ""; });
+  // other scripts of the page (the demo buttons) hand captures over with this event; "replace" starts the list again
+  $("name").addEventListener("input", () => { delete $("name").dataset.demo; });
+  root.addEventListener("tp:addfiles", (event) => {
+    const d = event.detail || {};
+    if (d.replace) files = [];
+    addFiles(d.files || []);
+    if (d.name && (!$("name").value.trim() || $("name").dataset.demo)) { $("name").value = d.name; $("name").dataset.demo = "1"; }
+    if (d.group && [...$("group").options].some((o) => o.value === d.group)) { $("group").value = d.group; groupWarning(); }      // a demo set of many sites asks for one page per site
+    if (d.replace) {                                                                  // a demo set brings its own layout, or none: a layout of an earlier set must not stay behind
+      const picker = $("previous"), carrier = new DataTransfer();
+      if (d.layout) carrier.items.add(d.layout);
+      picker.files = carrier.files;
+      picker.showName();
+    }
+    if (d.status) setStatus(d.status);
+    if (d.showBuild) button.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+  });
   $("previous-state").addEventListener("change", renderFiles);
   // a file chosen in the styled pickers shows its name; options that make no sense with "exclude end points" step aside
   ["previous-state", "previous"].forEach((role) => {
@@ -74,7 +91,7 @@
   ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("dragover"); }));
   drop.addEventListener("drop", (e) => addFiles([...e.dataTransfer.files]));
   $("group").addEventListener("change", groupWarning);
-  $("clear").addEventListener("click", () => { files = []; data = null; $("previous-state").value = ""; $("previous").value = ""; $("previous-state").showName(); $("previous").showName(); renderFiles(); result.classList.add("hidden"); empty.classList.remove("hidden"); setStatus(""); stopProgress(); });
+  $("clear").addEventListener("click", () => { files = []; data = null; $("previous-state").value = ""; $("previous").value = ""; $("previous-state").showName(); $("previous").showName(); renderFiles(); result.classList.add("hidden"); empty.classList.remove("hidden"); setStatus(""); stopProgress(); root.dispatchEvent(new CustomEvent("tp:buildstart")); });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -90,11 +107,13 @@
     body.append("show_ports", $("ports").checked ? "1" : "0");
     body.append("include_routed", $("routed").checked ? "1" : "0");
     body.append("show_link_ips", $("link-ips").checked ? "1" : "0");
+    body.append("bundle_members", $("bundle-members").checked ? "1" : "0");
     body.append("infer_neighbors", $("infer").checked ? "1" : "0");
     body.append("include_hosts", $("hosts").checked ? "1" : "0");
     body.append("hide_mgmt", $("mgmt").checked ? "1" : "0");
     body.append("view", $("view").value);
     body.append("provider_hints", $("provider-hints").value);
+    body.append("site_rules", $("site-rules").value);
     body.append("overlay_sites", $("overlay-sites").value);
     body.append("focus_sites", $("focus-sites").value);
     body.append("group_l3", $("group-l3").checked ? "1" : "0");
@@ -107,6 +126,7 @@
     if (previous) body.append("previous", previous, previous.name);
     const saved = $("previous-state").files[0];
     if (saved) body.append("previous_state", saved, saved.name);
+    root.dispatchEvent(new CustomEvent("tp:buildstart"));
     button.disabled = true;
     setStatus("");
     startProgress(buildId, files.length ? "Sending the captures" : "Rebuilding from the previous run");
@@ -125,10 +145,28 @@
       if (!payload) { stopProgress(); setStatus(`Keystone answered with an error (HTTP ${response.status}). See the Keystone terminal window for details.`, true); return; }
       if (!response.ok || !payload.ok) { stopProgress(); setStatus(payload.error || "The topology could not be built.", true); return; }
       stopProgress("Done"); data = payload; activePage = 0; activeView = startView($("view").value); render(); setStatus("");
+      root.dispatchEvent(new CustomEvent("tp:built", { detail: { id: payload.export_id } }));
       setTimeout(() => { if (pollTimer === null && !button.disabled) bar.box.classList.add("hidden"); }, 4000);
     } catch (err) {
       stopProgress(); setStatus(`The result could not be shown (${err && err.message ? err.message : err}). Please report this message.`, true);
     } finally { button.disabled = !canBuild(); }
+  });
+
+  // "Open again" in the Topology history: show the answer a kept build returned, without reading the captures again
+  root.addEventListener("tp:open", async (event) => {
+    const id = event.detail && event.detail.id;
+    if (!id) return;
+    root.dispatchEvent(new CustomEvent("tp:showview", { detail: { view: "create" } }));
+    setStatus("Opening the kept run ...");
+    let payload = null;
+    try { payload = await (await fetch(`${api}/api/history/${encodeURIComponent(id)}/result`, { cache: "no-store" })).json(); } catch (err) { payload = null; }
+    if (!payload || !payload.ok) { setStatus((payload && payload.error) || "Keystone did not answer. Check that its terminal window is still open.", true); return; }
+    try {
+      data = payload; activePage = 0; activeView = startView("all"); render();
+      if (!data.skipped.length) setStatus("Opened again from the history: nothing was read or built again.");
+      root.dispatchEvent(new CustomEvent("tp:built", { detail: { id: payload.export_id } }));
+      result.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    } catch (err) { setStatus(`The kept result could not be shown (${err && err.message ? err.message : err}). Build it again from the captures.`, true); }
   });
 
   function render() {
@@ -142,6 +180,8 @@
     const notices = (data.notices || []);
     $("notices").textContent = notices.join(" ");
     $("notices").classList.toggle("hidden", !notices.length);
+    $("group-reason").textContent = data.group_reason ? "Automatic grouping: " + data.group_reason : "";
+    $("group-reason").classList.toggle("hidden", !data.group_reason);
     renderAnonymized();
     $("cards").innerHTML = cards.map(([k, label]) => `<div class="tp-card"><strong>${esc(s[k])}</strong><span>${label}</span></div>`).join("");
     $("downloads").innerHTML = data.downloads.map((d, i) => `<a class="an-btn small${i === 0 ? " primary" : ""}" href="${esc(d.url)}" download="${esc(d.filename || d.name)}">${esc(d.filename || d.name)}</a>`).join("");

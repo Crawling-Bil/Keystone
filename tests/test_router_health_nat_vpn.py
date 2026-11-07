@@ -1039,14 +1039,15 @@ def test_every_new_rule_cites_a_reference_that_exists():
 
 def test_collect_script_covers_every_command_the_analyzer_reads():
     commands = [line.strip() for line in COLLECT.read_text(encoding="utf-8").splitlines() if line.strip() and not line.strip().startswith(("!", "#"))]
-    assert commands[0] == "terminal length 0"
+    assert commands[:2] == ["write memory", "terminal length 0"]       # the save first (pinned in test_collect_lists.py), then the pager
     assert len(commands) == len(set(commands)), "a command is listed twice"
     for spec in ctxmod.SPECS:
         if spec.key.startswith("sdwan_"):
             continue   # 'show sdwan ...' exists on controller-managed routers only: collect-router-cisco-sdwan.txt
         assert any(command == template or command.startswith(template) for template in spec.templates for command in commands), f"{spec.key}: {spec.templates}"
-    # the collect list never changes the router
-    assert not any(re.match(r"(?i)(clear|reload|configure|conf t|write|copy|debug|erase|delete|no )", command) for command in commands)
+    # the collect list never changes the router, except the one save at the top (write memory; announced in the header, pinned in test_collect_lists.py)
+    assert not any(re.match(r"(?i)(clear|reload|configure|conf t|write|copy|debug|erase|delete|no )", command) for command in commands if command != "write memory")
+    assert commands.count("write memory") == 1
 
 
 def test_collect_script_says_which_commands_are_not_yet_proven():

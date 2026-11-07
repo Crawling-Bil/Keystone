@@ -43,6 +43,9 @@ def sections(l3: bool = True) -> list[tuple[str, list[str]]]:
             "A floating self IP (a traffic group other than traffic-group-local-only) belongs to both units of an HA pair, so it is handled like an HSRP or VRRP address: a next hop that is the floating address is resolved to the BIG-IP pair.",
             "The UCS holds configuration only. Add a tmsh capture of the same unit ('show net interface', 'show net arp') to give the ports their state and speed and to prove neighbors with ARP; without it the BIG-IP links are dashed (configured, nothing proves them). "
             "The BIG-IP's own LLDP neighbors are not read, so a cable to it appears when the neighbor device reports it (CDP or LLDP) or when it is inferred from ARP or MAC tables.",
+            "A capture of show commands alone (no UCS) is drawn too: the F5 map with the virtual servers and their live state, the ports with state and media, and the VLAN names with the hosts the ARP table shows "
+            "(and the gateway when a Cisco HSRP or VRRP virtual MAC answers). Self IPs, subnets and routes are not in show output, so there is no routed link and the run reports it (TOPO-024); "
+            "add the UCS, or 'tmsh list net self net vlan net route net trunk', to get them.",
         ]),
     ]
     if not l3:

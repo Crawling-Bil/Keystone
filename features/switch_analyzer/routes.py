@@ -12,6 +12,7 @@ from features.analyzer_core.collect import COLLECT_DIR, describe_file
 from features.configuration_studio.service import create_engine
 from ..firewall_analyzer.firewall_excel_exporter import FirewallExcelExporter
 from ..firewall_analyzer.firewall_service import analyze_firewall
+from . import baseline as baseline_check
 from .compare import compare as compare_results
 from .exporters import SwitchExcelExporter, export_comparison
 from .service import analyze
@@ -111,7 +112,7 @@ def collect_lists() -> list[dict]:
 @bp.get("")
 @bp.get("/")
 def index():
-    return render_template("switch_analyzer.html", active_page="switch_analyzer", collect_lists=collect_lists())
+    return render_template("switch_analyzer.html", active_page="switch_analyzer", collect_lists=collect_lists(), baselines=baseline_check.choices())
 
 
 def _read_config_from_request(file_field: str, text_field: str) -> tuple[str, str] | None:
@@ -165,10 +166,13 @@ def analyze_route():
     except ConfigTooLargeError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
     if read is None:
-        return jsonify({"ok": False, "error": "Upload switch config atau paste konfigurasi terlebih dahulu."}), 400
+        return jsonify({"ok": False, "error": "Upload a switch configuration or paste one first."}), 400
     content, source_name = read
     vendor = request.form.get("vendor", "Auto Detect")
     vendor_key = vendor.strip().lower()
+    baseline = request.form.get("baseline", "").strip()
+    if baseline and baseline not in baseline_check.standards():
+        return jsonify({"ok": False, "error": f"Unknown baseline '{baseline[:40]}'. Choose one from the Baseline list."}), 400
 
     # Mikrotik/Palo Alto (explicit pick) or an Auto Detect that
     # resolves to a firewall-shaped config both go to the firewall
@@ -188,7 +192,7 @@ def analyze_route():
                 f"· {result['cards']['total_findings']} findings",
             )
         else:
-            result = analyze(content, filename=source_name, vendor=vendor)
+            result = analyze(content, filename=source_name, vendor=vendor, baseline=baseline)
             log_activity(
                 "Switch Analyzer",
                 "Switch config analyzed",
@@ -196,7 +200,7 @@ def analyze_route():
             )
         return jsonify({"ok": True, "result": result})
     except Exception as exc:
-        if "tidak dapat dideteksi" in str(exc):
+        if "could not be detected" in str(exc):
             # The device list shows this text next to the file, so it has to say what to do about it.
             return jsonify({"ok": False, "error": "The vendor could not be told from this file (no hostname prompt, show version, inventory or recognisable commands). "
                                                    "Choose Cisco, Huawei or Aruba in the Vendor box and click Analyze again."}), 400
@@ -238,7 +242,7 @@ def export_route():
         # Export switch and firewall results separately instead.
         return jsonify({
             "ok": False,
-            "error": "Export gabungan switch + firewall (Mikrotik/Palo Alto) dalam satu file belum didukung -- export terpisah per tipe device ya.",
+            "error": "Exporting switch and firewall (MikroTik/Palo Alto) results in one file is not supported. Export each device type separately.",
         }), 400
 
     if len(results) == 1:
@@ -293,7 +297,7 @@ def sizing_route():
         # export guard above.
         return jsonify({
             "ok": False,
-            "error": "Sizing assessment belum tersedia untuk hasil analisa firewall (Mikrotik/Palo Alto) di iterasi ini.",
+            "error": "The sizing assessment is not available for firewall results (MikroTik/Palo Alto).",
         }), 400
 
     try:
@@ -310,7 +314,7 @@ def sizing_route():
 
 @bp.get("/download/<export_id>")
 def download_export(export_id: str):
-    if not SAFE_IDENTIFIER.match(export_id):
+    if not SAFE_IDENTIFIER.fullmatch(export_id):
         return jsonify({"ok": False, "error": "Invalid export id."}), 400
     name = secure_filename(request.args.get("name", "")) or f"{export_id}.xlsx"
     return send_from_directory(EXPORT_DIR, f"{export_id}.xlsx", as_attachment=True, download_name=name)

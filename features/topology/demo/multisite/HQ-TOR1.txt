@@ -1,0 +1,318 @@
+HQ-TOR1# show version
+Cisco Nexus Operating System (NX-OS) Software
+Software
+  BIOS: version 05.47
+  NXOS: version 10.3(5) [Feature Release]
+Hardware
+  cisco Nexus9000 N9K-C93180YC-FX3 Chassis
+  Device name: HQ-TOR1
+  bootflash:  115805 MB
+Kernel uptime is 112 day(s), 4 hour(s), 31 minute(s), 9 second(s)
+
+HQ-TOR1# show inventory
+NAME: "Chassis",  DESCR: "Nexus9000 N9K-C93180YC-FX3 Chassis"
+PID: N9K-C93180YC-FX3  ,  VID: V01 ,  SN: FDO2412TR1
+
+HQ-TOR1# show running-config
+!Command: show running-config
+version 10.3(5) Bios:version 05.47
+hostname HQ-TOR1
+vdc HQ-TOR1 id 1
+feature interface-vlan
+feature lacp
+feature vpc
+feature lldp
+feature bfd
+
+ntp server 10.10.0.5 use-vrf management
+ip domain-name demo.example.test
+clock timezone WIB 7 0
+
+vlan 101
+  name DC-WEB
+vlan 102
+  name DC-APP
+vlan 103
+  name DC-DB
+vpc domain 40
+  peer-switch
+  role priority 100
+  peer-keepalive destination 10.10.0.24 source 10.10.0.23 vrf management
+  peer-gateway
+  auto-recovery
+
+interface mgmt0
+  vrf member management
+  ip address 10.10.0.23/24
+interface port-channel40
+  description vPC peer-link to HQ-TOR2
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 101-103
+  vpc peer-link
+  no shutdown
+interface port-channel141
+  description double-sided vPC TOR <-> SERVER FARM
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 101-103
+  vpc 141
+  no shutdown
+interface Ethernet1/51
+  description to HQ-TOR2 Eth1/51
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 101-103
+  channel-group 40 mode active
+  no shutdown
+interface Ethernet1/52
+  description to HQ-TOR2 Eth1/52
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 101-103
+  channel-group 40 mode active
+  no shutdown
+interface Ethernet1/1
+  description HQ-SRV1
+  switchport
+  switchport access vlan 101
+  spanning-tree port type edge
+  no shutdown
+interface Ethernet1/2
+  description HQ-SRV3
+  switchport
+  switchport access vlan 103
+  spanning-tree port type edge
+  no shutdown
+interface Ethernet1/53
+  description to HQ-SF1 Eth1/49
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 101-103
+  channel-group 141 mode active
+  no shutdown
+interface Ethernet1/54
+  description to HQ-SF2 Eth1/49
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 101-103
+  channel-group 141 mode active
+  no shutdown
+
+HQ-TOR1# show port-channel summary
+Flags:  D - Down        P - Up in port-channel (members)
+        I - Individual  H - Hot-standby (LACP only)
+        s - Suspended   r - Module-removed
+        S - Switched    R - Routed
+        U - Up (port-channel)
+        M - Not in use. Min-links not met
+--------------------------------------------------------------------------------
+Group Port-       Type     Protocol  Member Ports
+      Channel
+--------------------------------------------------------------------------------
+40    Po40(SU)    Eth      LACP      Eth1/51(P)    Eth1/52(P)
+141   Po141(SU)    Eth      LACP      Eth1/53(P)    Eth1/54(P)
+
+HQ-TOR1# show vpc
+
+Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 40
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 1
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ -------------------------------------------------
+1     Po40    up     101,102,103
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ------------
+141   Po141          up     success     success               101-103
+
+HQ-TOR1# show cdp neighbors detail
+-------------------------
+Device ID:HQ-TOR2(FDO2412TR2)
+Entry address(es): 
+  IP address: 10.10.0.24
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: Ethernet1/51,  Port ID (outgoing port): Ethernet1/51
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.24
+-------------------------
+Device ID:HQ-TOR2(FDO2412TR2)
+Entry address(es): 
+  IP address: 10.10.0.24
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: Ethernet1/52,  Port ID (outgoing port): Ethernet1/52
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.24
+-------------------------
+Device ID:HQ-SF1(FDO2412SF1)
+Entry address(es): 
+  IP address: 10.10.0.21
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: Ethernet1/53,  Port ID (outgoing port): Ethernet1/49
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.21
+-------------------------
+Device ID:HQ-SF2(FDO2412SF2)
+Entry address(es): 
+  IP address: 10.10.0.22
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: Ethernet1/54,  Port ID (outgoing port): Ethernet1/49
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.22
+
+HQ-TOR1# show lldp neighbors detail
+Capability codes:
+  (R) Router, (B) Bridge, (T) Telephone, (C) DOCSIS Cable Device
+  (W) WLAN Access Point, (P) Repeater, (S) Station, (O) Other
+Device ID            Local Intf      Hold-time  Capability  Port ID
+
+Chassis id: 0a1b.0000.0008
+Port id: Ethernet1/51
+Local Port id: Eth1/51
+Port Description: to HQ-TOR2 Eth1/51
+System Name: HQ-TOR2
+System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(5)
+Time remaining: 112 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 10.10.0.24
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.0008
+Port id: Ethernet1/52
+Local Port id: Eth1/52
+Port Description: to HQ-TOR2 Eth1/52
+System Name: HQ-TOR2
+System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(5)
+Time remaining: 112 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 10.10.0.24
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.0005
+Port id: Ethernet1/49
+Local Port id: Eth1/53
+Port Description: to HQ-SF1 Eth1/49
+System Name: HQ-SF1
+System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(5)
+Time remaining: 112 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 10.10.0.21
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.0006
+Port id: Ethernet1/49
+Local Port id: Eth1/54
+Port Description: to HQ-SF2 Eth1/49
+System Name: HQ-SF2
+System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(5)
+Time remaining: 112 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 10.10.0.22
+Vlan ID: 1
+
+Chassis id: 0050.0000.5611
+Port id: 0050.0000.5611
+Local Port id: Eth1/1
+Port Description: 
+System Name: HQ-SRV1
+System Description: Demo server
+Time remaining: 112 seconds
+System Capabilities: S
+Enabled Capabilities: S
+Management Address: 10.10.101.11
+Vlan ID: 1
+
+Chassis id: 02d0.0000.0333
+Port id: 02d0.0000.0333
+Local Port id: Eth1/2
+Port Description: 
+System Name: HQ-SRV3
+System Description: Demo server
+Time remaining: 112 seconds
+System Capabilities: S
+Enabled Capabilities: S
+Management Address: 10.10.103.11
+Vlan ID: 1
+
+
+HQ-TOR1# show interface status
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+Eth1/51       to HQ-TOR2 Eth1/5  connected trunk     full    100G    QSFP-100G-SR4
+Eth1/52       to HQ-TOR2 Eth1/5  connected trunk     full    100G    QSFP-100G-SR4
+Eth1/1        HQ-SRV1            connected 101       full    25G     SFP-25G-SR-S
+Eth1/2        HQ-SRV3            connected 103       full    25G     SFP-25G-SR-S
+Eth1/53       to HQ-SF1 Eth1/49  connected trunk     full    100G    QSFP-100G-SR4
+Eth1/54       to HQ-SF2 Eth1/49  connected trunk     full    100G    QSFP-100G-SR4
+
+HQ-TOR1# show ip interface brief
+IP Interface Status for VRF "default"(1)
+Interface            IP Address      Interface Status
+
+
+HQ-TOR1# show mac address-table
+Legend:
+        * - primary entry, G - Gateway MAC, (R) - Routed MAC, O - Overlay MAC
+        age - seconds since last seen,+ - primary entry using vPC Peer-Link
+   VLAN     MAC Address      Type      age     Secure NTFY Ports
+---------+-----------------+--------+---------+------+----+------------------
+*  101     0050.0000.5611   dynamic  0         F      F    Eth1/1
+*  103     02d0.0000.0333   dynamic  0         F      F    Eth1/2
+
+HQ-TOR1# 

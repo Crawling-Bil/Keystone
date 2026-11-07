@@ -135,21 +135,21 @@ class AssessmentAnalyzer:
                 "severity": "WARNING",
                 "category": "AP Configuration",
                 "title":
-                    "AP tidak memiliki AP Group",
+                    "AP has no AP Group",
                 "reason": (
-                    "AP ditemukan pada konfigurasi WLC tetapi "
-                    "tidak memiliki assignment AP Group."
+                    "The AP is in the WLC configuration but "
+                    "has no AP Group assignment."
                 ),
                 "possible_causes": [
-                    "AP belum selesai dikonfigurasi.",
-                    "AP menggunakan konfigurasi default.",
-                    "Assignment AP Group terhapus.",
-                    "AP merupakan stale configuration.",
+                    "The AP has not been fully configured.",
+                    "The AP uses the default configuration.",
+                    "The AP Group assignment was removed.",
+                    "The AP is a stale configuration entry.",
                 ],
                 "recommendation": [
-                    "Verifikasi fungsi dan lokasi AP.",
-                    "Pastikan AP Group sesuai dengan site.",
-                    "Review WLAN/VAP yang seharusnya dilayani AP.",
+                    "Verify the role and location of the AP.",
+                    "Make sure the AP Group matches the site.",
+                    "Review the WLANs/VAPs this AP is supposed to serve.",
                 ],
             })
 
@@ -168,20 +168,20 @@ class AssessmentAnalyzer:
                 "severity": "WARNING",
                 "category": "AP Configuration",
                 "title":
-                    "AP tidak memiliki AP Name",
+                    "AP has no AP Name",
                 "reason": (
-                    "AP terdaftar pada konfigurasi WLC tetapi "
-                    "hostname atau AP Name tidak ditemukan."
+                    "The AP is registered in the WLC configuration but "
+                    "its hostname or AP Name is missing."
                 ),
                 "possible_causes": [
-                    "AP belum diberi hostname.",
-                    "Konfigurasi AP tidak lengkap.",
-                    "AP merupakan konfigurasi lama.",
+                    "The AP has not been given a hostname.",
+                    "The AP configuration is incomplete.",
+                    "The AP is an old configuration entry.",
                 ],
                 "recommendation": [
-                    "Identifikasi AP berdasarkan MAC dan Serial Number.",
-                    "Gunakan naming convention yang konsisten.",
-                    "Tambahkan AP Name jika AP masih aktif.",
+                    "Identify the AP by its MAC address and serial number.",
+                    "Use a consistent naming convention.",
+                    "Add an AP Name if the AP is still in use.",
                 ],
             })
 
@@ -246,28 +246,28 @@ class AssessmentAnalyzer:
             "severity": "CRITICAL",
             "category": "AP Operational",
             "title":
-                f"AP memiliki status '{status}'",
+                f"AP has status '{status}'",
             "reason": (
-                f"AP terdeteksi dengan operational status "
-                f"'{status}'. Status ini menunjukkan AP "
-                "tidak berada dalam kondisi operational normal "
-                "dan membutuhkan pengecekan."
+                f"The AP was found with operational status "
+                f"'{status}'. This status means the AP "
+                "is not in a normal operational state "
+                "and needs to be checked."
             ),
             "possible_causes": [
-                "AP kehilangan koneksi ke WLC.",
-                "AP kehilangan koneksi jaringan.",
-                "Masalah switchport atau VLAN management.",
-                "Masalah PoE atau power.",
-                "Masalah CAPWAP antara AP dan WLC.",
-                "AP mengalami hardware atau software failure.",
+                "The AP lost its connection to the WLC.",
+                "The AP lost its network connection.",
+                "A switchport or management VLAN problem.",
+                "A PoE or power problem.",
+                "A CAPWAP problem between the AP and the WLC.",
+                "The AP has a hardware or software failure.",
             ],
             "recommendation": [
-                "Verifikasi status AP langsung pada WLC.",
-                "Cek reachability IP management AP.",
-                "Cek switchport tempat AP terhubung.",
-                "Verifikasi VLAN management AP.",
-                "Verifikasi PoE dan kondisi power AP.",
-                "Review log WLC untuk AP tersebut.",
+                "Verify the AP status directly on the WLC.",
+                "Check that the AP management IP is reachable.",
+                "Check the switchport the AP is connected to.",
+                "Verify the AP management VLAN.",
+                "Verify PoE and the power state of the AP.",
+                "Review the WLC log for this AP.",
             ],
         }
 
@@ -279,24 +279,24 @@ class AssessmentAnalyzer:
             "severity": "WARNING",
             "category": "AP Operational",
             "title":
-                f"AP memiliki status transisi '{status}'",
+                f"AP has transitional status '{status}'",
             "reason": (
-                f"AP terdeteksi dengan status '{status}'. "
-                "Status ini dapat muncul ketika AP sedang "
-                "melakukan proses discovery, join, atau "
-                "sinkronisasi konfigurasi dengan WLC."
+                f"The AP was found with status '{status}'. "
+                "This status can appear while the AP is "
+                "going through discovery, join or "
+                "configuration synchronisation with the WLC."
             ),
             "possible_causes": [
-                "AP sedang melakukan proses join.",
-                "AP sedang melakukan sinkronisasi konfigurasi.",
-                "Koneksi AP ke WLC tidak stabil.",
-                "Proses CAPWAP belum selesai.",
+                "The AP is joining the WLC.",
+                "The AP is synchronising its configuration.",
+                "The AP connection to the WLC is unstable.",
+                "The CAPWAP process has not finished.",
             ],
             "recommendation": [
-                "Monitor apakah status kembali normal.",
-                "Verifikasi konektivitas AP ke WLC.",
-                "Review proses CAPWAP jika status menetap.",
-                "Review log WLC terkait AP tersebut.",
+                "Watch whether the status returns to normal.",
+                "Verify the connectivity between the AP and the WLC.",
+                "Review the CAPWAP process if the status persists.",
+                "Review the WLC log for this AP.",
             ],
         }
 
@@ -308,22 +308,21 @@ class AssessmentAnalyzer:
             "severity": "WARNING",
             "category": "AP Operational",
             "title":
-                f"AP memiliki status yang belum dikenali '{status}'",
+                f"AP has an unrecognised status '{status}'",
             "reason": (
-                f"Analyzer menemukan operational status "
-                f"'{status}', tetapi status tersebut belum "
-                "memiliki classification rule pada analyzer. "
-                "Status ini tidak otomatis dianggap sebagai "
-                "kondisi critical."
+                f"The analyzer found operational status "
+                f"'{status}', but it has no classification "
+                "rule in the analyzer. "
+                "It is not treated as critical automatically."
             ),
             "possible_causes": [
-                "Status khusus pada versi Huawei WLC tertentu.",
-                "Status baru yang belum dimasukkan ke analyzer.",
-                "Perbedaan format output AP inventory.",
+                "A status specific to some Huawei WLC versions.",
+                "A new status that has not been added to the analyzer.",
+                "A different format of the AP inventory output.",
             ],
             "recommendation": [
-                "Verifikasi arti status pada WLC.",
-                "Review kondisi operational AP.",
-                "Tambahkan status ke classification rule jika diperlukan.",
+                "Verify what the status means on the WLC.",
+                "Review the operational state of the AP.",
+                "Add the status to the classification rules if needed.",
             ],
         }

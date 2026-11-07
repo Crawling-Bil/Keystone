@@ -129,7 +129,7 @@ def export_ap_role_diff(result: dict[str, Any], path: Path) -> None:
         ])
     for item in result.get("role_pair_guide", []):
         guide_sheet.append([
-            "Controller A / Controller B Pair", item.get("pair"), item.get("result"), item.get("meaning"), "Periksa jika hasilnya bukan pasangan active/standby yang sehat.",
+            "Controller A / Controller B Pair", item.get("pair"), item.get("result"), item.get("meaning"), "Review it if the result is not a healthy active/standby pair.",
         ])
     _format_sheet(guide_sheet)
     guide_sheet.column_dimensions["D"].width = 62

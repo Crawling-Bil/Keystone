@@ -998,17 +998,17 @@ def compare_configs(
     requested = vendor.title()
     resolved = detected_source if requested == "Auto Detect" else requested
     if resolved not in {"Cisco", "Huawei"}:
-        raise ValueError("Vendor harus Auto Detect, Cisco, atau Huawei.")
+        raise ValueError("Vendor must be Auto Detect, Cisco or Huawei.")
     if detected_source != detected_target:
         raise ValueError(
-            f"Cross-vendor comparison tidak didukung: Source {detected_source}, "
+            f"Cross-vendor comparison is not supported: Source {detected_source}, "
             f"Target {detected_target}."
         )
     if requested != "Auto Detect" and (
         detected_source != resolved or detected_target != resolved
     ):
         raise ValueError(
-            f"File terdeteksi sebagai {detected_source}; pilihan vendor {resolved} tidak sesuai."
+            f"The file was detected as {detected_source}; the chosen vendor {resolved} does not match."
         )
 
     source_objects = _merge_objects(

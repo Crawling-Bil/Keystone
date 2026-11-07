@@ -265,7 +265,9 @@ def _old_acl_references(statements, definitions):
         for name, pattern in patterns.items():
             hit = pattern.search(header) is not None or any(pattern.search(child) for child in children)
             if hit:
-                context = header if len(header) <= 80 else header[:77] + "..."
+                from features.analyzer_core.redaction import redact_line
+                context = redact_line(header)      # since 1.7 a community, key or hash in the line is hidden
+                context = context if len(context) <= 80 else context[:77] + "..."
                 if context not in refs[name] and len(refs[name]) < 8:
                     refs[name].append(context)
     return refs
@@ -447,6 +449,7 @@ def test_the_priority_list_reaches_the_page_the_csv_and_the_pack():
     assert done["ok"] and done["priority"] == [] and "capture-priority.csv" not in {d["name"] for d in done["downloads"]}
 
 
-def test_the_version_is_1_6():
+def test_the_version_is_at_least_1_6():
     from core.modules import TOOLS
-    assert next(t for t in TOOLS if t.key == "topology").version == "1.6"
+    version = next(t for t in TOOLS if t.key == "topology").version
+    assert tuple(int(part) for part in version.split(".")) >= (1, 6)

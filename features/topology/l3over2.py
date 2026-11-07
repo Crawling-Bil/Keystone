@@ -19,6 +19,7 @@ A link with no cable in the captures (the far end is an uncaptured modem, CDP is
 from __future__ import annotations
 
 import dataclasses
+import math
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any
@@ -28,7 +29,7 @@ from .l3engine import L3Edge, L3Model
 from .layout import MARGIN, NODE_H, NODE_W, Placed
 from .labelplace import place_labels
 from .satellites import Extra, place as place_satellites
-from .scene import Page, _clips, _curve, _route
+from .scene import Page, _box_of, _clips, _curve, _route
 from .names import canon_port
 
 MAX_HOPS = 6
@@ -210,6 +211,90 @@ def _touches(points: list[tuple[float, float]], a: tuple[float, float], b: tuple
     return any(_clips(box, p, q) for p, q in zip(path, path[1:]))
 
 
+BAND_ROW = 170.0          # height of one row of provider clouds in the WAN band
+BAND_AIR = 150.0          # free space above and below the clouds in the band
+BAND_SPACING = 250.0      # least distance between two clouds of a row (the label of one never touches the next)
+BAND_MAX_ROW = 5          # more clouds than this are set out in two rows
+BAND_HIT = 400.0          # what a line through a device costs, in px of length
+
+
+def _gap_page(phys: Page, g0: float, g1: float, rows: int) -> tuple[Page, float]:
+    """``phys`` with the free strip (g0, g1) between two rows of boxes opened to hold ``rows`` rows of clouds: everything at or below the middle of the strip moves down."""
+    need = rows * BAND_ROW + 2 * BAND_AIR
+    grow = max(0.0, need - (g1 - g0))
+    split = (g0 + g1) / 2
+    move = lambda y: y + grow if y >= split else y                                   # noqa: E731
+    nodes = {k: dataclasses.replace(p, y=move(p.y + NODE_H / 2) - NODE_H / 2) for k, p in phys.nodes.items()}
+    boxes = [(t, x, move(y), w, h) for t, x, y, w, h in phys.boxes]
+    end_boxes = [(t, x, move(y), w, h) for t, x, y, w, h in phys.end_boxes]
+    routes = {i: [(x, move(y)) for x, y in pts] for i, pts in phys.routes.items()}
+    return dataclasses.replace(phys, nodes=nodes, boxes=boxes, end_boxes=end_boxes, routes=routes, height=phys.height + grow), grow
+
+
+def _band_cost(page: Page, placed: dict[str, tuple[float, float]], ends: dict[str, list[str]]) -> float:
+    """Length of the straight lines from the clouds to their devices, plus ``BAND_HIT`` for every device (icon and caption) a line runs through on its way."""
+    total = 0.0
+    for cloud, (cx, cy) in placed.items():
+        a = (cx + NODE_W / 2, cy + NODE_H / 2)
+        for end in ends[cloud]:
+            node = page.nodes.get(end)
+            if node is None:
+                continue
+            b = (node.x + NODE_W / 2, node.y + NODE_H / 2)
+            total += math.dist(a, b)
+            for key, other in page.nodes.items():
+                if key != end and key not in placed and _clips((other.x - 20, other.y - 20, other.x + NODE_W + 20, other.y + NODE_H + 70), a, b):
+                    total += BAND_HIT
+    return total
+
+
+def _open_wan_band(phys: Page, ends: dict[str, list[str]]) -> tuple[Page, dict[str, tuple[float, float]]]:
+    """Provider clouds that serve devices of several site boxes go between rows of boxes, not above the topmost one.
+
+    A cloud above the page has a line to every site, and the line of a site at the bottom runs over the boxes in between.  The overview's boxes are in rows; every free
+    strip between two rows is tried (the lower rows move down until it holds the clouds, one or two rows of them, each cloud at the mean x of its devices), the page with the
+    clouds above everything is tried too, and the one where the lines are shortest and run through the fewest devices is kept (``_band_cost``).  Returns the page copy
+    with the moved devices, boxes and bend points, and the places of the clouds; an empty dict when the clouds belong above the page."""
+    if len(phys.boxes) < 3 or not ends:
+        return phys, {}
+    centre = {k: (p.x + NODE_W / 2, p.y + NODE_H / 2) for k, p in phys.nodes.items()}
+    boxes_of = {k: _box_of(phys, c) for k, c in centre.items()}
+    multi = {c: [e for e in es if e in phys.nodes] for c, es in ends.items()}
+    multi = {c: es for c, es in multi.items() if len({boxes_of[e] for e in es if boxes_of.get(e) is not None}) >= 2}
+    if not multi:
+        return phys, {}
+    spans = sorted((y, y + h) for _, _, y, _, h in phys.boxes)
+    merged: list[list[float]] = []
+    for lo, hi in spans:
+        if merged and lo <= merged[-1][1] + 1:
+            merged[-1][1] = max(merged[-1][1], hi)
+        else:
+            merged.append([lo, hi])
+    gaps = [(merged[i][1], merged[i + 1][0]) for i in range(len(merged) - 1)]
+    if not gaps:
+        return phys, {}
+    rows = 1 if len(multi) <= BAND_MAX_ROW else 2
+    order = sorted(multi, key=lambda c: sum(centre[e][0] for e in multi[c]) / len(multi[c]))
+    best: tuple[float, Page, dict[str, tuple[float, float]]] | None = None
+    top = min(y for lo, hi in merged for y in (lo,))
+    above = {c: (sum(centre[e][0] for e in multi[c]) / len(multi[c]) - NODE_W / 2, top - 250.0) for c in order}        # the clouds above the page, where the satellites would put them
+    best = (_band_cost(phys, above, multi), phys, {})
+    for g0, g1 in gaps:
+        moved, _ = _gap_page(phys, g0, g1, rows)
+        placed: dict[str, tuple[float, float]] = {}
+        last = [-1e9] * rows
+        for n, cloud in enumerate(order):
+            row = n % rows
+            want = sum(centre[e][0] for e in multi[cloud]) / len(multi[cloud]) - NODE_W / 2
+            x = max(want, last[row] + BAND_SPACING)
+            last[row] = x
+            placed[cloud] = (x, g0 + BAND_AIR + row * BAND_ROW)
+        cost = _band_cost(moved, placed, multi)
+        if cost < best[0]:
+            best = (cost, moved, placed)
+    return best[1], best[2]
+
+
 def l3over2_page(graph: Graph, phys: Page, model: L3Model, colours: dict[str, str], ids: dict[int, str], names: dict[str, str], curved: bool = True) -> Page | None:
     """One L3-over-L2 page for one physical page, or None when no L3 link touches its devices."""
     from .l3page import edge_colour, to_connection
@@ -228,8 +313,11 @@ def l3over2_page(graph: Graph, phys: Page, model: L3Model, colours: dict[str, st
         for k, other in ((e.a, e.b), (e.b, e.a)):
             if k in extras and other in phys.nodes:
                 ends[k].append(other)
-    spots = place_satellites({k: (p.x, p.y) for k, p in phys.nodes.items()},
-                             [Extra(k, ends[k], above=(model.nodes[k].role_hint if k in model.nodes else "") in ("cloud", "router")) for k in sorted(extras)])
+    phys, in_band = _open_wan_band(phys, {k: v for k, v in ends.items() if k in model.nodes and model.nodes[k].role_hint == "cloud"})
+    fixed = {k: (p.x, p.y) for k, p in phys.nodes.items()}
+    fixed.update(in_band)                                                  # the clouds of the band are in the way of the other extras
+    spots = place_satellites(fixed, [Extra(k, ends[k], above=(model.nodes[k].role_hint if k in model.nodes else "") in ("cloud", "router")) for k in sorted(extras - set(in_band))])
+    spots.update(in_band)
     xs = [p.x for p in phys.nodes.values()] + [x for x, _ in spots.values()]
     ys = [p.y for p in phys.nodes.values()] + [y for _, y in spots.values()]
     shift_x = max(0.0, MARGIN + 60 - min(xs, default=0.0))                 # an extra put left of / above everything moves the page, not off it

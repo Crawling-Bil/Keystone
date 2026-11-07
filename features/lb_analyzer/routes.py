@@ -40,8 +40,8 @@ SPEC = AnalyzerSpec(
         "analyzer_title": "Load Balancer Analyzer",
         "analyzer_subtitle": "F5 BIG-IP configurations - virtual servers, pools, monitors, SSL profiles, iRules, high availability, hardening findings and an Excel export.",
         "api_prefix": "/load-balancer-analyzer",
-        "file_hint": "BIG-IP UCS archive (.ucs), bigip.conf, bigip_base.conf, 'tmsh list' or a terminal capture (.conf, .txt, .log)",
-        "accept": ".ucs,.txt,.log,.cfg,.conf,.config",
+        "file_hint": "BIG-IP UCS archive (.ucs) or QKView (.qkview), bigip.conf, bigip_base.conf, 'tmsh list' or a terminal capture (.conf, .txt, .log)",
+        "accept": ".ucs,.qkview,.txt,.log,.cfg,.conf,.config",
         "platforms": list(PLATFORMS),
         "empty_title": "Load Balancer Analyzer is ready",
         "empty_text": (
@@ -49,7 +49,7 @@ SPEC = AnalyzerSpec(
             "The analyzer maps each virtual server to its pool and members, checks monitors, SSL profiles, persistence, iRules, HA and the management plane, and links every finding to F5 documentation."
         ),
         "capabilities": [
-            {"title": "UCS archive", "text": "Reads the .ucs backup directly: certificate validity from the file store, license and subscription dates, last change and failover times, customised sys db values. Private keys and password files are never read."},
+            {"title": "UCS archive", "text": "Reads the .ucs backup (or a .qkview diagnostic archive) directly: certificate validity from the file store, license and subscription dates, last change and failover times, customised sys db values. Private keys and password files are never read."},
             {"title": "Service map", "text": "Every virtual server with its default pool, members, health monitors and member state in one table."},
             {"title": "Visualization", "text": "A clickable network map like Local Traffic > Network Map: virtual server, pool, pool member and health monitor, coloured by availability and enabled state, with status and type filters and search. BIG-IP DNS units add wide IP, GTM pool and pool member."},
             {"title": "DNS (GTM)", "text": "Wide IPs, GTM pools, servers, data centers and listeners from the configuration, plus live availability, request counters and iQuery state from 'show gtm' output."},

@@ -1,0 +1,359 @@
+# FortiGate (FortiOS) conversion from PAN-OS
+config system global
+    set hostname "PA-EDGE-01"
+end
+# ---- Interfaces
+config system interface
+    edit "port1"
+        set vdom "root"
+        set mode dhcp
+    next
+    edit "port2"
+        set vdom "root"
+        set mode static
+        set ip 10.10.0.1 255.255.255.0
+        config secondaryip
+            edit 1
+                set ip 10.10.1.1 255.255.255.0
+            next
+        end
+    next
+    edit "port3"
+        set vdom "root"
+        set mode static
+        set ip 10.20.0.1 255.255.255.0
+    next
+    edit "agg2"
+        set vdom "root"
+        set type aggregate
+        set member "port4" "port5"
+        set lacp-mode passive
+        set mode static
+        set ip 10.30.0.1 255.255.255.0
+    next
+    edit "agg3"
+        set vdom "root"
+        set type aggregate
+        # set member <ports>
+        set lacp-mode static
+        set mode static
+        set ip 10.31.0.1 255.255.255.0
+    next
+    edit "lo5"
+        set vdom "root"
+        set type loopback
+        set mode static
+        set ip 10.255.5.5 255.255.255.255
+    next
+end
+# ---- Site-to-site VPN
+config vpn ipsec phase1-interface
+    edit "tunA"
+        set interface "port1"
+        set ike-version 1
+        set proposal aes128-sha1
+        set dhgrp 2
+        set type dynamic
+        set peertype any
+        set mode aggressive
+        set keylife 172800
+        set nattraversal disable
+        set dpd disable
+        set psksecret REPLACE-ME
+    next
+    edit "tunB"
+        # set interface <outgoing port>
+        set ike-version 2
+        set proposal aes256-sha256
+        set remote-gw 203.0.113.77
+        set keylife 86400
+        set nattraversal disable
+        set dpd disable
+        set psksecret REPLACE-ME
+    next
+end
+config vpn ipsec phase2-interface
+    edit "tunA-p2-1"
+        set phase1name "tunA"
+        set proposal aes128-sha1 3des-sha1
+        set pfs disable
+        set keylifeseconds 5400
+        set src-subnet 0.0.0.0 0.0.0.0
+        set dst-subnet 0.0.0.0 0.0.0.0
+    next
+    edit "tunB-p2-1"
+        set phase1name "tunB"
+        set proposal aes256-sha256
+        set pfs disable
+        set keylifeseconds 43200
+        set src-subnet 10.20.0.0 255.255.255.0
+        set dst-subnet 10.60.0.0 255.255.255.0
+    next
+end
+# ---- Zones
+config system zone
+    edit "outside"
+        set intrazone allow
+        set interface "port1"
+    next
+    edit "inside"
+        set intrazone allow
+        set interface "port2" "port3"
+    next
+    edit "core"
+        set intrazone allow
+        set interface "agg2"
+    next
+    edit "vpn"
+        set intrazone allow
+        set interface "tunA" "tunB"
+    next
+    edit "tapz"
+        set intrazone allow
+    next
+end
+# ---- Objects
+config firewall address
+    edit "h1"
+        set subnet 10.20.0.5 255.255.255.255
+    next
+    edit "r1"
+        set type iprange
+        set start-ip 10.20.0.10
+        set end-ip 10.20.0.20
+    next
+    edit "w1"
+        set type wildcard
+        set wildcard 10.0.0.0 0.255.0.255
+    next
+    edit "f1"
+        set type fqdn
+        set fqdn "files.example.test"
+    next
+    edit "inner-group-member"
+        set subnet 10.20.1.0 255.255.255.0
+    next
+end
+config firewall addrgrp
+    edit "inner"
+        set member "h1" "inner-group-member"
+    next
+    edit "outer"
+        set member "inner" "r1"
+    next
+end
+config firewall service custom
+    edit "s-udp"
+        set udp-portrange 5060
+    next
+    edit "app-ntp"
+        set udp-portrange 123
+        set comment "default ports of the PAN-OS application ntp"
+    next
+end
+config firewall service group
+    edit "both"
+        set member "s-udp"
+    next
+end
+config firewall ippool
+    edit "pool-n-static"
+        set type one-to-one
+        set startip 203.0.113.10
+        set endip 203.0.113.10
+    next
+end
+# ---- Firewall policy
+config firewall policy
+    edit 1
+        set name "r-users"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set status disable
+        set comments "NOT ENABLED: user / group match; source rule r-users"
+    next
+    edit 2
+        set name "r-cat"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action deny
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set status disable
+        set comments "NOT ENABLED: URL category; source rule r-cat"
+    next
+    edit 3
+        set name "r-sched"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set status disable
+        set comments "NOT ENABLED: schedule worktime; source rule r-sched"
+    next
+    edit 4
+        set name "r-hip"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set status disable
+        set comments "NOT ENABLED: HIP profile; source rule r-hip"
+    next
+    edit 5
+        set name "r-prof"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set comments "source rule r-prof"
+    next
+    edit 6
+        set name "r-appany"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set status disable
+        set comments "NOT ENABLED: application-default for any application; source rule r-appany"
+    next
+    edit 7
+        set name "r-appsvc"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "DNS" "app-ntp"
+        set logtraffic all
+        set status disable
+        set comments "NOT ENABLED: application unknown-app-xyz (App-ID); PAN-OS applications: dns, ntp, unknown-app-xyz; source rule r-appsvc"
+    next
+    edit 8
+        set name "r-appsvc2"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action accept
+        set schedule "always"
+        set service "s-udp"
+        set logtraffic all
+        set status disable
+        set comments "NOT ENABLED: application dns; PAN-OS applications: dns; source rule r-appsvc2"
+    next
+    edit 9
+        set name "r-neg"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "h1"
+        set dstaddr "outer" "f1" "w1"
+        set action deny
+        set schedule "always"
+        set service "both"
+        set logtraffic all
+        set srcaddr-negate enable
+        set dstaddr-negate enable
+        set status disable
+        set comments "negated; NOT ENABLED: address bad1 not converted; source rule r-neg"
+    next
+    edit 10
+        set name "r-weird"
+        set srcintf "inside"
+        set dstintf "outside"
+        set srcaddr "all"
+        set dstaddr "all"
+        set action deny
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+        set comments "source rule r-weird"
+    next
+end
+config firewall central-snat-map
+    edit 1
+        set type ipv4
+        set status enable
+        set srcintf "inside"
+        set dstintf "outside"
+        set orig-addr "h1"
+        set dst-addr "all"
+        set nat enable
+        set nat-ippool "pool-n-static"
+    next
+end
+config system settings
+    set central-nat enable
+end
+# ---- Routing
+config router static
+    edit 1
+        set dst 10.90.0.0 255.255.0.0
+        set gateway 10.10.0.254
+        set device "port2"
+        set distance 30
+        set priority 7
+    next
+end
+config router bgp
+    set as 65100
+    set router-id 10.255.5.5
+    config neighbor
+        edit "10.10.0.2"
+            set remote-as 65200
+            set description "g1"
+        next
+        edit "10.10.0.3"
+            set remote-as 65200
+            set description "g1"
+        next
+        # neighbor 10.10.0.4: peer-as is not in the configuration; add `edit 10.10.0.4` / `set remote-as <AS>`
+    end
+end
+config router ospf
+    set router-id 10.255.5.5
+    config area
+        edit 0.0.0.1
+        next
+    end
+    config network
+        edit 1
+            set prefix 10.30.0.0 255.255.255.0
+            set area 0.0.0.1
+        next
+        edit 2
+            set prefix 10.10.0.0 255.255.255.0
+            set area 0.0.0.1
+        next
+        edit 3
+            set prefix 10.10.1.0 255.255.255.0
+            set area 0.0.0.1
+        next
+    end
+end

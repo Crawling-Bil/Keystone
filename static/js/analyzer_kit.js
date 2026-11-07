@@ -28,6 +28,14 @@
   const ICONS = "/static/icons/nes-icons.svg";
   const SEVERITIES = ["high", "medium", "low", "info"];
   const SEVERITY_LABEL = { high: "High", medium: "Medium", low: "Low", info: "Info" };
+  // The Findings tab keeps the order of the analysis (most severe first) until a sort is picked.
+  const FINDING_SORTS = [["", "Sort: default order"], ["severity", "Sort: severity"], ["category", "Sort: category"], ["object", "Sort: device / object"], ["id", "Sort: rule ID"], ["title", "Sort: title"]];
+  function sortFindings(list, f) {
+    if (!f || !f.sort) return list;
+    const dir = f.dir || 1;
+    if (f.sort === "severity") return [...list].sort((a, b) => dir * (SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity)));
+    return sortedBy(list, f.sort, dir);
+  }
   const STATUS_LABEL = { analyzed: "Analyzed", covered: "Covered", ignored: "Ignored", "not parsed": "Not parsed", error: "Rejected", missing: "Missing" };
   const MAX_CHIPS = 6;
   const MAX_FACET_VALUES = 12;   // a filter column with more distinct values than this is not a category
@@ -99,6 +107,11 @@
     return value;
   }
 
+  function isBlankValue(value) {
+    if (Array.isArray(value)) return value.length === 0;
+    return value === null || value === undefined || ["", "-", "\u2014"].includes(String(value).trim());
+  }
+
   function compareValues(a, b) {
     const x = Array.isArray(a) ? a.join(" ") : a;
     const y = Array.isArray(b) ? b.join(" ") : b;
@@ -108,6 +121,15 @@
     if (nx !== null) return -1;
     if (ny !== null) return 1;
     return String(x ?? "").localeCompare(String(y ?? ""), undefined, { numeric: true, sensitivity: "base" });
+  }
+
+  // One sort rule for every table, the findings list and the Excel export: empty cells last whichever way, numbers as numbers, text with natural order (VLAN 2 before VLAN 10).
+  function sortedBy(list, key, dir) {
+    return [...list].sort((a, b) => {
+      const blankA = isBlankValue(a[key]), blankB = isBlankValue(b[key]);
+      if (blankA || blankB) return blankA === blankB ? 0 : (blankA ? 1 : -1);
+      return dir * compareValues(a[key], b[key]);
+    });
   }
 
   function renderCell(col, row) {
@@ -237,10 +259,7 @@
       facetDefs.forEach(def => { const chosen = activeOf(def); if (chosen) list = list.filter(row => cellText(row, def.key) === chosen); });
       const terms = local.q.toLowerCase().split(/\s+/).filter(Boolean);
       if (terms.length) list = list.filter(row => { const hay = haystack(row, columns); return terms.every(term => hay.includes(term)); });
-      if (local.sortKey) {
-        const key = local.sortKey;
-        list = [...list].sort((a, b) => local.sortDir * compareValues(a[key], b[key]));
-      }
+      if (local.sortKey) list = sortedBy(list, local.sortKey, local.sortDir);          // empty cells last whichever way the table is sorted (the same rule as the Switch Analyzer tables)
       return list;
     }
 
@@ -256,7 +275,7 @@
       head.replaceChildren(h("tr", null, columns.map(col => {
         const active = local.sortKey === col.key;
         const th = h("th", { scope: "col", class: `an-${col.kind}`, "aria-sort": active ? (local.sortDir === 1 ? "ascending" : "descending") : "none" },
-          h("button", { type: "button", class: "an-sort", onclick: () => { if (local.sortKey === col.key) local.sortDir *= -1; else { local.sortKey = col.key; local.sortDir = 1; } paint(); } },
+          h("button", { type: "button", class: "an-sort", title: `Sort by ${col.label}`, onclick: () => { if (local.sortKey === col.key) local.sortDir *= -1; else { local.sortKey = col.key; local.sortDir = 1; } paint(); } },
             col.label, active ? h("span", { class: "an-sort-mark", "aria-hidden": "true", text: local.sortDir === 1 ? "▲" : "▼" }) : null));
         return th;
       })));
@@ -449,8 +468,25 @@
       const wanted = types.filter(def => uniqueCount(node => node.type === def.key && node.status));
       const cols = statuses.filter(def => uniqueCount(node => node.status === def.key));
       const wasOpen = summaryBox.open;
-      const head = h("tr", null, h("th", { scope: "col", text: "Object" }), cols.map(def => h("th", { scope: "col" }, dot(def.key), ` ${def.label}`)), h("th", { scope: "col", text: "Total" }));
-      const body = wanted.map(def => h("tr", null, h("th", { scope: "row", text: def.label }),
+      // Click a heading to sort the rows by it (the Object name, one status, or the total); a second click reverses, a third goes back to the order of the map.
+      const countOf = (def, key) => key === "label" ? def.label : (key === "total" ? uniqueCount(node => node.type === def.key) : uniqueCount(node => node.type === def.key && node.status === key));
+      const dir = local.sumDir || 1;
+      const ordered = local.sumKey ? [...wanted].sort((a, b) => {
+        const x = countOf(a, local.sumKey), y = countOf(b, local.sumKey);
+        if (local.sumKey === "label") return dir * String(x).localeCompare(String(y), undefined, { numeric: true, sensitivity: "base" });
+        if (!x || !y) return x === y ? 0 : (x ? -1 : 1);                       // a dash (no object) comes last whichever way
+        return dir * (x - y);
+      }) : wanted;
+      const sortHead = (key, label, lead) => {
+        const on = local.sumKey === key;
+        return h("th", { scope: "col", "aria-sort": on ? (dir === 1 ? "ascending" : "descending") : "none" },
+          h("button", { type: "button", class: "an-sort", title: `Sort by ${label}`, onclick: () => {
+            if (on && dir === -1) { local.sumKey = ""; local.sumDir = 1; } else if (on) local.sumDir = -1; else { local.sumKey = key; local.sumDir = 1; }
+            paintSummary();
+          } }, lead || null, lead ? ` ${label}` : label, on ? h("span", { class: "an-sort-mark", "aria-hidden": "true", text: dir === 1 ? "▲" : "▼" }) : null));
+      };
+      const head = h("tr", null, sortHead("label", "Object"), cols.map(def => sortHead(def.key, def.label, dot(def.key))), sortHead("total", "Total"));
+      const body = ordered.map(def => h("tr", null, h("th", { scope: "row", text: def.label }),
         cols.map(col => { const count = uniqueCount(node => node.type === def.key && node.status === col.key); return h("td", { class: "an-num" }, count ? h("button", { type: "button", class: "an-link", onclick: () => { local.type = def.key; local.status = col.key; paintTree(); }, text: count.toLocaleString() }) : "–"); }),
         h("td", { class: "an-num" }, h("button", { type: "button", class: "an-link", onclick: () => { local.type = def.key; local.status = ""; paintTree(); }, text: uniqueCount(node => node.type === def.key).toLocaleString() }))));
       summaryBox.replaceChildren(h("summary", { text: "Summary by type and status" }), h("div", { class: "an-map-summary-body" }, h("table", { class: "an-table an-map-summary-table" }, h("thead", null, head), h("tbody", null, body)),
@@ -747,8 +783,10 @@
         })));
       }
       const exportButton = h("button", { type: "button", class: "an-btn primary", onclick: event => this.exportExcel(event.currentTarget) }, icon("upload"), this.state.results.length > 1 ? `Export ${this.state.results.length} devices to Excel` : "Export to Excel");
+      const keepOrder = h("input", { type: "checkbox", checked: this.state.exportShown !== false, onchange: event => { this.state.exportShown = event.currentTarget.checked; } });
+      const orderBox = h("label", { class: "an-check an-export-order", title: "A table or the findings list you sorted is exported in that order. Filters do not shorten the export." }, keepOrder, h("span", { text: "Export in the order shown" }));
       pieces.push(h("div", { class: "an-toolbar" },
-        h("div", { class: "an-toolbar-title" }, h("strong", { text: result.hostname || result.source_name }), h("span", { text: [result.platform, result.source_name].filter(Boolean).join(" · ") })), this.compareBar(), exportButton));
+        h("div", { class: "an-toolbar-title" }, h("strong", { text: result.hostname || result.source_name }), h("span", { text: [result.platform, result.source_name].filter(Boolean).join(" · ") })), this.compareBar(), orderBox, exportButton));
       const banner = this.errorBanner();
       if (banner) pieces.push(banner);
       (result.warnings || []).forEach(warning => pieces.push(h("div", { class: "an-banner warn", role: "note" }, h("span", { text: warning }))));
@@ -895,21 +933,28 @@
       const search = h("input", { type: "search", class: "an-search", placeholder: "Filter findings…", "aria-label": "Filter findings", value: f.q });
       const select = h("select", { class: "an-select", "aria-label": "Category" }, h("option", { value: "", text: "All categories" }), categories.map(cat => h("option", { value: cat, text: cat })));
       select.value = f.cat;
+      const sortSelect = h("select", { class: "an-select", "aria-label": "Sort findings by" }, FINDING_SORTS.map(([value, label]) => h("option", { value, text: label })));
+      sortSelect.value = f.sort || "";
+      const reverse = h("button", { type: "button", class: "an-btn small", title: "Reverse the order", "aria-label": "Reverse the sort order", onclick: () => { f.dir = (f.dir || 1) * -1; paint(); } });
       const chips = h("div", { class: "an-sev-chips", role: "group", "aria-label": "Severity" });
 
       const paint = () => {
         chips.replaceChildren(h("button", { type: "button", class: `an-chip link${f.sev === "all" ? " active" : ""}`, onclick: () => { f.sev = "all"; paint(); }, text: `All ${all.length}` }),
           ...SEVERITIES.map(sev => h("button", { type: "button", class: `an-chip link tone-${severityTone(sev)}${f.sev === sev ? " active" : ""}`, onclick: () => { f.sev = sev; paint(); }, text: `${SEVERITY_LABEL[sev]} ${counts[sev]}` })));
         const terms = f.q.toLowerCase().split(/\s+/).filter(Boolean);
-        const shown = all.filter(item => (f.sev === "all" || item.severity === f.sev) && (!f.cat || item.category === f.cat)
+        let shown = all.filter(item => (f.sev === "all" || item.severity === f.sev) && (!f.cat || item.category === f.cat)
           && terms.every(term => `${item.id} ${item.title} ${item.object} ${item.detail} ${item.category}`.toLowerCase().includes(term)));
+        shown = sortFindings(shown, f);
+        reverse.textContent = (f.dir || 1) === 1 ? "▲" : "▼";
+        reverse.disabled = !f.sort;
         count.textContent = `${shown.length} of ${all.length}`;
         list.replaceChildren(...(shown.length ? shown.map(item => this.findingCard(item)) : [h("p", { class: "an-empty", text: all.length ? "No finding matches the filter." : "No findings — nothing in this capture tripped a rule. The Coverage tab shows what the rules could and could not check." })]));
       };
       search.addEventListener("input", () => { f.q = search.value; paint(); });
       select.addEventListener("change", () => { f.cat = select.value; paint(); });
+      sortSelect.addEventListener("change", () => { f.sort = sortSelect.value; f.dir = 1; paint(); });
       paint();
-      return h("div", { class: "an-findings" }, h("div", { class: "an-table-tools" }, chips, select, search, count), list);
+      return h("div", { class: "an-findings" }, h("div", { class: "an-table-tools" }, chips, select, sortSelect, reverse, search, count), list);
     }
 
     findingCard(item) {
@@ -999,10 +1044,23 @@
     }
 
     // ------------------------------------------------------------- export
+    // The results as the reader sees them: every table that was sorted (and the findings list) keeps that order in the workbook.  The rows themselves are not copied.
+    orderedResults() {
+      const f = this.state.findings;
+      return this.state.results.map((result, index) => {
+        const tables = this.state.tables[index] || {};
+        const sections = (result.sections || []).map(section => {
+          const local = tables[section.id];
+          return section.kind === "table" && local && local.sortKey && Array.isArray(section.rows) ? { ...section, rows: sortedBy(section.rows, local.sortKey, local.sortDir) } : section;
+        });
+        return { ...result, sections, findings: sortFindings(result.findings || [], f) };
+      });
+    }
+
     async exportExcel(button) {
       button.disabled = true;
       try {
-        const response = await fetch(`${this.api}/api/export`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ results: this.state.results }) });
+        const response = await fetch(`${this.api}/api/export`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ results: this.state.exportShown === false ? this.state.results : this.orderedResults() }) });
         const payload = await response.json();
         if (!response.ok || !payload.ok) throw new Error(payload.error || `HTTP ${response.status}`);
         const link = h("a", { href: payload.download_url, download: payload.download_name || "analysis.xlsx" });

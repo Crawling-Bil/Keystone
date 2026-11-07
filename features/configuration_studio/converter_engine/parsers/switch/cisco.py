@@ -945,9 +945,27 @@ class CiscoSwitchParser:
 
             if line.startswith("logging "):
 
-                config.logging_commands.append(
-                    line
-                )
+                # NX-OS names a syslog server "logging server <ip> [<severity>] [use-vrf <name>] [facility <name>]"; the translators know
+                # the IOS form "logging host <ip>".  Before, every NX-OS syslog server ended as a REVIEW line and was never configured.
+                server = re.match(r"^logging\s+server\s+(\S+)(?:\s+(.*))?$", line, re.IGNORECASE)
+
+                if server:
+
+                    config.logging_commands.append(
+                        f"logging host {server.group(1)}"
+                    )
+
+                    if server.group(2):
+
+                        config.logging_commands.append(
+                            f"logging server-option {server.group(1)} {server.group(2).strip()}"
+                        )
+
+                else:
+
+                    config.logging_commands.append(
+                        line
+                    )
 
                 continue
 
@@ -2803,4 +2821,4 @@ class CiscoSwitchParser:
         return ".".join(
             str((mask_int >> shift) & 0xFF)
             for shift in (24, 16, 8, 0)
-        )
+        )

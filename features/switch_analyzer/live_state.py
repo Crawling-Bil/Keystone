@@ -446,10 +446,30 @@ _HW_LONG_RE = re.compile(
 )
 
 
+# Huawei "display interface", one block per port: "Speed:     1000,     Loopback:  NONE" / "Duplex:     FULL,     Negotiation:   ENABLE"
+# (Speed is in Mbit/s, AUTO on a port that has no link; Negotiation is "-" on a fixed optical port).
+_HW_SPEED_RE = re.compile(r"^Speed\s*:\s*(\d+)\s*(G|M)?\b", re.IGNORECASE)
+_HW_DUPLEX_RE = re.compile(r"^Duplex\s*:\s*(FULL|HALF)\b(?:\s*,\s*Negotiation\s*:\s*(\w+|-))?", re.IGNORECASE)
+
+
 def _parse_long_interfaces(section: list[str]) -> dict[str, dict[str, Any]]:
     results: dict[str, dict[str, Any]] = {}
+    block: str | None = None            # the Huawei port whose block is being read
     for raw_line in section:
         line = raw_line.strip()
+        if block is not None:
+            speed = _HW_SPEED_RE.match(line)
+            if speed:
+                value = int(speed.group(1)) * (1000 if (speed.group(2) or "").upper() == "G" else 1)
+                results[block]["speed_mbps"] = value
+                continue
+            duplex = _HW_DUPLEX_RE.match(line)
+            if duplex:
+                results[block]["duplex"] = duplex.group(1).lower()
+                negotiation = (duplex.group(2) or "").lower()
+                if negotiation in ("enable", "disable"):
+                    results[block]["duplex_auto"] = results[block]["speed_auto"] = negotiation == "enable"
+                continue
         match = _IOS_LONG_RE.match(line)
         if match:
             name, status, extra, protocol, proto_extra = match.groups()
@@ -475,6 +495,7 @@ def _parse_long_interfaces(section: list[str]) -> dict[str, dict[str, Any]]:
             else:
                 state, detail = DOWN, "DOWN"
             results[name] = _obs(name, state, detail, "display interface")
+            block = name
     return results
 
 

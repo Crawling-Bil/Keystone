@@ -58,6 +58,7 @@
       if (!payload.ok) throw new Error(payload.error || "Could not start.");
       wiz.token = payload.result.token;
       wiz.current = 0;
+      wiz.sorts = {};
       accept(payload.result);
       showWizard();
       root.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -403,7 +404,66 @@
     node[parts[parts.length - 1]] = value;
   }
 
+  // Every table of a step sorts by a click on its heading: ascending, descending, then back to the order of the export.  The rows are moved, not rebuilt, so what
+  // was typed or picked in them stays; the choice is kept while the editor is drawn again after an edit.
+  function makeSortable(stepKey) {
+    wiz.sorts = wiz.sorts || {};
+    const cellKey = cell => {
+      if (!cell) return "";
+      const control = cell.querySelector("select, input");
+      if (control) return control.type === "checkbox" ? (control.checked ? "1" : "0") : String(control.value).trim();
+      const lead = cell.querySelector("strong");
+      return (lead || cell).textContent.trim();
+    };
+    const blank = text => text === "" || text === "-" || text === "\u2014";
+    $("wizard-editor").querySelectorAll("table").forEach((table, t) => {
+      const body = table.tBodies[0];
+      if (!table.tHead || !body || body.rows.length < 2) return;
+      const id = `${stepKey}:${t}`;
+      const rows = [...body.rows];
+      rows.forEach((row, i) => { row.dataset.order = String(i); });
+      const heads = [...table.tHead.rows[0].cells];
+      const paint = () => {
+        const s = wiz.sorts[id];
+        heads.forEach((th, i) => {
+          const on = !!s && s.col === i;
+          th.setAttribute("aria-sort", on ? (s.dir === 1 ? "ascending" : "descending") : "none");
+          th.querySelector(".wz-sort-mark").textContent = on ? (s.dir === 1 ? "\u25B2" : "\u25BC") : "";
+        });
+        const order = [...rows];
+        if (s) {
+          order.sort((a, b) => {
+            const x = cellKey(a.cells[s.col]), y = cellKey(b.cells[s.col]);
+            if (blank(x) || blank(y)) return blank(x) === blank(y) ? 0 : (blank(x) ? 1 : -1);          // empty cells last whichever way
+            return s.dir * x.localeCompare(y, undefined, { numeric: true, sensitivity: "base" });
+          });
+        }
+        order.forEach(row => body.appendChild(row));
+      };
+      heads.forEach((th, i) => {
+        const label = th.textContent.trim();
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "wz-sort";
+        button.title = `Sort by ${label}`;
+        const mark = document.createElement("span");
+        mark.className = "wz-sort-mark";
+        mark.setAttribute("aria-hidden", "true");
+        button.append(label, mark);
+        button.addEventListener("click", () => {
+          const s = wiz.sorts[id];
+          if (s && s.col === i && s.dir === -1) delete wiz.sorts[id];
+          else wiz.sorts[id] = { col: i, dir: s && s.col === i ? -1 : 1 };
+          paint();
+        });
+        th.replaceChildren(button);
+      });
+      paint();
+    });
+  }
+
   function bindEditor(stepKey) {
+    makeSortable(stepKey);
     const editor = $("wizard-editor");
     editor.querySelectorAll("[data-bind]").forEach(control => {
       const handler = () => {

@@ -60,7 +60,7 @@ exit /b 0
 :nopython
 echo  Python 3.11 or newer was not found on this computer.
 echo.
-echo    1. Download Python 3.12 or 3.13 from https://www.python.org/downloads/windows/
+echo    1. Download the latest Python (3.11 or newer) from https://www.python.org/downloads/windows/
 echo    2. Run the installer. If it offers "Add python.exe to PATH", tick it.
 echo    3. Close this window and run setup_windows.bat again.
 echo.

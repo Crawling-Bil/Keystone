@@ -38,11 +38,12 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 BATCH_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_CONFIG_EXTENSIONS = {".txt", ".cfg", ".conf", ".config", ".log", ".rsc"}
+ALLOWED_CONFIG_EXTENSIONS = {".txt", ".cfg", ".conf", ".config", ".log", ".rsc", ".xml"}
 MAX_BATCH_FILES = 500
 MAX_CONFIG_BYTES = 20 * 1024 * 1024
 MAX_ARCHIVE_TOTAL_BYTES = 250 * 1024 * 1024
 SAFE_IDENTIFIER = re.compile(r"^[a-f0-9]{32}$")
+_FW_LAYERS = {"interfaces", "objects", "policies", "nat", "routes", "vpn"}
 
 
 def _request_domain() -> str | None:
@@ -70,8 +71,10 @@ def _safe_source_name(value: str, fallback: str) -> str:
     return cleaned or fallback
 
 
-def _is_config_name(filename: str) -> bool:
-    return Path(filename).suffix.lower() in ALLOWED_CONFIG_EXTENSIONS
+def _is_config_name(filename: str, allow_bare: bool = False) -> bool:
+    """``allow_bare``: a single file the person chose by hand may have no extension at all (a Panorama export is often saved as ``Panorama-Site-30_10_2026``)."""
+    suffix = Path(filename).suffix.lower()
+    return suffix in ALLOWED_CONFIG_EXTENSIONS or (allow_bare and not suffix)
 
 
 def _unique_output_name(candidate: str, used_names: set[str]) -> str:
@@ -249,7 +252,7 @@ def convert():
     original_name = secure_filename(uploaded.filename) if uploaded and uploaded.filename else "pasted-config.cfg"
 
     if uploaded and uploaded.filename:
-        if not _is_config_name(original_name):
+        if not _is_config_name(original_name, allow_bare=True):
             return jsonify({"ok": False, "error": "Unsupported configuration file type."}), 400
         token = uuid.uuid4().hex
         source_path = UPLOAD_DIR / f"{token}_{original_name}"
@@ -259,7 +262,7 @@ def convert():
         source_path = UPLOAD_DIR / f"{token}_pasted-config.cfg"
         source_path.write_text(config_text, encoding="utf-8")
     else:
-        return jsonify({"ok": False, "error": "Upload file konfigurasi atau paste konfigurasi terlebih dahulu."}), 400
+        return jsonify({"ok": False, "error": "Upload a configuration file or paste a configuration first."}), 400
 
     mapping_raw = request.form.get("interface_mapping")
     mapping = None
@@ -267,7 +270,7 @@ def convert():
         try:
             mapping = json.loads(mapping_raw)
         except json.JSONDecodeError:
-            return jsonify({"ok": False, "error": "interface_mapping tidak valid (bukan JSON)."}), 400
+            return jsonify({"ok": False, "error": "interface_mapping is not valid (not JSON)."}), 400
 
     try:
         result = convert_file(
@@ -282,11 +285,18 @@ def convert():
             domain=domain,
             stack_member=request.form.get("stack_member"),
             stack_members=request.form.get("stack_members"),
+            layers=[x for x in request.form.getlist("layers") if x in _FW_LAYERS] or None,
+            vdom=request.form.get("vdom", ""),
+            disable_widened=request.form.get("keep_widened_enabled") != "1",
+            hide_secrets=request.form.get("hide_secrets") == "1",
         )
         export_id = uuid.uuid4().hex
         export_path = EXPORT_DIR / f"{export_id}.cfg"
         export_path.write_text(result["output_text"], encoding="utf-8")
         result["download_url"] = f"/configuration/download/{export_id}?name={result['download_name']}"
+        if result.get("fwconvert"):
+            (EXPORT_DIR / f"{export_id}.report.csv").write_text(result["fwconvert"].pop("csv"), encoding="utf-8", newline="")
+            result["report_download_url"] = f"/configuration/download-report/{export_id}?name={secure_filename(result['hostname']) or 'firewall'}_conversion-report.csv"
         log_activity(
             _activity_module(domain),
             "Configuration converted",
@@ -301,6 +311,25 @@ def convert():
             source_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+@bp.post("/api/panorama-scopes")
+def panorama_scopes():
+    """Is this upload a Panorama export, and which device groups and firewalls does it hold?  Nothing is written to disk."""
+    uploaded = request.files.get("config_file")
+    if not uploaded or not uploaded.filename:
+        return jsonify({"ok": False, "error": "No file was sent."}), 400
+    data = uploaded.stream.read(MAX_CONFIG_BYTES + 1)
+    if len(data) > MAX_CONFIG_BYTES:
+        return jsonify({"ok": False, "error": "The file is larger than the upload limit."}), 400
+    from .converter_engine.fwconvert import panorama as pano_conv
+    text = data.decode("utf-8", errors="ignore")
+    if not pano_conv.is_panorama(text):
+        return jsonify({"ok": True, "panorama": False})
+    try:
+        return jsonify({"ok": True, "panorama": True, "groups": pano_conv.scopes(text)})
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @bp.post("/api/preview-mapping")
@@ -331,7 +360,7 @@ def preview_mapping_route():
         source_path = UPLOAD_DIR / f"{token}_pasted-config.cfg"
         source_path.write_text(config_text, encoding="utf-8")
     else:
-        return jsonify({"ok": False, "error": "Upload file konfigurasi atau paste konfigurasi terlebih dahulu."}), 400
+        return jsonify({"ok": False, "error": "Upload a configuration file or paste a configuration first."}), 400
 
     try:
         result = preview_mapping(
@@ -392,6 +421,7 @@ def batch_convert():
                             profile_key=request.form.get("profile_key") or None,
                             target_model=request.form.get("target_model") or None,
                             domain=domain,
+                            hide_secrets=request.form.get("hide_secrets") == "1",
                         )
                         output_name = _unique_output_name(result["download_name"], used_names)
                         preview_id = uuid.uuid4().hex
@@ -484,6 +514,15 @@ def download_batch_item(batch_id: str, preview_id: str):
         as_attachment=True,
         download_name=name,
     )
+
+
+@bp.get("/download-report/<export_id>")
+def download_report(export_id: str):
+    """The loss report of a FortiGate <-> PAN-OS conversion, as CSV."""
+    if not SAFE_IDENTIFIER.fullmatch(export_id):
+        return jsonify({"ok": False, "error": "Invalid report identifier."}), 400
+    name = secure_filename(request.args.get("name", "conversion-report.csv")) or "conversion-report.csv"
+    return send_from_directory(EXPORT_DIR, f"{export_id}.report.csv", as_attachment=True, download_name=name, mimetype="text/csv")
 
 
 @bp.get("/download/<export_id>")

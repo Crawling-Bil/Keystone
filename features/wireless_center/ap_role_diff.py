@@ -56,26 +56,26 @@ AP_STATUS_GUIDE = [
     {
         "status": "Normal",
         "tone": "healthy",
-        "meaning": "AP sudah terhubung ke WLC dan bekerja normal. Pengguna dapat memakai Wi-Fi dari AP ini.",
-        "action": "Tidak perlu tindakan.",
+        "meaning": "The AP is connected to the WLC and working normally. Users can use Wi-Fi from this AP.",
+        "action": "No action needed.",
     },
     {
         "status": "Standby",
         "tone": "standby",
-        "meaning": "AP dikenali oleh WLC cadangan dan sedang menunggu jika WLC aktif mengalami gangguan.",
-        "action": "Normal jika WLC pasangannya menunjukkan status Normal.",
+        "meaning": "The AP is known to the backup WLC and waits in case the active WLC fails.",
+        "action": "Normal if the peer WLC shows status Normal.",
     },
     {
         "status": "Idle",
         "tone": "attention",
-        "meaning": "Data AP sudah dikenal WLC, tetapi AP belum terhubung atau belum pernah berkomunikasi dengan WLC tersebut.",
-        "action": "Periksa power AP, VLAN management, IP, dan koneksi CAPWAP.",
+        "meaning": "The WLC knows the AP record, but the AP has not connected or has never communicated with that WLC.",
+        "action": "Check AP power, the management VLAN, the IP address and the CAPWAP connection.",
     },
     {
         "status": "Fault",
         "tone": "critical",
-        "meaning": "AP mengalami kegagalan saat mencoba terhubung atau melakukan registrasi ke WLC.",
-        "action": "Periksa konektivitas, konfigurasi, kompatibilitas versi, dan log error.",
+        "meaning": "The AP failed while trying to connect or register to the WLC.",
+        "action": "Check connectivity, configuration, version compatibility and the error log.",
     },
 ]
 
@@ -83,11 +83,11 @@ AP_STATUS_GUIDE = [
 # being compared — see the "Controller A" / "Controller B" labels the user
 # can rename per comparison (ap-role form's controller-label inputs).
 AP_ROLE_PAIR_GUIDE = [
-    {"pair": "Normal A + Standby B", "result": "Active A", "meaning": "Sehat — AP melayani pengguna melalui Controller A dan Controller B siap sebagai cadangan."},
-    {"pair": "Standby A + Normal B", "result": "Active B", "meaning": "Sehat — AP melayani pengguna melalui Controller B dan Controller A siap sebagai cadangan."},
-    {"pair": "Normal + Normal", "result": "Dual Active", "meaning": "Perlu diperiksa — kedua WLC melihat AP sebagai aktif."},
-    {"pair": "Standby + Standby", "result": "No Active WLC", "meaning": "Critical — tidak ada WLC yang menjadi active untuk AP."},
-    {"pair": "Normal + Idle/Fault", "result": "Backup Not Ready", "meaning": "AP masih aktif, tetapi jalur backup belum siap digunakan."},
+    {"pair": "Normal A + Standby B", "result": "Active A", "meaning": "Healthy: the AP serves users through Controller A and Controller B is ready as backup."},
+    {"pair": "Standby A + Normal B", "result": "Active B", "meaning": "Healthy: the AP serves users through Controller B and Controller A is ready as backup."},
+    {"pair": "Normal + Normal", "result": "Dual Active", "meaning": "Needs review: both WLCs see the AP as active."},
+    {"pair": "Standby + Standby", "result": "No Active WLC", "meaning": "Critical: no WLC is active for the AP."},
+    {"pair": "Normal + Idle/Fault", "result": "Backup Not Ready", "meaning": "The AP is still active, but the backup path is not ready to be used."},
 ]
 
 

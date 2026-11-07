@@ -23,6 +23,8 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from features.analyzer_core.redaction import redact_line
+
 from .config_tree import ConfigTree, Node
 
 KINDS = ("acl", "route-map", "prefix-list", "as-path", "community-list", "class-map", "policy-map")
@@ -118,7 +120,7 @@ def build_xref(cfg: dict[str, Any], tree: ConfigTree) -> dict[str, Any]:
                         before = tokens[position - 1].lower() if position else ""
                         if before not in _NUMBER_KEYWORDS:
                             continue
-                    where = context if node is top else f"{context} › {node.text[:60]}"
+                    where = redact_line(context if node is top else f"{context} › {node.text[:60]}")  # a community, key or hash must not reach the screen
                     if where not in usage[(kind, token)]:
                         usage[(kind, token)].append(where)
 

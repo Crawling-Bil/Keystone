@@ -8,11 +8,12 @@ serial number, management/interface IP, short hostname (domain and '(SERIAL)' su
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .extract import Device, HalfEdge
-from .names import canon_port, is_ip, port_sort_key, short_host, split_platform
+from .extract import Device, HalfEdge, mac12, mac_in_name
+from .names import canon_port, is_ip, port_sort_key, short_host, split_platform, vendor_from_description
 
 STATE_RANK = {"inferred": 0, "confirmed": 1, "single": 2, "conflict": 3}
 
@@ -57,6 +58,8 @@ class Connection:
     ip_b: str = ""
     po_ip_a: str = ""           # address/prefix of the port-channel at end A / B, when it is a routed bundle
     po_ip_b: str = ""
+    members_a: str = ""         # the physical ports of the port-channel at end A / B, as short text ("Gi1/0/23-24"), when the option asks for them
+    members_b: str = ""
     l3: dict[str, Any] = field(default_factory=dict)    # layer-3 views: what this line stands for (kind, state, vrf, evidence, routes), see l3page
 
     @property
@@ -83,6 +86,7 @@ class Graph:
     group_endpoints: bool = False                                        # option "group end points under the same switch": the layout frames them per switch
     rolled_roles: dict[str, str] = field(default_factory=dict)           # endpoint nodes folded into a rollup box -> their role
     chassis_units: dict[str, list[str]] = field(default_factory=dict)    # firewall chassis name -> the node keys of its VDOMs / vsys
+    ambiguous_ips: dict[str, list[str]] = field(default_factory=dict)    # address advertised under two or more different names -> those names: never used to tell devices apart
 
 
 def link_ratings(graph: "Graph", link: Link) -> tuple[int, int]:
@@ -109,6 +113,15 @@ def connection_speeds(graph: "Graph", conn: Connection) -> list[int]:
     return [link_speed(graph, link) for link in conn.links]
 
 
+def _same_box_without_serial(first: Device, second: Device) -> bool:
+    """Two captures with one hostname and no serial number to prove it (a PAN-OS or FortiGate configuration export carries none) are the same
+    device uploaded twice when every address they hold is the same: a copy under another file name.  A different box that kept the hostname
+    (a cloned configuration) has at least one address of its own, so it stays a separate node and the TOPO-003 warning."""
+    if first.serials or second.serials or not first.ips or not second.ips:
+        return False
+    return first.ips == second.ips and first.mgmt_ip == second.mgmt_ip and first.vendor == second.vendor and first.model == second.model
+
+
 def _unique_keys(devices: list[Device], graph: Graph) -> None:
     seen: dict[str, Device] = {}
     for device in devices:
@@ -116,7 +129,10 @@ def _unique_keys(devices: list[Device], graph: Graph) -> None:
         key = base
         if key in seen:
             if seen[key].serials and device.serials and seen[key].serials & device.serials:
-                graph.issues.append({"type": "duplicate-capture", "node": key, "files": [seen[key].source, device.source]})
+                graph.issues.append({"type": "duplicate-capture", "node": key, "files": [seen[key].source, device.source], "proof": "serial number"})
+                continue
+            if _same_box_without_serial(seen[key], device):
+                graph.issues.append({"type": "duplicate-capture", "node": key, "files": [seen[key].source, device.source], "proof": "hostname and addresses"})
                 continue
             graph.issues.append({"type": "same-hostname", "node": key, "files": [seen[key].source, device.source]})
             n = 2
@@ -173,8 +189,8 @@ def _stub_for(graph: Graph, half: HalfEdge, by_serial, by_ip, by_host, by_mac) -
     existing = graph.nodes.get(key)
     if existing is None:
         model, version, vendor = split_platform(half.remote_platform)
-        stub = Device(key=key, hostname=host or key, fqdn=half.remote_name, captured=False, model=model, os_version=version, vendor=vendor,
-                      mgmt_ip=half.remote_ip, caps=half.remote_caps)
+        stub = Device(key=key, hostname=host or key, fqdn=half.remote_name, captured=False, model=model, os_version=version,
+                      vendor=vendor or vendor_from_description(half.remote_descr), mgmt_ip=half.remote_ip, caps=half.remote_caps, descr=half.remote_descr)
         if half.remote_serial:
             stub.serials.add(half.remote_serial)
         if half.remote_ip:
@@ -185,6 +201,9 @@ def _stub_for(graph: Graph, half: HalfEdge, by_serial, by_ip, by_host, by_mac) -
         if not existing.model:
             existing.model, existing.os_version, existing.vendor = split_platform(half.remote_platform)
         existing.caps = existing.caps or half.remote_caps
+        existing.descr = existing.descr or half.remote_descr
+        if not existing.vendor:
+            existing.vendor = vendor_from_description(existing.descr)
         if half.remote_serial:
             existing.serials.add(half.remote_serial)
     if half.remote_chassis:
@@ -193,6 +212,19 @@ def _stub_for(graph: Graph, half: HalfEdge, by_serial, by_ip, by_host, by_mac) -
         if value:
             index.setdefault(value, key)
     return key
+
+
+def find_ambiguous_ips(graph: Graph) -> dict[str, list[str]]:
+    """Addresses that neighbors advertise under two or more different device names (every Huawei switch left on its default
+    management address, a copied address): an address is not an identity then, and two differently named devices must never be drawn as one.
+    Only named neighbors count (a MAC address standing in for a missing name is no name); a neighbor that gives no name cannot contradict another."""
+    names: dict[str, dict[str, str]] = {}
+    for node in graph.nodes.values():
+        for half in node.halves:
+            host = short_host(half.remote_name)
+            if half.remote_ip and host and not is_ip(host) and not mac12(host):       # a MAC address stands in for a missing name
+                names.setdefault(half.remote_ip, {}).setdefault(host.lower(), host)
+    return {ip: sorted(found.values()) for ip, found in names.items() if len(found) > 1}
 
 
 def _resolve(graph: Graph, half: HalfEdge, indexes) -> str:
@@ -204,9 +236,9 @@ def _resolve(graph: Graph, half: HalfEdge, indexes) -> str:
     host = short_host(half.remote_name)
     if host in by_host:
         return pick_unit(graph, by_host[host], half.remote_port)
-    if half.remote_ip and half.remote_ip in by_ip:
+    if half.remote_ip and half.remote_ip in by_ip and half.remote_ip not in graph.ambiguous_ips:
         return by_ip[half.remote_ip]
-    if is_ip(host) and host in by_ip:
+    if is_ip(host) and host in by_ip and host not in graph.ambiguous_ips:
         return by_ip[host]
     return _stub_for(graph, half, by_serial, by_ip, by_host, by_mac)
 
@@ -214,8 +246,12 @@ def _resolve(graph: Graph, half: HalfEdge, indexes) -> str:
 def build(devices: list[Device]) -> Graph:
     graph = Graph()
     _unique_keys(devices, graph)
+    graph.ambiguous_ips = find_ambiguous_ips(graph)
     indexes = _indexes(graph)
     captured = list(graph.nodes)
+    for key in captured:
+        for half in graph.nodes[key].halves:
+            half.remote_chassis = half.remote_chassis or mac_in_name(half.remote_name)      # a device ID that ends in the box's own MAC address (stored runs too)
     halves: dict[tuple[str, str], list[tuple[HalfEdge, str]]] = {}
     for key in captured:
         for half in graph.nodes[key].halves:
@@ -250,6 +286,9 @@ def build(devices: list[Device]) -> Graph:
                 other = halves[(remote, rport)][0][1]
                 state, note = "conflict", f"{remote} {rport} reports {other}, not {node}"
                 graph.issues.append({"type": "conflict", "a": node, "a_port": port, "b": remote, "b_port": rport, "other": other})
+            elif rport and _described_by_peer(graph, remote, rport, node, port):
+                state, note = "confirmed", ""
+                reverse = HalfEdge(local_port=rport, remote_name=node, remote_port=port, protocols={"DESC"})
             else:
                 why = "peer is captured but shows no neighbor on that port" if graph.nodes[remote].captured else "peer not captured"
                 state, note = "single", why
@@ -262,6 +301,22 @@ def build(devices: list[Device]) -> Graph:
             graph.links.append(link)
     _connections(graph)
     return graph
+
+
+def _described_by_peer(graph: Graph, remote: str, rport: str, node: str, port: str) -> bool:
+    """A device with no neighbor table (FortiGate, PAN-OS) names its cable in the port alias / comment ('to HQCORE1 - Eth1/11').  When that text
+    names this node and this port, the two ends agree: the cable is confirmed by two independent sources (the switch's LLDP and the firewall's own label)."""
+    peer = graph.nodes.get(remote)
+    if peer is None or not peer.captured:
+        return False
+    from .inferred import parse_description
+    text = peer.descriptions.get(rport) or peer.descriptions.get(canon_port(rport)) or ""
+    name, far = parse_description(text)
+    if not name or not far:
+        return False
+    own = graph.nodes[node]
+    same_name = re.sub(r"[^a-z0-9]", "", short_host(name).lower()) in {re.sub(r"[^a-z0-9]", "", own.hostname.lower()), re.sub(r"[^a-z0-9]", "", (own.chassis or "").lower())}
+    return same_name and canon_port(far) == canon_port(port)
 
 
 def _protocol_disagreements(halves) -> list[dict[str, Any]]:

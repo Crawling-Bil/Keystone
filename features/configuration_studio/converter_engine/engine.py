@@ -175,11 +175,11 @@ class MigrationEngine:
         except ModuleNotFoundError as error:
 
             raise RuntimeError(
-                "\nModule belum tersedia:\n"
+                "\nModule not available:\n"
                 f"{module_path}\n\n"
-                "Parser atau translator "
-                "untuk platform ini "
-                "belum dibuat."
+                "The parser or translator "
+                "for this platform "
+                "has not been written yet."
             ) from error
 
         try:
@@ -192,11 +192,20 @@ class MigrationEngine:
         except AttributeError as error:
 
             raise RuntimeError(
-                "\nClass tidak ditemukan:\n"
+                "\nClass not found:\n"
                 f"{class_name}\n\n"
                 f"Module:\n"
                 f"{module_path}"
             ) from error
+
+    @staticmethod
+    def _unsupported(verb, role, vendor, device_type, registry):
+        """English message for a vendor / device type the converter has no parser (source) or translator (target) for, naming what it does support."""
+        kind = str(device_type).strip().lower()
+        same = [(d, v) for d, v in registry if str(d).lower() == kind] or list(registry)
+        supported = ", ".join(sorted(f"{str(v).title()} {d}" for d, v in same))
+        hint = " Use the Firewall Analyzer or Router Analyzer to review this file instead." if str(device_type).lower() in ("firewall", "router") else ""
+        return f"The converter cannot {verb} {vendor} {device_type} as a {role}. Supported as {role}: {supported}.{hint}"
 
     # ========================================================
     # GET PARSER
@@ -225,10 +234,7 @@ class MigrationEngine:
 
         if not parser_info:
 
-            raise ValueError(
-                "Parser belum tersedia untuk "
-                f"{vendor} {device_type}"
-            )
+            raise ValueError(self._unsupported("read", "source", vendor, device_type, self.parser_registry))
 
         module_path = (
             parser_info[0]
@@ -274,11 +280,7 @@ class MigrationEngine:
 
         if not translator_info:
 
-            raise ValueError(
-                "Translator belum tersedia "
-                "untuk "
-                f"{vendor} {device_type}"
-            )
+            raise ValueError(self._unsupported("write", "target", vendor, device_type, self.translator_registry))
 
         module_path = (
             translator_info[0]
@@ -348,8 +350,8 @@ class MigrationEngine:
             ):
 
                 raise ValueError(
-                    "Vendor atau device type "
-                    "tidak dapat dideteksi."
+                    "The vendor or device type "
+                    "could not be detected."
                 )
 
         if self.is_auto(
@@ -482,7 +484,7 @@ class MigrationEngine:
 
             raise ValueError(
                 "Cross-device-type migration "
-                "belum diizinkan.\n\n"
+                "is not allowed.\n\n"
                 "Source : "
                 f"{config.source_device_type}\n"
                 "Target : "

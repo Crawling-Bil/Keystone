@@ -74,14 +74,15 @@ class TestSupportedPlatforms(unittest.TestCase):
         # Parsers exist for all three switch vendors, plus Mikrotik on
         # the firewall side (the new Mikrotik -> Palo Alto migration
         # path -- see MikrotikFirewallParser)...
-        self.assertEqual(source_vendors, {"cisco", "huawei", "aruba", "mikrotik"})
+        # FortiGate and PAN-OS are sources too since the FortiGate <-> PAN-OS converter (fwconvert).
+        self.assertEqual(source_vendors, {"cisco", "huawei", "aruba", "mikrotik", "fortigate", "palo alto"})
         # ...and a CiscoSwitchTranslator now exists too (renders an
         # Aruba/Huawei-sourced config back into Cisco IOS-style CLI --
         # e.g. for rollback documentation / config-parity review), so
         # Cisco is no longer source-only: all three switch vendors are
         # valid translation targets, plus Palo Alto as the firewall
         # target (PaloAltoFirewallTranslator).
-        self.assertEqual(target_vendors, {"cisco", "huawei", "aruba", "palo alto"})
+        self.assertEqual(target_vendors, {"cisco", "huawei", "aruba", "palo alto", "fortigate"})
 
 
 class TestAvailableTargetModels(unittest.TestCase):

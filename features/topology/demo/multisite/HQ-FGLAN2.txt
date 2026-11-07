@@ -1,0 +1,173 @@
+HQ-FGLAN2 # get system status
+Version: FortiGate-200F v7.2.8,build1639,240123 (GA.M)
+Serial-Number: FG200F5H24000102
+BIOS version: 04000029
+Operation Mode: NAT
+Current virtual domain: root
+Max number of virtual domains: 10
+Virtual domains status: 1 in NAT mode, 0 in TP mode
+Virtual domain configuration: disable
+Current HA mode: a-p, secondary
+Cluster uptime: 112 days, 3 hours, 10 minutes, 44 seconds
+Hostname: HQ-FGLAN2
+System time: Sat Nov  1 09:12:41 2026
+
+HQ-FGLAN2 # get system ha status
+HA Health Status: OK
+Model: FortiGate-200F
+Mode: HA A-P
+Group Name: HQ-FGLAN-HA
+Group ID: 10
+Debug: 0
+Cluster Uptime: 112 days 3:10:44
+Cluster state change time: 2026-07-12 11:01:30
+Primary selected using:
+    <2026/07/12 11:01:30> FG200F5H24000101 is selected as the primary because it has the largest value of override priority.
+ses_pickup: disable
+load_balance: disable
+schedule: none
+Master: HQ-FGLAN1          FG200F5H24000101  0
+Slave : HQ-FGLAN2          FG200F5H24000102  1
+number of vcluster: 1
+vcluster 1: work 169.254.0.1
+Master:0 FG200F5H24000101
+Slave :1 FG200F5H24000102
+
+HQ-FGLAN2 # show full-configuration
+#config-version=FortiGate-200F-7.2.8-FW-build1639-240123:opmode=0:vdom=0:user=admin
+config system global
+    set admintimeout 10
+    set hostname "HQ-FGLAN2"
+    set timezone "Asia/Jakarta"
+    set strong-crypto enable
+end
+config system interface
+    edit "port3"
+        set vdom "root"
+        set type physical
+        set alias "to HQ-DS1 - Te1/0/2"
+    next
+    edit "port4"
+        set vdom "root"
+        set type physical
+        set alias "to HQ-DS2 - Te1/0/2"
+    next
+    edit "lan-sw"
+        set vdom "root"
+        set type redundant
+        set member "port3" "port4"
+        set alias "LAN access switches (redundant)"
+    next
+    edit "lan-sw.110"
+        set vdom "root"
+        set ip 10.10.110.1 255.255.255.0
+        set allowaccess ping
+        set interface "lan-sw"
+        set vlanid 110
+        set alias "VLAN 110 HQ users"
+        set role lan
+    next
+    edit "lan-sw.199"
+        set vdom "root"
+        set ip 10.10.199.1 255.255.255.0
+        set allowaccess ping https ssh
+        set interface "lan-sw"
+        set vlanid 199
+        set alias "VLAN 199 LAN management"
+        set role lan
+    next
+    edit "port1"
+        set vdom "root"
+        set type physical
+        set alias "to HQ-CORE1 - Eth1/12"
+    next
+    edit "port2"
+        set vdom "root"
+        set type physical
+        set alias "to HQ-CORE2 - Eth1/12"
+    next
+    edit "agg-core"
+        set vdom "root"
+        set type aggregate
+        set member "port1" "port2"
+        set lacp-mode active
+        set lacp-speed fast
+        set alias "HQ-CORE vPC 112"
+    next
+    edit "agg-core.901"
+        set vdom "root"
+        set ip 10.10.251.1 255.255.255.248
+        set allowaccess ping
+        set interface "agg-core"
+        set vlanid 901
+        set alias "TRANSIT to CORE"
+        set role wan
+    next
+    edit "mgmt"
+        set vdom "root"
+        set ip 10.10.0.42 255.255.255.0
+        set allowaccess ping https ssh
+        set type physical
+        set alias "out-of-band management"
+    next
+end
+config system ha
+    set group-id 10
+    set group-name "HQ-FGLAN-HA"
+    set mode a-p
+    set hbdev "port7" 50
+    set session-pickup enable
+    set override enable
+    set priority 100
+end
+config system dhcp server
+    edit 1
+        set dns-service default
+        set default-gateway 10.10.110.1
+        set netmask 255.255.255.0
+        set interface "lan-sw.110"
+        config ip-range
+            edit 1
+                set start-ip 10.10.110.100
+                set end-ip 10.10.110.199
+            next
+        end
+        set lease-time 28800
+    next
+end
+config router ospf
+    set router-id 10.10.255.12
+    config area
+        edit 0.0.0.0
+        next
+    end
+    config ospf-interface
+        edit "core"
+            set interface "agg-core.901"
+            set network-type broadcast
+        next
+        edit "lan110"
+            set interface "lan-sw.110"
+            set network-type broadcast
+        next
+        edit "lan199"
+            set interface "lan-sw.199"
+            set network-type broadcast
+        next
+    end
+    config network
+        edit 1
+            set prefix 10.10.251.0 255.255.255.248
+        next
+        edit 2
+            set prefix 10.10.110.0 255.255.255.0
+        next
+        edit 3
+            set prefix 10.10.199.0 255.255.255.0
+        next
+    end
+    config redistribute "connected"
+        set status enable
+    end
+end
+HQ-FGLAN2 # 

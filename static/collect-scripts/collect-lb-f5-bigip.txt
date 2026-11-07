@@ -26,6 +26,7 @@ tmsh list ltm profile server-ssl all-properties
 tmsh list ltm virtual all-properties
 tmsh list ltm virtual-address all-properties
 tmsh list sys file ssl-cert
+tmsh list auth user
 tmsh list net self-allow
 
 # ---- High availability.
@@ -37,6 +38,7 @@ tmsh show cm traffic-group
 
 # ---- Live LTM state: feeds the Visualization tab (green / yellow / red instead of 'configured').
 tmsh show ltm virtual
+tmsh show ltm virtual detail
 tmsh show ltm virtual-address
 tmsh show ltm pool
 tmsh show ltm pool members
@@ -45,9 +47,17 @@ tmsh show ltm node
 # ---- Network state.
 tmsh show net interface
 tmsh show net trunk
+tmsh show net vlan
 tmsh show net lldp-neighbors
 tmsh show net arp
 tmsh show sys performance all-stats
+
+# ---- Optional: the L3 objects in configuration form. Remove the '#' if you cannot run 'tmsh list' (the Topology Builder then reads VLANs, self IPs and routes from these).
+# tmsh list net self
+# tmsh list net vlan
+# tmsh list net route
+# tmsh list net trunk
+# tmsh list net route-domain
 
 # ---- Traffic counters: negotiated TLS versions per profile and iRule failures (cumulative since the last reset).
 tmsh show ltm profile client-ssl

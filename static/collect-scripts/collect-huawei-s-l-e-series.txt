@@ -4,6 +4,7 @@
 !!! v4: NEW block at the end = VRP commands no parser reads yet (CPU / memory, NTP, SNMP agent, SSH / Telnet server state, users, error-down recovery, MAC flapping, VRRP / OSPF state, startup and patch). Run them once so the next parser round can read real output. A command this model does not have answers 'Error: Unrecognized command' - harmless.
 !!! v5: every command checked against 37 real Huawei captures and the V600R025C00 Command Reference. display vrrp brief replaced by display vrrp (an S5700 answered 'Wrong parameter'; display vrrp answered on 4 captures and is in the reference). display current-configuration | include route ignore-case removed (empty in 36 of 36 captures: ignore-case is its own '| ignore-case' stage, so it was searched as part of the pattern; | include route already finds every route line).
 !!! v5: the probe block at the end now uses the V600R025C00 spellings display memory, display ntp status and display ntp sessions; the older display memory-usage and display ntp-service ... follow at the very end for V200R0xx models.
+!!! v8: the FIRST command below (save, answered by the y on the next line) saves the running configuration to startup so that the backup and the startup file agree. It is the only command in this list that changes anything on the device, and it also saves changes someone else left unsaved. Delete that line if you must not save. tests/test_collect_lists.py pins it.
 
 save 
 y

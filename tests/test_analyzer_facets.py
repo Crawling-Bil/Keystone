@@ -95,9 +95,9 @@ def test_change_history_has_a_wib_column_seven_hours_after_utc(ucs_result):
 def _all_results():
     from features.router_analyzer import service as router_service
 
-    for path in sorted((FIXTURES / "firewall").glob("*")):
+    for path in sorted(item for item in (FIXTURES / "firewall").glob("*") if item.is_file()):     # "golden/" holds the converter's expected output
         yield path.name, fw_service.analyze(path.read_text(encoding="utf-8", errors="replace"), path.name)
-    for path in sorted((FIXTURES / "loadbalancer").glob("*")):
+    for path in sorted(item for item in (FIXTURES / "loadbalancer").glob("*") if item.is_file()):     # "golden/" holds the converter's expected output
         yield path.name, lb_service.analyze(path.read_text(encoding="utf-8", errors="replace"), path.name, today=TODAY)
     for path in sorted((FIXTURES / "router").glob("*.txt")):
         yield path.name, router_service.analyze(path.read_text(encoding="utf-8", errors="replace"), path.name)

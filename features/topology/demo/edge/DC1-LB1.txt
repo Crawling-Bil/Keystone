@@ -1,0 +1,139 @@
+[admin@DC1-LB1:Active:Standalone] ~ # tmsh show sys version
+Sys::Version
+Main Package
+  Product     BIG-IP
+  Version     15.1.8.2
+  Build       0.0.9
+  Edition     Point Release 2
+  Date        Thu Mar 23 2023
+
+[admin@DC1-LB1:Active:Standalone] ~ # tmsh list
+cm device /Common/DC1-LB1.dc1.example.test {
+    configsync-ip 10.20.0.31
+    failover-state active
+    hostname DC1-LB1.dc1.example.test
+    marketing-name "BIG-IP i5800"
+    platform-id C119
+    self-device true
+    version 15.1.8
+}
+ltm node /Common/10.20.20.21 {
+    address 10.20.20.21
+}
+ltm node /Common/10.20.20.22 {
+    address 10.20.20.22
+}
+ltm node /Common/10.20.20.31 {
+    address 10.20.20.31
+}
+ltm pool /Common/pool_app {
+    load-balancing-mode round-robin
+    members {
+        /Common/10.20.20.21:8443 {
+            address 10.20.20.21
+        }
+        /Common/10.20.20.22:8443 {
+            address 10.20.20.22
+        }
+    }
+    monitor /Common/tcp
+}
+ltm pool /Common/pool_api {
+    load-balancing-mode least-connections-member
+    members {
+        /Common/10.20.20.31:9000 {
+            address 10.20.20.31
+        }
+    }
+    monitor /Common/tcp
+}
+ltm virtual /Common/vs_app_443 {
+    destination /Common/10.20.30.10:443
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool /Common/pool_app
+    profiles {
+        /Common/tcp { }
+    }
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual /Common/vs_api_8443 {
+    destination /Common/10.20.30.11:8443
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool /Common/pool_api
+    profiles {
+        /Common/tcp { }
+    }
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+}
+net route-domain /Common/0 {
+    id 0
+    vlans {
+        /Common/client
+        /Common/server
+    }
+}
+net route /Common/default {
+    gateway 10.20.10.1
+    network default
+}
+net self /Common/self_client {
+    address 10.20.10.5/24
+    allow-service default
+    traffic-group /Common/traffic-group-local-only
+    vlan /Common/client
+}
+net self /Common/self_server {
+    address 10.20.20.5/24
+    allow-service default
+    traffic-group /Common/traffic-group-local-only
+    vlan /Common/server
+}
+net trunk /Common/trk_core {
+    interfaces {
+        1.1
+        1.2
+    }
+    lacp enabled
+}
+net vlan /Common/client {
+    interfaces {
+        trk_core {
+            tagged
+        }
+    }
+    tag 10
+}
+net vlan /Common/server {
+    interfaces {
+        trk_core {
+            tagged
+        }
+    }
+    tag 20
+}
+sys management-ip 10.20.0.31/24 {
+}
+
+[admin@DC1-LB1:Active:Standalone] ~ # tmsh show net interface
+-----------------------------------------------------------------
+Net::Interface
+Name  Status  Bits   Bits   Pkts  Pkts  Drops  Errs  Media
+                In    Out     In   Out
+-----------------------------------------------------------------
+1.1   up      1.2G   2.4G   1.1M  1.3M  0      0     10000T-FD
+1.2   up      1.0G   2.1G   1.0M  1.2M  0      0     10000T-FD
+mgmt  up      2.0K   8.3K   2.2K  1.1K  0      0     1000T-FD
+
+[admin@DC1-LB1:Active:Standalone] ~ #

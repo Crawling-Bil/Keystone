@@ -1,13 +1,17 @@
 !!! Keystone collect list - Cisco IOS-XE routers (ASR1000, ISR4000, Catalyst 8200/8300/8500) and classic IOS
 ! Log in with a read-only account that can run 'show running-config' (privilege 15 or a CLI view), paste the commands, save the WHOLE terminal buffer (MobaXterm / PuTTY / SecureCRT session log) and upload it to the Router Analyzer.
-! Every command below only reads. 'terminal length 0' changes the paging of YOUR session only. A command the router does not know ('% Invalid input') is harmless: the analyzer lists it as failed and goes on.
+! Every command below only reads, except the first one (write memory, see the !!! line below). 'terminal length 0' changes the paging of YOUR session only. A command the router does not know ('% Invalid input') is harmless: the analyzer lists it as failed and goes on.
 ! Commands under 'Health, IOS-XE only' exist on IOS-XE only; they fail on classic IOS (for example Cisco 3825).
 ! Routers in Catalyst SD-WAN controller mode (cEdge) have their own list: collect-router-cisco-sdwan.txt. 'show sdwan ...' commands do not exist on a traditional router, so they are not in this list.
 ! Section 1 holds commands whose output was seen in real captures while this analyzer was written (C8200L, C8300, ISR4331, ISR4431, ASR1002-X, Catalyst 9300 in routing mode and Cisco 3825). Where a command was only seen inside a 'show tech-support' capture, the comment says so.
 ! Section 2 holds commands the analyzer also reads but that no real capture has answered with a populated table yet (the router either answered with headers only or the command was not run). They use Cisco's documented syntax and output, so treat the first run as a test.
 ! The Health tab needs: show version, show process cpu sorted / history, show process memory sorted, show platform resources, the QFP utilization, show environment all, show file systems, show license summary and show logging. All of them are below.
 
+!!! v2: the FIRST command below (write memory) saves the running configuration to startup so that the backup and the startup file agree. It is the only command in this list that changes anything on the device, and it also saves changes someone else left unsaved. Delete that line if you must not save. tests/test_collect_lists.py pins it. Classic IOS and IOS-XE both accept it; on a router in Catalyst SD-WAN controller mode use collect-router-cisco-sdwan.txt instead, which has no save (the controller owns the configuration).
+
 !!! 1. Commands seen in real captures
+
+write memory
 
 terminal length 0
 
@@ -24,6 +28,9 @@ show interfaces summary
 show etherchannel summary
 show cdp neighbors
 show cdp neighbors detail
+
+! LLDP detail: the Topology Builder matches links by chassis ID and port ID. A router that does not run LLDP prints an error or an empty table - harmless.
+show lldp neighbors detail
 
 ! Routing and ARP (add 'show ip route vrf <name>' for every VRF)
 show ip route

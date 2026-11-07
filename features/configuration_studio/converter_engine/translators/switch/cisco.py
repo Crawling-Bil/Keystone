@@ -1183,6 +1183,8 @@ class CiscoSwitchTranslator:
 
         groups = {}
         users = {}
+        communities = []
+        sys_info = {}
 
         level_map = {
             "authentication": "auth",
@@ -1248,7 +1250,47 @@ class CiscoSwitchTranslator:
                 users.setdefault(uname, {})["group"] = gname
                 continue
 
+            # SNMPv1/v2c community: "snmp-agent community read|write [cipher|simple] <string> [acl <n>]".  These lines were dropped
+            # without a word (the conversion kept only SNMPv3), so a monitoring system that polls the switch by community lost access
+            # after the cut-over.  Cisco: "snmp-server community <string> RO|RW".
+            community_match = re.match(
+                r"^snmp-agent community\s+(read|write)\s+(?:(cipher|simple)\s+)?(\S+)(?:\s+(?:acl|mib-view)\s+(\S+))?",
+                stripped,
+                re.IGNORECASE,
+            )
+            if community_match:
+                access, kind, value, acl = community_match.groups()
+                communities.append((access.lower(), (kind or "plain").lower(), value, acl))
+                continue
+
+            info_match = re.match(r"^snmp-agent sys-info\s+(contact|location)\s+(.+)$", stripped, re.IGNORECASE)
+            if info_match:
+                sys_info[info_match.group(1).lower()] = info_match.group(2).strip()
+                continue
+
         output = []
+
+        for access, kind, value, acl in communities:
+            mode = "RW" if access == "write" else "RO"
+            if kind == "cipher":
+                # The cipher text is Huawei's reversible encryption of the string; it cannot be recovered from the configuration.
+                output.append(f"! snmp-server community <NEW-{mode}-COMMUNITY-STRING> {mode}")
+                output.append(
+                    f"! REVIEW-SNMP-COMMUNITY: the source {access} community is stored cipher-encrypted and cannot be decoded; "
+                    "choose the string again, enable the line above and give the poller the new string. "
+                    "Prefer SNMPv3 (snmp-server group / user) for anything that can use it."
+                    + (f" The source limited it with ACL {acl}; add an access list after the mode if it is still needed." if acl else "")
+                )
+            else:
+                output.append(f"snmp-server community {value} {mode}")
+                output.append(
+                    f"! REVIEW-SNMP-COMMUNITY: plain-text {access} community carried over as it is; consider SNMPv3"
+                    + (f" and the source ACL {acl}" if acl else "")
+                )
+        if "location" in sys_info:
+            output.append(f"snmp-server location {sys_info['location']}")
+        if "contact" in sys_info:
+            output.append(f"snmp-server contact {sys_info['contact']}")
 
         for name, (level, read_view, write_view) in groups.items():
             line = f"snmp-server group {name} v3 {level}"

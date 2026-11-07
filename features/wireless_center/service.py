@@ -11,6 +11,7 @@ from .parsers.cisco9800_parser import Cisco9800ConfigParser
 from .parsers.config_parser import HuaweiConfigParser
 from .inventory_master import compare_inventory, read_inventory
 from .summaries import build_ap_device_summary
+from features.analyzer_core.redaction import redact_line
 from . import radio_planning
 
 
@@ -67,6 +68,29 @@ def _normalize_data(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+_CONFIG_KEYS = frozenset({"config", "configuration"})
+
+
+def _hide_credentials(node: Any) -> None:
+    """Hide WLAN pre-shared keys, user passwords and shared keys in the raw command lists a profile, user or AP group carries (``config``).
+
+    The parsers keep the commands as written so the profile tables can show them; a WPA key or a local-user hash must not travel with them to the
+    screen, the Excel export or the as-built document.  Counts and labels (``WPA-PSK``) are derived before this runs and are not affected.
+    """
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in _CONFIG_KEYS:
+                if isinstance(value, list):
+                    node[key] = [redact_line(item) if isinstance(item, str) else item for item in value]
+                elif isinstance(value, str):
+                    node[key] = " | ".join(redact_line(part) for part in value.split(" | "))
+            else:
+                _hide_credentials(value)
+    elif isinstance(node, list):
+        for item in node:
+            _hide_credentials(item)
+
+
 def _status_counts(data: dict[str, Any]) -> dict[str, int]:
     vendor = str(data.get("vendor", "Huawei")).lower()
     counts = {"normal": 0, "idle": 0, "standby": 0, "fault": 0, "other": 0}
@@ -91,6 +115,7 @@ def analyze(content: str, vendor: str = "Auto Detect", inventory_path: Path | No
     resolved_vendor = detect_vendor(content) if vendor.lower().startswith("auto") else vendor.title()
     parser = Cisco9800ConfigParser(content) if resolved_vendor.lower() == "cisco" else HuaweiConfigParser(content)
     data = _normalize_data(parser.parse())
+    _hide_credentials(data)
     data["vendor"] = resolved_vendor
 
     inventory_stats: dict[str, Any] = {}
@@ -100,7 +125,7 @@ def analyze(content: str, vendor: str = "Auto Detect", inventory_path: Path | No
         inventory_validation = read_inventory(inventory_path, resolved_vendor)
         if inventory_validation["summary"].get("missing_identity_columns"):
             missing = ", ".join(inventory_validation["summary"]["missing_identity_columns"])
-            raise ValueError(f"AP Inventory tidak memiliki identity column wajib: {missing}")
+            raise ValueError(f"The AP Inventory is missing the required identity column(s): {missing}")
 
         # Enrich parsed APs before comparison. Huawei AC6508 operational CSV
         # carries the runtime IP, model, software and state that do not exist

@@ -14,6 +14,7 @@ from .graph import Connection, Graph
 from .layout import NODE_H, NODE_W
 from .scene import Page, build_pages
 from .styles import SPEED_TIERS, line_look
+from .titles import end_title_spot, page_label_rects, page_segments
 
 ICON_POINTS = ("points=[[0.015,0.015,0],[0.985,0.015,0],[0.985,0.985,0],[0.015,0.985,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],"
                "[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];")
@@ -253,10 +254,13 @@ def _diagram(page: Page, graph: Graph, index: int, show_ports: bool, line_style:
                                               "style": "rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;fontStyle=1;fontSize=14;fontColor=#000000;",
                                               "vertex": "1", "parent": "1"})
         ET.SubElement(cell, "mxGeometry", {"x": f"{x:.0f}", "y": f"{y:.0f}", "width": f"{w:.0f}", "height": f"{h:.0f}", "as": "geometry"})
+    title_segments = page_segments(page) if page.end_boxes else []
+    title_labels = page_label_rects(page, graph) if page.end_boxes and show_ports else []
     for n, (box_title, x, y, w, h) in enumerate(page.end_boxes):          # end points grouped under one switch: a light frame named after the switch
+        spot = end_title_spot(page, (box_title, x, y, w, h), title_segments, title_labels)          # the name slides to a gap between lines, as in the SVG
         cell = ET.SubElement(root, "mxCell", {"id": f"{index}-endbox-{n}", "value": _esc(box_title), "vertex": "1", "parent": "1",
                                               "style": "rounded=1;arcSize=3;whiteSpace=wrap;html=1;fillColor=#F7F9FB;strokeColor=#8FA0AE;strokeWidth=1.5;"
-                                                       "verticalAlign=top;align=left;spacingLeft=10;spacingTop=4;fontStyle=1;fontSize=12;fontColor=#3E4C59;"})
+                                                       "verticalAlign=top;align=left;spacingLeft=" + f"{spot:.0f}" + ";spacingTop=4;fontStyle=1;fontSize=12;fontColor=#3E4C59;"})
         ET.SubElement(cell, "mxGeometry", {"x": f"{x:.0f}", "y": f"{y:.0f}", "width": f"{w:.0f}", "height": f"{h:.0f}", "as": "geometry"})
     ids: dict[str, str] = {}
     for n, frame in enumerate(page.pair_boxes.values()):

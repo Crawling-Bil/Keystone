@@ -138,7 +138,7 @@ class ClassifyTests(unittest.TestCase):
             self.assertEqual((guess.domain, guess.vendor), ("load_balancer", "F5"), name)
 
     def test_fortigate_fixtures_are_firewalls(self):
-        for path in sorted((FIXTURES / "firewall").iterdir()):
+        for path in sorted(x for x in (FIXTURES / "firewall").iterdir() if x.is_file()):
             self.assertEqual(classify(path.read_text(encoding="utf-8", errors="ignore")).domain, "firewall", path.name)
 
     def test_pan_os_cli_capture_is_firewall_not_switch(self):

@@ -8,6 +8,8 @@
 !!! v4: a command your NX-OS does not know answers '% Invalid command' - harmless. show interface counters errors can be long on a 48-port leaf: keep it above show logging so a cut-off paste keeps the log.
 !!! v7: every command checked against 13 real Nexus captures (NX-OS 7.0(3)I7, 9.3(5), 10.5(5)) and Cisco's NX-OS documentation. show lacp neighbors is now show lacp neighbor (the documented spelling; the plural was rejected by 5 of 5 devices). show switch removed (not an NX-OS command: 'Ambiguous' / 'Invalid command' on every device). show interface trunk added (answered on 5 captures; the Trunks tab reads it).
 !!! v7: kept on purpose - show environment all (accepted by NX-OS 9.3(5), rejected by 7.0(3)I7 and 10.5(5), where show environment answers) and show license summary / all (Smart Licensing, NX-OS 9.3(3) and later; older releases answer % Invalid command).
+!!! v8: the FIRST command below (write memory) saves the running configuration to startup so that the backup and the startup file agree. It is the only command in this list that changes anything on the device, and it also saves changes someone else left unsaved. Delete that line if you must not save. tests/test_collect_lists.py pins it.
+!!! v8: show ip route summary added after show ip route (the Coverage tab names it for the route-count check).
 
 write memory
 
@@ -102,6 +104,8 @@ show environment
 show run | in route
 
 show ip route
+
+show ip route summary
 
 show license usage
 

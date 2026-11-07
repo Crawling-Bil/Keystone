@@ -33,6 +33,7 @@ from features.configuration_studio.converter_engine.models.paloalto_native impor
     PaDhcpServerBinding,
     PaManagementService,
     PaZoneProtectionProfile,
+    PaDeviceInfo,
 )
 
 # A Panorama-wrapped line looks like:
@@ -46,6 +47,7 @@ _DEVICE_GROUP_PREFIX_RE = re.compile(r'^device-group (\S+) (.+)$')
 
 _HOSTNAME_RE = re.compile(r'^deviceconfig system hostname (\S+)$')
 _TIMEZONE_RE = re.compile(r'^deviceconfig system timezone (\S+)$')
+_MGMT_NET_RE = re.compile(r'^deviceconfig system (ip-address|netmask|default-gateway|domain) (\S+)$')
 _DNS_PRIMARY_RE = re.compile(r'^deviceconfig system dns-setting servers primary (\S+)$')
 _DNS_SECONDARY_RE = re.compile(r'^deviceconfig system dns-setting servers secondary (\S+)$')
 _NTP_PRIMARY_RE = re.compile(r'^deviceconfig system ntp-servers primary-ntp-server ntp-server-address (\S+)$')
@@ -405,6 +407,14 @@ class PaloAltoFirewallParser:
         match = _TIMEZONE_RE.match(rest)
         if match:
             config.timezone = match.group(1)
+            return True
+
+        match = _MGMT_NET_RE.match(rest)
+        if match:                                                  # the management interface: the Topology Builder and the Firewall Analyzer show it
+            if config.device_info is None:
+                config.device_info = PaDeviceInfo()
+            field = {"ip-address": "mgmt_ip", "netmask": "mgmt_netmask", "default-gateway": "mgmt_gateway", "domain": "domain"}[match.group(1)]
+            setattr(config.device_info, field, match.group(2))
             return True
 
         match = _DNS_PRIMARY_RE.match(rest)

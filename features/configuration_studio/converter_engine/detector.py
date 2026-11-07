@@ -92,7 +92,7 @@ class DeviceDetector:
 
         # ArubaOS-CX prints "!Version AOS-CX ML.10.xx" first in its configuration and "AOS-CX" in `show version`.
         # Its ACLs are "access-list ip NAME", which the Cisco FTD/ASA branch below counts as a marker, so a CX
-        # configuration was reported as "Cisco FTD" and the Switch Analyzer stopped with "Parser belum tersedia".
+        # configuration was reported as "Cisco FTD" and the Switch Analyzer stopped with "Parser not available".
         # `text` is lower-cased, so every pattern here is lower case. A capture can show AOS-CX in four other ways: the
         # `show version` / `show system` banner (an "arubaos-cx" or "aos-cx" word), bare "interface 1/1/1" ports (Cisco
         # names ports "GigabitEthernet1/0/1"), and event-log lines "Event|<id>|LOG_<LEVEL>|" (a capture of `show events`

@@ -1,0 +1,114 @@
+LAB-CORE1#show version
+Cisco IOS XE Software, Version 17.12.5
+Cisco IOS Software [Dublin], Catalyst L3 Switch Software
+cisco C9300L-48P-4X (X86) processor
+Processor board ID FOC1234
+LAB-CORE1 uptime is 12 weeks
+
+LAB-CORE1#show inventory
+NAME: "Switch 1", DESCR: "C9300L-48P-4X"
+PID: C9300L-48P-4X   , VID: V01  , SN: FOC1234
+
+LAB-CORE1#show running-config
+hostname LAB-CORE1
+!
+interface Vlan1
+ description Management
+ ip address 10.99.0.1 255.255.255.0
+!
+end
+
+LAB-CORE1#show cdp neighbors detail
+-------------------------
+----------------------------------------
+Device ID:LAB-N13.lab.example(FOC00000013)
+
+Interface address(es): 1
+    IPv4 Address: 10.99.0.13
+Platform: cisco C9300L-48P-4X, Capabilities: Switch IGMP
+Interface: Ethernet1/1, Port ID (outgoing port): GigabitEthernet1/0/10
+Holdtime: 150 sec
+
+Version:
+Cisco test image
+
+Advertisement Version: 2
+
+Native VLAN: 10
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 10.99.0.13
+----------------------------------------
+Device ID:LAB-N02.lab.example(FOC00000002)
+
+Interface address(es): 1
+    IPv4 Address: 10.99.0.2
+Platform: cisco C9300L-48P-4X, Capabilities: Switch IGMP
+Interface: Ethernet1/1, Port ID (outgoing port): GigabitEthernet1/0/3
+Holdtime: 150 sec
+
+Version:
+Cisco test image
+
+Advertisement Version: 2
+
+Native VLAN: 10
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 10.99.0.2
+----------------------------------------
+Device ID:LAB-N07.lab.example(FOC00000007)
+
+Interface address(es): 1
+    IPv4 Address: 10.99.0.7
+Platform: cisco C9300L-48P-4X, Capabilities: Switch IGMP
+Interface: Ethernet1/1, Port ID (outgoing port): GigabitEthernet1/0/22
+Holdtime: 150 sec
+
+Version:
+Cisco test image
+
+Advertisement Version: 2
+
+Native VLAN: 10
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 10.99.0.7
+----------------------------------------
+Device ID:LAB-N21.lab.example(FOC00000021)
+
+Interface address(es): 1
+    IPv4 Address: 10.99.0.21
+Platform: cisco C9300L-48P-4X, Capabilities: Switch IGMP
+Interface: Ethernet1/1, Port ID (outgoing port): GigabitEthernet1/0/2
+Holdtime: 150 sec
+
+Version:
+Cisco test image
+
+Advertisement Version: 2
+
+Native VLAN: 10
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 10.99.0.21
+----------------------------------------
+Device ID:LAB-N05.lab.example(FOC00000005)
+
+Interface address(es): 1
+    IPv4 Address: 10.99.0.5
+Platform: cisco C9300L-48P-4X, Capabilities: Switch IGMP
+Interface: Ethernet1/1, Port ID (outgoing port): GigabitEthernet1/0/11
+Holdtime: 150 sec
+
+Version:
+Cisco test image
+
+Advertisement Version: 2
+
+Native VLAN: 10
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 10.99.0.5
+
+LAB-CORE1#

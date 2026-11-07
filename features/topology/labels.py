@@ -30,6 +30,32 @@ def compress_ports(ports: list[str]) -> str:
     return ", ".join(out)
 
 
+def member_ports(ports: list[str], limit: int = 34) -> str:
+    """The physical ports of a bundle, short: ['Gi1/0/23','Gi1/0/24'] -> 'Gi1/0/23-24', ['Gi1/0/1','Gi1/0/2','Gi1/0/4'] -> 'Gi1/0/1-2, Gi1/0/4'; "8 members" when the text would run across the picture."""
+    ordered = sorted({p for p in ports if p}, key=port_sort_key)
+    runs: list[list[str]] = []
+    for port in ordered:
+        match = re.match(r"^(.*?)(\d+)$", port)
+        prev = re.match(r"^(.*?)(\d+)$", runs[-1][-1]) if runs else None
+        if match and prev and prev.group(1) == match.group(1) and int(match.group(2)) == int(prev.group(2)) + 1:
+            runs[-1].append(port)
+        else:
+            runs.append([port])
+    out = [run[0] if len(run) == 1 else f"{run[0]}-{re.match(r'^.*?(\d+)$', run[-1]).group(1)}" for run in runs]
+    text = ", ".join(out)
+    return text if len(text) <= limit else f"{len(ordered)} members"
+
+
+def annotate_members(graph: Graph) -> int:
+    """Fill ``Connection.members_a`` / ``members_b`` for every connection that is a port-channel at that end; returns the number of ends filled."""
+    count = 0
+    for conn in graph.connections:
+        conn.members_a = member_ports([l.a_port for l in conn.links]) if conn.a_po else ""
+        conn.members_b = member_ports([l.b_port for l in conn.links]) if conn.b_po else ""
+        count += bool(conn.members_a) + bool(conn.members_b)
+    return count
+
+
 def _short(text: str, count: int, limit: int = 30) -> str:
     """A list of ports that would run across the picture becomes "12 ports"; the full list stays in the tooltip, the tables and draw.io data."""
     return text if len(text) <= limit else f"{count} ports"
@@ -54,8 +80,10 @@ def end_texts(conn: Connection) -> tuple[str, str]:
     if conn.kind == "routed":
         link = conn.links[0]
         return (f"{link.a_port} {conn.ip_a}".strip() if conn.ip_a else link.a_port), (f"{link.b_port} {conn.ip_b}".strip() if conn.ip_b else link.b_port)
-    a = conn.a_po or _short(compress_ports([l.a_port for l in conn.links]), len(conn.links))
-    b = conn.b_po or _short(compress_ports([l.b_port for l in conn.links]), len(conn.links))
+    members = bool(conn.members_a or conn.members_b)                      # one style on both ends of a line: "Po12: Gi1/0/23-24" at one end, "Gi0/0/23-24" at the other
+    plain = (lambda ports: member_ports(ports, 30)) if members else (lambda ports: _short(compress_ports(ports), len(ports)))
+    a = (f"{conn.a_po}: {conn.members_a}" if conn.members_a else conn.a_po) or plain([l.a_port for l in conn.links])
+    b = (f"{conn.b_po}: {conn.members_b}" if conn.members_b else conn.b_po) or plain([l.b_port for l in conn.links])
     one = conn.links[0] if len(conn.links) == 1 else None
     a_ip = conn.po_ip_a if conn.a_po else (one.a_ip if one else "")
     b_ip = conn.po_ip_b if conn.b_po else (one.b_ip if one else "")

@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from . import forti_profiles
+from . import forti_more, forti_profiles
 from .forti_tree import FNode, FortiTree
 from .netutil import is_public_ip, to_cidr, to_iface
 
@@ -61,6 +61,7 @@ def extract(tree: FortiTree) -> dict[str, Any]:
     data["vdoms"] = _vdoms(tree)
     data["global"] = _global(tree)
     data["admins"] = _admins(tree)
+    data["local_users"] = _local_users(tree)
     data["accprofiles"] = _accprofiles(tree)
     data["password_policy"] = _flat(tree.first("system password-policy"))
     data["interfaces"] = _interfaces(tree)
@@ -105,6 +106,7 @@ def extract(tree: FortiTree) -> dict[str, Any]:
     data["dhcp"] = _dhcp(tree)
     data["profiles"] = _profiles(tree)
     data["profile_detail"] = forti_profiles.extract(tree)
+    data["more_objects"] = forti_more.extract(tree)
     data["certificates"] = _certificates(tree)
     data["autoinstall"] = _flat(tree.first("system auto-install"))
     return data
@@ -166,6 +168,16 @@ def _admins(tree: FortiTree) -> list[dict[str, Any]]:
             "remote_group": _s(node, "remote-group"), "password": node.secrets.get("password", "none" if not node.has("password") else "?"),
             "peer_auth": node.enabled("peer-auth", False), "comments": _s(node, "comments"), "scope": scope,
         })
+    return out
+
+
+def _local_users(tree: FortiTree) -> list[dict[str, Any]]:
+    """``config user local``: accounts for firewall authentication, SSL VPN and captive portal (not administrators).  The password is never copied, only how it is stored."""
+    out = []
+    for scope, node in _entries(tree, "user local"):
+        server = _s(node, "ldap-server") or _s(node, "radius-server") or _s(node, "tacacs+-server")
+        out.append({"name": node.name, "type": _s(node, "type", "password"), "status": _s(node, "status", "enable"), "two_factor": _s(node, "two-factor", "disable"),
+                    "server": server, "password": node.secrets.get("passwd") or ("none" if not server else ""), "scope": scope})
     return out
 
 

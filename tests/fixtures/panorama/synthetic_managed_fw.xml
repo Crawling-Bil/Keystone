@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<config version="11.2.0" urldb="paloaltonetworks" detail-version="11.2.0">
+  <mgt-config>
+    <users>
+      <entry name="demo-local"><phash>CANARYphash$1$localfw$YYYYYYYYYYYYYY</phash></entry>
+    </users>
+  </mgt-config>
+  <shared/>
+  <devices>
+    <entry name="localhost.localdomain">
+      <deviceconfig>
+        <system>
+          <hostname>FW-SYN-DC1</hostname>
+          <ip-address>192.0.2.10</ip-address>
+          <panorama><local-panorama><panorama-server>192.0.2.200</panorama-server></local-panorama></panorama>
+        </system>
+        <high-availability><enabled>yes</enabled><group><group-id>1</group-id><peer-ip>192.0.2.11</peer-ip></group></high-availability>
+      </deviceconfig>
+      <network>
+        <interface>
+          <ethernet>
+            <entry name="ethernet1/2" ptpl="TPL-DC"><comment>pushed port</comment></entry>
+          </ethernet>
+          <vlan>
+            <units>
+              <entry name="vlan.100"><ip><entry name="sh-dns"/></ip><comment>local svi</comment></entry>
+            </units>
+          </vlan>
+        </interface>
+      </network>
+      <vsys><entry name="vsys1"><zone/></entry></vsys>
+    </entry>
+  </devices>
+</config>

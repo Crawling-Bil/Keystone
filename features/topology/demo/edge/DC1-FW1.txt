@@ -1,0 +1,65 @@
+DC1-FW1 # get system status
+Version: FortiGate-100F v7.2.5,build1517,230606 (GA.F)
+Serial-Number: FG100F0000000001
+Operation Mode: NAT
+Current virtual domain: root
+Virtual domain configuration: disable
+Current HA mode: standalone
+Hostname: DC1-FW1
+
+DC1-FW1 # get router info routing-table all
+Codes: K - kernel, C - connected, S - static, R - RIP, B - BGP
+       O - OSPF, IA - OSPF inter area
+
+Routing table for VRF=0
+S*      0.0.0.0/0 [10/0] via 10.20.200.1, wan1, [1/0]
+C       10.20.10.0/24 is directly connected, agg-core
+C       10.20.20.0/24 is directly connected, agg-core.20
+C       10.20.200.0/30 is directly connected, wan1
+
+DC1-FW1 # show full-configuration
+config system global
+    set hostname "DC1-FW1"
+    set admintimeout 5
+    set strong-crypto enable
+end
+config system interface
+    edit "port1"
+        set vdom "root"
+        set alias "to DC1-CORE1 - Eth1/10"
+        set type physical
+    next
+    edit "port2"
+        set vdom "root"
+        set alias "to DC1-CORE2 - Eth1/10"
+        set type physical
+    next
+    edit "agg-core"
+        set vdom "root"
+        set type aggregate
+        set member "port1" "port2"
+        set ip 10.20.10.1 255.255.255.0
+        set allowaccess ping
+        set role lan
+    next
+    edit "agg-core.20"
+        set vdom "root"
+        set vlanid 20
+        set interface "agg-core"
+        set ip 10.20.20.1 255.255.255.0
+        set role lan
+    next
+    edit "wan1"
+        set vdom "root"
+        set alias "to ISP"
+        set ip 10.20.200.2 255.255.255.252
+        set allowaccess ping
+        set role wan
+    next
+end
+config router static
+    edit 1
+        set gateway 10.20.200.1
+        set device "wan1"
+    next
+end

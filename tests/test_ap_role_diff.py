@@ -181,10 +181,10 @@ class APRoleDiffTest(unittest.TestCase):
         result = compare_ap_roles(a, b)
         guide = {item["status"]: item for item in result["status_guide"]}
         self.assertEqual(set(guide), {"Normal", "Standby", "Idle", "Fault"})
-        self.assertIn("bekerja normal", guide["Normal"]["meaning"])
-        self.assertIn("WLC cadangan", guide["Standby"]["meaning"])
+        self.assertIn("working normally", guide["Normal"]["meaning"])
+        self.assertIn("backup WLC", guide["Standby"]["meaning"])
         self.assertIn("CAPWAP", guide["Idle"]["action"])
-        self.assertIn("registrasi", guide["Fault"]["meaning"])
+        self.assertIn("register", guide["Fault"]["meaning"])
 
 
 if __name__ == "__main__":

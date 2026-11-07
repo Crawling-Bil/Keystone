@@ -991,9 +991,29 @@ class ArubaSwitchParser:
                 )
             ):
 
-                config.snmp_commands.append(
-                    line
+                # ArubaOS-Switch prints contact and location on ONE line: snmp-server contact "A" location "B".  Kept whole, the
+                # translators cut it at the first word and wrote the Huawei contact as: A" location "B.  Split into the two commands
+                # every other vendor (and the translators) know.
+                combined = re.match(
+                    r'^snmp-server\s+contact\s+("[^"]*"|\S+)\s+location\s+("[^"]*"|\S+)\s*$',
+                    line,
+                    re.IGNORECASE,
                 )
+
+                if combined:
+
+                    config.snmp_commands.append(
+                        f"snmp-server contact {combined.group(1)}"
+                    )
+                    config.snmp_commands.append(
+                        f"snmp-server location {combined.group(2)}"
+                    )
+
+                else:
+
+                    config.snmp_commands.append(
+                        line
+                    )
 
                 continue
 
@@ -2375,6 +2395,16 @@ class ArubaSwitchParser:
         if len(parts) < 4:
             return
 
+        # AOS-CX "ip route <prefix> <next-hop> [distance] [vrf <name>]": the VRF used to be ignored, so a route of the management VRF
+        # became a route of the default table (and was converted as one).
+        route_vrf = ""
+        if "vrf" in parts[:-1]:
+            position = parts.index("vrf")
+            route_vrf = parts[position + 1]
+            parts = parts[:position] + parts[position + 2:]
+            if len(parts) < 4:
+                return
+
         destination = parts[2]
 
         # CIDR format: ip route 10.0.0.0/8 10.1.1.1
@@ -2399,6 +2429,7 @@ class ArubaSwitchParser:
                     destination=dest_part,
                     mask=mask,
                     next_hop=next_hop,
+                    vrf=route_vrf,
                 )
 
                 # Check for admin distance
@@ -2415,6 +2446,7 @@ class ArubaSwitchParser:
                 destination=parts[2],
                 mask=parts[3],
                 next_hop=parts[4],
+                vrf=route_vrf,
             )
 
             # Check for admin distance
@@ -2674,7 +2706,8 @@ class ArubaSwitchParser:
             "lag "
         ):
 
-            lag_id = name.split()[-1]
+            # "lag 101 multi-chassis" (a VSX LAG): the number is the second word, not the last.
+            lag_id = name.split()[1]
 
             return (
                 f"Port-channel{lag_id}"

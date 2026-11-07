@@ -107,12 +107,12 @@ def validate_inventory_route():
     upload = request.files.get("inventory_file")
     vendor = request.form.get("vendor", "Huawei").title()
     if vendor not in {"Cisco", "Huawei"}:
-        return jsonify({"ok": False, "error": "Pilih vendor Cisco atau Huawei."}), 400
+        return jsonify({"ok": False, "error": "Choose the Cisco or Huawei vendor."}), 400
     if not upload or not upload.filename:
-        return jsonify({"ok": False, "error": "Upload AP Master Inventory terlebih dahulu."}), 400
+        return jsonify({"ok": False, "error": "Upload the AP Master Inventory first."}), 400
     suffix = Path(upload.filename).suffix.lower()
     if suffix not in {".csv", ".xlsx", ".xlsm"}:
-        return jsonify({"ok": False, "error": "Format inventory harus CSV atau XLSX."}), 400
+        return jsonify({"ok": False, "error": "The inventory must be a CSV or XLSX file."}), 400
     path = UPLOAD_DIR / f"{uuid.uuid4().hex}_{secure_filename(upload.filename)}"
     upload.save(path)
     try:
@@ -142,7 +142,7 @@ def analyze_route():
         content = config_text
         source_name = "pasted-wlc-config.txt"
     else:
-        return jsonify({"ok": False, "error": "Upload WLC backup atau paste konfigurasi terlebih dahulu."}), 400
+        return jsonify({"ok": False, "error": "Upload a WLC backup or paste a configuration first."}), 400
 
     inventory_path = None
     if inventory_upload and inventory_upload.filename:
@@ -189,9 +189,9 @@ def compare_route():
     source_upload = request.files.get("source_file")
     target_upload = request.files.get("target_file")
     if not source_upload or not source_upload.filename:
-        return jsonify({"ok": False, "error": "Upload Source WLC configuration terlebih dahulu."}), 400
+        return jsonify({"ok": False, "error": "Upload the Source WLC configuration first."}), 400
     if not target_upload or not target_upload.filename:
-        return jsonify({"ok": False, "error": "Upload Target WLC configuration terlebih dahulu."}), 400
+        return jsonify({"ok": False, "error": "Upload the Target WLC configuration first."}), 400
 
     uploads = [("Source", source_upload), ("Target", target_upload)]
     temp_files: list[Path] = []
@@ -201,14 +201,14 @@ def compare_route():
         for role, upload in uploads:
             suffix = Path(upload.filename).suffix.lower()
             if suffix not in {".txt", ".cfg", ".log"}:
-                raise ValueError(f"Format {role} harus TXT, CFG, atau LOG.")
+                raise ValueError(f"The {role} file must be TXT, CFG or LOG.")
             safe_name = secure_filename(upload.filename)
             path = UPLOAD_DIR / f"{uuid.uuid4().hex}_{safe_name}"
             upload.save(path)
             temp_files.append(path)
             contents[role] = path.read_text(encoding="utf-8", errors="ignore")
             if not contents[role].strip():
-                raise ValueError(f"{role} configuration file kosong.")
+                raise ValueError(f"The {role} configuration file is empty.")
             names[role] = safe_name
 
         vendor = _vendor(request.form.get("vendor"))
@@ -254,9 +254,9 @@ def compare_ap_roles_route():
     b_upload = request.files.get("b_inventory")
     allocation_upload = request.files.get("allocation_file")
     if not a_upload or not a_upload.filename:
-        return jsonify({"ok": False, "error": "Upload Controller A AP State terlebih dahulu."}), 400
+        return jsonify({"ok": False, "error": "Upload the Controller A AP State first."}), 400
     if not b_upload or not b_upload.filename:
-        return jsonify({"ok": False, "error": "Upload Controller B AP State terlebih dahulu."}), 400
+        return jsonify({"ok": False, "error": "Upload the Controller B AP State first."}), 400
 
     a_name = (request.form.get("a_name") or "Controller A").strip()[:80]
     b_name = (request.form.get("b_name") or "Controller B").strip()[:80]

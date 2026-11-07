@@ -26,7 +26,7 @@ _CATEGORY = (
     ("SW-AAA", "Management access"), ("SW-USER", "Management access"), ("SW-ENA", "Management access"), ("SW-HTTP", "Management access"),
     ("SW-SSH", "Management access"), ("SW-VTY", "Management access"), ("SW-CON", "Management access"), ("SW-TEL", "Management access"), ("SW-FTP", "Management access"), ("SW-MGT", "Management access"), ("SW-SNMP", "Management access"), ("SW-NTP", "Management access"), ("SW-LOG", "Management access"), ("SW-STK", "Redundancy"), ("SW-ARP", "Addressing"),
     ("SW-DHCP", "Layer-2 security"), ("SW-ENV", "Device health"), ("SW-LIC", "Device health"), ("SW-VER", "Device health"),
-    ("SW-EVT", "Logs"), ("SW-IF", "Interfaces"), ("SW-CAP", "Capture"), ("SW-INV", "Inventory"),
+    ("SW-EVT", "Logs"), ("SW-IF", "Interfaces"), ("SW-CAP", "Capture"), ("SW-INV", "Inventory"), ("SW-BASE", "Baseline compliance"),
 )
 _L3_SEVERITY = {"warning": "medium", "info": "info"}
 _L3_TITLE = {
@@ -141,7 +141,8 @@ def build_findings(result: dict[str, Any]) -> list[dict[str, Any]]:
     items = (_from_health(result.get("health") or {}) + l3_items
              + _port_state_findings(result.get("interfaces") or []) + _from_spanning_tree(result) + _capture_findings(result)
              + list((result.get("logs") or {}).get("findings") or [])
-             + list((result.get("redundancy") or {}).get("findings") or []) + list((result.get("ntp") or {}).get("findings") or []) + list((result.get("stp_inconsistent") or {}).get("findings") or []) + list((result.get("fhrp") or {}).get("findings") or []) + list((result.get("ospf_live") or {}).get("findings") or []))
+             + list((result.get("redundancy") or {}).get("findings") or []) + list((result.get("ntp") or {}).get("findings") or []) + list((result.get("stp_inconsistent") or {}).get("findings") or []) + list((result.get("fhrp") or {}).get("findings") or []) + list((result.get("ospf_live") or {}).get("findings") or [])
+             + list((result.get("baseline") or {}).get("findings") or []))
     seen: set[tuple[str, str, str]] = set()
     unique = []
     for item in items:

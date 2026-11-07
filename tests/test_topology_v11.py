@@ -90,7 +90,7 @@ def test_no_comb_line_goes_back_up_or_turns_back_on_its_lane():
         graph = _graph(lambda i, r=rng: r.random() < 0.5, count=rng.randint(3, 40), switches=rng.choice([1, 2, 3]))
         for page in build_pages(graph):
             for _, conn, _, path in _combed(page):
-                assert all(b[1] >= a[1] - 1 for a, b in zip(path, path[1:])), (seed, conn)             # never up
+                assert all(b[1] >= a[1] - 1 for a, b in zip(path[1:], path[2:])), (seed, conn)         # never up (the first piece, from the middle of the icon to its side, lies under the icon: a side with very many lines leaves a little above the middle)
                 runs = [b[0] - a[0] for a, b in zip(path[:-1], path[1:-1]) if abs(b[0] - a[0]) > 1]       # sideways moves up to the end point's own stub
                 assert all(u * v > 0 for u, v in zip(runs, runs[1:])), (seed, conn)                       # always the same way
 

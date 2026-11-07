@@ -1,0 +1,347 @@
+JKT-SW2#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], Catalyst L3 Switch Software (CAT9K_LITE_IOSXE), Version 17.9.4a
+cisco C9200L-24P-4G (X86) processor with 1392510K/6147K bytes of memory.
+Processor board ID FCW2412L002
+JKT-SW2 uptime is 16 weeks, 2 days, 4 hours, 12 minutes
+
+JKT-SW2#show inventory
+NAME: "Switch 1",  DESCR: "C9200L-24P-4G"
+PID: C9200L-24P-4G     ,  VID: V01 ,  SN: FCW2412L002
+
+JKT-SW2#show running-config
+Building configuration...
+
+Current configuration : 9812 bytes
+!
+version 17.9
+service timestamps log datetime msec
+!
+hostname JKT-SW2
+!
+no aaa new-model
+ip routing
+
+ip domain name demo.example.test
+lldp run
+cdp run
+!
+vlan 10
+ name USERS
+!
+vlan 20
+ name WIFI
+!
+vlan 30
+ name VOICE
+!
+vlan 99
+ name MGMT
+!
+interface Vlan99
+ description MGMT
+ ip address 10.101.99.12 255.255.255.0
+!
+interface GigabitEthernet1/1/2
+ description to JKT-SW1 Gi1/1/1
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,20,30,99
+!
+interface GigabitEthernet1/1/1
+ description to JKT-SW3 Gi1/1/2
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,20,30,99
+!
+interface GigabitEthernet1/0/1
+ description JKT-PC3
+ switchport access vlan 10
+ switchport mode access
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/2
+ description JKT-PC4
+ switchport access vlan 10
+ switchport mode access
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/3
+ description JKT-PHONE2
+ switchport access vlan 10
+ switchport mode access
+ switchport voice vlan 30
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/4
+ description JKT-AP2
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 20,99
+!
+ip route 0.0.0.0 0.0.0.0 10.101.99.1
+line vty 0 15
+ transport input ssh
+!
+end
+
+JKT-SW2#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        U - in use      N - not in use, no aggregation
+
+Number of channel-groups in use: 0
+Number of aggregators:           0
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+
+
+JKT-SW2#show cdp neighbors detail
+-------------------------
+Device ID:JKT-SW1.demo.example.test
+Entry address(es): 
+  IP address: 10.101.99.1
+Platform: cisco C9200L-24P-4G,  Capabilities: Switch IGMP
+Interface: GigabitEthernet1/1/2,  Port ID (outgoing port): GigabitEthernet1/1/1
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 99
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.101.99.1
+-------------------------
+Device ID:JKT-SW3.demo.example.test
+Entry address(es): 
+  IP address: 10.101.99.13
+Platform: cisco C9200L-24P-4G,  Capabilities: Switch IGMP
+Interface: GigabitEthernet1/1/1,  Port ID (outgoing port): GigabitEthernet1/1/2
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 99
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.101.99.13
+-------------------------
+Device ID:SEP02E100001202
+Entry address(es): 
+  IP address: 10.101.30.102
+Platform: cisco IP Phone 8851,  Capabilities: Host Phone Two-port Mac Relay
+Interface: GigabitEthernet1/0/3,  Port ID (outgoing port): Port 1
+Holdtime : 140 sec
+
+Version :
+Cisco endpoint
+
+advertisement version: 2
+Native VLAN: 30
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.101.30.102
+-------------------------
+Device ID:JKT-AP2
+Entry address(es): 
+  IP address: 10.101.99.22
+Platform: cisco AIR-AP2802I-E-K9,  Capabilities: Trans-Bridge Source-Route-Bridge IGMP
+Interface: GigabitEthernet1/0/4,  Port ID (outgoing port): GigabitEthernet0
+Holdtime : 140 sec
+
+Version :
+Cisco endpoint
+
+advertisement version: 2
+Native VLAN: 99
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.101.99.22
+
+JKT-SW2#show lldp neighbors detail
+------------------------------------------------
+Local Intf: Gi1/1/2
+Chassis id: 0a1b.0000.0111
+Port id: Gi1/1/1
+Port Description: GigabitEthernet1/1/1
+System Name: JKT-SW1
+
+System Description: 
+C9200L-24P-4G gateway
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.101.99.1
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/1/1
+Chassis id: 0a1b.0000.0113
+Port id: Gi1/1/2
+Port Description: GigabitEthernet1/1/2
+System Name: JKT-SW3
+
+System Description: 
+C9200L-24P-4G access
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.101.99.13
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/1
+Chassis id: 02c0.0000.1103
+Port id: 02c0.0000.1103
+Port Description: 
+System Name: JKT-PC3
+
+System Description: 
+Demo workstation
+
+Time remaining: 108 seconds
+System Capabilities: O
+Enabled Capabilities: O
+Management Addresses:
+    IP: 10.101.10.103
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/2
+Chassis id: 02c0.0000.1104
+Port id: 02c0.0000.1104
+Port Description: 
+System Name: JKT-PC4
+
+System Description: 
+Demo workstation
+
+Time remaining: 108 seconds
+System Capabilities: O
+Enabled Capabilities: O
+Management Addresses:
+    IP: 10.101.10.104
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/3
+Chassis id: 02e1.0000.1202
+Port id: 1
+Port Description: 
+System Name: JKT-PHONE2
+
+System Description: 
+Cisco IP Phone 8851
+
+Time remaining: 108 seconds
+System Capabilities: T
+Enabled Capabilities: T
+Management Addresses:
+    IP: 10.101.30.102
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/4
+Chassis id: 02a9.0000.1402
+Port id: Gi0
+Port Description: 
+System Name: JKT-AP2
+
+System Description: 
+Cisco access point
+
+Time remaining: 108 seconds
+System Capabilities: W
+Enabled Capabilities: W
+Management Addresses:
+    IP: 10.101.99.22
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+
+Total entries displayed: 6
+JKT-SW2#show interfaces status
+
+Port      Name               Status       Vlan       Duplex  Speed Type
+Gi1/1/2   to JKT-SW1 Gi1/1/1 connected    trunk      a-full  a-1000 10/100/1000BaseTX
+Gi1/1/1   to JKT-SW3 Gi1/1/2 connected    trunk      a-full  a-1000 10/100/1000BaseTX
+Gi1/0/1   JKT-PC3            connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/2   JKT-PC4            connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/3   JKT-PHONE2         connected    10         a-full  a-1000 10/100/1000BaseTX
+
+JKT-SW2#show ip interface brief
+Interface                  IP-Address      OK? Method Status                Protocol
+Vlan99                    10.101.99.12    YES manual up                    up
+
+JKT-SW2#show mac address-table
+          Mac Address Table
+-------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+  10    02c0.0000.1103    DYNAMIC     Gi1/0/1
+  10    02c0.0000.1104    DYNAMIC     Gi1/0/2
+  30    02e1.0000.1202    DYNAMIC     Gi1/0/3
+  99    02a9.0000.1402    DYNAMIC     Gi1/0/4
+  20    02f1.0000.1303    DYNAMIC     Gi1/0/4
+  20    02f1.0000.1304    DYNAMIC     Gi1/0/4
+  10    02c0.0000.1105    DYNAMIC     Gi1/1/1
+  10    02c0.0000.1106    DYNAMIC     Gi1/1/1
+  30    02e1.0000.1203    DYNAMIC     Gi1/1/1
+  99    02a9.0000.1403    DYNAMIC     Gi1/1/1
+  20    02f1.0000.1305    DYNAMIC     Gi1/1/1
+  20    02f1.0000.1306    DYNAMIC     Gi1/1/1
+  10    02c0.0000.1101    DYNAMIC     Gi1/1/2
+  10    02c0.0000.1102    DYNAMIC     Gi1/1/2
+  30    02e1.0000.1201    DYNAMIC     Gi1/1/2
+  99    02a9.0000.1401    DYNAMIC     Gi1/1/2
+  20    02f1.0000.1301    DYNAMIC     Gi1/1/2
+  20    02f1.0000.1302    DYNAMIC     Gi1/1/2
+  10    0a1b.0000.0111    DYNAMIC     Gi1/1/2
+  20    0a1b.0000.0111    DYNAMIC     Gi1/1/2
+  30    0a1b.0000.0111    DYNAMIC     Gi1/1/2
+  99    0a1b.0000.0111    DYNAMIC     Gi1/1/2
+Total Mac Addresses for this criterion: 22
+
+JKT-SW2#show ip route
+Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP
+       D - EIGRP, O - OSPF, IA - OSPF inter area, E1/E2 - OSPF external type 1/2
+
+Gateway of last resort is 10.101.99.1 to network 0.0.0.0
+
+S*       0.0.0.0/0 [1/1] via 10.101.99.1, 3d04h, Vlan99
+
+JKT-SW2#

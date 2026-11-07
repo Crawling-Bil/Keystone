@@ -278,13 +278,13 @@ class ZtpSftpServer:
         # instead of echoing back the literal 0 they asked for.
         self.port = self._sock.getsockname()[1]
 
+        self._sock.settimeout(1.0)                      # set here, not in the thread: a stop() right after start() closes the socket first
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._accept_loop, daemon=True)
         self._thread.start()
         logger.info("ZTP SFTP server listening on %s:%s, root=%s", self.bind_ip, self.port, self.root_dir)
 
     def _accept_loop(self):
-        self._sock.settimeout(1.0)
         while not self._stop_event.is_set():
             try:
                 client_sock, addr = self._sock.accept()

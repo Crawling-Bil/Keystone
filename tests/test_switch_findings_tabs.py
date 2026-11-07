@@ -144,8 +144,8 @@ class BuildTabsTests(unittest.TestCase):
     def test_tab_order_is_the_one_the_page_uses(self):
         keys = [tab["key"] for tab in tabs.build_tabs({})]
         self.assertEqual(keys, [key for key, _label, _specs in tabs.TAB_ORDER])
-        self.assertEqual(keys[:2], ["overview", "findings"])
-        self.assertEqual(keys[-2:], ["logs", "coverage"])
+        self.assertEqual(keys[:2], ["overview", "interfaces"])              # the tabs the work is done in come first
+        self.assertEqual(keys[-4:], ["logs", "findings", "health", "coverage"])
 
     def test_overview_findings_and_coverage_are_always_there(self):
         result = by_key({"tabs": tabs.build_tabs({})})
@@ -215,7 +215,7 @@ class EndToEndTabTests(unittest.TestCase):
     def test_log_only_capture_shows_only_what_it_contains(self):
         result = analyse(fixture("cisco_3650_show_logging.txt"), "Cisco")
         shown = [tab["key"] for tab in result["tabs"] if tab["has"]]
-        self.assertEqual(shown, ["overview", "findings", "logs", "coverage"])
+        self.assertEqual(shown, ["overview", "logs", "findings", "coverage"])
         self.assertEqual(result["cards"]["findings_total"], len(result["findings"]))
         self.assertTrue(all(finding["category"] == "Logs" for finding in result["findings"]))
 

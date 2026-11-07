@@ -1,0 +1,545 @@
+{
+ "devices": [
+  {
+   "device": "LAB-ACC1",
+   "family": "iosxe",
+   "impact_text": "No loss of reachability in the captured links: every other device keeps a path to the core.",
+   "model": "C9300L-48P-4X",
+   "outage": false,
+   "partner": "",
+   "role": "access",
+   "seq": 1,
+   "vendor": "Cisco"
+  },
+  {
+   "device": "LAB-AGG2",
+   "family": "nxos",
+   "impact_text": "No loss of reachability in the captured links: every other device keeps a path to the core.",
+   "model": "N9K-C93180YC-FX3",
+   "outage": false,
+   "partner": "LAB-AGG1",
+   "role": "aggregation",
+   "seq": 2,
+   "vendor": "Cisco"
+  },
+  {
+   "device": "LAB-AGG1",
+   "family": "nxos",
+   "impact_text": "Outage for LAB-ACC1, LAB-AGG2. No remaining path to LAB-FW1.",
+   "model": "N9K-C93180YC-FX3",
+   "outage": true,
+   "partner": "LAB-AGG2",
+   "role": "aggregation",
+   "seq": 3,
+   "vendor": "Cisco"
+  }
+ ],
+ "steps": [
+  {
+   "command": "",
+   "detail": "Change record approved, rollback owner named, the people who use the affected devices told. Change record: CHG0001. Window: Sat 22:00-02:00.",
+   "device": "ALL",
+   "expect": "Approval and owner written in the change record.",
+   "phase": "Preparation",
+   "seq": "1",
+   "step": "Approve the change and name the people"
+  },
+  {
+   "command": "",
+   "detail": "This run is the baseline for the comparison after the window. If the captures are old, collect again and build a new run first.",
+   "device": "ALL",
+   "expect": "topology.json of this run is stored with the change record.",
+   "phase": "Preparation",
+   "seq": "2",
+   "step": "Use a recent run as the 'before' side"
+  },
+  {
+   "command": "",
+   "detail": "Console or management-network access to every device in the plan, tested before the window.",
+   "device": "ALL",
+   "expect": "A login works on each.",
+   "phase": "Preparation",
+   "seq": "3",
+   "step": "Check out-of-band access"
+  },
+  {
+   "command": "",
+   "detail": "Staged, powered once, software at the planned version. If the new switch is another vendor, convert the old configuration in Configuration Studio and read its round-trip check and the REVIEW lines first.",
+   "device": "ALL",
+   "expect": "Each new unit has a reviewed configuration.",
+   "phase": "Preparation",
+   "seq": "4",
+   "step": "Prepare the new units"
+  },
+  {
+   "command": "",
+   "detail": "Management address 10.99.0.21.",
+   "device": "LAB-ACC1",
+   "expect": "Login works on the network and on the console.",
+   "phase": "Before",
+   "seq": "5",
+   "step": "Confirm you can reach the device"
+  },
+  {
+   "command": "show version ; show running-config ; show interfaces status ; show etherchannel summary ; show spanning-tree summary ; show cdp neighbors detail ; show lldp neighbors detail ; show vlan brief ; show ip route summary ; show logging",
+   "detail": "Save the output of every command to a file named after the device and the time.",
+   "device": "LAB-ACC1",
+   "expect": "The files exist and are complete (no truncated tables).",
+   "phase": "Before",
+   "seq": "6",
+   "step": "Take the baseline"
+  },
+  {
+   "command": "",
+   "detail": "Copy the running configuration to the backup location and keep a second copy off the device.",
+   "device": "LAB-ACC1",
+   "expect": "The backup opens and holds the full configuration.",
+   "phase": "Before",
+   "seq": "7",
+   "step": "Back up the configuration"
+  },
+  {
+   "command": "",
+   "detail": "Use the port map below. Photograph the front and the back of the unit.",
+   "device": "LAB-ACC1",
+   "expect": "Every cable in the map has a label.",
+   "phase": "Change",
+   "seq": "8",
+   "step": "Label every cable at both ends"
+  },
+  {
+   "command": "",
+   "detail": "Power it off, unplug the cables, keep the unit and its configuration unchanged for the rollback.",
+   "device": "LAB-ACC1",
+   "expect": "Nothing is left connected to the old unit.",
+   "phase": "Change",
+   "seq": "9",
+   "step": "Take the old unit out"
+  },
+  {
+   "command": "",
+   "detail": "Management address, VLANs, port-channels and spanning-tree priority as before; a new switch must not become the spanning-tree root by accident (it starts with a default priority).",
+   "device": "LAB-ACC1",
+   "expect": "The new unit boots with the intended configuration.",
+   "phase": "Change",
+   "seq": "10",
+   "step": "Fit the new unit and load its configuration"
+  },
+  {
+   "command": "",
+   "detail": "Member of Po40. ",
+   "device": "LAB-ACC1",
+   "expect": "Link up on both ends.",
+   "phase": "Change",
+   "seq": "11",
+   "step": "Patch Gi1/0/23 to LAB-AGG1 Eth1/1"
+  },
+  {
+   "command": "",
+   "detail": "Member of Po40. ",
+   "device": "LAB-ACC1",
+   "expect": "Link up on both ends.",
+   "phase": "Change",
+   "seq": "12",
+   "step": "Patch Gi1/0/24 to LAB-AGG2 Eth1/1"
+  },
+  {
+   "command": "show version ; show running-config ; show interfaces status ; show etherchannel summary ; show spanning-tree summary ; show cdp neighbors detail ; show lldp neighbors detail ; show vlan brief ; show ip route summary ; show logging",
+   "detail": "Save the output next to the earlier files and compare them.",
+   "device": "LAB-ACC1",
+   "expect": "Same neighbors and the same VLANs; every port in the port map is up (or was down before); every port-channel member is bundled; no unexpected spanning-tree root change; no new error in the log.",
+   "phase": "After",
+   "seq": "13",
+   "step": "Run the baseline commands again"
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-ACC1",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "14",
+   "step": "Power off the new unit and unplug its cables."
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-ACC1",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "15",
+   "step": "Re-patch every cable to the old unit using the port map (the labels)."
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-ACC1",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "16",
+   "step": "Power on the old unit with its saved configuration and run the baseline commands again."
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-ACC1",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "17",
+   "step": "Check the neighbors against the port map."
+  },
+  {
+   "command": "",
+   "detail": "Management address 10.99.0.12.",
+   "device": "LAB-AGG2",
+   "expect": "Login works on the network and on the console.",
+   "phase": "Before",
+   "seq": "18",
+   "step": "Confirm you can reach the device"
+  },
+  {
+   "command": "show version ; show running-config ; show interface status ; show port-channel summary ; show vpc ; show spanning-tree summary ; show cdp neighbors detail ; show lldp neighbors detail ; show vlan brief ; show ip route summary ; show logging",
+   "detail": "Save the output of every command to a file named after the device and the time.",
+   "device": "LAB-AGG2",
+   "expect": "The files exist and are complete (no truncated tables).",
+   "phase": "Before",
+   "seq": "19",
+   "step": "Take the baseline"
+  },
+  {
+   "command": "",
+   "detail": "Copy the running configuration to the backup location and keep a second copy off the device.",
+   "device": "LAB-AGG2",
+   "expect": "The backup opens and holds the full configuration.",
+   "phase": "Before",
+   "seq": "20",
+   "step": "Back up the configuration"
+  },
+  {
+   "command": "show vpc",
+   "detail": "The pair carries the traffic alone while this device is out.",
+   "device": "LAB-AGG2",
+   "expect": "Peer adjacency up, consistency check passed, every port-channel up on the partner.",
+   "phase": "Before",
+   "seq": "21",
+   "step": "Check the partner LAB-AGG1 is healthy"
+  },
+  {
+   "command": "",
+   "detail": "Use the port map below. Photograph the front and the back of the unit.",
+   "device": "LAB-AGG2",
+   "expect": "Every cable in the map has a label.",
+   "phase": "Change",
+   "seq": "22",
+   "step": "Label every cable at both ends"
+  },
+  {
+   "command": "",
+   "detail": "Power it off, unplug the cables, keep the unit and its configuration unchanged for the rollback.",
+   "device": "LAB-AGG2",
+   "expect": "Nothing is left connected to the old unit.",
+   "phase": "Change",
+   "seq": "23",
+   "step": "Take the old unit out"
+  },
+  {
+   "command": "",
+   "detail": "Management address, VLANs, port-channels and spanning-tree priority as before; a new switch must not become the spanning-tree root by accident (it starts with a default priority).",
+   "device": "LAB-AGG2",
+   "expect": "The new unit boots with the intended configuration.",
+   "phase": "Change",
+   "seq": "24",
+   "step": "Fit the new unit and load its configuration"
+  },
+  {
+   "command": "",
+   "detail": "Member of Po101. ",
+   "device": "LAB-AGG2",
+   "expect": "Link up on both ends.",
+   "phase": "Change",
+   "seq": "25",
+   "step": "Patch Eth1/1 to LAB-ACC1 Gi1/0/24"
+  },
+  {
+   "command": "",
+   "detail": "Member of Po240. ",
+   "device": "LAB-AGG2",
+   "expect": "Link up on both ends.",
+   "phase": "Change",
+   "seq": "26",
+   "step": "Patch Eth1/47 to LAB-AGG1 Eth1/47"
+  },
+  {
+   "command": "",
+   "detail": "Member of Po240. ",
+   "device": "LAB-AGG2",
+   "expect": "Link up on both ends.",
+   "phase": "Change",
+   "seq": "27",
+   "step": "Patch Eth1/48 to LAB-AGG1 Eth1/48"
+  },
+  {
+   "command": "show version ; show running-config ; show interface status ; show port-channel summary ; show vpc ; show spanning-tree summary ; show cdp neighbors detail ; show lldp neighbors detail ; show vlan brief ; show ip route summary ; show logging",
+   "detail": "Save the output next to the earlier files and compare them.",
+   "device": "LAB-AGG2",
+   "expect": "Same neighbors and the same VLANs; every port in the port map is up (or was down before); every port-channel member is bundled; no unexpected spanning-tree root change; no new error in the log.",
+   "phase": "After",
+   "seq": "28",
+   "step": "Run the baseline commands again"
+  },
+  {
+   "command": "",
+   "detail": "Do not touch the partner until every check above passed on this device.",
+   "device": "LAB-AGG2",
+   "expect": "Go / no-go written in the change record.",
+   "phase": "After",
+   "seq": "29",
+   "step": "Gate: start LAB-AGG1 only now"
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-AGG2",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "30",
+   "step": "Power off the new unit and unplug its cables."
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-AGG2",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "31",
+   "step": "Re-patch every cable to the old unit using the port map (the labels)."
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-AGG2",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "32",
+   "step": "Power on the old unit with its saved configuration and run the baseline commands again."
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-AGG2",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "33",
+   "step": "Check the neighbors against the port map."
+  },
+  {
+   "command": "",
+   "detail": "Management address 10.99.0.11.",
+   "device": "LAB-AGG1",
+   "expect": "Login works on the network and on the console.",
+   "phase": "Before",
+   "seq": "34",
+   "step": "Confirm you can reach the device"
+  },
+  {
+   "command": "show version ; show running-config ; show interface status ; show port-channel summary ; show vpc ; show spanning-tree summary ; show cdp neighbors detail ; show lldp neighbors detail ; show vlan brief ; show ip route summary ; show logging",
+   "detail": "Save the output of every command to a file named after the device and the time.",
+   "device": "LAB-AGG1",
+   "expect": "The files exist and are complete (no truncated tables).",
+   "phase": "Before",
+   "seq": "35",
+   "step": "Take the baseline"
+  },
+  {
+   "command": "",
+   "detail": "Copy the running configuration to the backup location and keep a second copy off the device.",
+   "device": "LAB-AGG1",
+   "expect": "The backup opens and holds the full configuration.",
+   "phase": "Before",
+   "seq": "36",
+   "step": "Back up the configuration"
+  },
+  {
+   "command": "show vpc",
+   "detail": "The pair carries the traffic alone while this device is out.",
+   "device": "LAB-AGG1",
+   "expect": "Peer adjacency up, consistency check passed, every port-channel up on the partner.",
+   "phase": "Before",
+   "seq": "37",
+   "step": "Check the partner LAB-AGG2 is healthy"
+  },
+  {
+   "command": "",
+   "detail": "Eth1/40 to LAB-FW1 port5 (single)",
+   "device": "LAB-AGG1",
+   "expect": "Both ends are identified before a cable is moved.",
+   "phase": "Before",
+   "seq": "38",
+   "step": "Confirm the cabling that was seen from one end only"
+  },
+  {
+   "command": "",
+   "detail": "Use the port map below. Photograph the front and the back of the unit.",
+   "device": "LAB-AGG1",
+   "expect": "Every cable in the map has a label.",
+   "phase": "Change",
+   "seq": "39",
+   "step": "Label every cable at both ends"
+  },
+  {
+   "command": "",
+   "detail": "Power it off, unplug the cables, keep the unit and its configuration unchanged for the rollback.",
+   "device": "LAB-AGG1",
+   "expect": "Nothing is left connected to the old unit.",
+   "phase": "Change",
+   "seq": "40",
+   "step": "Take the old unit out"
+  },
+  {
+   "command": "",
+   "detail": "Management address, VLANs, port-channels and spanning-tree priority as before; a new switch must not become the spanning-tree root by accident (it starts with a default priority).",
+   "device": "LAB-AGG1",
+   "expect": "The new unit boots with the intended configuration.",
+   "phase": "Change",
+   "seq": "41",
+   "step": "Fit the new unit and load its configuration"
+  },
+  {
+   "command": "",
+   "detail": "Member of Po101. ",
+   "device": "LAB-AGG1",
+   "expect": "Link up on both ends.",
+   "phase": "Change",
+   "seq": "42",
+   "step": "Patch Eth1/1 to LAB-ACC1 Gi1/0/23"
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-AGG1",
+   "expect": "Link up on both ends.",
+   "phase": "Change",
+   "seq": "43",
+   "step": "Patch Eth1/40 to LAB-FW1 port5"
+  },
+  {
+   "command": "",
+   "detail": "Member of Po240. ",
+   "device": "LAB-AGG1",
+   "expect": "Link up on both ends.",
+   "phase": "Change",
+   "seq": "44",
+   "step": "Patch Eth1/47 to LAB-AGG2 Eth1/47"
+  },
+  {
+   "command": "",
+   "detail": "Member of Po240. ",
+   "device": "LAB-AGG1",
+   "expect": "Link up on both ends.",
+   "phase": "Change",
+   "seq": "45",
+   "step": "Patch Eth1/48 to LAB-AGG2 Eth1/48"
+  },
+  {
+   "command": "show version ; show running-config ; show interface status ; show port-channel summary ; show vpc ; show spanning-tree summary ; show cdp neighbors detail ; show lldp neighbors detail ; show vlan brief ; show ip route summary ; show logging",
+   "detail": "Save the output next to the earlier files and compare them.",
+   "device": "LAB-AGG1",
+   "expect": "Same neighbors and the same VLANs; every port in the port map is up (or was down before); every port-channel member is bundled; no unexpected spanning-tree root change; no new error in the log.",
+   "phase": "After",
+   "seq": "46",
+   "step": "Run the baseline commands again"
+  },
+  {
+   "command": "",
+   "detail": "Do not touch the partner until every check above passed on this device.",
+   "device": "LAB-AGG1",
+   "expect": "Go / no-go written in the change record.",
+   "phase": "After",
+   "seq": "47",
+   "step": "Gate: start LAB-AGG2 only now"
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-AGG1",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "48",
+   "step": "Power off the new unit and unplug its cables."
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-AGG1",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "49",
+   "step": "Re-patch every cable to the old unit using the port map (the labels)."
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-AGG1",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "50",
+   "step": "Power on the old unit with its saved configuration and run the baseline commands again."
+  },
+  {
+   "command": "",
+   "detail": "",
+   "device": "LAB-AGG1",
+   "expect": "",
+   "phase": "Rollback",
+   "seq": "51",
+   "step": "Check the neighbors against the port map."
+  },
+  {
+   "command": "",
+   "detail": "Use the same collect list and the same options as the 'before' run.",
+   "device": "ALL",
+   "expect": "A new topology.json.",
+   "phase": "Verification",
+   "seq": "52",
+   "step": "Collect the devices again and build a new run"
+  },
+  {
+   "command": "",
+   "detail": "Topology Builder, Compare two runs: before = the run this plan was written from, after = the new run.",
+   "device": "ALL",
+   "expect": "Only the planned differences appear (new model, serial or version for a replaced device). Every row marked 'need attention' is explained or rolled back.",
+   "phase": "Verification",
+   "seq": "53",
+   "step": "Compare the two runs"
+  },
+  {
+   "command": "",
+   "detail": "Switch Analyzer, Baseline: choose the organisation standard and analyze the new captures.",
+   "device": "ALL",
+   "expect": "No SW-BASE finding that is not accepted in the change record.",
+   "phase": "Verification",
+   "seq": "54",
+   "step": "Check the new configurations against the baseline"
+  },
+  {
+   "command": "",
+   "detail": "Sign-off below, backups and captures stored with the change record.",
+   "device": "ALL",
+   "expect": "Change record closed.",
+   "phase": "Verification",
+   "seq": "55",
+   "step": "Close the change"
+  }
+ ],
+ "summary": {
+  "change": "replace",
+  "devices": 3,
+  "not_captured": 1,
+  "outage": 1,
+  "rolling": 2,
+  "roots": [
+   "LAB-FW1"
+  ],
+  "steps": 55
+ }
+}

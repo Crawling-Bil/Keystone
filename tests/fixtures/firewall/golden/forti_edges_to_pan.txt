@@ -1,0 +1,255 @@
+# Palo Alto PAN-OS conversion from FortiGate
+# ---- Interfaces and zones
+set network interface ethernet ethernet1/1 layer3
+set network interface ethernet ethernet1/1 layer3 ip 10.0.0.1/24
+set network interface ethernet ethernet1/2 layer3
+set network interface ethernet ethernet1/2 layer3 ip 192.0.2.1/24
+set zone port1 network layer3 [ ethernet1/1 ]
+set zone port2 network layer3 [ ethernet1/2 ]
+set network virtual-router default interface [ ethernet1/1 ethernet1/2 ]
+# ---- Objects
+set address NET-A ip-netmask 10.1.0.0/24
+set service HTTPS protocol tcp port 443
+# ---- Security policy
+set rulebase security rules sched from [ port1 ]
+set rulebase security rules sched to [ port2 ]
+set rulebase security rules sched source [ NET-A ]
+set rulebase security rules sched destination [ any ]
+set rulebase security rules sched application [ any ]
+set rulebase security rules sched service [ HTTPS ]
+set rulebase security rules sched action allow
+set rulebase security rules sched log-end yes
+set rulebase security rules sched disabled yes
+set rulebase security rules sched description "NOT ENABLED: schedule work; source policy 1"
+set rulebase security rules users from [ port1 ]
+set rulebase security rules users to [ port2 ]
+set rulebase security rules users source [ NET-A ]
+set rulebase security rules users destination [ any ]
+set rulebase security rules users application [ any ]
+set rulebase security rules users service [ HTTPS ]
+set rulebase security rules users action allow
+set rulebase security rules users log-end yes
+set rulebase security rules users disabled yes
+set rulebase security rules users description "NOT ENABLED: user / group match; source policy 2"
+set rulebase security rules app from [ port1 ]
+set rulebase security rules app to [ port2 ]
+set rulebase security rules app source [ NET-A ]
+set rulebase security rules app destination [ any ]
+set rulebase security rules app application [ any ]
+set rulebase security rules app service [ any ]
+set rulebase security rules app action allow
+set rulebase security rules app log-end yes
+set rulebase security rules app disabled yes
+set rulebase security rules app description "NOT ENABLED: application control; source policy 3"
+set rulebase security rules isdb from [ port1 ]
+set rulebase security rules isdb to [ port2 ]
+set rulebase security rules isdb source [ any ]
+set rulebase security rules isdb destination [ any ]
+set rulebase security rules isdb application [ any ]
+set rulebase security rules isdb service [ any ]
+set rulebase security rules isdb action allow
+set rulebase security rules isdb log-end yes
+set rulebase security rules isdb disabled yes
+set rulebase security rules isdb description "NOT ENABLED: Internet Service object; source policy 4"
+set rulebase security rules nolog from [ port1 ]
+set rulebase security rules nolog to [ port2 ]
+set rulebase security rules nolog source [ NET-A ]
+set rulebase security rules nolog destination [ any ]
+set rulebase security rules nolog negate-source yes
+set rulebase security rules nolog application [ any ]
+set rulebase security rules nolog service [ any ]
+set rulebase security rules nolog action allow
+set rulebase security rules nolog description "source policy 5"
+set rulebase security rules ghost from [ port1 ]
+set rulebase security rules ghost to [ port2 ]
+set rulebase security rules ghost source [ NET-A ]
+set rulebase security rules ghost destination [ any ]
+set rulebase security rules ghost application [ any ]
+set rulebase security rules ghost service [ any ]
+set rulebase security rules ghost action allow
+set rulebase security rules ghost log-end yes
+set rulebase security rules ghost disabled yes
+set rulebase security rules ghost description "NOT ENABLED: address NOPE not converted; service NOPE-SVC not converted; source policy 6"
+# ---- NAT policy
+# ---- Routing
+
+# Palo Alto PAN-OS conversion from FortiGate
+# ---- Interfaces and zones
+set network interface ethernet ethernet1/1 layer3
+set network interface ethernet ethernet1/1 layer3 ip 10.0.0.1/24
+set network interface ethernet ethernet1/2 layer3
+set network interface ethernet ethernet1/2 layer3 ip 192.0.2.1/24
+set zone port2 network layer3 [ ethernet1/2 ]
+set zone port1 network layer3 [ ethernet1/1 ]
+set network virtual-router default interface [ ethernet1/1 ethernet1/2 ]
+# ---- Objects
+set address NET-A ip-netmask 10.1.0.0/24
+set address VIP-WEB ip-netmask 192.0.2.10/32
+set address VIP-RANGE ip-range 192.0.2.20-192.0.2.22
+set address VIP-NOMAP ip-netmask 192.0.2.40/32
+set service VIP-WEB-udp-5000 protocol udp port 5000
+# ---- Security policy
+set rulebase security rules out from [ port1 ]
+set rulebase security rules out to [ port2 ]
+set rulebase security rules out source [ NET-A ]
+set rulebase security rules out destination [ any ]
+set rulebase security rules out application [ any ]
+set rulebase security rules out service [ any ]
+set rulebase security rules out action allow
+set rulebase security rules out log-end yes
+set rulebase security rules out description "source policy 1"
+set rulebase security rules out2 from [ port1 ]
+set rulebase security rules out2 to [ port2 ]
+set rulebase security rules out2 source [ NET-A ]
+set rulebase security rules out2 destination [ any ]
+set rulebase security rules out2 application [ any ]
+set rulebase security rules out2 service [ any ]
+set rulebase security rules out2 action allow
+set rulebase security rules out2 log-end yes
+set rulebase security rules out2 description "source policy 2"
+set rulebase security rules in from [ port2 ]
+set rulebase security rules in to [ port1 ]
+set rulebase security rules in source [ any ]
+set rulebase security rules in destination [ VIP-WEB ]
+set rulebase security rules in application [ any ]
+set rulebase security rules in service [ any ]
+set rulebase security rules in action allow
+set rulebase security rules in log-end yes
+set rulebase security rules in description "source policy 3"
+set rulebase security rules noicon from [ any ]
+set rulebase security rules noicon to [ any ]
+set rulebase security rules noicon source [ any ]
+set rulebase security rules noicon destination [ any ]
+set rulebase security rules noicon application [ any ]
+set rulebase security rules noicon service [ any ]
+set rulebase security rules noicon action allow
+set rulebase security rules noicon log-end yes
+set rulebase security rules noicon disabled yes
+set rulebase security rules noicon description "NOT ENABLED: address HOST-MAC not converted; source policy 4"
+# ---- NAT policy
+set rulebase nat rules VIP-WEB from [ any ]
+set rulebase nat rules VIP-WEB to [ port2 ]
+set rulebase nat rules VIP-WEB source [ any ]
+set rulebase nat rules VIP-WEB destination [ VIP-WEB ]
+set rulebase nat rules VIP-WEB service VIP-WEB-udp-5000
+set rulebase nat rules VIP-WEB destination-translation translated-address 10.1.0.10
+set rulebase nat rules VIP-WEB destination-translation translated-port 6000
+set rulebase nat rules VIP-RANGE from [ any ]
+set rulebase nat rules VIP-RANGE to [ any ]
+set rulebase nat rules VIP-RANGE source [ any ]
+set rulebase nat rules VIP-RANGE destination [ VIP-RANGE ]
+set rulebase nat rules VIP-RANGE service any
+set rulebase nat rules VIP-RANGE destination-translation translated-address 10.1.0.20
+set rulebase nat rules nat-out from [ port1 ]
+set rulebase nat rules nat-out to [ port2 ]
+set rulebase nat rules nat-out source [ NET-A ]
+set rulebase nat rules nat-out destination [ any ]
+set rulebase nat rules nat-out service any
+set rulebase nat rules nat-out source-translation dynamic-ip-and-port translated-address [ 192.0.2.50 ]
+set rulebase nat rules nat-out description "made from FortiGate policy 1"
+set rulebase nat rules nat-out2 from [ port1 ]
+set rulebase nat rules nat-out2 to [ port2 ]
+set rulebase nat rules nat-out2 source [ NET-A ]
+set rulebase nat rules nat-out2 destination [ any ]
+set rulebase nat rules nat-out2 service any
+set rulebase nat rules nat-out2 source-translation dynamic-ip translated-address [ 192.0.2.60-192.0.2.70 ]
+set rulebase nat rules nat-out2 description "made from FortiGate policy 2"
+# ---- Routing
+
+# Palo Alto PAN-OS conversion from FortiGate
+# ---- Interfaces and zones
+set network interface ethernet ethernet1/1 layer3
+set network interface ethernet ethernet1/1 layer3 ip 10.0.0.1/24
+set network interface ethernet ethernet1/2 layer3
+set network interface ethernet ethernet1/2 layer3 ip 192.0.2.1/24
+set network interface ethernet ethernet1/3 layer3
+set network interface ethernet ethernet1/3 layer3 ip 198.51.100.1/24
+set network interface ethernet ethernet1/4 layer3
+set network interface ethernet ethernet1/4 layer3 dhcp-client enable yes
+set zone WANZ network layer3 [ ethernet1/2 ethernet1/3 ]
+set zone port1 network layer3 [ ethernet1/1 ]
+set network virtual-router default interface [ ethernet1/1 ethernet1/2 ethernet1/3 ethernet1/4 tunnel.1 tunnel.2 ]
+# ---- Objects
+set address NET-A ip-netmask 10.1.0.0/24
+set address NET-B ip-netmask 10.2.0.0/24
+set address RNG ip-range 10.9.0.1-10.9.0.9
+# ---- Security policy
+# ---- NAT policy
+set rulebase nat rules snat-1 from [ port1 ]
+set rulebase nat rules snat-1 to [ WANZ ]
+set rulebase nat rules snat-1 source [ NET-A ]
+set rulebase nat rules snat-1 destination [ any ]
+set rulebase nat rules snat-1 service any
+set rulebase nat rules snat-1 source-translation dynamic-ip-and-port translated-address [ 192.0.2.50 ]
+set rulebase nat rules snat-2 from [ port1 ]
+set rulebase nat rules snat-2 to [ WANZ ]
+set rulebase nat rules snat-2 source [ NET-B ]
+set rulebase nat rules snat-2 destination [ any ]
+set rulebase nat rules snat-2 service any
+# NAT rule snat-2: set source-translation dynamic-ip-and-port interface-address interface <egress port>
+set rulebase nat rules snat-3 from [ port1 ]
+set rulebase nat rules snat-3 to [ WANZ ]
+set rulebase nat rules snat-3 source [ NET-B ]
+set rulebase nat rules snat-3 destination [ NET-A ]
+set rulebase nat rules snat-3 service any
+set rulebase nat rules snat-3 disabled yes
+# ---- Routing
+set network virtual-router default routing-table ip static-route route-1 destination 0.0.0.0/0
+set network virtual-router default routing-table ip static-route route-1 nexthop ip-address 192.0.2.254
+set network virtual-router default routing-table ip static-route route-1 interface ethernet1/2
+set network virtual-router default routing-table ip static-route route-1 admin-dist 10
+set network virtual-router default routing-table ip static-route route-1 metric 1
+set network virtual-router default routing-table ip static-route route-2 destination 10.50.0.0/16
+set network virtual-router default routing-table ip static-route route-2 nexthop ip-address 192.0.2.253
+set network virtual-router default routing-table ip static-route route-2 interface ethernet1/2
+set network virtual-router default routing-table ip static-route route-2 admin-dist 20
+set network virtual-router default routing-table ip static-route route-2 metric 5
+set network virtual-router default protocol ospf enable yes
+set network virtual-router default protocol ospf router-id 1.1.1.1
+set network virtual-router default protocol ospf area 0.0.0.0 interface ethernet1/1 enable yes
+set network virtual-router default protocol ospf area 0.0.0.5 interface ethernet1/2 enable yes
+# ---- Site-to-site VPN
+set network ike crypto-profiles ike-crypto-profiles T1-ike dh-group [ group14 group5 ]
+set network ike crypto-profiles ike-crypto-profiles T1-ike hash [ sha256 sha1 md5 ]
+set network ike crypto-profiles ike-crypto-profiles T1-ike encryption [ aes-256-cbc aes-128-cbc 3des ]
+set network ike crypto-profiles ike-crypto-profiles T1-ike lifetime hours 8
+set network ike crypto-profiles ipsec-crypto-profiles T1-esp esp encryption [ aes-256-cbc aes-128-gcm ]
+set network ike crypto-profiles ipsec-crypto-profiles T1-esp esp authentication [ sha256 none ]
+set network ike crypto-profiles ipsec-crypto-profiles T1-esp dh-group no-pfs
+set network ike crypto-profiles ipsec-crypto-profiles T1-esp lifetime hours 1
+set network ike gateway gw-T1 protocol version ikev2
+set network ike gateway gw-T1 protocol ikev2 ike-crypto-profile T1-ike
+set network ike gateway gw-T1 peer-address ip 203.0.113.9
+set network ike gateway gw-T1 local-address interface ethernet1/2
+set network ike gateway gw-T1 local-address ip 192.0.2.1
+set network interface tunnel units tunnel.1
+set network tunnel ipsec T1 auto-key ike-gateway gw-T1
+set network tunnel ipsec T1 auto-key ipsec-crypto-profile T1-esp
+set network tunnel ipsec T1 tunnel-interface tunnel.1
+set network tunnel ipsec T1 auto-key proxy-id proxy-1 local 10.1.0.0/24
+set network tunnel ipsec T1 auto-key proxy-id proxy-1 remote 10.77.0.0/16
+set network tunnel ipsec T1 auto-key proxy-id proxy-2 local 0.0.0.0/0
+set network tunnel ipsec T1 auto-key proxy-id proxy-2 remote 10.2.0.0/24
+# tunnel T1: the peer's pre-shared key is not in a FortiGate export; set it on gateway gw-T1
+set network ike crypto-profiles ike-crypto-profiles T2-ike dh-group [ group14 ]
+set network ike crypto-profiles ike-crypto-profiles T2-ike hash [ sha256 ]
+set network ike crypto-profiles ike-crypto-profiles T2-ike encryption [ aes-128-cbc ]
+set network ike crypto-profiles ike-crypto-profiles T2-ike lifetime days 1
+set network ike crypto-profiles ipsec-crypto-profiles T2-esp esp encryption [ aes-256-cbc ]
+set network ike crypto-profiles ipsec-crypto-profiles T2-esp esp authentication [ sha256 ]
+set network ike crypto-profiles ipsec-crypto-profiles T2-esp dh-group no-pfs
+set network ike crypto-profiles ipsec-crypto-profiles T2-esp lifetime hours 12
+set network ike gateway gw-T2 protocol version ikev1
+set network ike gateway gw-T2 protocol ikev1 ike-crypto-profile T2-ike
+set network ike gateway gw-T2 protocol ikev1 exchange-mode aggressive
+set network ike gateway gw-T2 peer-address dynamic
+set network ike gateway gw-T2 protocol-common passive-mode yes
+set network ike gateway gw-T2 local-address interface ethernet1/3
+set network ike gateway gw-T2 authentication pre-shared-key key "REPLACE-ME"
+set network ike gateway gw-T2 protocol-common nat-traversal enable yes
+set network ike gateway gw-T2 protocol-common dpd enable yes
+set network interface tunnel units tunnel.2
+set network tunnel ipsec T2 auto-key ike-gateway gw-T2
+set network tunnel ipsec T2 auto-key ipsec-crypto-profile T2-esp
+set network tunnel ipsec T2 tunnel-interface tunnel.2
+# tunnel T2: the peer's pre-shared key is not in a FortiGate export; set it on gateway gw-T2

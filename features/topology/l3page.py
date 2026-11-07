@@ -21,8 +21,8 @@ from .l3engine import CONFIGURED, DOWN, UP, L3Edge, L3Model, build
 from .l3focus import Focus
 from .l3tables import sentence
 from .labelplace import place_labels
-from .layout import layered
-from .scene import Page, _route
+from .layout import NODE_H, NODE_W, Placed, layered
+from .scene import Page, _clips, _route
 
 VIEW_L3ROUTE = "L3 - Logical and Route"
 VRF_PALETTE = ("#1F6FB2", "#2E8B57", "#C2410C", "#7B3FA0", "#B8860B", "#0E8C8C", "#B03060", "#556B2F", "#8B4513", "#4169E1")
@@ -122,6 +122,17 @@ def edge_ids(model: L3Model) -> dict[int, str]:
     return ids
 
 
+def _management_only(node: Any) -> bool:
+    """A captured L2 / aggregation switch with at most one routed address (its management interface), no more than a default static route, and no routing neighbor, tunnel or first-hop redundancy."""
+    if node.role_hint not in ("access", "switch", "aggregation") or len(node.l3 or []) > 1:
+        return False
+    facts = node.l3facts or {}
+    if any(facts.get(key) for key in ("neighbors", "tunnels", "fhrp", "overlay")):
+        return False
+    routes = facts.get("routes") or []
+    return all(r.get("protocol") == "static" for r in routes) and len(routes) <= 1
+
+
 def l3_model_graph(graph: Graph, model: L3Model, focus: Focus | None = None) -> tuple[Graph, list[Connection]]:
     """The small graph the page is drawn from: only devices and uncaptured nodes that an edge touches (plus captured devices without any edge)."""
     colours = vrf_colours([e.vrf for e in model.edges] + [r.get("vrf", "") for e in model.edges for r in e.routes])
@@ -137,10 +148,68 @@ def l3_model_graph(graph: Graph, model: L3Model, focus: Focus | None = None) -> 
         if node.captured and key not in nodes and key not in graph.hidden_nodes and (node.l3 or node.l3facts):
             if narrowed and node.l3facts.get("system_ip"):
                 continue                                    # an SD-WAN site the typed list leaves out has nothing to show here
+            if _management_only(node):
+                continue                                    # a switch whose only routed address is its management interface has no route to show: it stays in the tables
             nodes[key] = node
     conns = [c for c in conns if c.a in nodes and c.b in nodes]
     sub = Graph(nodes=nodes, links=[c.links[0] for c in conns], connections=conns, hidden_kinds=set())
     return sub, [c for c in conns]
+
+
+CLOUD_LEVELS = 3          # a provider cloud stands in the row above the devices, or one or two steps higher
+CLOUD_STEP = 150.0        # px between two heights of the cloud row: icon, two lines of text, and air
+CLOUD_HIT = 400.0         # one line through another node counts as this many px of line
+
+
+def _place_with_clouds(sub: Graph, conns: list[Connection]) -> tuple[dict[str, Placed], float, float]:
+    """Every node in rows, the provider clouds and gateways in the row above the devices that reach them, then each cloud at the height that frees its lines.
+
+    A provider that serves routers at both ends of the page has long lines, and a line to a far cloud runs behind the clouds in between (their caption included).
+    The router then sends it over the top of the whole row.  A cloud may stand one or two steps higher than the row: one device at a time is moved while that
+    lowers the number of lines through a node plus the length of all lines."""
+    clouds = [k for k, n in sub.nodes.items() if n.role_hint == "cloud"]
+    placed, width, height = layered(sub, list(sub.nodes), tiers={k: -1.0 for k in clouds})
+    if len(clouds) < 2:
+        return placed, width, height
+    top = min(p.y for p in placed.values())
+    ends = {k: sorted({o for c in conns for key, o in ((c.a, c.b), (c.b, c.a)) if key == k and o in placed}) for k in clouds}
+    level = {k: 0 for k in clouds}
+
+    def at(key: str) -> tuple[float, float]:
+        p = placed[key]
+        return p.x + NODE_W / 2, p.y - level.get(key, 0) * CLOUD_STEP + NODE_H / 2
+
+    def cost() -> float:
+        boxes = {k: (placed[k].x - 6, placed[k].y - level.get(k, 0) * CLOUD_STEP - 6, placed[k].x + NODE_W + 6, placed[k].y - level.get(k, 0) * CLOUD_STEP + NODE_H + 56) for k in placed}
+        total = 0.0
+        for cloud in clouds:
+            a = at(cloud)
+            for end in ends[cloud]:
+                b = at(end)
+                total += ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+                total += CLOUD_HIT * sum(1 for key, box in boxes.items() if key not in (cloud, end) and _clips(box, a, b))
+        return total
+
+    best = cost()
+    for _ in range(3):
+        improved = False
+        for cloud in clouds:
+            keep = level[cloud]
+            for trial in range(CLOUD_LEVELS):
+                if trial == keep:
+                    continue
+                level[cloud] = trial
+                now = cost()
+                if now < best - 1.0:
+                    best, keep, improved = now, trial, True
+            level[cloud] = keep
+        if not improved:
+            break
+    if not any(level.values()):
+        return placed, width, height
+    lift = max(level.values()) * CLOUD_STEP
+    out = {k: Placed(p.x, p.y + lift - level.get(k, 0) * CLOUD_STEP, p.tier, p.box, p.depth) for k, p in placed.items()}
+    return out, width, height + lift
 
 
 def l3_page(graph: Graph, hints: dict[str, Any] | None = None, curved: bool = False, model: L3Model | None = None, focus: Focus | None = None) -> Page | None:
@@ -152,8 +221,7 @@ def l3_page(graph: Graph, hints: dict[str, Any] | None = None, curved: bool = Fa
     if not conns:
         return None
     ids_of = edge_ids(model)
-    clouds = {k: -1.0 for k, n in sub.nodes.items() if n.role_hint == "cloud"}            # provider clouds and gateways sit above the routers that reach them
-    placed, width, height = layered(sub, list(sub.nodes), tiers=clouds)
+    placed, width, height = _place_with_clouds(sub, conns)
     page = Page(VIEW_L3ROUTE, placed, set(), [], conns, {}, width, height, view="l3route", graph=sub, curved=curved)
     page.l3 = {"model": model, "edges": [(c.l3["id"], e) for c, e in zip(conns, [e for e in model.drawn() if e.a in sub.nodes and e.b in sub.nodes])],
                "all": [(ids_of[id(e)], e) for e in model.edges] + [(g.ident, g) for g in model.grouped], "names": {k: n.hostname for k, n in sub.nodes.items()}, "colours": vrf_colours([e.vrf for e in model.edges])}

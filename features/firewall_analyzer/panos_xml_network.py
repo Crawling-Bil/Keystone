@@ -93,9 +93,10 @@ def _weak(enc: list[str], hashes: list[str], dh: list[str]) -> list[str]:
 # ----------------------------------------------------------------------- extract
 def extract(root: ET.Element, device: ET.Element | None) -> dict[str, Any]:
     net = device.find("network") if device is not None else None
-    out: dict[str, Any] = {"ike_profiles": [], "ipsec_profiles": [], "gateways": [], "tunnels": [], "qos_profiles": [], "qos_interfaces": [], "monitor_profiles": []}
+    out: dict[str, Any] = {"ike_profiles": [], "ipsec_profiles": [], "gateways": [], "tunnels": [], "qos_profiles": [], "qos_interfaces": [], "monitor_profiles": [], "ospf": []}
     if net is not None:
         out.update(_vpn(net))
+        out["ospf"] = _ospf(net)
         out["qos_profiles"] = _qos_profiles(net)
         out["qos_interfaces"] = _qos_interfaces(net)
         out["monitor_profiles"] = [{"name": e.get("name", ""), "interval": _t(e, "interval"), "threshold": _t(e, "threshold"), "action": _t(e, "action")} for e in _entries(net, "profiles/monitor-profile")]
@@ -106,6 +107,36 @@ def extract(root: ET.Element, device: ET.Element | None) -> dict[str, Any]:
     out["url_categories"] = _url_categories(root)
     out["log_profiles"] = _log_profiles(root)
     return out
+
+
+def _ospf(net: ET.Element) -> list[dict[str, Any]]:
+    """One row per OSPF interface of every virtual router that runs OSPF (``protocol/ospf/area/entry/interface/entry``) and the authentication profile it names.
+    The profile's key material (``md5/entry/key``, ``password``) is never read: only its mode and the md5 key ids."""
+    rows: list[dict[str, Any]] = []
+    for vr in _entries(net, "virtual-router"):
+        proto = vr.find("protocol/ospf")
+        if proto is None:
+            continue
+        enabled = _flag(proto, "enable")
+        profiles: dict[str, dict[str, Any]] = {}
+        for prof in _entries(proto, "auth-profile"):
+            md5 = prof.find("md5")
+            profiles[prof.get("name", "")] = {"mode": "md5" if md5 is not None else ("password" if prof.find("password") is not None else "none"),
+                                              "key_ids": [e.get("name", "") for e in (md5.findall("entry") if md5 is not None else [])]}
+        for area in _entries(proto, "area"):
+            area_type = (_children(area.find("type")) or ["normal"])[0]
+            for iface in _entries(area, "interface"):
+                auth = _t(iface, "authentication")
+                known = profiles.get(auth)
+                rows.append({"router": vr.get("name", ""), "router_id": _t(proto, "router-id"), "ospf_enabled": enabled is True, "area": area.get("name", ""), "area_type": area_type,
+                             "interface": iface.get("name", ""), "enabled": _flag(iface, "enable") is not False, "passive": _flag(iface, "passive") is True,
+                             "link_type": (_children(iface.find("link-type")) or [""])[0], "metric": _t(iface, "metric"), "bfd": iface.find("bfd") is not None,
+                             "auth_profile": auth, "auth_mode": (known["mode"] if known else ("undefined profile" if auth else "none")), "key_ids": known["key_ids"] if known else []})
+    return rows
+
+
+def _children(node: ET.Element | None) -> list[str]:
+    return [c.tag for c in node] if node is not None else []
 
 
 def _holders(root: ET.Element) -> list[tuple[str, ET.Element]]:
@@ -320,6 +351,8 @@ def evaluate(extra: dict[str, Any]) -> list[dict[str, Any]]:
         out.append(finding("PAN-VPN-007", "info", "VPN", f"{len(parked)} IPsec tunnel(s) are disabled", obj=", ".join(parked),
                            detail="Disabled tunnels carry no traffic but keep their gateways, keys and crypto profiles in the configuration.", recommendation="Delete tunnels that are retired so their peers, pre-shared keys and weak profiles do not linger.", reference=PALO["ipsec_tunnel"]))
 
+    out += _ospf_findings(extra.get("ospf", []))
+
     policy = extra.get("password_policy")
     if policy is not None:
         if not policy:
@@ -343,6 +376,26 @@ def evaluate(extra: dict[str, Any]) -> list[dict[str, Any]]:
         if upd["action"] == "download-only":
             out.append(finding("PAN-UPD-002", "low", "Operations", f"{upd['content']} content is downloaded but not installed automatically", obj=f"update-schedule/{upd['content']}",
                                detail="download-only leaves new signatures waiting until an administrator installs them.", recommendation="Use download-and-install for threat, antivirus and WildFire content.", reference=PALO["content_updates"]))
+    return out
+
+
+def _ospf_findings(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    live = [r for r in rows if r["ospf_enabled"] and r["enabled"]]
+    for r in live:
+        where = f"{r['router']}/area {r['area']}/{r['interface']}"
+        if r["passive"]:
+            continue
+        if r["auth_mode"] == "none":
+            out.append(finding("PAN-OSPF-001", "medium", "Routing", "OSPF interface has no authentication", obj=where,
+                               detail=f"Virtual router {r['router']} runs OSPF on {r['interface']} (area {r['area']}) without an authentication profile, so any device on that segment can form an adjacency and inject routes.",
+                               recommendation="Create an OSPF auth profile (Network > Virtual Routers > OSPF > Auth Profiles, MD5 key) and select it on the interface, or make the interface passive if no neighbour is expected.", reference=PALO["ospf_auth"]))
+        elif r["auth_mode"] == "password":
+            out.append(finding("PAN-OSPF-002", "low", "Routing", "OSPF interface uses a clear-text password", obj=where,
+                               detail=f"Auth profile {r['auth_profile']} sends a simple password that anyone sniffing the segment can read.", recommendation="Use an MD5 auth profile.", reference=PALO["ospf_auth"]))
+        elif r["auth_mode"] == "undefined profile":
+            out.append(finding("PAN-OSPF-003", "medium", "Routing", "OSPF interface names an authentication profile that does not exist", obj=where,
+                               detail=f"Profile {r['auth_profile']} is not defined under this virtual router, so the interface is not authenticated.", recommendation="Define the profile or select an existing one.", reference=PALO["ospf_auth"]))
     return out
 
 
@@ -406,6 +459,12 @@ def sections(extra: dict[str, Any]) -> list[dict[str, Any]]:
         rows = [dict(m, panorama="yes" if m["panorama"] else "no", forward=m["syslog"] + m["email"] + m["http"]) for m in extra["log_profiles"]]
         out.append(table_section("log_profiles", "Log forwarding profiles", [("profile", "Profile", "mono"), ("name", "Match list", "mono"), ("log_type", "Log type"), ("filter", "Filter", "wrap"), ("panorama", "To Panorama"), ("forward", "Syslog / email / HTTP", "list")],
                                  rows, group="Logging", hint="A rule only forwards logs when it names one of these profiles."))
+    if extra.get("ospf"):
+        rows = [dict(r, passive="yes" if r["passive"] else "no", enabled="yes" if r["enabled"] else "no", bfd="yes" if r["bfd"] else "no", key_ids=r["key_ids"] or ["-"],
+                     auth=(r["auth_profile"] + " (" + r["auth_mode"] + ")") if r["auth_profile"] else "none", _tones={"auth": "bad" if r["auth_mode"] in ("none", "undefined profile") and not r["passive"] else ("warn" if r["auth_mode"] == "password" else "")}) for r in extra["ospf"]]
+        out.append(table_section("ospf_interfaces", "OSPF interfaces", [("router", "Virtual router", "mono"), ("router_id", "Router ID", "mono"), ("area", "Area", "mono"), ("area_type", "Area type"), ("interface", "Interface", "mono"), ("enabled", "Enabled"), ("passive", "Passive"),
+                                                                  ("link_type", "Link type"), ("metric", "Metric"), ("bfd", "BFD"), ("auth", "Authentication"), ("key_ids", "MD5 key ids", "list")], rows, group="Routing",
+                                 hint="Authentication keys are never shown; only the profile name, its mode and the MD5 key ids. A passive interface sends no hellos, so it needs no authentication."))
     botnet = extra.get("botnet")
     if botnet:
         rows = [{"indicator": h["indicator"], "setting": _yn(h["enabled"]), "threshold": h["threshold"]} for h in botnet["http"]]

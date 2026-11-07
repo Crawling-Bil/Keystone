@@ -1,0 +1,160 @@
+set deviceconfig system hostname PA-EDGE-01
+set network interface ethernet ethernet1/1 layer3 dhcp-client enable yes
+set network interface ethernet ethernet1/2 layer3 ip 10.10.0.1/24
+set network interface ethernet ethernet1/2 layer3 ip 10.10.1.1/24
+set network interface ethernet ethernet1/3 layer3 ip 10.20.0.1/24
+set network interface ethernet ethernet1/4 aggregate-group ae2
+set network interface ethernet ethernet1/5 aggregate-group ae2
+set network interface aggregate-ethernet ae2 layer3 ip 10.30.0.1/24
+set network interface aggregate-ethernet ae2 layer3 lacp enable yes
+set network interface aggregate-ethernet ae2 layer3 lacp mode passive
+set network interface aggregate-ethernet ae3 layer3 ip 10.31.0.1/24
+set network interface loopback units loopback.5 ip 10.255.5.5/32
+set network interface tunnel units tunnel.7
+set network interface tunnel units tunnel.8
+set zone outside network layer3 ethernet1/1
+set zone inside network layer3 [ ethernet1/2 ethernet1/3 ]
+set zone core network layer3 ae2
+set zone vpn network layer3 [ tunnel.7 tunnel.8 ]
+set zone tapz network tap ethernet1/9
+set address h1 ip-netmask 10.20.0.5
+set address r1 ip-range 10.20.0.10-10.20.0.20
+set address w1 ip-wildcard 10.0.0.0/0.255.0.255
+set address f1 fqdn files.example.test
+set address inner-group-member ip-netmask 10.20.1.0/24
+set address bad1 ip-netmask not-an-address
+set address-group inner static [ h1 inner-group-member ]
+set address-group outer static [ inner r1 ]
+set address-group dyn dynamic filter "'tag1'"
+set service s-sctp protocol sctp port 3868
+set service s-udp protocol udp port 5060
+set service s-empty description "nothing"
+set service-group both members [ s-sctp s-udp ]
+set rulebase security rules r-users from inside
+set rulebase security rules r-users to outside
+set rulebase security rules r-users source any
+set rulebase security rules r-users destination any
+set rulebase security rules r-users source-user [ corp\staff ]
+set rulebase security rules r-users application any
+set rulebase security rules r-users service any
+set rulebase security rules r-users action allow
+set rulebase security rules r-cat from inside
+set rulebase security rules r-cat to outside
+set rulebase security rules r-cat source any
+set rulebase security rules r-cat destination any
+set rulebase security rules r-cat category [ gambling ]
+set rulebase security rules r-cat application any
+set rulebase security rules r-cat service any
+set rulebase security rules r-cat action deny
+set rulebase security rules r-sched from inside
+set rulebase security rules r-sched to outside
+set rulebase security rules r-sched source any
+set rulebase security rules r-sched destination any
+set rulebase security rules r-sched schedule worktime
+set rulebase security rules r-sched application any
+set rulebase security rules r-sched service any
+set rulebase security rules r-sched action allow
+set rulebase security rules r-hip from inside
+set rulebase security rules r-hip to outside
+set rulebase security rules r-hip source any
+set rulebase security rules r-hip destination any
+set rulebase security rules r-hip hip-profiles [ managed ]
+set rulebase security rules r-hip application any
+set rulebase security rules r-hip service any
+set rulebase security rules r-hip action allow
+set rulebase security rules r-prof from inside
+set rulebase security rules r-prof to outside
+set rulebase security rules r-prof source any
+set rulebase security rules r-prof destination any
+set rulebase security rules r-prof application any
+set rulebase security rules r-prof service any
+set rulebase security rules r-prof profile-setting group strict
+set rulebase security rules r-prof action allow
+set rulebase security rules r-appany from inside
+set rulebase security rules r-appany to outside
+set rulebase security rules r-appany source any
+set rulebase security rules r-appany destination any
+set rulebase security rules r-appany application any
+set rulebase security rules r-appany service application-default
+set rulebase security rules r-appany action allow
+set rulebase security rules r-appsvc from inside
+set rulebase security rules r-appsvc to outside
+set rulebase security rules r-appsvc source any
+set rulebase security rules r-appsvc destination any
+set rulebase security rules r-appsvc application [ dns ntp unknown-app-xyz ]
+set rulebase security rules r-appsvc service application-default
+set rulebase security rules r-appsvc action allow
+set rulebase security rules r-appsvc2 from inside
+set rulebase security rules r-appsvc2 to outside
+set rulebase security rules r-appsvc2 source any
+set rulebase security rules r-appsvc2 destination any
+set rulebase security rules r-appsvc2 application [ dns ]
+set rulebase security rules r-appsvc2 service s-udp
+set rulebase security rules r-appsvc2 action allow
+set rulebase security rules r-neg from inside
+set rulebase security rules r-neg to outside
+set rulebase security rules r-neg source h1
+set rulebase security rules r-neg negate-source yes
+set rulebase security rules r-neg destination [ outer f1 w1 bad1 ]
+set rulebase security rules r-neg negate-destination yes
+set rulebase security rules r-neg application any
+set rulebase security rules r-neg service both
+set rulebase security rules r-neg action reset-both
+set rulebase security rules r-neg log-start yes
+set rulebase security rules r-neg log-end no
+set rulebase security rules r-neg description "negated"
+set rulebase security rules r-weird from inside
+set rulebase security rules r-weird to outside
+set rulebase security rules r-weird action mystery
+set rulebase nat rules n-static from inside
+set rulebase nat rules n-static to outside
+set rulebase nat rules n-static source h1
+set rulebase nat rules n-static destination any
+set rulebase nat rules n-static service any
+set rulebase nat rules n-static source-translation dynamic-ip translated-address [ 203.0.113.10 203.0.113.11 ]
+set network virtual-router default interface [ ethernet1/1 ethernet1/2 ae2 loopback.5 tunnel.7 tunnel.8 ]
+set network virtual-router default routing-table ip static-route s1 destination 10.90.0.0/16
+set network virtual-router default routing-table ip static-route s1 nexthop ip-address 10.10.0.254
+set network virtual-router default routing-table ip static-route s1 admin-dist 30
+set network virtual-router default routing-table ip static-route s1 metric 7
+set network virtual-router default routing-table ip static-route s1 path-monitor enable yes
+set network virtual-router default routing-table ip static-route s2 destination 10.91.0.0/16
+set network virtual-router default routing-table ip static-route s2 nexthop next-vr other
+set network virtual-router default protocol bgp enable yes
+set network virtual-router default protocol bgp local-as 65100
+set network virtual-router default protocol bgp router-id 10.255.5.5
+set network virtual-router default protocol bgp peer-group g1 peer p1 peer-address ip 10.10.0.2
+set network virtual-router default protocol bgp peer-group g1 peer p1 peer-as 65200
+set network virtual-router default protocol bgp peer-group g1 peer p2 peer-address ip 10.10.0.3
+set network virtual-router default protocol bgp peer-group g1 peer p2 peer-as 65200
+set network virtual-router default protocol bgp peer-group g1 peer p3 peer-address ip 10.10.0.4
+set network virtual-router default protocol bgp policy export rules x action allow
+set network virtual-router default protocol ospf enable yes
+set network virtual-router default protocol ospf router-id 10.255.5.5
+set network virtual-router default protocol ospf area 0.0.0.1 interface ae2
+set network virtual-router default protocol ospf area 0.0.0.1 interface ethernet1/2
+set network ike crypto-profiles ike-crypto-profiles ikeA dh-group group2
+set network ike crypto-profiles ike-crypto-profiles ikeA hash sha1
+set network ike crypto-profiles ike-crypto-profiles ikeA encryption aes-128-cbc
+set network ike crypto-profiles ike-crypto-profiles ikeA lifetime days 2
+set network ike crypto-profiles ipsec-crypto-profiles espA esp encryption [ aes-128-cbc 3des ]
+set network ike crypto-profiles ipsec-crypto-profiles espA esp authentication sha1
+set network ike crypto-profiles ipsec-crypto-profiles espA dh-group no-pfs
+set network ike crypto-profiles ipsec-crypto-profiles espA lifetime minutes 90
+set network ike gateway gwA protocol version ikev1
+set network ike gateway gwA protocol ikev1 ike-crypto-profile ikeA
+set network ike gateway gwA protocol ikev1 exchange-mode aggressive
+set network ike gateway gwA peer-address dynamic
+set network ike gateway gwA local-address interface ethernet1/1
+set network ike gateway gwA authentication pre-shared-key key "NotRealSecret"
+set network tunnel ipsec tunA auto-key ike-gateway gwA
+set network tunnel ipsec tunA auto-key ipsec-crypto-profile espA
+set network tunnel ipsec tunA tunnel-interface tunnel.7
+set network ike gateway gwB protocol version ikev2
+set network ike gateway gwB peer-address ip 203.0.113.77
+set network tunnel ipsec tunB auto-key ike-gateway gwB
+set network tunnel ipsec tunB tunnel-interface tunnel.8
+set network tunnel ipsec tunB auto-key proxy-id q1 local 10.20.0.0/24
+set network tunnel ipsec tunB auto-key proxy-id q1 remote 10.60.0.0/24
+set network tunnel ipsec tunB auto-key proxy-id q1 protocol tcp number 6
+set network tunnel ipsec tunC manual-key local-spi 0x1

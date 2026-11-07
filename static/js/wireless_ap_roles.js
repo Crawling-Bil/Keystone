@@ -65,18 +65,18 @@
   }
 
   const stateHelp = {
-    Normal: "AP terhubung ke WLC dan bekerja normal.",
-    Standby: "AP dikenali oleh WLC cadangan dan siap mengambil alih.",
-    Idle: "AP dikenal WLC tetapi belum terhubung atau belum pernah berkomunikasi.",
-    Fault: "AP gagal terhubung atau melakukan registrasi ke WLC.",
-    Missing: "AP tidak ditemukan pada inventory WLC ini.",
+    Normal: "The AP is connected to the WLC and working normally.",
+    Standby: "The AP is known to the backup WLC and ready to take over.",
+    Idle: "The WLC knows the AP, but it has not connected or never communicated.",
+    Fault: "The AP failed to connect or register to the WLC.",
+    Missing: "The AP is not in the inventory of this WLC.",
   };
 
   const groupStatusHelp = {
-    Matched: "AP berada pada AP Group yang sama di Controller A dan Controller B.",
-    "Group Mismatch": "AP berada pada AP Group yang berbeda antara Controller A dan Controller B.",
-    "Peer Group Missing": "AP Group hanya tersedia pada salah satu WLC atau AP tidak ditemukan pada peer WLC.",
-    Unassigned: "AP tidak memiliki AP Group pada kedua WLC.",
+    Matched: "The AP is in the same AP Group on Controller A and Controller B.",
+    "Group Mismatch": "The AP is in a different AP Group on Controller A and Controller B.",
+    "Peer Group Missing": "The AP Group exists on only one WLC, or the AP is not found on the peer WLC.",
+    Unassigned: "The AP has no AP Group on either WLC.",
   };
 
   function badge(value, type = "status") {

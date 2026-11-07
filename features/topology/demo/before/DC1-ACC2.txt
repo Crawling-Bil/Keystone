@@ -1,0 +1,66 @@
+DC1-ACC2#show version
+Cisco IOS XE Software, Version 17.12.5
+Cisco IOS Software [Dublin], Catalyst L3 Switch Software
+cisco C9300L-48P-4X (X86) processor
+Processor board ID FOC10000002
+DC1-ACC2 uptime is 12 weeks
+
+DC1-ACC2#show inventory
+NAME: "Switch 1", DESCR: "C9300L-48P-4X"
+PID: C9300L-48P-4X   , VID: V01  , SN: FOC10000002
+
+DC1-ACC2#show running-config
+hostname DC1-ACC2
+!
+interface Vlan1
+ description Management
+ ip address 10.20.0.22 255.255.255.0
+!
+end
+
+DC1-ACC2#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+40      Po40(SU)         LACP        Gi1/0/47(P)  Gi1/0/48(P)
+
+DC1-ACC2#show cdp neighbors detail
+-------------------------
+----------------------------------------
+Device ID:DC1-CORE1.dc1.example.test(FDO10000001)
+
+Interface address(es): 1
+    IPv4 Address: 10.20.0.11
+Platform: cisco N9K-C93180YC-FX3, Capabilities: Switch IGMP
+Interface: GigabitEthernet1/0/47, Port ID (outgoing port): Ethernet1/2
+Holdtime: 150 sec
+
+Version:
+Cisco test image
+
+Advertisement Version: 2
+
+Native VLAN: 10
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 10.20.0.11
+----------------------------------------
+Device ID:DC1-CORE2.dc1.example.test(FDO10000002)
+
+Interface address(es): 1
+    IPv4 Address: 10.20.0.12
+Platform: cisco N9K-C93180YC-FX3, Capabilities: Switch IGMP
+Interface: GigabitEthernet1/0/48, Port ID (outgoing port): Ethernet1/2
+Holdtime: 150 sec
+
+Version:
+Cisco test image
+
+Advertisement Version: 2
+
+Native VLAN: 10
+Duplex: full
+Mgmt address(es):
+    IPv4 Address: 10.20.0.12
+
+DC1-ACC2#

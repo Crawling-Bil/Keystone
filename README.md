@@ -4,13 +4,19 @@ Keystone is a local web tool for network engineers. It reads device captures and
 
 Current version: 1.11.0. Indonesian guide: [docs/PANDUAN.md](docs/PANDUAN.md).
 
+## See it work
+
+![Topology Builder: load the invented data center, build, pin it as the baseline, load the after-change captures and see what changed](docs/img/keystone-topology-demo.gif)
+
+The recording uses only the invented captures that ship with the Topology Builder. A five-minute walk-through with the talking points is in [docs/PRESENTER_SCRIPT.md](docs/PRESENTER_SCRIPT.md).
+
 ## Quick start
 
 There is no account and no login. You download it, start it, and the browser opens.
 
 **Windows**
 
-1. Install Python 3.12 or 3.13 from [python.org](https://www.python.org/downloads/windows/) (once).
+1. Install Python from [python.org](https://www.python.org/downloads/windows/) (once). The latest release is fine: Keystone needs Python 3.11 or newer (the tests pass on 3.12, 3.13 and 3.15). Tick **Add python.exe to PATH** in the installer.
 2. On this page press the green **Code** button, then **Download ZIP** ([GitHub's steps](https://docs.github.com/en/repositories/working-with-files/using-files/downloading-source-code-archives)). Right-click the ZIP, choose **Extract All**, and open the extracted `Keystone` folder.
 3. Double-click **`start_windows.bat`**.
 
@@ -49,7 +55,7 @@ Keystone only listens on your own computer (`127.0.0.1`), so another machine on 
 ## Requirements
 
 - Windows, macOS or Linux.
-- Python 3.11 or newer. Python 3.12 is what the automatic tests use and 3.13 is also tried; take one of those if you have a choice. Download: [python.org](https://www.python.org/downloads/). How the Windows installer and the `py` command work: [Python on Windows](https://docs.python.org/3/using/windows.html).
+- Python 3.11 or newer. The automatic tests run on Python 3.12, 3.13 and 3.15 (the whole suite passes on all three); take 3.12 or 3.13 if you have a choice, and any newer release works too: the setup scripts take the newest Python 3.11 or later they find. On a Python release that is only a few weeks old a few packages (PyYAML, for one) may have no ready-made wheel yet; pip then builds them on the spot, which is slower but works without a C compiler. Download: [python.org](https://www.python.org/downloads/). How the Windows installer and the `py` command work: [Python on Windows](https://docs.python.org/3/using/windows.html).
 - Internet access on the first start only, to download the packages listed in `requirements-lock.txt`.
 - A current browser.
 - Optional: `dnsmasq`, only if you use the built-in DHCP server of ZTP Provisioning (`apt install dnsmasq` or `brew install dnsmasq`).
@@ -122,7 +128,7 @@ Several files or a ZIP can be converted in one go with **batch conversion**. Det
    - **Exclude IP phones, PCs and servers** (on): draw network devices only. While it is on, the phone/host options are hidden.
    - **Collapse phones and hosts into one node per switch** (on), **Group end points under the same switch** (on, when end points are drawn one by one: one frame per switch around its phones, PCs and servers) and **Collapse access points into one node per switch** (on: one box per switch; clear it to draw every access point with its own hostname, model and IP address, framed under its switch).
    - **Show port names on the lines** (on), **Show the address of routed ports on the lines** (on), **Infer neighbors where CDP/LLDP is silent** (on; order of trust: ARP, then MAC address, then port description), **Add routed /30 and /31 links** (on), **Leave out-of-band management links out of the picture** (on), **Draw end hosts learned from MAC tables** (off).
-   - **Grouping**: Automatic (default: one page per site when the network is large), one diagram, or group by the first one, two or three hostname words (`JKT`, `JKT-A02`, `JKT-GD1-LT1`). Each group is drawn in a black frame; the group with the most links to other groups is in the middle.
+   - **Grouping**: Automatic (default: one page per site when the network is large), one diagram, or group by the first one, two or three hostname words (`JKT`, `JKT-A02`, `JKT-GD1-LT1`), or **Sites, smart** (hostname families that tolerate small differences, corrected by the cables: `HQWANR1` and `HQ-ACC1` are one site, `LT2` and `LT02` are one floor). Automatic uses the smart sites when the plain prefixes do not show the sites. Each group is drawn in a black frame; the group with the most links to other groups is in the middle.
    - **Diagram file contains**: all views in one file (default), **L3 over L2** (L3 links drawn on top of the cables that carry them), **L3 - Logical and Route** (links proven by routing tables and neighbors), **L3 - Logical view** (shared subnets, interface addresses), **L2 physical and vPC**, physical only, vPC only, or the **F5 map** (virtual servers, pools, members, nodes of each BIG-IP).
    - **Line shape** (straight, bent once around a device, or curved) and **Style lines by** (rated speed or link state).
    - **SD-WAN sites on the L3 pages**: only the sites you captured (default; the rest is one cloud) or every site in the BFD tables, optionally a list of the sites to draw. **Group what repeats on the L3 pages** (on) turns next-hop routers nobody captured into one node per VRF and VLAN interface pairs between two switches into one line; the tables keep every row.

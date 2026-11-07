@@ -39,6 +39,8 @@ import ipaddress
 import re
 from typing import Any
 
+from features.analyzer_core.redaction import redact_line
+
 _IPV4 = r"\d{1,3}(?:\.\d{1,3}){3}"
 _IPV4_RE = re.compile(rf"^{_IPV4}$")
 _IFACE_TOKEN_RE = re.compile(r"^[A-Za-z][A-Za-z\-]*\d[\w/.:\-]*$")
@@ -920,7 +922,8 @@ def _acl_references(statements: list[tuple[str, list[str]]], definitions: list[d
         hits = list(words & plain)
         hits += [name for name, pattern in patterns.items() if pattern.search(header) is not None or any(pattern.search(child) for child in children)]
         for name in hits:
-            context = header if len(header) <= 80 else header[:77] + "..."
+            context = redact_line(header)  # `snmp-server community NAME RO acl` and `enable secret <hash>` also name an ACL
+            context = context if len(context) <= 80 else context[:77] + "..."
             if context not in refs[name] and len(refs[name]) < 8:
                 refs[name].append(context)
     return refs

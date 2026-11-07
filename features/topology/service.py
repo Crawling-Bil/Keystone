@@ -18,17 +18,20 @@ from ..analyzer_core.vendor_hint import identify
 from ..switch_analyzer.service import analyze as analyze_switch
 from . import progress, bigipdev, fortidev, panosdev, hosts as hosts_module, l3facts, l3switch, labels, roles, split as split_module
 from .drawio import to_drawio
+from . import ifparams
 from .extract import Device, device_from_analysis, os_from_text
 from .findings import build_findings, findings_by_device
 from .graph import Graph, build, link_ratings, link_speeds
 from .names import port_sort_key, speed_text
 from .rollup import hide_endpoints, rollup
+from .through import apply as through_apply
 from .f5neighbors import assume_f5_neighbors
 from .panha import assume_pan_ha
 from .inferred import description_drift, fill_addresses_from_arp, infer_neighbors
 from .f5page import f5_pages
 from .iplogical import ip_page
 from .l2ips import annotate_link_ips
+from .labels import annotate_members
 from .l3cloud import parse_hints
 from .l3engine import build as build_l3
 from .l3focus import Focus
@@ -37,7 +40,9 @@ from .l3tables import overlay_sites_table, overlay_table
 from .l3trace import trace_data
 from .l3tables import links_table as l3_links_table, routes_table as l3_routes_table, unresolved_table as l3_unresolved_table
 from .labelplace import place_labels
-from .layout import PREFIX_WORDS, auto_mode, groups_of
+from .layout import PREFIX_WORDS, auto_mode, auto_reason, groups_of
+from .layoutscore import score_pages
+from .sites import parse_rules as parse_site_rules
 from .priority import capture_priority
 from .routed import infer_routed
 from .state import merge, state_json
@@ -47,7 +52,8 @@ from .svg import to_svg
 
 GROUP_MODES = (("auto", "Automatic (one page per site when the network is large)"), ("none", "One diagram"), ("prefix1", "Group by first hostname word (BGR, JKT, DRC)"),
                ("prefix2", "Group by first two hostname words (JKT-A02)"),
-               ("prefix3", "Group by first three hostname words (JKT-GD1-LT1)"))
+               ("prefix3", "Group by first three hostname words (JKT-GD1-LT1)"),
+               ("sites", "Sites, smart (hostname families and cables: HQWANR1 and HQ-ACC1 are one site, LT2 and LT02 are one floor)"))
 MAX_FILES = 100
 
 
@@ -75,6 +81,9 @@ def _article(label: str) -> str:
 _CACHE: "OrderedDict[str, tuple[Device | None, dict[str, str] | None]]" = OrderedDict()
 _CACHE_LOCK = threading.Lock()
 CACHE_FILES = 400           # captures kept in memory (a read device is about 50 KB, so 400 are 20 MB at most): another view or another set of sites rebuilds from the same captures without reading them again; a set of more than the old 24 captures no longer evicts itself while it is read
+
+
+SHOW_ONLY_GAP = "show output only: no self IPs, subnets or routes (add the UCS or 'tmsh list net self net vlan net route net trunk')"
 
 
 def _is_f5_capture(text: str) -> bool:
@@ -113,9 +122,14 @@ def _read_one(name: str, text: str) -> tuple[Device | list[Device] | None, dict[
                 unit.capture_gap = ""
             return found_units, None
         device = found_units[0]
-        if not device.l3 and not device.l3facts.get("routes") and not device.l3facts.get("fhrp"):
-            return None, {"file": name, "reason": "An F5 BIG-IP file without self IPs or routes (a 'show' capture alone has none). Add the UCS archive of the unit, or 'tmsh list net self net vlan net route net trunk', to draw it."}
-        device.capture_gap = ""
+        configured = bool(device.l3 or device.l3facts.get("routes") or device.l3facts.get("fhrp"))
+        f5facts = device.l3facts.get("f5") or {}
+        shown = bool(device.arp_table or f5facts.get("interfaces"))          # live network state; a map of objects alone has nothing to connect
+        if not configured and not shown:
+            return None, {"file": name, "reason": "An F5 BIG-IP file with neither self IPs or routes nor 'show' output of the network (ARP table, interfaces). Add the UCS archive of the unit or 'tmsh list net self net vlan net route net trunk', or collect 'show net arp', 'show net interface' and 'show ltm virtual'."}
+        # A capture of 'show' commands alone (no UCS, no 'tmsh list') still draws the unit: its ports, the VLANs and hosts its ARP table names, its
+        # virtual servers and pools.  What it cannot hold (self IPs, subnets, routes) is reported by TOPO-024 instead of being guessed.
+        device.capture_gap = "" if configured else SHOW_ONLY_GAP
         return device, None
     if found["kind"] in ("firewall", "lb"):
         return None, {"file": name, "reason": f"This looks like {_article(found['label'])} {found['label']}. Topology Builder draws from switch and router captures (CDP/LLDP neighbors, ARP, MAC table); MikroTik and other load balancer files are not drawn yet (FortiGate, Palo Alto and F5 BIG-IP configurations are)."}
@@ -137,6 +151,10 @@ def _read_one(name: str, text: str) -> tuple[Device | list[Device] | None, dict[
     except Exception:
         pass
     device.l3facts = facts
+    try:
+        device.ifparams = ifparams.read(text, result, device.vendor)       # MTU, OSPF hello / dead / area / network type of each interface
+    except Exception:           # the parameter checks are an addition: a capture this reader cannot use keeps its other facts
+        device.ifparams = {}
     if facts.get("interfaces") and not device.l3:
         device.l3 = facts["interfaces"]
     device.capture_gap = capture_gap(text)
@@ -160,6 +178,8 @@ def read_devices(files: list[tuple[str, str]]) -> tuple[list[Device], list[dict[
     devices: list[Device] = []
     skipped: list[dict[str, str]] = []
     merged = _merge_f5(files)
+    from .panolink import link_files
+    merged, pano_info = link_files(merged)                       # firewalls of a Panorama are read together with their template stack
     total = max(sum(len(text) for _, text in merged), 1)         # the bar follows the bytes: a 4 MB capture is most of the time
     done = 0
     for number, (name, text) in enumerate(merged, 1):
@@ -184,6 +204,9 @@ def read_devices(files: list[tuple[str, str]]) -> tuple[list[Device], list[dict[
             devices.append(copy.deepcopy(device))
         done += len(text)
     progress.report("read", 1.0, f"{len(merged)} capture(s) read")
+    if pano_info.panoramas:
+        from .panolink import apply as apply_panorama
+        devices = apply_panorama(devices, pano_info)
     return _drop_replaced_guests(devices), skipped
 
 
@@ -216,8 +239,9 @@ def grouping_notices(graph: Graph, group: str, pages: list) -> list[str]:
     mode = auto_mode(graph)
     if mode != "none":
         sites = len(groups_of(graph, mode, follow=False))
+        how = "by the hostname families and the cables" if mode not in PREFIX_WORDS else f"by the first {PREFIX_WORDS[mode]} hostname word{'s' if PREFIX_WORDS[mode] > 1 else ''}"
         return [f"The single diagram is {size}, too large to read on a screen or to print as one picture. Choose the grouping \"Automatic\": it would give an Overview of {sites} sites "
-                f"and one page per site (grouped by the first {PREFIX_WORDS[mode]} hostname word{'s' if PREFIX_WORDS[mode] > 1 else ''}), and every cable stays in the tables."]
+                f"and one page per site (grouped {how}), and every cable stays in the tables."]
     return [f"The single diagram is {size}, too large to read on a screen or to print as one picture, and the hostnames give no readable sites to group by. "
             "Build the captures of each site (or each building) as a separate run, or pick \"Group by first hostname word\" or \"first two words\" if your names carry the site."]
 
@@ -227,7 +251,7 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
                    layout: dict[str, dict[str, tuple[float, float]]] | None = None, line_style: str = "state",
                    view: str = "both", hide_mgmt: bool = True, previous: list[Device] | None = None,
                    collapse_aps: bool | None = None, exclude_endpoints: bool = False, infer_neighbors_from_arp: bool = True,
-                   name: str = "", created: _dt.datetime | None = None, provider_hints: str = "", line_shape: str = "angled", show_link_ips: bool = True, overlay_sites: str = "captured", focus_sites: str = "", group_gateways: bool = True, group_endpoints: bool = True,
+                   name: str = "", created: _dt.datetime | None = None, provider_hints: str = "", site_rules: str = "", line_shape: str = "angled", show_link_ips: bool = True, bundle_members: bool = True, overlay_sites: str = "captured", focus_sites: str = "", group_gateways: bool = True, group_endpoints: bool = True,
                    devices: list[Device] | None = None) -> dict[str, Any]:
     """``collapse_endpoints`` folds IP phones and hosts into one node per switch; ``collapse_aps`` does the same for access points
     (default: as ``collapse_endpoints``, so older callers keep their picture).  ``exclude_endpoints`` leaves phones, hosts and servers
@@ -247,6 +271,10 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
         graph.hidden_kinds.add("mgmt")
     fill_addresses_from_arp(graph)
     roles.classify(graph)
+    seen_through = through_apply(graph)            # end points listed on a port that faces a switch (CDP flooded by a switch that does not speak it) are not plugged into this switch
+    if seen_through:
+        graph.issues += seen_through
+        roles.classify(graph)
     if infer_neighbors_from_arp:
         found = infer_neighbors(graph) + assume_f5_neighbors(graph) + assume_pan_ha(graph)
         graph.issues += found
@@ -257,6 +285,8 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
         graph.issues += infer_routed(graph)
     if show_link_ips:
         annotate_link_ips(graph)
+    if bundle_members:
+        annotate_members(graph)
     fold = {"phone", "host"} if collapse_endpoints else set()
     if collapse_endpoints if collapse_aps is None else collapse_aps:
         fold.add("ap")
@@ -270,6 +300,7 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
         hide_endpoints(graph)
     graph.group_endpoints = bool(group_endpoints and not exclude_endpoints and not collapse_endpoints)
     graph.group_aps = not (collapse_endpoints if collapse_aps is None else collapse_aps)         # access points drawn one by one are framed per switch, whatever the option for the other end points says
+    graph.site_rules = parse_site_rules(site_rules)                  # "Label = start, start": the engineer's own sites, applied on top of every grouping
     used = auto_mode(graph) if group == "auto" else group          # the grouping that was applied
     curved = line_shape == "curved"
     progress.report("pages", 0.0, "Placing devices")
@@ -320,13 +351,13 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
     kept = sum(page.kept for page in pages)
     shown = {"physical": pages, "logical": twins or pages, "both": pages + twins, "ip": ip_pages or pages, "l3route": l3_pages or pages, "l3over2": l3_pages or pages,
              "f5map": f5_maps or pages, "all": all_views_order(l3_pages, l3_extra, ip_pages, pages, twins, f5_maps)}.get(view, pages + twins)
-    settings = {"tool_version": _tool_version(), "name": name, "created": (created or _dt.datetime.now()).strftime("%Y-%m-%d %H:%M:%S"), "group": group, "group_used": used, "view": view,
-                "line_style": line_style, "line_shape": line_shape, "show_link_ips": show_link_ips, "exclude_endpoints": exclude_endpoints, "collapse_endpoints": collapse_endpoints, "group_endpoints": graph.group_endpoints,
+    settings = {"tool_version": _tool_version(), "name": name, "created": (created or _dt.datetime.now()).strftime("%Y-%m-%d %H:%M:%S"), "group": group, "group_used": used, "group_reason": auto_reason(graph, used) if group == "auto" else "", "layout_check": score_pages(pages), "site_rules": len(graph.site_rules), "view": view,
+                "line_style": line_style, "line_shape": line_shape, "show_link_ips": show_link_ips, "bundle_members": bundle_members, "exclude_endpoints": exclude_endpoints, "collapse_endpoints": collapse_endpoints, "group_endpoints": graph.group_endpoints,
                 "collapse_aps": collapse_endpoints if collapse_aps is None else collapse_aps, "show_ports": show_ports,
                 "infer_neighbors": infer_neighbors_from_arp, "include_routed": include_routed, "hide_mgmt": hide_mgmt, "include_hosts": include_hosts,
                 "previous_state": bool(previous), "keep_layout": bool(layout), "provider_hints": len(parse_hints(provider_hints)), "overlay_sites": focus.mode, "focus_sites": ", ".join(focus.sites), "group_gateways": group_gateways}
     return {
-        "settings": settings, "notices": notices, "graph": graph, "pages": pages, "logical_pages": twins, "ip_pages": ip_pages, "l3_pages": l3_pages, "l3_links": l3_links, "l3_routes": l3_routes, "l3_unresolved": l3_unresolved, "l3_overlay": l3_overlay, "l3_sites": l3_sites, "l3_trace": l3_trace, "findings": findings, "findings_by_device": findings_by_device(graph, findings), "skipped": skipped,
+        "settings": settings, "notices": notices, "group_reason": settings["group_reason"], "layout_scores": settings["layout_check"], "graph": graph, "pages": pages, "logical_pages": twins, "ip_pages": ip_pages, "l3_pages": l3_pages, "l3_links": l3_links, "l3_routes": l3_routes, "l3_unresolved": l3_unresolved, "l3_overlay": l3_overlay, "l3_sites": l3_sites, "l3_trace": l3_trace, "findings": findings, "findings_by_device": findings_by_device(graph, findings), "skipped": skipped,
         "drawio": to_drawio(graph, used, show_ports, shown, line_style, title=name, created=created),
         "svgs": [{"name": page.name, "view": page.view, "svg": to_svg(page, graph, show_ports, line_style)} for page in (shown if view == "all" else pages + twins + ip_pages + l3_pages + l3_extra + f5_maps)],
         "l3_extra_pages": l3_extra,

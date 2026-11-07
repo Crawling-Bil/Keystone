@@ -1,0 +1,233 @@
+HQ-ACC2#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], Catalyst L3 Switch Software (CAT9K_LITE_IOSXE), Version 17.9.4a
+cisco C9300-48P (X86) processor with 1392510K/6147K bytes of memory.
+Processor board ID FOC2412ACC2
+HQ-ACC2 uptime is 16 weeks, 2 days, 4 hours, 12 minutes
+
+HQ-ACC2#show inventory
+NAME: "Switch 1",  DESCR: "C9300-48P"
+PID: C9300-48P         ,  VID: V01 ,  SN: FOC2412ACC2
+
+HQ-ACC2#show running-config
+Building configuration...
+
+Current configuration : 9812 bytes
+!
+version 17.9
+service timestamps log datetime msec
+!
+hostname HQ-ACC2
+!
+no aaa new-model
+ip routing
+
+ip domain name demo.example.test
+lldp run
+cdp run
+!
+vlan 110
+ name HQ-USERS
+!
+vlan 199
+ name LAN-MGMT
+!
+interface Vlan199
+ description management
+ ip address 10.10.199.12 255.255.255.0
+!
+interface TenGigabitEthernet1/1/1
+ description to HQ-DS1 Te1/0/4
+ switchport mode trunk
+ switchport trunk native vlan 199
+ switchport trunk allowed vlan 110,199
+!
+interface TenGigabitEthernet1/1/2
+ description to HQ-DS2 Te1/0/4
+ switchport mode trunk
+ switchport trunk native vlan 199
+ switchport trunk allowed vlan 110,199
+!
+interface GigabitEthernet1/0/1
+ description HQ-PC3
+ switchport access vlan 110
+ switchport mode access
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/2
+ description HQ-PC4
+ switchport access vlan 110
+ switchport mode access
+ spanning-tree portfast
+!
+ip route 0.0.0.0 0.0.0.0 10.10.199.1
+line vty 0 15
+ transport input ssh
+!
+end
+
+HQ-ACC2#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        U - in use      N - not in use, no aggregation
+
+Number of channel-groups in use: 0
+Number of aggregators:           0
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+
+
+HQ-ACC2#show cdp neighbors detail
+-------------------------
+Device ID:HQ-DS1.demo.example.test
+Entry address(es): 
+  IP address: 10.10.199.21
+Platform: cisco C9500-24Y4C,  Capabilities: Switch IGMP
+Interface: TenGigabitEthernet1/1/1,  Port ID (outgoing port): TenGigabitEthernet1/0/4
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 199
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.199.21
+-------------------------
+Device ID:HQ-DS2.demo.example.test
+Entry address(es): 
+  IP address: 10.10.199.22
+Platform: cisco C9500-24Y4C,  Capabilities: Switch IGMP
+Interface: TenGigabitEthernet1/1/2,  Port ID (outgoing port): TenGigabitEthernet1/0/4
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 199
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.199.22
+
+HQ-ACC2#show lldp neighbors detail
+------------------------------------------------
+Local Intf: Te1/1/1
+Chassis id: 0a1b.0000.0063
+Port id: Te1/0/4
+Port Description: TenGigabitEthernet1/0/4
+System Name: HQ-DS1
+
+System Description: 
+C9500-24Y4C distribution
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.10.199.21
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Te1/1/2
+Chassis id: 0a1b.0000.0064
+Port id: Te1/0/4
+Port Description: TenGigabitEthernet1/0/4
+System Name: HQ-DS2
+
+System Description: 
+C9500-24Y4C distribution
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.10.199.22
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/1
+Chassis id: 02c0.0000.0a13
+Port id: 02c0.0000.0a13
+Port Description: 
+System Name: HQ-PC3
+
+System Description: 
+Demo workstation
+
+Time remaining: 108 seconds
+System Capabilities: O
+Enabled Capabilities: O
+Management Addresses:
+    IP: 10.10.110.103
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/2
+Chassis id: 02c0.0000.0a14
+Port id: 02c0.0000.0a14
+Port Description: 
+System Name: HQ-PC4
+
+System Description: 
+Demo workstation
+
+Time remaining: 108 seconds
+System Capabilities: O
+Enabled Capabilities: O
+Management Addresses:
+    IP: 10.10.110.104
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+
+Total entries displayed: 4
+HQ-ACC2#show interfaces status
+
+Port      Name               Status       Vlan       Duplex  Speed Type
+Te1/1/1   to HQ-DS1 Te1/0/4  connected    trunk      a-full  10G    10/100/1000BaseTX
+Te1/1/2   to HQ-DS2 Te1/0/4  connected    trunk      a-full  10G    10/100/1000BaseTX
+Gi1/0/1   HQ-PC3             connected    110        a-full  a-1000 10/100/1000BaseTX
+Gi1/0/2   HQ-PC4             connected    110        a-full  a-1000 10/100/1000BaseTX
+
+HQ-ACC2#show ip interface brief
+Interface                  IP-Address      OK? Method Status                Protocol
+Vlan199                   10.10.199.12    YES manual up                    up
+
+HQ-ACC2#show mac address-table
+          Mac Address Table
+-------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+ 110    02c0.0000.0a13    DYNAMIC     Gi1/0/1
+ 110    02c0.0000.0a14    DYNAMIC     Gi1/0/2
+Total Mac Addresses for this criterion: 2
+
+HQ-ACC2#show ip route
+Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP
+       D - EIGRP, O - OSPF, IA - OSPF inter area, E1/E2 - OSPF external type 1/2
+
+Gateway of last resort is 10.10.199.1 to network 0.0.0.0
+
+S*       0.0.0.0/0 [1/1] via 10.10.199.1, 3d04h, Vlan199
+
+HQ-ACC2#

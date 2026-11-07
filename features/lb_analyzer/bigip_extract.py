@@ -395,7 +395,21 @@ def vcmp_guests(tree: TmshTree) -> list[dict[str, Any]]:
     for node in tree.named("vcmp", "guest"):
         out.append({"name": node.name, "short": short(node.name), "hostname": node.val("hostname"), "management_ip": node.val("management-ip"), "management_gw": node.val("management-gw"),
                     "management_network": node.val("management-network"), "state": node.val("state"), "vlans": [canon(v) for v in node.names("vlans")], "cores_per_slot": node.val("cores-per-slot"),
-                    "slots": node.val("slots"), "allowed_slots": node.names("allowed-slots"), "initial_image": node.val("initial-image")})
+                    "slots": node.val("slots"), "allowed_slots": node.names("allowed-slots"), "initial_image": node.val("initial-image"),
+                    "assigned_slots": node.names("assigned-slots"), "preferred_slots": node.names("preferred-slots"), "virtual_disk": node.val("virtual-disk"), "ssl_mode": node.val("ssl-mode")})
+        # sym-unit-key is the guest's secret and is deliberately never read.
+    return out
+
+
+def interfaces(tree: TmshTree) -> list[dict[str, Any]]:
+    """Physical interfaces (``net interface <port> { ... }``): administrative state, media, bundling and LLDP.
+    Properties: https://clouddocs.f5.com/cli/tmsh-reference/v14/modules/net/net_interface.html"""
+    out = []
+    for node in tree.named("net", "interface"):
+        disabled = node.val("disabled", "").lower() in ("true", "yes") or node.child("disabled") is not None
+        out.append({"name": node.name, "short": short(node.name), "description": node.val("description"), "enabled": not disabled and node.val("enabled", "true").lower() != "false",
+                    "media_fixed": node.val("media-fixed"), "bundle": node.val("bundle"), "bundle_speed": node.val("bundle-speed"), "lldp_admin": node.val("lldp-admin"),
+                    "flow_control": node.val("flow-control"), "forward_error_correction": node.val("forward-error-correction"), "mtu": node.val("mtu"), "stp": node.val("stp"), "vendor": node.val("vendor")})
     return out
 
 
@@ -547,7 +561,7 @@ def extract(tree: TmshTree) -> dict[str, Any]:
         "info": device_info(tree, devs, sysd),
         "virtuals": virtuals(tree), "virtual_addresses": virtual_addresses(tree), "pools": pools(tree), "nodes": nodes(tree), "default_node_monitor": default_node_monitor(tree), "monitors": monitors(tree),
         "profiles": profiles(tree), "security_profiles": security_profiles(tree), "persistence": persistence_profiles(tree), "irules": irules(tree), "policies": policies(tree), "data_groups": data_groups(tree), **snat_data,
-        "vcmp_guests": vcmp_guests(tree), "vlans": vlans(tree), "selfs": selfs(tree), "routes": routes(tree), "trunks": trunks(tree), "route_domains": route_domains(tree),
+        "vcmp_guests": vcmp_guests(tree), "interfaces": interfaces(tree), "vlans": vlans(tree), "selfs": selfs(tree), "routes": routes(tree), "trunks": trunks(tree), "route_domains": route_domains(tree),
         "devices": devs, "device_groups": device_groups(tree), "traffic_groups": traffic_groups(tree),
         "sys": sysd, "auth": auth(tree), "certs": certificates(tree),
         "afm_policies": [short(n.name) for n in tree.named("security", "firewall", "policy")],

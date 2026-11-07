@@ -1,0 +1,316 @@
+HQ-DS1#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], Catalyst L3 Switch Software (CAT9K_LITE_IOSXE), Version 17.9.4a
+cisco C9500-24Y4C (X86) processor with 1392510K/6147K bytes of memory.
+Processor board ID FCW2412DS01
+HQ-DS1 uptime is 16 weeks, 2 days, 4 hours, 12 minutes
+
+HQ-DS1#show inventory
+NAME: "Switch 1",  DESCR: "C9500-24Y4C"
+PID: C9500-24Y4C       ,  VID: V01 ,  SN: FCW2412DS01
+
+HQ-DS1#show running-config
+Building configuration...
+
+Current configuration : 9812 bytes
+!
+version 17.9
+service timestamps log datetime msec
+!
+hostname HQ-DS1
+!
+no aaa new-model
+ip routing
+
+ip domain name demo.example.test
+lldp run
+cdp run
+!
+vlan 110
+ name HQ-USERS
+!
+vlan 199
+ name LAN-MGMT
+!
+interface Port-channel1
+ description inter-switch link DS1 - DS2
+ switchport mode trunk
+ switchport trunk allowed vlan 110,199
+!
+interface Vlan199
+ description management
+ ip address 10.10.199.21 255.255.255.0
+!
+interface TenGigabitEthernet1/0/1
+ description to HQ-FGLAN1 port3
+ switchport mode trunk
+ switchport trunk native vlan 199
+ switchport trunk allowed vlan 110,199
+!
+interface TenGigabitEthernet1/0/2
+ description to HQ-FGLAN2 port3
+ switchport mode trunk
+ switchport trunk native vlan 199
+ switchport trunk allowed vlan 110,199
+!
+interface TenGigabitEthernet1/0/23
+ description to HQ-DS2 Te1/0/23
+ switchport mode trunk
+ switchport trunk allowed vlan 110,199
+ channel-group 1 mode active
+!
+interface TenGigabitEthernet1/0/24
+ description to HQ-DS2 Te1/0/24
+ switchport mode trunk
+ switchport trunk allowed vlan 110,199
+ channel-group 1 mode active
+!
+interface TenGigabitEthernet1/0/3
+ description to HQ-ACC1 Te1/1/1
+ switchport mode trunk
+ switchport trunk native vlan 199
+ switchport trunk allowed vlan 110,199
+!
+interface TenGigabitEthernet1/0/4
+ description to HQ-ACC2 Te1/1/1
+ switchport mode trunk
+ switchport trunk native vlan 199
+ switchport trunk allowed vlan 110,199
+!
+ip route 0.0.0.0 0.0.0.0 10.10.199.1
+line vty 0 15
+ transport input ssh
+!
+end
+
+HQ-DS1#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        U - in use      N - not in use, no aggregation
+
+Number of channel-groups in use: 1
+Number of aggregators:           1
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+1      Po1(SU)         LACP      Te1/0/23(P)  Te1/0/24(P)
+
+HQ-DS1#show cdp neighbors detail
+-------------------------
+Device ID:HQ-DS2.demo.example.test
+Entry address(es): 
+  IP address: 10.10.199.22
+Platform: cisco C9500-24Y4C,  Capabilities: Switch IGMP
+Interface: TenGigabitEthernet1/0/23,  Port ID (outgoing port): TenGigabitEthernet1/0/23
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.199.22
+-------------------------
+Device ID:HQ-DS2.demo.example.test
+Entry address(es): 
+  IP address: 10.10.199.22
+Platform: cisco C9500-24Y4C,  Capabilities: Switch IGMP
+Interface: TenGigabitEthernet1/0/24,  Port ID (outgoing port): TenGigabitEthernet1/0/24
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.199.22
+-------------------------
+Device ID:HQ-ACC1.demo.example.test
+Entry address(es): 
+  IP address: 10.10.199.11
+Platform: cisco C9300-48P,  Capabilities: Switch IGMP
+Interface: TenGigabitEthernet1/0/3,  Port ID (outgoing port): TenGigabitEthernet1/1/1
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 199
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.199.11
+-------------------------
+Device ID:HQ-ACC2.demo.example.test
+Entry address(es): 
+  IP address: 10.10.199.12
+Platform: cisco C9300-48P,  Capabilities: Switch IGMP
+Interface: TenGigabitEthernet1/0/4,  Port ID (outgoing port): TenGigabitEthernet1/1/1
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 199
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.199.12
+
+HQ-DS1#show lldp neighbors detail
+------------------------------------------------
+Local Intf: Te1/0/1
+Chassis id: 0a1b.0000.0029
+Port id: port3
+Port Description: port3
+System Name: HQ-FGLAN1
+
+System Description: 
+FortiGate-200F firewall
+
+Time remaining: 108 seconds
+System Capabilities: R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 10.10.0.41
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Te1/0/2
+Chassis id: 0a1b.0000.002a
+Port id: port3
+Port Description: port3
+System Name: HQ-FGLAN2
+
+System Description: 
+FortiGate-200F firewall
+
+Time remaining: 108 seconds
+System Capabilities: R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 10.10.0.42
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Te1/0/23
+Chassis id: 0a1b.0000.0064
+Port id: Te1/0/23
+Port Description: TenGigabitEthernet1/0/23
+System Name: HQ-DS2
+
+System Description: 
+C9500-24Y4C distribution
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.10.199.22
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Te1/0/24
+Chassis id: 0a1b.0000.0064
+Port id: Te1/0/24
+Port Description: TenGigabitEthernet1/0/24
+System Name: HQ-DS2
+
+System Description: 
+C9500-24Y4C distribution
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.10.199.22
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Te1/0/3
+Chassis id: 0a1b.0000.0061
+Port id: Te1/1/1
+Port Description: TenGigabitEthernet1/1/1
+System Name: HQ-ACC1
+
+System Description: 
+C9300-48P access
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.10.199.11
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Te1/0/4
+Chassis id: 0a1b.0000.0062
+Port id: Te1/1/1
+Port Description: TenGigabitEthernet1/1/1
+System Name: HQ-ACC2
+
+System Description: 
+C9300-48P access
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.10.199.12
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+
+Total entries displayed: 6
+HQ-DS1#show interfaces status
+
+Port      Name               Status       Vlan       Duplex  Speed Type
+Te1/0/1   to HQ-FGLAN1 port3 connected    trunk      a-full  10G    10/100/1000BaseTX
+Te1/0/2   to HQ-FGLAN2 port3 connected    trunk      a-full  10G    10/100/1000BaseTX
+Te1/0/23  to HQ-DS2 Te1/0/23 connected    trunk      a-full  10G    10/100/1000BaseTX
+Te1/0/24  to HQ-DS2 Te1/0/24 connected    trunk      a-full  10G    10/100/1000BaseTX
+Te1/0/3   to HQ-ACC1 Te1/1/1 connected    trunk      a-full  10G    10/100/1000BaseTX
+Te1/0/4   to HQ-ACC2 Te1/1/1 connected    trunk      a-full  10G    10/100/1000BaseTX
+
+HQ-DS1#show ip interface brief
+Interface                  IP-Address      OK? Method Status                Protocol
+Vlan199                   10.10.199.21    YES manual up                    up
+
+HQ-DS1#show ip route
+Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP
+       D - EIGRP, O - OSPF, IA - OSPF inter area, E1/E2 - OSPF external type 1/2
+
+Gateway of last resort is 10.10.199.1 to network 0.0.0.0
+
+S*       0.0.0.0/0 [1/1] via 10.10.199.1, 3d04h, Vlan199
+
+HQ-DS1#

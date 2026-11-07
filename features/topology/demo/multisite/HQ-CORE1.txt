@@ -1,0 +1,456 @@
+HQ-CORE1# show version
+Cisco Nexus Operating System (NX-OS) Software
+Software
+  BIOS: version 05.47
+  NXOS: version 10.3(5) [Feature Release]
+Hardware
+  cisco Nexus9000 N9K-C93180YC-FX3 Chassis
+  Device name: HQ-CORE1
+  bootflash:  115805 MB
+Kernel uptime is 112 day(s), 4 hour(s), 31 minute(s), 9 second(s)
+
+HQ-CORE1# show inventory
+NAME: "Chassis",  DESCR: "Nexus9000 N9K-C93180YC-FX3 Chassis"
+PID: N9K-C93180YC-FX3  ,  VID: V01 ,  SN: FDO2412C0R1
+
+HQ-CORE1# show running-config
+!Command: show running-config
+version 10.3(5) Bios:version 05.47
+hostname HQ-CORE1
+vdc HQ-CORE1 id 1
+feature ospf
+feature interface-vlan
+feature lacp
+feature vpc
+feature lldp
+feature bfd
+
+ntp server 10.10.0.5 use-vrf management
+ip domain-name demo.example.test
+clock timezone WIB 7 0
+
+vlan 901
+  name TRANSIT-FW-LAN
+vlan 902
+  name TRANSIT-FW-DC
+vpc domain 10
+  peer-switch
+  role priority 100
+  peer-keepalive destination 10.10.0.12 source 10.10.0.11 vrf management
+  peer-gateway
+  auto-recovery
+  layer3 peer-router
+
+router ospf 1
+  router-id 10.10.255.1
+  log-adjacency-changes
+interface mgmt0
+  vrf member management
+  ip address 10.10.0.11/24
+interface loopback0
+  ip address 10.10.255.1/32
+  ip router ospf 1 area 0.0.0.0
+interface port-channel10
+  description vPC peer-link to HQ-CORE2
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 901-902
+  vpc peer-link
+  no shutdown
+interface port-channel111
+  description HQ-FGLAN1 agg-core
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 901
+  vpc 111
+  no shutdown
+interface port-channel112
+  description HQ-FGLAN2 agg-core
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 901
+  vpc 112
+  no shutdown
+interface port-channel113
+  description HQ-PADC1 ae2
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 902
+  vpc 113
+  no shutdown
+interface port-channel114
+  description HQ-PADC2 ae2
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 902
+  vpc 114
+  no shutdown
+interface Vlan901
+  description TRANSIT FortiGate LAN
+  no shutdown
+  ip address 10.10.251.2/29
+  ip ospf network broadcast
+  ip router ospf 1 area 0.0.0.0
+interface Vlan902
+  description TRANSIT Palo Alto DC
+  no shutdown
+  ip address 10.10.252.2/29
+  ip ospf network broadcast
+  ip router ospf 1 area 0.0.0.0
+interface Ethernet1/53
+  description to HQ-CORE2 Eth1/53
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 901-902
+  channel-group 10 mode active
+  no shutdown
+interface Ethernet1/54
+  description to HQ-CORE2 Eth1/54
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 901-902
+  channel-group 10 mode active
+  no shutdown
+interface Ethernet1/11
+  description HQ-FGLAN1 port1
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 901
+  channel-group 111 mode active
+  no shutdown
+interface Ethernet1/12
+  description HQ-FGLAN2 port1
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 901
+  channel-group 112 mode active
+  no shutdown
+interface Ethernet1/13
+  description HQ-PADC1 ethernet1/1
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 902
+  channel-group 113 mode active
+  no shutdown
+interface Ethernet1/14
+  description HQ-PADC2 ethernet1/1
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 902
+  channel-group 114 mode active
+  no shutdown
+interface Ethernet1/49
+  description HQ-EDGE1 Eth1/49 (routed /30)
+  no switchport
+  ip address 10.10.240.1/30
+  ip ospf network point-to-point
+  ip router ospf 1 area 0.0.0.0
+  no shutdown
+interface Ethernet1/50
+  description HQ-EDGE2 Eth1/49 (routed /30)
+  no switchport
+  ip address 10.10.240.5/30
+  ip ospf network point-to-point
+  ip router ospf 1 area 0.0.0.0
+  no shutdown
+
+HQ-CORE1# show port-channel summary
+Flags:  D - Down        P - Up in port-channel (members)
+        I - Individual  H - Hot-standby (LACP only)
+        s - Suspended   r - Module-removed
+        S - Switched    R - Routed
+        U - Up (port-channel)
+        M - Not in use. Min-links not met
+--------------------------------------------------------------------------------
+Group Port-       Type     Protocol  Member Ports
+      Channel
+--------------------------------------------------------------------------------
+10    Po10(SU)    Eth      LACP      Eth1/53(P)    Eth1/54(P)
+111   Po111(SU)    Eth      LACP      Eth1/11(P)
+112   Po112(SU)    Eth      LACP      Eth1/12(P)
+113   Po113(SU)    Eth      LACP      Eth1/13(P)
+114   Po114(SU)    Eth      LACP      Eth1/14(P)
+
+HQ-CORE1# show vpc
+
+Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 10
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 4
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ -------------------------------------------------
+1     Po10    up     901,902
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ------------
+111   Po111          up     success     success               901
+112   Po112          up     success     success               901
+113   Po113          up     success     success               902
+114   Po114          up     success     success               902
+
+HQ-CORE1# show cdp neighbors detail
+-------------------------
+Device ID:HQ-CORE2(FDO2412C0R2)
+Entry address(es): 
+  IP address: 10.10.0.12
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: Ethernet1/53,  Port ID (outgoing port): Ethernet1/53
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.12
+-------------------------
+Device ID:HQ-CORE2(FDO2412C0R2)
+Entry address(es): 
+  IP address: 10.10.0.12
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: Ethernet1/54,  Port ID (outgoing port): Ethernet1/54
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.12
+-------------------------
+Device ID:HQ-EDGE1(FDO2412ED1)
+Entry address(es): 
+  IP address: 10.10.0.13
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: Ethernet1/49,  Port ID (outgoing port): Ethernet1/49
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.13
+-------------------------
+Device ID:HQ-EDGE2(FDO2412ED2)
+Entry address(es): 
+  IP address: 10.10.0.14
+Platform: cisco N9K-C93180YC-FX3,  Capabilities: Router Switch IGMP Filtering Supports-STP-Dispute
+Interface: Ethernet1/50,  Port ID (outgoing port): Ethernet1/49
+Holdtime : 150 sec
+
+Version :
+Cisco Nexus Operating System
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.10.0.14
+
+HQ-CORE1# show lldp neighbors detail
+Capability codes:
+  (R) Router, (B) Bridge, (T) Telephone, (C) DOCSIS Cable Device
+  (W) WLAN Access Point, (P) Repeater, (S) Station, (O) Other
+Device ID            Local Intf      Hold-time  Capability  Port ID
+
+Chassis id: 0a1b.0000.0002
+Port id: Ethernet1/53
+Local Port id: Eth1/53
+Port Description: to HQ-CORE2 Eth1/53
+System Name: HQ-CORE2
+System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(5)
+Time remaining: 112 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 10.10.0.12
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.0002
+Port id: Ethernet1/54
+Local Port id: Eth1/54
+Port Description: to HQ-CORE2 Eth1/54
+System Name: HQ-CORE2
+System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(5)
+Time remaining: 112 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 10.10.0.12
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.0029
+Port id: port1
+Local Port id: Eth1/11
+Port Description: HQ-FGLAN1 port1
+System Name: HQ-FGLAN1
+System Description: FortiGate-200F v7.2.8,build1639,240123 (GA.M)
+Time remaining: 112 seconds
+System Capabilities: R
+Enabled Capabilities: R
+Management Address: 10.10.0.41
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.002a
+Port id: port1
+Local Port id: Eth1/12
+Port Description: HQ-FGLAN2 port1
+System Name: HQ-FGLAN2
+System Description: FortiGate-200F v7.2.8,build1639,240123 (GA.M)
+Time remaining: 112 seconds
+System Capabilities: R
+Enabled Capabilities: R
+Management Address: 10.10.0.42
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.0031
+Port id: ethernet1/1
+Local Port id: Eth1/13
+Port Description: HQ-PADC1 ethernet1/1
+System Name: HQ-PADC1
+System Description: Palo Alto Networks PA-5220 firewall
+Time remaining: 112 seconds
+System Capabilities: R
+Enabled Capabilities: R
+Management Address: 10.10.0.31
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.0032
+Port id: ethernet1/1
+Local Port id: Eth1/14
+Port Description: HQ-PADC2 ethernet1/1
+System Name: HQ-PADC2
+System Description: Palo Alto Networks PA-5220 firewall
+Time remaining: 112 seconds
+System Capabilities: R
+Enabled Capabilities: R
+Management Address: 10.10.0.32
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.0003
+Port id: Ethernet1/49
+Local Port id: Eth1/49
+Port Description: HQ-EDGE1 Eth1/49 (routed /30)
+System Name: HQ-EDGE1
+System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(5)
+Time remaining: 112 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 10.10.0.13
+Vlan ID: 1
+
+Chassis id: 0a1b.0000.0004
+Port id: Ethernet1/49
+Local Port id: Eth1/50
+Port Description: HQ-EDGE2 Eth1/49 (routed /30)
+System Name: HQ-EDGE2
+System Description: Cisco Nexus Operating System (NX-OS) Software 10.3(5)
+Time remaining: 112 seconds
+System Capabilities: B, R
+Enabled Capabilities: B, R
+Management Address: 10.10.0.14
+Vlan ID: 1
+
+
+HQ-CORE1# show interface status
+--------------------------------------------------------------------------------
+Port          Name               Status    Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+Eth1/53       to HQ-CORE2 Eth1/  connected trunk     full    100G    QSFP-100G-SR4
+Eth1/54       to HQ-CORE2 Eth1/  connected trunk     full    100G    QSFP-100G-SR4
+Eth1/11       HQ-FGLAN1 port1    connected trunk     full    10G     10Gbase-SR
+Eth1/12       HQ-FGLAN2 port1    connected trunk     full    10G     10Gbase-SR
+Eth1/13       HQ-PADC1 ethernet  connected trunk     full    10G     10Gbase-SR
+Eth1/14       HQ-PADC2 ethernet  connected trunk     full    10G     10Gbase-SR
+Eth1/49       HQ-EDGE1 Eth1/49   connected routed    full    100G    QSFP-100G-SR4
+Eth1/50       HQ-EDGE2 Eth1/49   connected routed    full    100G    QSFP-100G-SR4
+
+HQ-CORE1# show ip interface brief
+IP Interface Status for VRF "default"(1)
+Interface            IP Address      Interface Status
+Lo0            10.10.255.1     protocol-up/link-up/admin-up
+Vlan901       10.10.251.2     protocol-up/link-up/admin-up
+Vlan902       10.10.252.2     protocol-up/link-up/admin-up
+Eth1/49       10.10.240.1     protocol-up/link-up/admin-up
+Eth1/50       10.10.240.5     protocol-up/link-up/admin-up
+
+HQ-CORE1# show ip arp
+Flags: * - Adjacencies learnt on non-active FHRP router
+
+Address         Age       MAC Address     Interface       Flags
+10.10.251.1     00:01:10  0a1b.0000.0029  Vlan901
+10.10.252.1     00:01:10  0a1b.0000.0031  Vlan902
+
+HQ-CORE1# show ip route
+IP Route Table for VRF "default"
+'*' denotes best ucast next-hop
+'**' denotes best mcast next-hop
+'[x/y]' denotes [preference/metric]
+
+10.10.110.0/24, ubest/mbest: 1/0
+    *via 10.10.251.1, Vlan901, [110/20], 5d02h, ospf-1, intra
+10.10.199.0/24, ubest/mbest: 1/0
+    *via 10.10.251.1, Vlan901, [110/20], 5d02h, ospf-1, intra
+10.10.101.0/24, ubest/mbest: 1/0
+    *via 10.10.252.1, Vlan902, [110/20], 5d02h, ospf-1, intra
+10.10.102.0/24, ubest/mbest: 1/0
+    *via 10.10.252.1, Vlan902, [110/20], 5d02h, ospf-1, intra
+10.10.103.0/24, ubest/mbest: 1/0
+    *via 10.10.252.1, Vlan902, [110/20], 5d02h, ospf-1, intra
+0.0.0.0/0, ubest/mbest: 2/0
+    *via 10.10.240.2, Eth1/49, [110/1], 5d02h, ospf-1, E2
+    *via 10.10.240.6, Eth1/50, [110/1], 5d02h, ospf-1, E2
+10.101.0.0/16, ubest/mbest: 2/0
+    *via 10.10.240.2, Eth1/49, [110/100], 5d02h, ospf-1, E2
+    *via 10.10.240.6, Eth1/50, [110/100], 5d02h, ospf-1, E2
+10.102.0.0/16, ubest/mbest: 2/0
+    *via 10.10.240.2, Eth1/49, [110/100], 5d02h, ospf-1, E2
+    *via 10.10.240.6, Eth1/50, [110/100], 5d02h, ospf-1, E2
+10.103.0.0/16, ubest/mbest: 2/0
+    *via 10.10.240.2, Eth1/49, [110/100], 5d02h, ospf-1, E2
+    *via 10.10.240.6, Eth1/50, [110/100], 5d02h, ospf-1, E2
+10.104.0.0/16, ubest/mbest: 2/0
+    *via 10.10.240.2, Eth1/49, [110/100], 5d02h, ospf-1, E2
+    *via 10.10.240.6, Eth1/50, [110/100], 5d02h, ospf-1, E2
+10.105.0.0/16, ubest/mbest: 2/0
+    *via 10.10.240.2, Eth1/49, [110/100], 5d02h, ospf-1, E2
+    *via 10.10.240.6, Eth1/50, [110/100], 5d02h, ospf-1, E2
+10.106.0.0/16, ubest/mbest: 2/0
+    *via 10.10.240.2, Eth1/49, [110/100], 5d02h, ospf-1, E2
+    *via 10.10.240.6, Eth1/50, [110/100], 5d02h, ospf-1, E2
+
+HQ-CORE1# show ip ospf neighbors
+ OSPF Process ID 1 VRF default
+ Total number of neighbors: 6
+ Neighbor ID     Pri State            Up Time  Address         Interface
+ 10.10.255.3       1 FULL/ -          5d02h    10.10.240.2     Eth1/49
+ 10.10.255.4       1 FULL/ -          5d02h    10.10.240.6     Eth1/50
+ 10.10.255.2       1 FULL/ -          5d02h    10.10.251.3     Vlan901
+ 10.10.255.2       1 FULL/ -          5d02h    10.10.252.3     Vlan902
+ 10.10.255.11      1 FULL/ -          5d02h    10.10.251.1     Vlan901
+ 10.10.255.21      1 FULL/ -          5d02h    10.10.252.1     Vlan902
+
+HQ-CORE1# 

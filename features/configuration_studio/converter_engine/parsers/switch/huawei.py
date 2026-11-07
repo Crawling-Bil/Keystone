@@ -165,6 +165,11 @@ class HuaweiSwitchParser:
 
             if line.startswith("ip route-static "):
                 parts = line.split()
+                # "ip route-static vpn-instance <name> <dest> <mask> <next-hop>": the VPN instance name used to be read as the destination.
+                route_vrf = ""
+                if len(parts) >= 4 and parts[2].lower() == "vpn-instance":
+                    route_vrf = parts[3]
+                    parts = parts[:2] + parts[4:]
                 if len(parts) >= 5:
                     destination, mask, next_hop = parts[2], parts[3], parts[4]
 
@@ -197,6 +202,7 @@ class HuaweiSwitchParser:
                             next_hop=next_hop,
                             distance=distance,
                             track_id=track_id,
+                            vrf=route_vrf,
                         )
                     )
                 continue

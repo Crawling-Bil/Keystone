@@ -60,6 +60,7 @@ class AnalyzerSpec:
     max_upload_bytes: int = 1536 * 1024 * 1024      # request-size ceiling when read_upload is set
     # Optional hook run on all uploads before they are analyzed: (name, content) pairs in, pairs out (e.g. an F5 UCS and the capture of the same unit become one).
     merge_sources: Callable[[list[tuple[str, Any]]], list[tuple[str, Any]]] | None = None
+    max_files: int = 0              # files per analysis; 0 = the shared default (MAX_FILES)
 
 
 def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
@@ -114,8 +115,9 @@ def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
             return jsonify({"ok": False, "error": read_errors[0]["error"], "errors": read_errors}), 400
         if not sources:
             return jsonify({"ok": False, "error": "Upload a capture file or paste the command output first."}), 400
-        if len(sources) > MAX_FILES:
-            return jsonify({"ok": False, "error": f"At most {MAX_FILES} files per analysis."}), 400
+        limit = spec.max_files or MAX_FILES
+        if len(sources) > limit:
+            return jsonify({"ok": False, "error": f"At most {limit} files per analysis."}), 400
         if spec.merge_sources:
             sources = spec.merge_sources(sources)
 
@@ -178,7 +180,7 @@ def create_analyzer_blueprint(spec: AnalyzerSpec) -> Blueprint:
 
     @bp.get("/download/<export_id>")
     def download(export_id: str):
-        if not SAFE_IDENTIFIER.match(export_id):
+        if not SAFE_IDENTIFIER.fullmatch(export_id):
             return jsonify({"ok": False, "error": "Invalid export id."}), 400
         name = secure_filename(request.args.get("name", "")) or f"{export_id}.xlsx"
         return send_from_directory(export_dir, f"{export_id}.xlsx", as_attachment=True, download_name=name)
