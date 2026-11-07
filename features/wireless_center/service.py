@@ -12,6 +12,7 @@ from .parsers.config_parser import HuaweiConfigParser
 from .inventory_master import compare_inventory, read_inventory
 from .summaries import build_ap_device_summary
 from features.analyzer_core.redaction import redact_line
+from . import radio_planning
 
 
 def detect_vendor(content: str) -> str:
@@ -192,6 +193,7 @@ def analyze(content: str, vendor: str = "Auto Detect", inventory_path: Path | No
         "assessment": assessment,
         "status_counts": status_counts,
         "ap_device_summary": ap_device_summary,
+        "radio_planning": radio_planning.plan(content) if resolved_vendor.lower() == "huawei" else {},
         "cards": {
             "total_aps": len(data.get("aps", [])),
             "unique_ssids": len(unique_ssids),

@@ -19,7 +19,32 @@ from .config_delta import compare_configs
 from .exporters.ap_role_exporter import export_ap_role_diff
 from .exporters.delta_exporter import export_delta_comparison
 from .inventory_master import export_as_built, read_inventory, template_csv
-from .service import analyze, export_excel
+from .service import analyze, detect_vendor, export_excel
+from .cisco import analyze as cisco_analyze
+from .cisco import export as cisco_export
+from .cisco.showtech import running_config, split_commands
+
+VENDORS = {"huawei": "Huawei", "cisco": "Cisco"}
+
+
+def _vendor(value: str | None) -> str:
+    vendor = VENDORS.get((value or "").strip().lower())
+    if not vendor:
+        raise ValueError("Pick the controller first: Huawei or Cisco 9800.")
+    return vendor
+
+
+def _check_vendor(content: str, vendor: str, role: str = "The file") -> None:
+    found = detect_vendor(content)
+    if found != vendor:
+        raise ValueError(f"{role} looks like a {found} controller, but this workspace is {vendor}. Open the {found} workspace or upload the {vendor} file.")
+
+
+def _config_only(content: str) -> str:
+    """show tech-support wireless carries a running-config section; the delta
+    compares that section only."""
+    commands = split_commands(content)
+    return running_config(content, commands) or content
 
 bp = Blueprint("wireless", __name__, url_prefix="/wireless")
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -126,12 +151,12 @@ def analyze_route():
         temp_files.append(inventory_path)
 
     try:
-        result = analyze(
-            content,
-            request.form.get("vendor", "Auto Detect"),
-            inventory_path,
-            request.form.get("deployment_mode", "existing"),
-        )
+        vendor = _vendor(request.form.get("vendor"))
+        _check_vendor(content, vendor)
+        if vendor == "Cisco":
+            result = cisco_analyze.analyze(content, inventory_path, request.form.get("deployment_mode", "existing"))
+        else:
+            result = analyze(content, "Huawei", inventory_path, request.form.get("deployment_mode", "existing"))
         analysis_id = uuid.uuid4().hex
         payload_path = ANALYSIS_DIR / f"{analysis_id}.json"
         payload_path.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
@@ -149,7 +174,8 @@ def analyze_route():
         return jsonify({"ok": True, "result": result})
     except Exception as exc:
         log_activity("Wireless Center", "Analysis failed", f"{type(exc).__name__}: {exc}", "error")
-        return jsonify({"ok": False, "error": f"{type(exc).__name__}: {exc}"}), 400
+        message = str(exc) if isinstance(exc, ValueError) else f"{type(exc).__name__}: {exc}"
+        return jsonify({"ok": False, "error": message}), 400
     finally:
         for path in temp_files:
             try:
@@ -185,11 +211,12 @@ def compare_route():
                 raise ValueError(f"The {role} configuration file is empty.")
             names[role] = safe_name
 
-        result = compare_configs(
-            contents["Source"],
-            contents["Target"],
-            request.form.get("vendor", "Auto Detect"),
-        )
+        vendor = _vendor(request.form.get("vendor"))
+        for role in ("Source", "Target"):
+            _check_vendor(contents[role], vendor, f"The {role} file")
+            if vendor == "Cisco":
+                contents[role] = _config_only(contents[role])
+        result = compare_configs(contents["Source"], contents["Target"], vendor)
         comparison_id = uuid.uuid4().hex
         result.update({
             "comparison_id": comparison_id,
@@ -259,9 +286,10 @@ def compare_ap_roles_route():
                 raise ValueError("Expected allocation file is empty.")
             allocation = read_expected_allocation(allocation_path, a_name, b_name)
 
-        a_inventory = read_ap_state(state_paths["A"], a_name)
-        b_inventory = read_ap_state(state_paths["B"], b_name)
-        result = compare_ap_roles(a_inventory, b_inventory, allocation)
+        vendor = _vendor(request.form.get("vendor") or "Huawei")
+        a_inventory = read_ap_state(state_paths["A"], a_name, vendor)
+        b_inventory = read_ap_state(state_paths["B"], b_name, vendor)
+        result = compare_ap_roles(a_inventory, b_inventory, allocation, vendor)
         comparison_id = uuid.uuid4().hex
         result.update({
             "comparison_id": comparison_id,
@@ -371,7 +399,12 @@ def export(analysis_id: str):
         return "Analysis result not found", 404
     payload = json.loads(payload_path.read_text(encoding="utf-8"))
     export_path = EXPORT_DIR / f"{analysis_id}.xlsx"
-    export_excel(payload["data"], export_path)
+    if payload.get("vendor") == "Cisco":
+        cisco_export.export(payload, export_path)
+    else:
+        export_excel(payload["data"], export_path)
+        from .radio_planning import add_sheets
+        add_sheets(export_path, payload.get("radio_planning") or {})
     hostname = payload.get("data", {}).get("wlc", {}).get("hostname", "WLC") or "WLC"
     download_name = secure_filename(f"{hostname}_Wireless_Analysis.xlsx")
     log_activity("Wireless Center", "Excel report exported", download_name)

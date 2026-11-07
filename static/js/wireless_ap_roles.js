@@ -180,7 +180,7 @@
   function renderResult(result) {
     const summary = result.summary || {};
     const metrics = [
-      ["Total AP", summary.total_aps], ["AP Groups", summary.ap_groups],
+      ["Total AP", summary.total_aps], [summary.vendor === "Cisco" ? "Policy Tags" : "AP Groups", summary.ap_groups],
       ["Active Controller A", summary.active_a], ["Active Controller B", summary.active_b],
       ["Healthy Pairs", summary.healthy_pairs], ["Role Issues", summary.role_issues],
       ["Group Mismatch", summary.group_mismatch], ["Critical", summary.critical],
@@ -216,7 +216,7 @@
     renderGroupSummary();
     renderGroupRows();
     const groupMetrics = [
-      ["AP Groups", summary.ap_groups], ["Matched", summary.group_matched],
+      [summary.vendor === "Cisco" ? "Policy Tags" : "AP Groups", summary.ap_groups], ["Matched", summary.group_matched],
       ["Mismatch", summary.group_mismatch], ["Peer Missing", summary.peer_group_missing],
     ];
     document.getElementById("ap-role-group-metrics").innerHTML = groupMetrics.map(([label, value]) => `<div><span>${esc(label)}</span><strong>${esc(value ?? 0)}</strong></div>`).join("");

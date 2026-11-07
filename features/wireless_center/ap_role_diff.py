@@ -33,6 +33,7 @@ STATUS_MAP = {
     "nor": "Normal",
     "normal": "Normal",
     "joined": "Normal",
+    "registered": "Normal",
     "standby": "Standby",
     "stdby": "Standby",
     "idle": "Idle",
@@ -254,8 +255,29 @@ def _parse_display_ap_all(path: Path) -> list[dict[str, str]]:
     return records
 
 
-def read_ap_state(path: Path, label: str) -> dict[str, Any]:
+def _read_cisco_capture(path: Path, label: str) -> dict[str, Any]:
+    """Cisco 9800: `show tech-support wireless`, or a capture with
+    `show ap summary` (and ideally `show ap tag summary`). The Policy Tag
+    stands in for the AP group; Site and RF Tag are compared too."""
+    from .cisco import parser9800
+
+    model = parser9800.parse(path.read_text(encoding="utf-8", errors="ignore"))
+    raw = [{
+        "ap_id": "", "name": ap.get("name", ""), "mac": ap.get("mac", ""), "serial": ap.get("serial", ""),
+        "ip": ap.get("ip", ""), "group": ap.get("policy_tag", ""), "model": ap.get("model", ""),
+        "version": ap.get("version", ""), "status": ap.get("state", ""), "location": ap.get("location", ""),
+        "site_tag": ap.get("site_tag", ""), "rf_tag": ap.get("rf_tag", ""),
+    } for ap in model["aps"] if ap.get("state") not in {"Not joined", "Configured"}]
+    if not raw:
+        raise ValueError(f"{label}: no registered AP found. Use show tech-support wireless or show ap summary.")
+    records, issues = _deduplicate(raw, label)
+    return {"label": label, "records": records, "issues": issues, "source_type": model["source_kind"], "vendor": "Cisco"}
+
+
+def read_ap_state(path: Path, label: str, vendor: str = "Huawei") -> dict[str, Any]:
     suffix = path.suffix.casefold()
+    if vendor.lower() == "cisco" and suffix in {".txt", ".log"}:
+        return _read_cisco_capture(path, label)
     if suffix in {".txt", ".log"}:
         raw_records = _parse_display_ap_all(path)
         if not raw_records:
@@ -430,15 +452,30 @@ def _mapping_group(a_group: Any, b_group: Any) -> tuple[str, str]:
     return "Unassigned", "None"
 
 
-def _row(a: dict[str, Any] | None, b: dict[str, Any] | None, match_method: str) -> dict[str, Any]:
+def _cisco_role(a_status: str, b_status: str) -> tuple[str, str, str]:
+    """9800 N+1 or SSO: an AP is registered on exactly one controller and
+    absent from the other. There is no standby AP state."""
+    a_up, b_up = _state_class(a_status) == "active", _state_class(b_status) == "active"
+    if a_up and b_up:
+        return "Dual Active", "Both", "Critical"
+    if a_up:
+        return "Active A", "A", "Healthy"
+    if b_up:
+        return "Active B", "B", "Healthy"
+    return "AP Not Operational", "None", "Critical"
+
+
+def _row(a: dict[str, Any] | None, b: dict[str, Any] | None, match_method: str, vendor: str = "Huawei") -> dict[str, Any]:
     a = a or {}
     b = b or {}
     a_status = normalize_status(a.get("status")) if a else "Missing"
     b_status = normalize_status(b.get("status")) if b else "Missing"
-    role, active_wlc, role_severity = _role(a_status, b_status)
+    cisco = vendor.lower() == "cisco"
+    role, active_wlc, role_severity = (_cisco_role if cisco else _role)(a_status, b_status)
     mismatch_labels = {
         "name": "AP Name", "mac": "MAC", "serial": "Serial", "ip": "IP",
-        "group": "AP Group", "model": "AP Model", "version": "Software Version",
+        "group": "Policy Tag" if cisco else "AP Group", "model": "AP Model", "version": "Software Version",
+        **({"site_tag": "Site Tag", "rf_tag": "RF Tag"} if cisco else {}),
     }
     mismatches = [
         label for field, label in mismatch_labels.items()
@@ -446,6 +483,8 @@ def _row(a: dict[str, Any] | None, b: dict[str, Any] | None, match_method: str) 
     ]
     reference = a or b
     group_status = _group_mapping_status(a.get("group"), b.get("group"))
+    if cisco and (not a or not b):
+        group_status = "Matched" if (a or b).get("group") else "Unassigned"
     mapping_group, mapping_group_source = _mapping_group(a.get("group"), b.get("group"))
     group_warning = group_status in {"Group Mismatch", "Peer Group Missing"}
     severity = role_severity if role_severity != "Healthy" else ("Warning" if mismatches or group_warning else "Healthy")
@@ -476,7 +515,9 @@ def _row(a: dict[str, Any] | None, b: dict[str, Any] | None, match_method: str) 
         "severity": severity,
         "attribute_mismatches": mismatches,
         "attribute_mismatch": bool(mismatches),
-        "missing_peer": not a or not b,
+        "missing_peer": (not a or not b) and not cisco,
+        "a_site_tag": a.get("site_tag", ""), "b_site_tag": b.get("site_tag", ""),
+        "a_rf_tag": a.get("rf_tag", ""), "b_rf_tag": b.get("rf_tag", ""),
         "expected_active": "",
         "allocation_status": "Not provided",
     }
@@ -564,6 +605,7 @@ def compare_ap_roles(
     a_inventory: dict[str, Any],
     b_inventory: dict[str, Any],
     allocation: dict[str, Any] | None = None,
+    vendor: str = "Huawei",
 ) -> dict[str, Any]:
     a_records = a_inventory.get("records", [])
     b_records = b_inventory.get("records", [])
@@ -573,13 +615,13 @@ def compare_ap_roles(
     for a in a_records:
         b_index, match_method = _find_match(a, b_records, b_indexes, used_b)
         if b_index is None:
-            rows.append(_row(a, None, ""))
+            rows.append(_row(a, None, "", vendor))
         else:
             used_b.add(b_index)
-            rows.append(_row(a, b_records[b_index], match_method))
+            rows.append(_row(a, b_records[b_index], match_method, vendor))
     for index, b in enumerate(b_records):
         if index not in used_b:
-            rows.append(_row(None, b, ""))
+            rows.append(_row(None, b, "", vendor))
 
     issues = [
         *a_inventory.get("issues", []),
@@ -599,6 +641,7 @@ def compare_ap_roles(
         "active_b": sum(row["active_wlc"] == "B" for row in rows),
         "healthy_pairs": sum(row["role"] in {"Active A", "Active B"} for row in rows),
         "role_issues": sum(row["role"] not in {"Active A", "Active B"} or row["missing_peer"] for row in rows),
+        "vendor": vendor,
         "dual_active": sum(row["role"] == "Dual Active" for row in rows),
         "no_active": sum(row["active_wlc"] == "None" for row in rows),
         "missing_peer": sum(row["missing_peer"] for row in rows),
@@ -626,8 +669,8 @@ def compare_ap_roles(
         },
         "policy": {
             "identity_priority": "MAC → Serial → AP Name",
-            "active_state": "Normal",
-            "standby_state": "Standby",
+            "active_state": "Registered" if vendor.lower() == "cisco" else "Normal",
+            "standby_state": "Not on the peer (N+1 / SSO)" if vendor.lower() == "cisco" else "Standby",
             "capture_guidance": "Capture both controller inventories within 1–2 minutes of each other",
         },
         "status_guide": AP_STATUS_GUIDE,

@@ -10,7 +10,9 @@
 
   function setWorkspace(name, updateUrl = true) {
     if (!["analysis", "roles", "delta"].includes(name)) name = "analysis";
-    document.getElementById("wireless-analysis-workspace").classList.toggle("hidden", name !== "analysis");
+    const vendor = document.getElementById("wireless-root")?.dataset.vendor || "Huawei";
+    document.getElementById("wireless-analysis-workspace").classList.toggle("hidden", name !== "analysis" || vendor !== "Huawei");
+    document.getElementById("wireless-cisco-workspace")?.classList.toggle("hidden", name !== "analysis" || vendor !== "Cisco");
     document.getElementById("wireless-role-workspace").classList.toggle("hidden", name !== "roles");
     document.getElementById("wireless-delta-workspace").classList.toggle("hidden", name !== "delta");
     document.querySelectorAll("[data-wireless-workspace]").forEach(button => {
@@ -118,6 +120,20 @@
     document.getElementById("delta-summary").innerHTML = metrics.map(([label,value]) => `<article><span>${esc(label)}</span><strong>${esc(value || 0)}</strong></article>`).join("");
     document.getElementById("delta-comparison-name").textContent = `${result.source_name} → ${result.target_name}`;
     document.getElementById("delta-platform").textContent = `${result.vendor} · Source-to-Target · ${s.generated_objects || 0} generated · ${s.structured_objects || 0} structured + ${s.fallback_objects || 0} fallback objects`;
+    const rp = result.radio_planning || {};
+    const radioTab = document.getElementById("delta-tab-button-radio");
+    if (radioTab) radioTab.classList.toggle("hidden", result.vendor !== "Huawei");
+    if (result.vendor === "Huawei") {
+      const rs = rp.summary || {};
+      document.getElementById("delta-radio-summary").innerHTML = [["APs that differ", rs.aps || 0], ["Radios", rs.radios || 0], ["AP groups", rs.groups || 0]]
+        .map(([k, v]) => `<article><span>${k}</span><strong>${v}</strong></article>`).join("");
+      const cell = v => esc((v || []).join("\n")) || "<em>none</em>";
+      const rows = (rp.rows || []).map(r => `<tr><td>${esc(r.ap)}</td><td>${esc(r.mac)}</td><td>${esc(r.source_ap_id)} → ${esc(r.target_ap_id)}</td><td>${esc(r.radio)} · ${esc(r.band)}</td><td><span class="cell-status">${esc(r.status)}</span></td><td><pre class="radio-cell">${cell(r.source)}</pre></td><td><pre class="radio-cell">${cell(r.target)}</pre></td></tr>`).join("");
+      document.getElementById("delta-radio-table").innerHTML = `<thead><tr><th>AP</th><th>MAC</th><th>AP ID (Source → Target)</th><th>Radio</th><th>Status</th><th>Source</th><th>Target</th></tr></thead><tbody>${rows || '<tr><td colspan="7">Radio planning is the same on both controllers.</td></tr>'}</tbody>`;
+      const grows = (rp.groups || []).map(r => `<tr><td>${esc(r.group)}</td><td>${esc(r.radio)} · ${esc(r.band)}</td><td><pre class="radio-cell">${cell(r.source)}</pre></td><td><pre class="radio-cell">${cell(r.target)}</pre></td></tr>`).join("");
+      document.getElementById("delta-radio-group-table").innerHTML = `<thead><tr><th>AP Group</th><th>Radio</th><th>Source</th><th>Target</th></tr></thead><tbody>${grows || '<tr><td colspan="4">No difference.</td></tr>'}</tbody>`;
+      document.getElementById("delta-radio-code").textContent = rp.commands || "# Nothing to change";
+    }
     document.getElementById("delta-download").href = result.delta_url;
     document.getElementById("delta-rollback-download").href = result.rollback_url;
     document.getElementById("delta-export").href = result.export_url;

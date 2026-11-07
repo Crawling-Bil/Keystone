@@ -1,8 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Wireless Analyzer · Keystone{% endblock %}
 {% block page_title %}Wireless Analyzer{% endblock %}
-{% block page_subtitle %}Plan, validate, analyze, and generate as-built inventory for Cisco and Huawei wireless deployments.{% endblock %}
+{% block page_subtitle %}Pick the controller, then analyze it, compare configs or compare AP roles. Huawei and Cisco each get their own tables.{% endblock %}
 {% block content %}
+<div id="wireless-root">
+<section class="panel wireless-vendor-picker" id="wireless-vendor-picker">
+  <div class="panel-heading"><div><h2>Which controller?</h2><p>Huawei and Cisco build wireless differently, so each one has its own inputs and tables.</p></div></div>
+  <div class="vendor-card-grid">
+    <button type="button" class="vendor-card" data-vendor-pick="Huawei"><strong>Huawei WLC</strong><span>AC6508, AC6805, AirEngine 9700</span><small>VAP, SSID and security profiles, AP groups, regulatory domain</small></button>
+    <button type="button" class="vendor-card" data-vendor-pick="Cisco"><strong>Cisco Catalyst 9800</strong><span>9800-L, 9800-40/80, 9800-CL, EWC</span><small>WLAN, Policy Profile, Policy / Site / RF Tag, AP Join and Flex profiles</small></button>
+    <div class="vendor-card planned" aria-disabled="true"><strong>Cisco AireOS</strong><span>5520, 8540, 3504</span><small>Planned</small></div>
+    <div class="vendor-card planned" aria-disabled="true"><strong>Aruba Mobility Controller</strong><span>AOS 8, Mobility Conductor, Instant</span><small>Planned</small></div>
+  </div>
+</section>
+
+<div class="wireless-vendor-bar hidden" id="wireless-vendor-bar">
+  <span>Controller</span><strong id="wireless-vendor-name"></strong>
+  <button type="button" class="secondary-button" id="wireless-vendor-change">Change controller</button>
+</div>
+
+<div id="wireless-vendor-area" class="hidden">
 
 <nav class="wireless-workspace-switch" aria-label="Wireless Analyzer workspace">
   <button class="active" type="button" data-wireless-workspace="analysis" aria-pressed="true"><svg><use href="/static/icons/nes-icons.svg#pulse"></use></svg><span><strong>Analyze Environment</strong><small>Assess WLC, AP inventory, and deployment health.</small></span></button>
@@ -40,7 +57,7 @@
 <form id="wireless-form" class="panel wireless-upload wireless-intake" enctype="multipart/form-data">
     <input type="hidden" name="deployment_mode" id="deployment-mode" value="existing">
     <div class="intake-heading">
-      <div><h2>Analyze wireless environment</h2><p>Add the controller backup first, then enrich it with live AP inventory when available.</p></div>
+      <div><h2>Analyze a Huawei WLC</h2><p>Add the controller backup first, then enrich it with live AP inventory when available.</p></div>
       <span class="intake-mode"><i></i>Local processing</span>
     </div>
     <div class="intake-file-grid">
@@ -48,7 +65,7 @@
         <div class="intake-card-heading"><span class="intake-step">1</span><div><h3>WLC configuration</h3><p>Controller configuration and profile relationships.</p></div><span class="intake-badge required">Required</span></div>
         <label class="drop-zone horizontal intake-drop"><input type="file" name="config_file" id="wireless-config-file" accept=".txt,.cfg,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select WLC config</strong><small id="wireless-file-label">TXT, CFG, or terminal capture</small></span></label>
         <button class="clear-upload hidden" id="clear-wireless-file" type="button">Remove selected file</button>
-        <details class="capture-help"><summary>Recommended command capture</summary><div><p><strong>Huawei</strong><code>display current-configuration</code></p><p><strong>Cisco 9800</strong><code>show tech-support wireless</code></p></div></details>
+        <details class="capture-help"><summary>Recommended command capture</summary><div><p><strong>Huawei</strong><code>display current-configuration</code></p></div></details>
       </section>
       <section class="intake-card">
         <div class="intake-card-heading"><span class="intake-step">2</span><div><h3>AP runtime inventory</h3><p>Live AP status, model, version, IP, and validation.</p></div><span class="intake-badge">Recommended</span></div>
@@ -58,8 +75,8 @@
       </section>
     </div>
     <div class="intake-actionbar">
-      <div class="intake-action-copy"><span class="intake-step">3</span><div><strong>Choose vendor and run analysis</strong><small>Auto Detect works for most captures; select Huawei for AC6508 exports.</small></div></div>
-      <label class="compact-select"><span>WLC Vendor</span><select name="vendor" id="analysis-vendor"><option>Auto Detect</option><option>Huawei</option><option>Cisco</option></select></label>
+      <div class="intake-action-copy"><span class="intake-step">3</span><div><strong>Run the Huawei analysis</strong><small>A file from another vendor is refused with a hint.</small></div></div>
+      <input type="hidden" name="vendor" id="analysis-vendor" value="Huawei">
       <button class="primary-button" id="analyze-button" type="submit"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#pulse"></use></svg>Analyze Wireless</button>
     </div>
 </form>
@@ -79,6 +96,7 @@
             <button type="button" id="wireless-tab-vap" data-tab="vap" role="tab" aria-selected="false" aria-controls="tab-vap" tabindex="-1">VAP Profiles</button>
             <button type="button" id="wireless-tab-groups" data-tab="groups" role="tab" aria-selected="false" aria-controls="tab-groups" tabindex="-1">AP Group / Tags</button>
             <button type="button" id="wireless-tab-profiles" data-tab="profiles" role="tab" aria-selected="false" aria-controls="tab-profiles" tabindex="-1">AP Profiles</button>
+            <button type="button" id="wireless-tab-radio" data-tab="radio" role="tab" aria-selected="false" aria-controls="tab-radio" tabindex="-1">Radio Planning</button>
             <button type="button" id="wireless-tab-users" data-tab="users" role="tab" aria-selected="false" aria-controls="tab-users" tabindex="-1">Local Users</button>
             <button type="button" id="wireless-tab-findings" data-tab="findings" role="tab" aria-selected="false" aria-controls="tab-findings" tabindex="-1">Analysis Log</button>
         </div>
@@ -99,30 +117,118 @@
         </div>
         <div class="tab-content" id="tab-groups" role="tabpanel" aria-labelledby="wireless-tab-groups"><div class="table-tools"><input data-table-search="group-table" aria-label="Search AP groups and tags" placeholder="Search AP group, tag, or SSID..."></div><div class="table-wrap"><table id="group-table"></table></div></div>
         <div class="tab-content" id="tab-profiles" role="tabpanel" aria-labelledby="wireless-tab-profiles"><div class="table-tools"><input data-table-search="profile-table" aria-label="Search AP profiles" placeholder="Search AP profile or WLAN mapping..."></div><div class="table-wrap"><table id="profile-table"></table></div></div>
+        <div class="tab-content" id="tab-radio" role="tabpanel" aria-labelledby="wireless-tab-radio">
+          <div id="radio-summary" class="deployment-summary"></div>
+          <div id="radio-findings" class="cisco-findings"></div>
+          <h3 class="subsection-title">By site</h3><div class="table-wrap radio-wrap"><table id="radio-site-table"></table></div>
+          <h3 class="subsection-title">Per AP and radio</h3>
+          <div class="table-tools"><input data-table-search="radio-table" aria-label="Search radio planning" placeholder="Search AP, site, group, EIRP, note..."><span id="radio-count"></span></div>
+          <div class="table-wrap radio-wrap"><table id="radio-table"></table></div>
+          <h3 class="subsection-title">AP group radio settings</h3><div class="table-wrap radio-wrap"><table id="radio-group-table"></table></div>
+          <h3 class="subsection-title">Radio and RRM profiles</h3><div class="table-wrap radio-wrap"><table id="radio-profile-table"></table></div>
+        </div>
         <div class="tab-content" id="tab-users" role="tabpanel" aria-labelledby="wireless-tab-users"><div class="table-tools"><input data-table-search="user-table" aria-label="Search local users" placeholder="Search local users..."></div><div class="table-wrap"><table id="user-table"></table></div></div>
         <div class="tab-content" id="tab-findings" role="tabpanel" aria-labelledby="wireless-tab-findings"><div id="finding-list" class="finding-list"></div></div>
     </div>
 </div>
 </div>
 
+<section id="wireless-cisco-workspace" class="hidden">
+  <form id="cisco-form" class="panel wireless-intake" enctype="multipart/form-data">
+    <input type="hidden" name="vendor" value="Cisco">
+    <input type="hidden" name="deployment_mode" value="existing">
+    <div class="intake-heading">
+      <div><h2>Analyze a Cisco Catalyst 9800</h2><p>One capture is enough: <code>show tech-support wireless</code> carries the config and the AP runtime state.</p></div>
+      <span class="intake-mode"><i></i>Local processing</span>
+    </div>
+    <div class="intake-file-grid">
+      <section class="intake-card">
+        <div class="intake-card-heading"><span class="intake-step">1</span><div><h3>9800 capture</h3><p>show tech-support wireless, or show running-config plus the AP commands.</p></div><span class="intake-badge required">Required</span></div>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="config_file" id="cisco-config-file" accept=".txt,.cfg,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select 9800 capture</strong><small id="cisco-config-label">TXT or LOG</small></span></label>
+        <details class="capture-help"><summary>Commands to capture</summary><div>
+          <p><strong>Best</strong><code>show tech-support wireless</code></p>
+          <p><strong>Or at least</strong><code>show running-config</code><code>show ap summary</code><code>show ap tag summary</code><code>show wireless stats ap join summary</code><code>show ap config general</code><code>show wlan summary</code><code>show redundancy</code><code>show version</code></p>
+          <p>A capture with prompts (<code>WLC#show ap summary</code>) works too. Config only means no runtime state: AP status shows as Configured.</p>
+        </div></details>
+      </section>
+      <section class="intake-card">
+        <div class="intake-card-heading"><span class="intake-step">2</span><div><h3>AP Master</h3><p>Planned APs with Site, Policy and RF Tag, to validate the deployment.</p></div><span class="intake-badge">Optional</span></div>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="inventory_file" id="cisco-inventory-file" accept=".csv,.xlsx,.xlsm"><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#plus"></use></svg></span><span><strong>Select AP Master</strong><small id="cisco-inventory-label">CSV or XLSX</small></span></label>
+        <div class="capture-help static"><strong>Template</strong><p><a href="/wireless/template/Cisco">Download the Cisco AP Master template</a> (AP name, MAC, serial, Site / Policy / RF Tag).</p></div>
+      </section>
+    </div>
+    <div class="intake-actionbar">
+      <div class="intake-action-copy"><span class="intake-step">3</span><div><strong>Run the Cisco analysis</strong><small>A file from another vendor is refused with a hint.</small></div></div>
+      <button class="primary-button" id="cisco-analyze-button" type="submit"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#pulse"></use></svg>Analyze 9800</button>
+    </div>
+  </form>
+
+  <div id="cisco-empty" class="panel empty-state medium"><div class="empty-icon"><svg><use href="/static/icons/nes-icons.svg#wireless"></use></svg></div><h3>Cisco 9800 workspace is ready</h3><p>Upload the capture to see WLANs, Policy Profiles, the tags that deliver them, every AP with its tags and join state, and the findings.</p></div>
+
+  <div id="cisco-result" class="hidden">
+    <div class="wireless-summary" id="cisco-summary"></div>
+    <div class="analysis-toolbar panel"><div><strong id="cisco-source-name">9800 analysis</strong><span id="cisco-platform"></span></div><div class="toolbar-actions"><a id="cisco-as-built" class="primary-button hidden" href="#">Export As-Built</a><a id="cisco-export" class="secondary-button" href="#">Export Excel</a></div></div>
+    <div class="tab-shell panel">
+      <div class="tab-nav" id="cisco-tabs" role="tablist" aria-label="Cisco 9800 analysis">
+        <button type="button" class="active" data-cisco-tab="overview" role="tab">Overview</button>
+        <button type="button" data-cisco-tab="findings" role="tab">Findings</button>
+        <button type="button" data-cisco-tab="aps" role="tab">AP Inventory</button>
+        <button type="button" data-cisco-tab="wlans" role="tab">WLANs</button>
+        <button type="button" data-cisco-tab="policies" role="tab">Policy Profiles</button>
+        <button type="button" data-cisco-tab="tags" role="tab">Tags</button>
+        <button type="button" data-cisco-tab="profiles" role="tab">AP Join / Flex / RF</button>
+        <button type="button" data-cisco-tab="aaa" role="tab">AAA &amp; Users</button>
+        <button type="button" data-cisco-tab="deployment" role="tab">Deployment Validation</button>
+      </div>
+      <div class="cisco-tab active" data-cisco-panel="overview"><div class="overview-grid">
+        <article><h3>Controller</h3><div id="cisco-wlc" class="kv-list"></div></article>
+        <article><h3>AP state</h3><div id="cisco-states" class="status-breakdown"></div></article>
+        <article class="wide"><h3>Radios and licences</h3><div id="cisco-radios"></div></article>
+        <article class="wide ap-device-summary-card"><div class="chart-card-heading"><div><h3>AP model and software</h3><p>Model and software versions reported by the APs.</p></div></div><div id="cisco-device-summary"></div></article>
+      </div></div>
+      <div class="cisco-tab" data-cisco-panel="findings"><div id="cisco-findings" class="cisco-findings"></div></div>
+      <div class="cisco-tab" data-cisco-panel="aps"><div class="table-tools"><input data-table-search="cisco-ap-table" aria-label="Search APs" placeholder="Search AP name, MAC, serial, tag, state..."><span id="cisco-ap-count"></span></div><div class="table-wrap"><table id="cisco-ap-table"></table></div></div>
+      <div class="cisco-tab" data-cisco-panel="wlans"><div class="table-tools"><input data-table-search="cisco-wlan-table" aria-label="Search WLANs" placeholder="Search WLAN, SSID, security..."></div><div class="table-wrap"><table id="cisco-wlan-table"></table></div><h3 class="subsection-title">Where each WLAN is broadcast</h3><div class="table-wrap"><table id="cisco-wlan-delivery"></table></div></div>
+      <div class="cisco-tab" data-cisco-panel="policies"><div class="table-tools"><input data-table-search="cisco-policy-table" aria-label="Search policy profiles" placeholder="Search policy profile, VLAN..."></div><div class="table-wrap"><table id="cisco-policy-table"></table></div></div>
+      <div class="cisco-tab" data-cisco-panel="tags">
+        <h3 class="subsection-title">Policy Tags: WLAN to Policy Profile</h3><div class="table-tools"><input data-table-search="cisco-ptag-table" aria-label="Search policy tags" placeholder="Search policy tag, WLAN, policy profile..."></div><div class="table-wrap"><table id="cisco-ptag-table"></table></div>
+        <h3 class="subsection-title">Site Tags</h3><div class="table-wrap"><table id="cisco-stag-table"></table></div>
+        <h3 class="subsection-title">RF Tags</h3><div class="table-wrap"><table id="cisco-rtag-table"></table></div>
+      </div>
+      <div class="cisco-tab" data-cisco-panel="profiles">
+        <h3 class="subsection-title">AP Join Profiles</h3><div class="table-wrap"><table id="cisco-join-table"></table></div>
+        <h3 class="subsection-title">Flex Profiles</h3><div class="table-wrap"><table id="cisco-flex-table"></table></div>
+        <h3 class="subsection-title">RF Profiles</h3><div class="table-wrap"><table id="cisco-rf-table"></table></div>
+      </div>
+      <div class="cisco-tab" data-cisco-panel="aaa">
+        <h3 class="subsection-title">AAA servers</h3><div class="table-wrap"><table id="cisco-aaa-table"></table></div>
+        <h3 class="subsection-title">Server groups and method lists</h3><div class="table-wrap"><table id="cisco-aaa-groups"></table></div>
+        <h3 class="subsection-title">Local users</h3><div class="table-wrap"><table id="cisco-user-table"></table></div>
+      </div>
+      <div class="cisco-tab" data-cisco-panel="deployment"><div id="cisco-deploy-empty" class="empty-state compact">Add an AP Master to validate planned APs against the controller.</div><div id="cisco-deploy" class="hidden"><div id="cisco-deploy-summary" class="deployment-summary"></div><div class="table-wrap"><table id="cisco-deploy-table"></table></div><h3 class="subsection-title">On the controller but not in the AP Master</h3><div class="table-wrap"><table id="cisco-unexpected-table"></table></div></div></div>
+    </div>
+  </div>
+</section>
+
 <section id="wireless-role-workspace" class="hidden">
   <form id="ap-role-form" class="panel wireless-intake role-intake" enctype="multipart/form-data">
+  <input type="hidden" name="vendor" id="ap-role-vendor" value="Huawei">
     <div class="intake-heading">
-      <div><h2>Compare AP active and standby roles</h2><p>Match Controller A and Controller B operational inventories by MAC, serial, then AP name. Capture both WLCs within 1–2 minutes.</p></div>
+      <div><h2>Compare AP roles between two controllers</h2><p data-vendor-text="role-intro">Match Controller A and Controller B operational inventories by MAC, serial, then AP name. Capture both WLCs within 1–2 minutes.</p></div>
       <span class="intake-mode"><i></i>Operational state</span>
     </div>
     <div class="intake-file-grid">
       <section class="intake-card">
         <div class="intake-card-heading"><span class="intake-step">1</span><div><h3>Controller A AP State</h3><p>AP inventory captured from the first controller.</p></div><span class="intake-badge required">Required</span></div>
         <label class="role-controller-name"><span>Controller label</span><input type="text" name="a_name" id="ap-role-a-name" value="Controller A" maxlength="80"></label>
-        <label class="drop-zone horizontal intake-drop"><input type="file" name="a_inventory" id="ap-role-a-file" accept=".csv,.xlsx,.xlsm,.txt,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Controller A AP State</strong><small id="ap-role-a-label">AP Info CSV/XLSX or display ap all TXT</small></span></label>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="a_inventory" id="ap-role-a-file" accept=".csv,.xlsx,.xlsm,.txt,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Controller A AP State</strong><small id="ap-role-a-label" data-vendor-text="role-file">AP Info CSV/XLSX or display ap all TXT</small></span></label>
         <button class="clear-upload hidden" id="clear-ap-role-a" type="button">Remove selected file</button>
-        <div class="capture-help static"><strong>Operational source</strong><p>Use AP Info with <code>Group name</code>, or a complete <code>display ap all</code> capture.</p></div>
+        <div class="capture-help static" data-vendor-only="Huawei"><strong>Operational source</strong><p>Use AP Info with <code>Group name</code>, or a complete <code>display ap all</code> capture.</p></div><div class="capture-help static" data-vendor-only="Cisco"><strong>Operational source</strong><p><code>show tech-support wireless</code>, or a capture with <code>show ap summary</code> and <code>show ap tag summary</code>. Policy, Site and RF Tag are compared per AP.</p></div>
       </section>
       <section class="intake-card">
         <div class="intake-card-heading"><span class="intake-step">2</span><div><h3>Controller B AP State</h3><p>AP inventory captured from the second controller.</p></div><span class="intake-badge required">Required</span></div>
         <label class="role-controller-name"><span>Controller label</span><input type="text" name="b_name" id="ap-role-b-name" value="Controller B" maxlength="80"></label>
-        <label class="drop-zone horizontal intake-drop"><input type="file" name="b_inventory" id="ap-role-b-file" accept=".csv,.xlsx,.xlsm,.txt,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Controller B AP State</strong><small id="ap-role-b-label">AP Info CSV/XLSX or display ap all TXT</small></span></label>
+        <label class="drop-zone horizontal intake-drop"><input type="file" name="b_inventory" id="ap-role-b-file" accept=".csv,.xlsx,.xlsm,.txt,.log" required><span class="drop-icon"><svg><use href="/static/icons/nes-icons.svg#upload"></use></svg></span><span><strong>Select Controller B AP State</strong><small id="ap-role-b-label" data-vendor-text="role-file">AP Info CSV/XLSX or display ap all TXT</small></span></label>
         <button class="clear-upload hidden" id="clear-ap-role-b" type="button">Remove selected file</button>
         <div class="capture-help static"><strong>Time-aligned snapshot</strong><p>Include <code>Group name</code> and capture within 1–2 minutes of Controller A.</p></div>
       </section>
@@ -138,7 +244,7 @@
     </div>
   </form>
 
-  <details class="panel ap-status-guide" open>
+  <details class="panel ap-status-guide" data-vendor-only="Huawei" open>
     <summary><span><strong>AP Status Guide</strong><small>Arti status dengan bahasa sederhana untuk membantu tim membaca hasil Controller A dan Controller B.</small></span><em>Normal dan Standby dapat menjadi pasangan yang sehat</em></summary>
     <div class="ap-status-guide-content">
       <div class="ap-status-card-grid">
@@ -234,8 +340,8 @@
       </section>
     </div>
     <div class="intake-actionbar">
-      <div class="intake-action-copy"><span class="intake-step">3</span><div><strong>Compare and generate implementation commands</strong><small>Same-vendor comparison only: Huawei to Huawei or Cisco 9800 to Cisco 9800.</small></div></div>
-      <label class="compact-select"><span>WLC Vendor</span><select name="vendor" id="delta-vendor"><option>Auto Detect</option><option>Huawei</option><option>Cisco</option></select></label>
+      <div class="intake-action-copy"><span class="intake-step">3</span><div><strong>Compare and generate implementation commands</strong><small data-vendor-text="delta">Same controller family on both sides.</small></div></div>
+      <input type="hidden" name="vendor" id="delta-vendor" value="Huawei">
       <button class="primary-button" id="compare-button" type="submit"><svg class="button-icon"><use href="/static/icons/nes-icons.svg#swap"></use></svg>Compare &amp; Generate</button>
     </div>
   </form>
@@ -252,6 +358,7 @@
         <button type="button" id="delta-tab-button-changed" data-delta-tab="changed" role="tab" aria-selected="false" aria-controls="delta-tab-changed" tabindex="-1">Value Mismatch</button>
         <button type="button" id="delta-tab-button-extra" data-delta-tab="extra" role="tab" aria-selected="false" aria-controls="delta-tab-extra" tabindex="-1">Extra on Target</button>
         <button type="button" id="delta-tab-button-mac-auth" data-delta-tab="mac-auth" role="tab" aria-selected="false" aria-controls="delta-tab-mac-auth" tabindex="-1">MAC Authentication</button>
+        <button type="button" id="delta-tab-button-radio" data-delta-tab="radio" role="tab" aria-selected="false" aria-controls="delta-tab-radio" tabindex="-1" data-vendor-only="Huawei">Radio Planning</button>
         <button type="button" id="delta-tab-button-manual" data-delta-tab="manual" role="tab" aria-selected="false" aria-controls="delta-tab-manual" tabindex="-1">Manual Review</button>
         <button type="button" id="delta-tab-button-implementation" data-delta-tab="implementation" role="tab" aria-selected="false" aria-controls="delta-tab-implementation" tabindex="-1">Generated Delta</button>
         <button type="button" id="delta-tab-button-rollback" data-delta-tab="rollback" role="tab" aria-selected="false" aria-controls="delta-tab-rollback" tabindex="-1">Rollback Plan</button>
@@ -268,11 +375,21 @@
         <div class="delta-dependency-stages" id="delta-mac-auth-stages" aria-label="MAC authentication dependency stages"></div>
         <div class="table-wrap"><table id="delta-mac-auth-table" class="delta-result-table"></table></div>
       </div>
+      <div class="delta-tab-content" id="delta-tab-radio" role="tabpanel" aria-labelledby="delta-tab-button-radio">
+        <div class="empty-state compact delta-policy-note" id="delta-radio-note">Per-AP radio planning (EIRP, automatic power and channel, radio profile) matched by AP MAC. If the controllers back each other up, an AP that fails over loses the planning the peer does not have.</div>
+        <div id="delta-radio-summary" class="deployment-summary"></div>
+        <div class="table-tools"><input data-table-search="delta-radio-table" aria-label="Search radio differences" placeholder="Search AP, MAC, value..."></div>
+        <div class="table-wrap radio-wrap"><table id="delta-radio-table"></table></div>
+        <h3 class="subsection-title">AP group radio settings that differ</h3><div class="table-wrap radio-wrap"><table id="delta-radio-group-table"></table></div>
+        <div class="code-panel delta-code"><header><span>Bring the Target radio planning in line with the Source (review before use)</span><button type="button" data-copy="delta-radio-code">Copy</button></header><pre id="delta-radio-code"></pre></div>
+      </div>
       <div class="delta-tab-content" id="delta-tab-manual" role="tabpanel" aria-labelledby="delta-tab-button-manual"><div class="empty-state compact delta-policy-note">Review device identity, AP assignment, certificates, licensing, and masked secrets before implementation.</div><div class="table-wrap"><table id="delta-manual-table" class="delta-result-table"></table></div></div>
       <div class="delta-tab-content" id="delta-tab-implementation" role="tabpanel" aria-labelledby="delta-tab-button-implementation"><div class="code-panel delta-code"><header><span>Source → Target implementation candidate</span><button type="button" data-copy="delta-implementation-code">Copy</button></header><pre id="delta-implementation-code"></pre></div></div>
       <div class="delta-tab-content" id="delta-tab-rollback" role="tabpanel" aria-labelledby="delta-tab-button-rollback"><div class="code-panel delta-code"><header><span>Rollback candidate — validate before maintenance</span><button type="button" data-copy="delta-rollback-code">Copy</button></header><pre id="delta-rollback-code"></pre></div></div>
     </div>
   </div>
 </section>
+</div>
+</div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/wireless.js') }}"></script><script src="{{ url_for('static', filename='js/wireless_delta.js') }}"></script><script src="{{ url_for('static', filename='js/wireless_ap_roles.js') }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/wireless.js') }}"></script><script src="{{ url_for('static', filename='js/wireless_delta.js') }}"></script><script src="{{ url_for('static', filename='js/wireless_ap_roles.js') }}"></script><script src="{{ url_for('static', filename='js/wireless_cisco.js') }}"></script>{% endblock %}
