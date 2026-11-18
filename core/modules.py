@@ -70,9 +70,12 @@ TOOLS: tuple[Tool, ...] = (
     Tool("lb_analyzer", "Load Balancer Analyzer", "analyze", "offline", "1.2", "/load-balancer-analyzer", "balancer",
          "F5 BIG-IP: virtual server to pool map, monitors, SSL profiles and certificates, persistence, iRules, HA and hardening findings.",
          task="Review a load balancer (F5 virtual servers, pools, SSL, HA)", keywords=("f5", "big-ip", "ucs", "ltm", "gtm")),
-    Tool("topology", "Topology Builder", "analyze", "offline", "2.1", "/topology", "topology",
+    Tool("topology", "Topology Builder", "analyze", "offline", "3.0", "/topology", "topology",
          "Draw the network from CDP/LLDP in device captures: physical, vPC and logical IP views, link speeds, draw.io, report pack, run merge and gaps in the discovery.",
          task="Draw a network diagram from switch and router captures", keywords=("diagram", "drawio", "draw.io", "cdp", "lldp", "map", "visio", "links")),
+    Tool("sizing", "Sizing Tool", "analyze", "offline", "1.2", "/sizing-tool", "sizing",
+         "One inventory of every access point, controller, switch, router, firewall and load balancer from any mix of captures: hardware, modules, optics, licences and the features in use, grouped by device type for a refresh project.",
+         task="Size a refresh: list every device, its hardware, licences and features", keywords=("refresh", "replacement", "bill of materials", "bom", "licence", "license", "inventory", "pre-sales", "architect", "capacity")),
     # Convert: one page per kind of device, the same five as Analyze. "planned"
     # must match the converter registries (tests/test_convert_domains.py checks it).
     Tool("convert_wireless", "Wireless", "convert", "offline", "", "/convert/wireless", "wireless",

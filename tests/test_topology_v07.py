@@ -47,14 +47,14 @@ def _page_names(drawio: str):
 def test_all_views_puts_every_view_in_the_drawio_file():
     from features.topology.service import build_topology
     names = _page_names(build_topology(_two_routers(), view="all")["drawio"])
-    assert names == ["Overview · L3 over L2", "L3 - Logical and Route", "IP view", "Overview", "How to read this diagram"]
+    assert names == ["Overview · L3 over L2", "L3 - Logical and Route", "IP view", "L2 Physical View", "How to read this diagram"]
 
 
 def test_all_views_adds_the_vpc_view_last_when_the_captures_have_a_pair():
     from features.topology.service import build_topology
     from tests.topology_samples import lab_dc
     names = _page_names(build_topology(list(lab_dc().items()), view="all")["drawio"])
-    assert names[-1] == "Overview (vPC view)" and "Overview" in names and names.index("Overview") < len(names) - 1
+    assert names[-1] == "Overview (vPC view)" and "L2 Physical View" in names and names.index("L2 Physical View") < len(names) - 1
 
 
 def test_all_views_order_is_l3_over_l2_route_ip_physical():
@@ -72,7 +72,7 @@ def test_the_zip_and_the_report_hold_every_view_too(client):
         report = archive.read(next(n for n in archive.namelist() if n.endswith("topology-report.html"))).decode("utf-8")
         settings = archive.read(next(n for n in archive.namelist() if n.endswith("run-settings.txt"))).decode("utf-8")
     assert len(diagrams) == 4
-    assert all(f"({kind})" in report for kind in ("L3 over L2", "L3 route view", "IP view", "Physical view"))
+    assert all(f"({kind})" in report for kind in ("L3 over L2", "L3 route view", "IP view", "L2 Physical View"))
     assert "All views" in settings
 
 
@@ -86,7 +86,7 @@ def test_the_default_of_the_web_form_is_all_views(client):
 def test_a_single_view_still_gives_a_single_view():
     from features.topology.service import build_topology
     names = _page_names(build_topology(_two_routers(), view="physical")["drawio"])
-    assert names == ["Overview"]
+    assert names == ["L2 Physical View"]
 
 
 def test_the_form_offers_all_views_first_and_the_script_opens_the_l3_view(client):

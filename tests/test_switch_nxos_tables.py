@@ -2,7 +2,7 @@
 nxos_routes.py), ``show ip arp summary`` and ``show interface trunk`` (features/switch_analyzer/show_tables.py).
 
 * ``cisco_nxos_9k_routes_arp_masked.txt`` is a masked copy of real output from a Nexus 9000 pair (host name replaced,
-  10.85.x.x addresses re-numbered to 10.99.x.x; the layout is untouched).
+  10.220.x.x addresses re-numbered to 10.99.x.x; the layout is untouched).
 * ``synthetic_nxos_trunk_and_vrf_routes.txt`` is NOT a real capture. It follows the documented layouts: the route lines are
   the ones Cisco prints in "Configure Route Redistribution on Nexus Switches" and the trunk tables are the five sections
   Cisco Community posts show from Nexus 5000/9000 (status, allowed, err-disabled, STP forwarding, FabricPath).

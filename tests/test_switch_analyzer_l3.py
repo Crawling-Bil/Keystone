@@ -168,7 +168,7 @@ class StaticRouteTests(unittest.TestCase):
         lab = rows["172.16.0.0/12"]
         self.assertEqual((lab["next_hop"], lab["interface"], lab["description"], lab["tag"], lab["track"]), ("10.2.2.2", "GigabitEthernet0/1", "LAB", "7", "5"))
         huawei = (
-            "ip route-static vpn-instance management 0.0.0.0 0.0.0.0 10.85.250.1 description MGMT\n"
+            "ip route-static vpn-instance management 0.0.0.0 0.0.0.0 10.220.250.1 description MGMT\n"
             "ip route-static 10.0.0.0 255.0.0.0 NULL0\n"
             "ip route-static 10.20.0.0 24 10.1.1.9 preference 70 track 3\n"
         )

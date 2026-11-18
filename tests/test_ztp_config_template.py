@@ -5,7 +5,7 @@ from features.ztp.core import config_template as tmpl
 
 def _device(**overrides):
     device = {
-        "hostname": "TTC-SWAC-TEST-01",
+        "hostname": "DC1-SWAC-TEST-01",
         "mgmt_ip": "10.50.1.11",
         "mgmt_mask": "255.255.255.0",
         "gateway": "10.50.1.1",
@@ -38,7 +38,7 @@ class ConfigTemplateTests(unittest.TestCase):
 
     def test_contains_sysname_and_mgmt_ip(self):
         text = tmpl.render_bootstrap_config(_device())
-        self.assertIn("sysname TTC-SWAC-TEST-01", text)
+        self.assertIn("sysname DC1-SWAC-TEST-01", text)
         self.assertIn("ip address 10.50.1.11 255.255.255.0", text)
 
     def test_contains_ssh_enablement(self):
@@ -108,8 +108,8 @@ class ConfigTemplateTests(unittest.TestCase):
         self.assertTrue(text.rstrip().endswith("return"))
 
     def test_sysname_sanitizes_invalid_characters(self):
-        text = tmpl.render_bootstrap_config(_device(hostname="TTC SWAC Test #1!"))
-        self.assertIn("sysname TTC-SWAC-Test-1", text)
+        text = tmpl.render_bootstrap_config(_device(hostname="DC1 SWAC Test #1!"))
+        self.assertIn("sysname DC1-SWAC-Test-1", text)
 
     # ------------------------------------------------------------------
     # Regression (production-debugger pass): every field here gets

@@ -120,6 +120,8 @@ def _device(config: Any, source: str, vsys: str | None, interfaces: list[Any], v
                                             "description": str(iface.comment or "")}
                 for member in members:
                     device.bundle_of[member] = name
+        if str(iface.zone or ""):
+            device.fw_ifaces.append({"name": name, "zone": str(iface.zone), "parent": str(iface.parent_interface or ""), "vlan": iface.tag or None, "type": str(iface.interface_type or "")})
         down = str(iface.link_state or "").lower() == "down"
         state[name] = "admin down" if down else "up/up"
         if physical:

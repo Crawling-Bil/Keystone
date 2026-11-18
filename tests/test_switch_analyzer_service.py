@@ -9,8 +9,8 @@ this pass's three fixes:
      instead of staying empty.
   3. HSRP virtual IP surfaced on the Interfaces table.
 
-All fixtures are trimmed real excerpts from TTC-SWCO-MN-N9108-DMZ
-(10.85.250.25) — a real Nexus 9108 vPC pair member, config lines 121-230
+All fixtures are trimmed real excerpts from DC1-SWCO-MN-N9108-DMZ
+(10.220.250.25) — a real Nexus 9108 vPC pair member, config lines 121-230
 of the original capture (vpc domain / peer-link / port-channel /
 HSRP-under-SVI blocks), used verbatim.
 
@@ -33,7 +33,7 @@ from features.switch_analyzer.service import _extract_dns, _extract_snmp, analyz
 # ever run) — i.e. what a config-only / not-yet-deployed draft for this
 # same device would look like.
 REAL_VPC_CONFIG_ONLY = """
-hostname TTC-SWCO-MN-N9108-DMZ
+hostname DC1-SWCO-MN-N9108-DMZ
 feature vpc
 vpc domain 1
   peer-switch
@@ -46,11 +46,11 @@ vpc domain 1
 interface Vlan201
   description *** DMZ SVR Default Gateway ***
   no shutdown
-  ip address 10.85.28.2/23
+  ip address 10.220.28.2/23
   hsrp 201
     priority 150
     timers  1  3
-    ip 10.85.28.1
+    ip 10.220.28.1
 
 interface port-channel1
   description *** KeepAlive Link ***
@@ -66,20 +66,20 @@ interface port-channel2
   vpc peer-link
 
 interface port-channel6
-  description *** POINT TO POINT TO TTC-FW-5555X Primary ***
+  description *** POINT TO POINT TO DC1-FW-5555X Primary ***
   switchport
   switchport access vlan 205
   speed 10000
   vpc 6
 
 interface port-channel7
-  description *** POINT TO POINT TO TTC-FW-5555X Secondary ***
+  description *** POINT TO POINT TO DC1-FW-5555X Secondary ***
   switchport
   switchport access vlan 205
   speed 10000
   vpc 7
 
-ip route 0.0.0.0/0 10.85.3.26
+ip route 0.0.0.0/0 10.220.3.26
 """
 
 
@@ -103,7 +103,7 @@ class PortChannelEnrichmentTest(unittest.TestCase):
 
     def test_interfaces_table_carries_description_mode_vlan_for_port_channels(self):
         iface = next(i for i in self.result["interfaces"] if i["name"] == "port-channel6")
-        self.assertEqual(iface["description"], "*** POINT TO POINT TO TTC-FW-5555X Primary ***")
+        self.assertEqual(iface["description"], "*** POINT TO POINT TO DC1-FW-5555X Primary ***")
         self.assertEqual(iface["mode"], "access")
         self.assertEqual(iface["vlan"], 205)
 
@@ -138,7 +138,7 @@ class HsrpVirtualIpColumnTest(unittest.TestCase):
     def test_hsrp_virtual_ip_surfaced_on_interface_row(self):
         result = analyze(REAL_VPC_CONFIG_ONLY, filename="draft.txt", vendor="Cisco")
         svi = next(i for i in result["interfaces"] if i["name"] == "Vlan201")
-        self.assertEqual(svi["hsrp_vrrp_ip"], "10.85.28.1")
+        self.assertEqual(svi["hsrp_vrrp_ip"], "10.220.28.1")
 
     def test_interface_without_hsrp_has_empty_column(self):
         result = analyze(REAL_VPC_CONFIG_ONLY, filename="draft.txt", vendor="Cisco")
@@ -159,13 +159,13 @@ class DhcpTabTest(unittest.TestCase):
         config_text = (
             "hostname SW1\n"
             "!\n"
-            "ip dhcp excluded-address 10.85.214.1 10.85.214.40\n"
+            "ip dhcp excluded-address 10.220.214.1 10.220.214.40\n"
             "ip dhcp pool VoIP\n"
-            " network 10.85.214.0 255.255.255.0\n"
-            " default-router 10.85.214.1\n"
+            " network 10.220.214.0 255.255.255.0\n"
+            " default-router 10.220.214.1\n"
             "!\n"
             "interface Vlan100\n"
-            " ip helper-address 10.85.76.110\n"
+            " ip helper-address 203.0.113.110\n"
             "!\n"
             "ip dhcp snooping\n"
             "ip dhcp snooping vlan 12\n"
@@ -179,11 +179,11 @@ class DhcpTabTest(unittest.TestCase):
 
         self.assertEqual(len(dhcp["pools"]), 1)
         self.assertEqual(dhcp["pools"][0]["name"], "VoIP")
-        self.assertEqual(dhcp["pools"][0]["gateway"], "10.85.214.1")
+        self.assertEqual(dhcp["pools"][0]["gateway"], "10.220.214.1")
 
         self.assertEqual(len(dhcp["helper_addresses"]), 1)
         self.assertEqual(dhcp["helper_addresses"][0]["interface"], "Vlan100")
-        self.assertIn("10.85.76.110", dhcp["helper_addresses"][0]["servers"])
+        self.assertIn("203.0.113.110", dhcp["helper_addresses"][0]["servers"])
 
         self.assertTrue(dhcp["snooping"]["enabled"])
         self.assertIn("12", dhcp["snooping"]["vlans"])
@@ -237,17 +237,17 @@ class DhcpTabTest(unittest.TestCase):
 
 class StaticRouteCidrFixTest(unittest.TestCase):
     """A real production line on this same N9108 device — 'ip route
-    0.0.0.0/0 10.85.3.26' — combines destination+prefix-length with no
+    0.0.0.0/0 10.220.3.26' — combines destination+prefix-length with no
     separate mask token (only 4 tokens total). The old parser's
     `len(parts) < 5` guard silently dropped this, and every route on the
     device (this is the ONLY static route in the real capture) reported
     "No data found" on the Routing tab. Also confirmed live in 4 other
-    real files (TTC-SWCO-BU-N9108-DMZ, its "Clean" variant, and the
-    draft TTC-SWCODI-MN-DMZ-S5755.txt equivalent)."""
+    real files (DC1-SWCO-BU-N9108-DMZ, its "Clean" variant, and the
+    draft DC1-SWCODI-MN-DMZ-S5755.txt equivalent)."""
 
     def test_cidr_combined_destination_and_mask_parses(self):
         result = analyze(REAL_VPC_CONFIG_ONLY, filename="draft.txt", vendor="Cisco")
-        route = next(r for r in result["routes"] if r["next_hop"] == "10.85.3.26")
+        route = next(r for r in result["routes"] if r["next_hop"] == "10.220.3.26")
         self.assertEqual(route["destination"], "0.0.0.0")
         self.assertEqual(route["mask"], "0.0.0.0")
 
@@ -272,7 +272,7 @@ class PortChannelAllowedVlansTest(unittest.TestCase):
     trunk allowed vlan 50' and 'Port-Channel1'/'2'/'3' with NO
     allowed-vlan line at all (implicit Cisco default: every VLAN) — both
     forms confirmed on a real Catalyst 3650 backup
-    (GTOPAS-MKS-SWCODI-C3650), where 'show interface trunk' independently
+    (DEPO-AA-SWCODI-C3650), where 'show interface trunk' independently
     confirms the unrestricted ports report every VLAN (1-4094)."""
 
     def test_explicit_allowed_vlan_list_shown_on_port_channel(self):
@@ -307,7 +307,7 @@ class PortChannelAllowedVlansTest(unittest.TestCase):
         # HuaweiSwitchParser.normalize_interface_name) — every Huawei
         # Port-Channel/Eth-Trunk row came back with blank Description/
         # Mode/VLAN/Allowed VLANs. Confirmed on a real S5755 live
-        # capture (GTOPAS-MKS-SWCODI-S5755-FIX.txt).
+        # capture (DEPO-AA-SWCODI-S5755-FIX.txt).
         config_text = (
             "sysname SW1\n"
             "#\n"
@@ -358,7 +358,7 @@ class VpcMlagPeerKeepaliveAndVlansTest(unittest.TestCase):
         self.assertEqual(members["port-channel7"]["vlans"], "205")
 
     def test_huawei_mlag_dual_active_and_peer_link_config_fallback(self):
-        # Real M-LAG pair syntax confirmed on TTC-SWCODI-MN-DMZ-S5755:
+        # Real M-LAG pair syntax confirmed on DC1-SWCODI-MN-DMZ-S5755:
         # "dfs-group 1" global block with "dual-active detection source
         # ip ... peer ..." (M-LAG's peer-keepalive equivalent),
         # "peer-link 1" on the Eth-Trunk carrying the M-LAG session, and
@@ -394,7 +394,7 @@ class VpcMlagPeerKeepaliveAndVlansTest(unittest.TestCase):
 
 
 class TransceiverStatusNameMismatchTest(unittest.TestCase):
-    """Real bug from a Catalyst 3650 backup (GTOPAS-MKS-SWCODI-C3650):
+    """Real bug from a Catalyst 3650 backup (DEPO-AA-SWCODI-C3650):
     a transceiver row's interface comes from 'show inventory' in SHORT
     form ("Gi1/1/1"), while the interfaces table is keyed by whatever
     'show ip interface brief' used — the FULL form
@@ -442,7 +442,7 @@ class TransceiverStatusNameMismatchTest(unittest.TestCase):
 class HuaweiStackConfigFallbackTest(unittest.TestCase):
     """Real bug: a Huawei draft config that has never been deployed has
     NO 'display stack' output at all (confirmed on a real S5755 draft,
-    GTOPAS-MKS-SWCODI-S5755.txt), so stack detection reported "Unknown"
+    DEPO-AA-SWCODI-S5755.txt), so stack detection reported "Unknown"
     even though the switch IS statically configured to form a 2-member
     stack via 'stack member N renumber N' / 'stack member N priority
     N'. Also regression-covers a related real bug this same fixture
@@ -486,26 +486,26 @@ class InterfaceIpCidrTest(unittest.TestCase):
     bare IP with no subnet — real requested format. Cisco combines
     config's ip_address + subnet_mask; Huawei's live 'display ip
     interface brief' already prints the combined CIDR form as a single
-    token on real hardware ("10.85.28.2/23"), which now actually
+    token on real hardware ("10.220.28.2/23"), which now actually
     matches (see HuaweiIpInterfaceBriefRegexTest below for the parsing
     bug that used to prevent that entirely)."""
 
     def test_cisco_classic_mask_form_becomes_cidr(self):
         result = analyze(REAL_VPC_CONFIG_ONLY, filename="draft.txt", vendor="Cisco")
         svi = next(i for i in result["interfaces"] if i["name"] == "Vlan201")
-        self.assertEqual(svi["ip_address"], "10.85.28.2/23")
+        self.assertEqual(svi["ip_address"], "10.220.28.2/23")
 
     def test_huawei_dotted_mask_form_becomes_cidr(self):
         config_text = (
             "sysname SW1\n"
             "#\n"
             "interface Vlanif201\n"
-            " ip address 10.85.28.2 255.255.254.0\n"
+            " ip address 10.220.28.2 255.255.254.0\n"
             "#\n"
         )
         result = analyze(config_text, filename="sw1.txt", vendor="Huawei")
         svi = next(i for i in result["interfaces"] if i["name"] == "Vlan201")
-        self.assertEqual(svi["ip_address"], "10.85.28.2/23")
+        self.assertEqual(svi["ip_address"], "10.220.28.2/23")
 
     def test_no_mask_available_falls_back_to_bare_ip(self):
         result = analyze(
@@ -523,7 +523,7 @@ class HuaweiIpInterfaceBriefRegexTest(unittest.TestCase):
     trailing VPN-instance column ("--" or a named instance) after
     Physical/Protocol, but the old regex required the line to end right
     after Protocol — so it could never match a single real row.
-    Confirmed on a real S5755 draft (TTC-SWCODI-MN-DMZ-S5755-FIX.txt):
+    Confirmed on a real S5755 draft (DC1-SWCODI-MN-DMZ-S5755-FIX.txt):
     0 of 10 real Vlanif/MEth/Eth-Trunk rows were ever parsed from this
     command, silently discarding the one place Huawei's own CLI prints
     a ready-made CIDR address."""
@@ -534,8 +534,8 @@ class HuaweiIpInterfaceBriefRegexTest(unittest.TestCase):
             "#\n"
             "display ip interface brief\n"
             "Interface                   IP Address/Mask    Physical Protocol VPN\n"
-            "Vlanif201                   10.85.28.2/23      up       up       --\n"
-            "MEth0/0/0                   10.85.250.25/24    up       up       management\n"
+            "Vlanif201                   10.220.28.2/23      up       up       --\n"
+            "MEth0/0/0                   10.220.250.25/24    up       up       management\n"
             "Vlanif206                   unassigned         up       down     --\n"
         )
         result = analyze(config_text, filename="sw1.txt", vendor="Huawei")
@@ -545,7 +545,7 @@ class HuaweiIpInterfaceBriefRegexTest(unittest.TestCase):
         # brief keys are normalized to the "Vlan<id>" form (matching
         # HuaweiSwitchParser.normalize_interface_name) before landing
         # in the interfaces table.
-        self.assertEqual(interfaces["Vlan201"]["ip_address"], "10.85.28.2/23")
+        self.assertEqual(interfaces["Vlan201"]["ip_address"], "10.220.28.2/23")
         self.assertEqual(interfaces["Vlan206"]["status"], "up")
         self.assertEqual(interfaces["Vlan206"]["protocol"], "down")
 
@@ -554,7 +554,7 @@ class HuaweiVrrpTest(unittest.TestCase):
     """Cisco HSRP was already detected; Huawei's VRRP equivalent
     ('vrrp vrid <id> virtual-ip <vip>') was not parsed at all. Real
     syntax confirmed on a real S5755 M-LAG pair — every VRRP-enabled
-    Vlanif in both TTC-SWCODI-MN-DMZ-S5755-FIX.txt and its BU-DMZ peer
+    Vlanif in both DC1-SWCODI-MN-DMZ-S5755-FIX.txt and its BU-DMZ peer
     uses exactly this one-line form."""
 
     def test_vrrp_virtual_ip_surfaced_on_hsrp_vrrp_column(self):
@@ -563,13 +563,13 @@ class HuaweiVrrpTest(unittest.TestCase):
             "#\n"
             "interface Vlanif201\n"
             " description ** DMZ SVR Default Gateway **\n"
-            " ip address 10.85.28.2 255.255.254.0\n"
-            " vrrp vrid 201 virtual-ip 10.85.28.1\n"
+            " ip address 10.220.28.2 255.255.254.0\n"
+            " vrrp vrid 201 virtual-ip 10.220.28.1\n"
             "#\n"
         )
         result = analyze(config_text, filename="sw1.txt", vendor="Huawei")
         svi = next(i for i in result["interfaces"] if i["name"] == "Vlan201")
-        self.assertEqual(svi["hsrp_vrrp_ip"], "10.85.28.1")
+        self.assertEqual(svi["hsrp_vrrp_ip"], "10.220.28.1")
         # A VRRP-enabled SVI is still just a routed interface — mode
         # should read the same as Cisco's HSRP-enabled SVIs already do.
         self.assertEqual(svi["mode"], "routed")
@@ -582,7 +582,7 @@ class HuaweiLldpNeighborTest(unittest.TestCase):
     old regex wrongly expected the LAST column to be bare digits, which
     a real device-name column never is). 'display lldp neighbor' (the
     detail dump) was not parsed at all. Both confirmed on a real S5755
-    M-LAG pair capture (TTC-SWCODI-MN-DMZ-S5755-FIX.txt)."""
+    M-LAG pair capture (DC1-SWCODI-MN-DMZ-S5755-FIX.txt)."""
 
     def test_brief_table_real_column_order_parses(self):
         config_text = (
@@ -591,13 +591,13 @@ class HuaweiLldpNeighborTest(unittest.TestCase):
             "display lldp neighbor brief\n"
             "Local Interface         Exptime(s) Neighbor Interface            Neighbor Device\n"
             "-------------------------------------------------------------------------------------\n"
-            "MEth0/0/0                     106  MEth0/0/0                     TTC-SWCODI-BU-DMZ-S5755\n"
+            "MEth0/0/0                     106  MEth0/0/0                     DC1-SWCODI-BU-DMZ-S5755\n"
         )
         result = analyze(config_text, filename="sw1.txt", vendor="Huawei")
         neighbor = next(n for n in result["neighbors"] if n["protocol"] == "LLDP")
         self.assertEqual(neighbor["local_interface"], "MEth0/0/0")
         self.assertEqual(neighbor["remote_interface"], "MEth0/0/0")
-        self.assertEqual(neighbor["neighbor_id"], "TTC-SWCODI-BU-DMZ-S5755")
+        self.assertEqual(neighbor["neighbor_id"], "DC1-SWCODI-BU-DMZ-S5755")
 
     def test_detail_dump_gives_platform_and_prefers_over_brief_row(self):
         config_text = (
@@ -606,7 +606,7 @@ class HuaweiLldpNeighborTest(unittest.TestCase):
             "display lldp neighbor brief\n"
             "Local Interface         Exptime(s) Neighbor Interface            Neighbor Device\n"
             "-------------------------------------------------------------------------------------\n"
-            "MEth0/0/0                     106  MEth0/0/0                     TTC-SWCODI-BU-DMZ-S5755\n"
+            "MEth0/0/0                     106  MEth0/0/0                     DC1-SWCODI-BU-DMZ-S5755\n"
             "#\n"
             "display lldp neighbor\n"
             "MEth0/0/0 has 1 neighbor(s):\n"
@@ -615,7 +615,7 @@ class HuaweiLldpNeighborTest(unittest.TestCase):
             "Chassis ID                         :02cb-ab37-4877\n"
             "Port ID subtype                    :Interface Name\n"
             "Port ID                            :MEth0/0/0\n"
-            "System name                        :TTC-SWCODI-BU-DMZ-S5755\n"
+            "System name                        :DC1-SWCODI-BU-DMZ-S5755\n"
             "System description                 :Huawei Switch\n"
             "\n"
             "Device 1 infomation:\n"
@@ -629,14 +629,14 @@ class HuaweiLldpNeighborTest(unittest.TestCase):
         # by local interface rather than sitting alongside it.
         self.assertEqual(len(lldp_neighbors), 1)
         self.assertEqual(lldp_neighbors[0]["platform"], "S5755-H48UM4Y2CZ")
-        self.assertEqual(lldp_neighbors[0]["neighbor_id"], "TTC-SWCODI-BU-DMZ-S5755")
+        self.assertEqual(lldp_neighbors[0]["neighbor_id"], "DC1-SWCODI-BU-DMZ-S5755")
 
 
 class PortChannelRoutedAndEthTrunkModeTest(unittest.TestCase):
     """Cisco already showed a routed port-channel's Mode as "routed"
     but never its IP address; Huawei never detected routed/trunk mode
     on an Eth-Trunk at all (only access, via 'port default vlan').
-    Real syntax confirmed on TTC-SWCODI-MN-DMZ-S5755-FIX.txt: Eth-
+    Real syntax confirmed on DC1-SWCODI-MN-DMZ-S5755-FIX.txt: Eth-
     Trunk1 (M-LAG DAD link) is 'undo portswitch' + a plain IP address
     with no 'port link-type' line at all; Eth-Trunk2 (M-LAG peer-link)
     has no 'port link-type' line either, just 'port vlan exclude ...'."""
@@ -696,7 +696,7 @@ class HuaweiMlagLiveStatusTest(unittest.TestCase):
     CloudEngine CLI is 'display dfs-group' / 'display dfs-group m-lag
     brief' / 'display dfs-group <id> heartbeat'. Because those never
     matched, a device with a genuinely LIVE, healthy M-LAG session
-    (confirmed on TTC-SWCODI-MN-DMZ-S5755-FIX.txt: 'Configuration
+    (confirmed on DC1-SWCODI-MN-DMZ-S5755-FIX.txt: 'Configuration
     consistency check: success', 'Heart beat status: OK') was always
     wrongly shown as config-only / "not active"."""
 
@@ -769,7 +769,7 @@ class HuaweiPoeConfigFallbackTest(unittest.TestCase):
     across every real PoE-capable S5735 draft, none deployed with
     anything plugged in yet). Falls back to each port's own 'poe
     enable' config line instead of leaving the tab blank, real syntax
-    confirmed on TTC-SWAC-C-S5735.txt."""
+    confirmed on DC1-SWAC-C-S5735.txt."""
 
     def test_poe_enabled_ports_reported_as_configured_not_active(self):
         config_text = (
@@ -805,9 +805,9 @@ class HuaweiPoeConfigFallbackTest(unittest.TestCase):
 class HuaweiFullDeviceModelTest(unittest.TestCase):
     """Real bug: the chassis-level 'HUAWEI CloudEngine <model> uptime'
     banner in 'display version' always truncates the model to just its
-    FAMILY ("S5735-S-V2", "S5755-H") — confirmed on TTC-SWAC-C-S5735-
-    FIX.txt, TTC-SWCODI-MN-DMZ-S5755-FIX.txt, and a real 2-member stack
-    (GTOPAS-MKS-SWCODI-S5755-FIX.txt), all screenshotted by the user
+    FAMILY ("S5735-S-V2", "S5755-H") — confirmed on DC1-SWAC-C-S5735-
+    FIX.txt, DC1-SWCODI-MN-DMZ-S5755-FIX.txt, and a real 2-member stack
+    (DEPO-AA-SWCODI-S5755-FIX.txt), all screenshotted by the user
     showing the app displaying the truncated form in Single Device,
     Compare Devices, and Sizing Assessment alike (all three read the
     same os_version.model field). The FULL board type ("S5735-
@@ -865,7 +865,7 @@ class HuaweiFullDeviceModelTest(unittest.TestCase):
         self.assertEqual(result["os_version"]["model"], "S5735-S-V2")
 
     def test_stacked_device_full_model_and_member_count(self):
-        # Real 2-member stack (GTOPAS-MKS-SWCODI-S5755-FIX.txt) — both
+        # Real 2-member stack (DEPO-AA-SWCODI-S5755-FIX.txt) — both
         # members share the same full board type.
         config_text = (
             "sysname SW1\n"
@@ -909,7 +909,7 @@ class HuaweiElabelPidTest(unittest.TestCase):
     rows already populate it from 'show inventory'). Confirmed the P/N
     column is the real Huawei equivalent — identical to 'display device
     elabel''s own Item= field on the same real capture
-    (TTC-SWCODI-MN-DMZ-S5755-FIX.txt: P/N 98012643 == Item=98012643)."""
+    (DC1-SWCODI-MN-DMZ-S5755-FIX.txt: P/N 98012643 == Item=98012643)."""
 
     def test_chassis_and_power_supply_rows_get_pid_from_pn_column(self):
         config_text = (
@@ -942,23 +942,23 @@ class PbrSlaTrackNqaSummaryTest(unittest.TestCase):
     behavior beyond a plain static/dynamic routing table (user request:
     "show all pbr sla track / nqa related information detail"). Both
     fixtures below are trimmed real config: the Cisco side reproduces
-    GTOPAS-MKS-SWCODI-C3650.txt's real PBR pattern (IP SLA + track +
+    DEPO-AA-SWCODI-C3650.txt's real PBR pattern (IP SLA + track +
     route-map + EEM applet dynamic toggle, never statically bound under
-    any interface); the Huawei side reproduces GTOPAS-MKS-SWCODI-S5755-
+    any interface); the Huawei side reproduces DEPO-AA-SWCODI-S5755-
     FIX.txt's real, LIVE-DEPLOYED equivalent (NQA + traffic classifier/
     behavior/policy, statically applied on Vlanif109). TAM
     memory-keystone.md Section 1ac.
     """
 
     CISCO_PBR_CONFIG = (
-        "hostname GTOPAS-MKS-SWCODI-C3650\n"
+        "hostname DEPO-AA-SWCODI-C3650\n"
         "ip sla 2\n"
         " icmp-echo 172.20.20.26\n"
         " frequency 5\n"
         "ip sla schedule 2 life forever start-time now\n"
         "track 2 ip sla 2 reachability\n"
         "route-map LINTAS permit 10\n"
-        " match ip address GTOPAS_Lintas\n"
+        " match ip address DEPO_Lintas\n"
         " set ip next-hop verify-availability 172.29.88.2 10 track 2\n"
         "event manager applet linkup\n"
         ' action 3.2 cli command "int range vlan 490,vlan 491,vlan 109,vlan 493,vlan 494"\n'
@@ -968,12 +968,12 @@ class PbrSlaTrackNqaSummaryTest(unittest.TestCase):
     )
 
     HUAWEI_PBR_CONFIG = (
-        "sysname GTOPAS-MKS-SWCODI-S5755\n"
+        "sysname DEPO-AA-SWCODI-S5755\n"
         "#\n"
         "acl number 3001\n"
         " rule 5 permit ip source 172.29.88.0 0.0.7.255 destination 172.20.20.0 0.0.0.255\n"
         "#\n"
-        "nqa test-instance admin gtopas_mks_lintas\n"
+        "nqa test-instance admin depo_aa_transit\n"
         " test-type icmp\n"
         " destination-address ipv4 172.20.20.26\n"
         " timeout 1\n"
@@ -984,7 +984,7 @@ class PbrSlaTrackNqaSummaryTest(unittest.TestCase):
         " if-match acl 3001\n"
         "#\n"
         "traffic behavior LINTAS\n"
-        " redirect nexthop 172.29.88.2 track nqa admin gtopas_mks_lintas\n"
+        " redirect nexthop 172.29.88.2 track nqa admin depo_aa_transit\n"
         "#\n"
         "traffic policy LINTAS\n"
         " classifier LINTAS behavior LINTAS precedence 5\n"
@@ -1034,7 +1034,7 @@ class PbrSlaTrackNqaSummaryTest(unittest.TestCase):
         self.assertTrue(pbr["has_custom_routing"])
 
         nqa_test = next(t for t in pbr["sla_tests"] if t["kind"] == "NQA")
-        self.assertEqual(nqa_test["id"], "NQA gtopas_mks_lintas")
+        self.assertEqual(nqa_test["id"], "NQA depo_aa_transit")
         self.assertEqual(nqa_test["destination"], "172.20.20.26")
         self.assertEqual(nqa_test["frequency"], 9)
 
@@ -1042,7 +1042,7 @@ class PbrSlaTrackNqaSummaryTest(unittest.TestCase):
         self.assertEqual(policy["vendor_mechanism"], "Huawei traffic-policy")
         self.assertEqual(policy["match"], "ACL 3001")
         self.assertEqual(policy["set_next_hop"], "172.29.88.2")
-        self.assertEqual(policy["tracked_by"], "NQA gtopas_mks_lintas")
+        self.assertEqual(policy["tracked_by"], "NQA depo_aa_transit")
 
         binding = pbr["pbr_bindings"][0]
         self.assertEqual(binding["interface"], "Vlan109")

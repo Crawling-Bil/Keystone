@@ -67,6 +67,8 @@ def _ap_ports(graph: Graph, key: str) -> dict[str, str]:
 
 def collect(graph: Graph, devices: dict[str, Device]) -> None:
     """Fill graph.hosts (one row per MAC at its edge port) and graph.issues (many MACs behind a port, MAC on two switches)."""
+    for device in devices.values():
+        device.wireless_clients.clear()          # counted again from the tables: a run that is built twice (the zone check builds the plain rows too) with the same devices must not count every client twice
     own: set[str] = set()
     for node in graph.nodes.values():
         own |= node.macs

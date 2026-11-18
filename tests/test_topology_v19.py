@@ -140,7 +140,6 @@ def _two_switches_with_a_bundle():
 
 
 def test_the_svg_carries_the_member_ports_when_asked_and_not_when_not():
-    from features.topology import service
     from features.topology.svg import to_svg
     for flag, expected in ((True, True), (False, False)):
         conn = _bundle(["Gi1/0/23", "Gi1/0/24"], ["Gi0/0/1", "Gi0/0/2"], "Po12", "Po12")

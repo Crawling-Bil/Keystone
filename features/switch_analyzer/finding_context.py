@@ -197,7 +197,7 @@ class _Index:
         vpc = self.vpc_by_port.get(key)
         if vpc:
             out.append({"label": "vPC", "value": f"vPC {vpc.get('id')}: {vpc.get('status')}"
-                        + (f" (traffic goes over the peer-link)" if vpc.get("via_peer_link") else "")
+                        + (" (traffic goes over the peer-link)" if vpc.get("via_peer_link") else "")
                         + f", consistency {vpc.get('consistency') or 'unknown'}" + (f", active VLANs {vpc['vlans']}" if vpc.get("vlans") else "")})
         flap = self.flaps.get(key)
         if flap and rule != "SW-EVT-001":        # that rule already prints the counts and the window

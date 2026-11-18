@@ -168,7 +168,7 @@ def _place_with_clouds(sub: Graph, conns: list[Connection]) -> tuple[dict[str, P
     The router then sends it over the top of the whole row.  A cloud may stand one or two steps higher than the row: one device at a time is moved while that
     lowers the number of lines through a node plus the length of all lines."""
     clouds = [k for k, n in sub.nodes.items() if n.role_hint == "cloud"]
-    placed, width, height = layered(sub, list(sub.nodes), tiers={k: -1.0 for k in clouds})
+    placed, width, height = layered(sub, list(sub.nodes), tiers={k: -1.0 for k in clouds}, middle=False)
     if len(clouds) < 2:
         return placed, width, height
     top = min(p.y for p in placed.values())
@@ -240,7 +240,16 @@ def l3over2_pages(graph: Graph, physical: list[Page], hints: dict[str, Any] | No
     colours = vrf_colours([e.vrf for e in model.edges] + [r.get("vrf", "") for e in model.edges for r in e.routes])
     names = {k: n.hostname for k, n in {**graph.nodes, **model.nodes}.items()}
     ids = edge_ids(model)
-    pages = [p for p in (l3over2_page(graph, phys, model, colours, ids, names) for phys in physical) if p is not None]
+    from .l3over2 import sites_page
+    pages: list[Page] = []
+    for phys in physical:
+        page = l3over2_page(graph, phys, model, colours, ids, names)
+        if page is not None:
+            pages.append(page)
+            if phys.name == "Overview":
+                sites = sites_page(graph, phys, model, colours, ids, names)
+                if sites is not None:
+                    pages.append(sites)
     for page in pages:
         page.legend_extra = [(c, f"VRF {v}") for v, c in colours.items() if v]
     return pages

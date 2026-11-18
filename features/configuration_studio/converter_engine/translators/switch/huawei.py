@@ -47,7 +47,7 @@ UNSUPPORTED_IGNORE = _load_unsupported_ignore_list()
 
 
 # Huawei CloudEngine target models this project actually uses
-# (memory-tam-2026-huawei-switch.md section 1 "Project Overview" +
+# (the project decision log section 1 "Project Overview" +
 # the user's own "Huawei Data Sheet" folder, section 2a). Offered as
 # the Configuration Studio's "Target Model" dropdown — selecting one
 # lets the translator flag a real port-count mismatch (see
@@ -367,7 +367,7 @@ class HuaweiSwitchTranslator:
         # The actual "nqa test-instance" / "traffic classifier/
         # behavior/policy" TEXT is appended further down, after the
         # ACL section — matching this project's own real deployed
-        # draft ordering (GTOPAS-MKS-SWCODI-S5755) and the fact that
+        # draft ordering (DEPO-AA-SWCODI-S5755) and the fact that
         # "if-match acl <name>" needs that ACL already defined just
         # above it. See translate_nqa / translate_pbr.
         # -----------------------------------------------------
@@ -918,9 +918,9 @@ class HuaweiSwitchTranslator:
     def _mgmt_vlanif(self, config, services):
         """``Vlanif<N>`` named by the first of ``services`` whose source interface exists as an addressed SVI in this config.
 
-        Four real Depo cores (GTOPAS Makassar, Manado, Pekanbaru, Semarang) run `ntp server source-interface` and `info-center loghost
+        Four real Depo cores (DEPO Alpha, Bravo, Charlie, Delta) run `ntp server source-interface` and `info-center loghost
         source` on the SVI their Catalyst named in `ip tacacs` / `ip tftp` / `flow exporter` / `logging source-interface`. A name that has no SVI
-        here (Manado's exporter source Vlan483 does not exist) is skipped, so a stale reference is never carried over.
+        here (Bravo's exporter source Vlan483 does not exist) is skipped, so a stale reference is never carried over.
         """
 
         sources = getattr(config, "source_interfaces", None) or {}
@@ -1489,8 +1489,8 @@ class HuaweiSwitchTranslator:
 
     # Fixed "admin-name" convention for every synthesized NQA test
     # instance -- matches the real, live-hardware-confirmed draft
-    # (GTOPAS-MKS-SWCODI-S5755: "nqa test-instance admin
-    # gtopas_mks_lintas"). Huawei's admin-name is a free-form grouping
+    # (DEPO-AA-SWCODI-S5755: "nqa test-instance admin
+    # depo_aa_transit"). Huawei's admin-name is a free-form grouping
     # label, not a fixed keyword -- "admin" is this project's own
     # convention, kept as the one default here for traceability
     # across devices instead of inventing a new one per translation.
@@ -1518,7 +1518,7 @@ class HuaweiSwitchTranslator:
              clause's "set ip next-hop verify-availability ... track
              <id>" -- an unreferenced track/ip-sla pair is dead
              config (real confirmed example in this project:
-             GTOPAS-MND) and is silently dropped, never translated
+             DEPO-BB) and is silently dropped, never translated
              speculatively.
 
         Returns (output_lines, {track_id: (admin_name, test_name)})
@@ -1550,7 +1550,7 @@ class HuaweiSwitchTranslator:
 
             if track.track_id not in referenced_track_ids:
                 # Dead config -- nothing live references this track,
-                # matching the confirmed real GTOPAS-MND example.
+                # matching the confirmed real DEPO-BB example.
                 # Dropped silently rather than translated
                 # speculatively (Section 1kk's dead-config rule).
                 continue
@@ -2024,7 +2024,7 @@ class HuaweiSwitchTranslator:
     _STACK_PEER_RE = re.compile(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+){2,}")
 
     def _stack_peer_name(self, description):
-        """A host name in the description that shares the first two dash segments with this switch (site and role), as in ``LXS-SWAC-02-C2960``."""
+        """A host name in the description that shares the first two dash segments with this switch (site and role), as in ``LX1-SWAC-02-C2960``."""
 
         host = self._hostname.upper().split("-")
 
@@ -2151,7 +2151,7 @@ class HuaweiSwitchTranslator:
             # Hard, real-hardware-confirmed VRP limit: "header <type>
             # information" text tops out at 480 characters including
             # the two delimiter characters (TAM migration project,
-            # memory-tam-2026-huawei-switch.md Section 67). Exceeding
+            # the project decision log Section 67). Exceeding
             # it is NOT truncated -- VRP rejects the whole command at
             # paste-time. Worse than the VLAN-name/description limits:
             # because the CLI enters an inline multi-line "banner body"
@@ -2242,7 +2242,7 @@ class HuaweiSwitchTranslator:
             # have done exactly that for every admin account).
             #
             # The one mapping confirmed against real hardware this
-            # project (TAM migration, memory-tam-2026-huawei-switch.md
+            # project (TAM migration, the project decision log
             # Section 66): Cisco privilege 15 (full-admin intent) ->
             # Huawei privilege level 3 ("Management", VRP's highest
             # tier). No other Cisco level has a project-confirmed VRP
@@ -2951,7 +2951,7 @@ class HuaweiSwitchTranslator:
                     f"only has {target_ge_port_count} GE ports — this "
                     "port doesn't physically exist on that hardware. "
                     "Per this project's port-count-mismatch method "
-                    "(memory-tam-2026-huawei-switch.md section 24): "
+                    "(the project decision log section 24): "
                     "confirm this port is actually live/used on the "
                     "source (not just configured) before deciding "
                     "whether to drop it or relocate it onto a real "
@@ -4104,7 +4104,7 @@ class HuaweiSwitchTranslator:
     def _cage_optic_lines(self, interface, huawei_name):
         """Optic type (and port rate) for a 1G SFP port that lands in a faster Huawei cage.
 
-        Staging evidence (TTC cutover, 2 Oct 2026, and the 10GE1/0/1 and 10GE1/0/4 uplinks of a live S5735-S24P4XE): a 1000BASE-SX optic in a
+        Staging evidence (DC1 cutover, 2 Oct 2026, and the 10GE1/0/1 and 10GE1/0/4 uplinks of a live S5735-S24P4XE): a 1000BASE-SX optic in a
         10GE SFP+ cage needs ``device transceiver 1000BASE-X``; in a 25GE SFP28 cage that is not enough (the port stays DOWN with
         "Transceiver type mismatch" at 25000) and ``port mode GE`` is needed as well, which converts the whole four-port bank.
         Written only for a port that is configured (not a spare), whose source cage is SFP-only 1G and whose target is a 10G / 25G cage.
@@ -4264,12 +4264,12 @@ class HuaweiSwitchTranslator:
 
     # Physical Ethernet-family Cisco interface-type keywords, mapped to
     # the Huawei CloudEngine interface-type keyword their ports become.
-    # Confirmed ground truth (memory-tam-2026-huawei-switch.md section
+    # Confirmed ground truth (the project decision log section
     # 6, and directly verified byte-for-byte against real TAM 2026
     # project files): the Huawei-target CLI keyword is the ABBREVIATED
     # form ("GE", "10GE") — never the spelled-out "GigabitEthernet".
-    # Every real drafted device (e.g. ADM-SWAC-OT-S5735.txt, confirmed
-    # against its own ADM-SWAC-OT-2960G.txt Cisco source) uses
+    # Every real drafted device (e.g. AD1-SWAC-OT-S5735.txt, confirmed
+    # against its own AD1-SWAC-OT-2960G.txt Cisco source) uses
     # "interface GE1/0/1" / "interface 10GE1/0/1", never a spelled-out
     # Cisco-style name. Longest-prefix-first isn't strictly required
     # (str.startswith only matches from the very start of the string,
@@ -4283,7 +4283,7 @@ class HuaweiSwitchTranslator:
         # FastEthernet has no distinct Huawei interface-type keyword on
         # this project's target hardware (S5735/S5755 are GE-native on
         # every copper port) — old Fa ports become GE ports, confirmed
-        # via ADM-SWDI-MAIN2-2960.txt's FastEthernet0/1-24 carrying
+        # via AD1-SWDI-MAIN2-2960.txt's FastEthernet0/1-24 carrying
         # forward as GE-numbered ports on its merged S5755 draft.
         ("FastEthernet", "GE"),
         ("GigabitEthernet", "GE"),
@@ -4399,7 +4399,7 @@ class HuaweiSwitchTranslator:
         # same bare keyword for 1G/10G/25G/40G/100G ports depending on
         # model, so the real speed (and therefore the correct Huawei
         # prefix) can't be inferred from the name alone. This project's
-        # one Nexus device (TTC DMZ core) was hand-drafted as M-LAG,
+        # one Nexus device (DC1 DMZ core) was hand-drafted as M-LAG,
         # not run through this generic converter — flagged rather than
         # silently guessed "GE" and possibly wrong on a 10G/40G port.
         if interface_name.lower().startswith("ethernet"):
@@ -4433,7 +4433,7 @@ class HuaweiSwitchTranslator:
         """
         Normalizes a Cisco physical-port numeric suffix into this
         project's confirmed Huawei slot/subslot/port convention
-        (memory-tam-2026-huawei-switch.md sections 6/14a/44, directly
+        (the project decision log sections 6/14a/44, directly
         verified against real drafted devices):
 
         - 2-part Cisco "unit/port" (standalone platforms, e.g. a 2960G
@@ -4441,8 +4441,8 @@ class HuaweiSwitchTranslator:
           "<prefix>1/0/<port>": a standalone or stack-member-1 Huawei
           device is always slot 1, subslot 0 — the Cisco "unit" number
           itself is discarded, not carried across (confirmed via
-          ADM-SWAC-OT-2960G.txt "GigabitEthernet0/1" ->
-          ADM-SWAC-OT-S5735.txt "GE1/0/1").
+          AD1-SWAC-OT-2960G.txt "GigabitEthernet0/1" ->
+          AD1-SWAC-OT-S5735.txt "GE1/0/1").
         - 2-part "0/0" specifically — this project's stack-capable
           Cisco platforms (2960X/3560X/3650/3850) reserve exactly this
           number for the dedicated out-of-band management port, never
@@ -4458,8 +4458,8 @@ class HuaweiSwitchTranslator:
           member is 1 or 2 (this project's only two confirmed stacking
           templates, section 7) -> direct passthrough,
           "<prefix><member>/0/<port>" (confirmed via
-          STRADM-SWCO-MAIN-3850.txt "GigabitEthernet1/0/1" ->
-          ADM-SWCODI-S5755.txt "GE1/0/1").
+          SA1-SWCO-MAIN-3850.txt "GigabitEthernet1/0/1" ->
+          AD1-SWCODI-S5755.txt "GE1/0/1").
         - Anything else (module != 0, i.e. an expansion/service module;
           member > 2, more stack members than this project has ever
           used; or a suffix that isn't a clean 2- or 3-part number at

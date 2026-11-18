@@ -1,8 +1,14 @@
 # Panduan Keystone
 
-Panduan ini untuk engineer yang baru pertama kali memakai Keystone. Ringkasan dalam bahasa Inggris ada di [README.md](../README.md).
+Panduan ini untuk engineer yang baru pertama kali memakai Keystone. Ringkasan dalam bahasa Inggris ada di [README.md](../README.md). Penjelasan lengkap tiap tool Analyze (apa yang diambil, cara membaca hasil, tips untuk yang sudah mahir, tautan dokumentasi vendor) ada di [PANDUAN_ALAT.md](PANDUAN_ALAT.md).
 
-Keystone adalah aplikasi web lokal. Ia berjalan di komputer Anda sendiri, jadi konfigurasi pelanggan tidak keluar dari mesin Anda. Tidak ada akun dan tidak ada login: unduh, jalankan, dan browser terbuka. Versi saat ini: 1.11.0.
+Keystone adalah aplikasi web lokal. Ia berjalan di komputer Anda sendiri, jadi konfigurasi pelanggan tidak keluar dari mesin Anda. Tidak ada akun dan tidak ada login: unduh, jalankan, dan browser terbuka. Versi saat ini: 1.12.0.
+
+![Tujuh tool Analyze Keystone: Wireless, Switch, Router, Firewall, Load Balancer, Topology Builder dan Sizing Tool](img/keystone-tools-overview.png)
+
+![Tur tujuh tool Analyze dengan capture rekaan](img/keystone-tools-tour.gif)
+
+Semua gambar memakai capture rekaan, bukan data pelanggan.
 
 **Isi panduan**
 
@@ -10,8 +16,8 @@ Keystone adalah aplikasi web lokal. Ia berjalan di komputer Anda sendiri, jadi k
 2. [Yang dibutuhkan](#2-yang-dibutuhkan)
 3. [Menjalankan dan menghentikan](#3-menjalankan-dan-menghentikan)
 4. [Memperbarui ke versi baru](#4-memperbarui-ke-versi-baru): `git clone` lewat perintah (4a), GitHub Desktop (4b), cara pemilik repository menerbitkan pembaruan (4c), dan ZIP (4d)
-5. [Memilih tool](#5-memilih-tool), lalu [analisa pertama](#6-analisa-pertama-sekitar-lima-menit)
-6. Panduan per tool: [konversi switch](#7-konversi-konfigurasi-switch), [diagram topologi](#7b-membuat-diagram-topologi), [dokumen LLD](#7c-membuat-dokumen-lld), [konversi firewall](#7d-mengonversi-firewall-fortigate-dan-pan-os), [tool yang mengubah perangkat](#8-tool-yang-mengubah-perangkat)
+5. [Memilih tool](#5-memilih-tool), lalu [analisa pertama](#6-analisa-pertama-sekitar-lima-menit); penjelasan lengkap tujuh tool Analyze: [PANDUAN_ALAT.md](PANDUAN_ALAT.md)
+6. Panduan per tool: [konversi switch](#7-konversi-konfigurasi-switch), [diagram topologi](#7b-membuat-diagram-topologi), [dokumen LLD](#7c-membuat-dokumen-lld), [konversi firewall](#7d-mengonversi-firewall-fortigate-dan-pan-os), [menghitung kebutuhan penggantian](#7e-menghitung-kebutuhan-penggantian-sizing-tool), [tool yang mengubah perangkat](#8-tool-yang-mengubah-perangkat)
 7. [Pengaturan](#9-pengaturan-opsional), [masalah umum](#10-masalah-umum), [data Anda](#11-data-anda), [dokumen lain](#12-dokumen-lain)
 
 ## 1. Mulai cepat (3 langkah)
@@ -245,8 +251,9 @@ Unduh ZIP baru, ekstrak ke folder baru, dan salin folder `data` lama ke dalamnya
 | Menilai router (routing, BGP/OSPF, VPN, SD-WAN) | Router Analyzer | Capture Cisco IOS, IOS-XE, atau SD-WAN |
 | Menilai firewall (policy, NAT, VPN) | Firewall Analyzer | FortiGate, FortiSwitch, Palo Alto (firewall atau Panorama; unggah export Panorama bersama export firewall yang dikelolanya, maksimal 60 file, dan tiap firewall dianalisis bersama template stack dan device group-nya), MikroTik |
 | Menilai load balancer F5 | Load Balancer Analyzer | `.ucs`, `bigip.conf`, atau output `tmsh` |
-| Membuat diagram topologi (draw.io) | Topology Builder | Capture per perangkat (atau ZIP): switch, router, FortiGate, Palo Alto (firewall yang dikelola Panorama dibaca bersama export Panorama-nya bila keduanya diunggah), F5 BIG-IP (`.ucs` atau `tmsh`), berisi `show cdp neighbors detail` / `show lldp neighbors detail`, opsional tabel MAC / ARP dan fakta routing; hasil: tampilan L3 over L2, L3 logical dan route, Logical IP, fisik, vPC, dan peta F5, tetangga dari ARP / MAC / description saat CDP/LLDP tidak ada, satu halaman per site untuk jaringan besar, overlay SD-WAN, trace jalur, kecepatan link, paket dokumentasi (ZIP / laporan HTML), daftar capture berikutnya, gabung dengan hasil sebelumnya, data demo multi-site (kantor pusat + 6 cabang, 44 capture, lima vendor, dengan tata letak diagram siap pakai; rencana alamat di [modules/topology-demo-multisite.md](modules/topology-demo-multisite.md)), salinan anonim opsional, progress bar saat proses berjalan |
-| Menilai wireless controller | Wireless Analyzer | Konfigurasi WLC Huawei atau Cisco 9800 |
+| Membuat diagram topologi (draw.io) | Topology Builder | Capture per perangkat (atau ZIP): switch, router, FortiGate, Palo Alto (firewall yang dikelola Panorama dibaca bersama export Panorama-nya bila keduanya diunggah), F5 BIG-IP (`.ucs` atau `tmsh`), berisi `show cdp neighbors detail` / `show lldp neighbors detail`, opsional tabel MAC / ARP dan fakta routing; hasil: tampilan L3 over L2, L3 logical dan route, Logical IP, fisik, vPC, dan peta F5, tetangga dari ARP / MAC / description saat CDP/LLDP tidak ada, satu halaman per site untuk jaringan besar, overlay SD-WAN, trace jalur, kecepatan link, paket dokumentasi (ZIP / laporan HTML), daftar capture berikutnya, gabung dengan hasil sebelumnya, data demo multi-site ("HQ DC Branches": kantor pusat + 6 cabang, 44 capture, lima vendor, dengan tata letak diagram siap pakai; rencana alamat di [modules/topology-demo-multisite.md](modules/topology-demo-multisite.md)) dan "HQ DC DRC Branches" (situs HQ-DC di kiri, salinan lengkapnya sebagai situs DRC di kanan, dua link DCI dedicated plus MPLS yang sama, 6 cabang, 64 capture; desain di [modules/topology-demo-dcdrc.md](modules/topology-demo-dcdrc.md)), salinan anonim opsional, progress bar saat proses berjalan |
+| Menilai wireless controller | Wireless Analyzer | Konfigurasi WLC Huawei (juga log terminal dengan `display ap all`, `display radio all`, `display ap lldp neighbor brief`) atau Cisco 9800 (`show tech-support wireless`) |
+| Menghitung apa yang harus diganti: perangkat, hardware, lisensi, fitur yang dipakai, jumlah unit pengganti | Sizing Tool | Campuran capture access point, controller, switch, router, firewall, dan load balancer (Cisco, Huawei, Aruba, FortiGate, Palo Alto, F5, MikroTik) |
 | Memindahkan konfigurasi switch ke vendor lain | Convert, Switch | Konfigurasi switch Cisco, Huawei, atau Aruba (Aruba 2540 / ArubaOS-Switch dan AOS-CX), atau capture sesi terminalnya |
 | Memindahkan firewall MikroTik ke Palo Alto (sekali klik atau Guided Conversion langkah demi langkah) | Convert, Firewall | Konfigurasi MikroTik |
 | Memindahkan firewall FortiGate ke PAN-OS, atau PAN-OS ke FortiGate | Convert, Firewall | `show full-configuration` FortiGate, atau konfigurasi PAN-OS (perintah `set`, XML, atau tampilan kurung kurawal); export Panorama juga bisa, satu device group per konversi |
@@ -256,6 +263,8 @@ Unduh ZIP baru, ekstrak ke folder baru, dan salin folder `data` lama ke dalamnya
 | Membuat dokumen LLD, Work Plan, Work Report | Document Generator | Index dari LLD Index (satu klik) atau file Excel index |
 
 Halaman Convert untuk Wireless, Router, dan Load Balancer belum punya converter. Halamannya menjelaskan apa yang dibutuhkan dan mengarahkan ke analyzer yang sesuai.
+
+Perintah apa yang diambil untuk tiap tool, cara membaca tiap tab, dan arti temuan dijelaskan dengan gambar di [PANDUAN_ALAT.md](PANDUAN_ALAT.md).
 
 ## 6. Analisa pertama (sekitar lima menit)
 
@@ -304,6 +313,8 @@ Beberapa file atau satu ZIP bisa dikonversi sekaligus lewat **batch conversion**
    - **Grouping**: Automatic (default), satu diagram, kelompok berdasarkan satu, dua, atau tiga kata pertama hostname (`JKT`, `JKT-A02`, `JKT-GD1-LT1`), atau **Sites, smart**. *Sites, smart* membaca keluarga nama hostname yang toleran terhadap perbedaan kecil dan dikoreksi oleh kabel: `HQWANR1` dan `HQ-ACC1` satu site, `LT2` dan `LT02` satu lantai, dan nama yang diawali peran (`SW-JKT-1`, `RTR-JKT-1`, `SW-A02-1`: peran di depan, site atau lantai di belakang) dikelompokkan menurut site-nya, bukan menurut peran. **Automatic** memilih sendiri: satu diagram untuk jaringan kecil (kurang dari 30 perangkat), site smart bila nama menunjukkan site yang jelas, kata pertama atau kedua hostname bila itu yang paling masuk akal; **alasannya ditampilkan di halaman hasil dan ditulis di `run-settings.txt`**, jadi Anda tahu mengapa halaman dibagi begitu. Setiap grup digambar dalam kotak hitam; grup dengan link terbanyak ke grup lain ada di tengah.
    - **Site rules** (opsional): bila pengelompokan otomatis salah, tulis aturan Anda sendiri, satu baris per site: `Nama = awal, awal`. Perangkat yang hostname-nya diawali salah satu `awal` (huruf besar atau kecil tidak berpengaruh) masuk site itu, dan end point di switch yang dipindah ikut. Contoh: `HQ = HQWAN, HQSDWAN, HQ-ACC` dan `DC1 = DCA-, DCB-`. Berlaku untuk semua pengelompokan kecuali satu diagram; maksimal 60 aturan.
    - **Diagram file contains**: semua tampilan dalam satu file (default), **L3 over L2** (link L3 digambar di atas kabel yang membawanya), **L3 - Logical and Route** (link yang dibuktikan tabel routing dan tetangga), **L3 - Logical view** (subnet bersama, alamat interface), **L2 fisik dan vPC**, fisik saja, vPC saja, atau **F5 map** (virtual server, pool, member, node tiap BIG-IP).
+   - Pada jaringan besar dengan beberapa site (Overview 40 ikon atau lebih), tampilan L3 over L2 mendapat satu halaman tambahan, **Sites · L3 over L2**: hanya link L3 yang keluar dari satu site (antar site, ke provider, ke peer jauh), digambar pada perangkat yang membawanya; judul kotak site menyebut berapa perangkat yang ditampilkan (misalnya "6 of 28 devices"). Link di dalam satu site tetap ada di halaman site dan di halaman L3 over L2 lengkap.
+   - Bila ada pasangan site utama dan site recovery (nama memuat DR, DRC, BCP, SDC), tab **Findings** membandingkannya: VLAN gateway (TOPO-047), routing (TOPO-048), peralatan (TOPO-049), interkoneksi data center (TOPO-050: satu kabel, atau semua kabel di satu perangkat) dan provider WAN (TOPO-051). Ini bahan pembanding terhadap desain, bukan vonis: site recovery boleh lebih kecil dengan sengaja.
    - **Line shape** (lurus dengan satu tekukan di sekitar perangkat, atau melengkung) dan **Style lines by** (kecepatan rating atau status link).
    - **SD-WAN sites on the L3 pages**: hanya site yang Anda capture (default; sisanya satu cloud) atau semua site di tabel BFD, opsional dengan daftar site yang digambar. **Group what repeats on the L3 pages** (aktif) mengubah router next-hop yang tidak di-capture menjadi satu node per VRF, dan pasangan interface VLAN antara dua switch menjadi satu garis; tabel tetap berisi semua baris.
    - **Provider hints** (opsional): satu aturan per baris, misalnya `HQWANR1 Gi0/0/1 = mpls Telkom` atau `203.0.113.0/30 = internet Biznet`, untuk menamai cloud provider di tampilan L3.
@@ -342,6 +353,17 @@ Pertama kali pakai, buka **Document Generator** lalu klik **Import from the old 
 4. Tekan **Convert Configuration**. Tab **Conversion report** mendaftar setiap objek per layer dengan status **converted**, **approximated**, **review**, atau **not converted**, plus dokumentasi vendor yang perlu dibaca. Laporan bisa diunduh sebagai CSV.
 5. Rule yang tidak bisa dibawa apa adanya (schedule, user atau group, Internet Service, application control) ditulis **disabled** dengan alasan di description; kotak centang menulisnya enabled. Pre-shared key IPsec tidak pernah dibaca atau ditulis: hasilnya berisi `REPLACE-ME`, isi sendiri di perangkat.
 6. Bacalah baris review sebelum konfigurasi masuk ke firewall. Beda mendasar: PAN-OS mencocokkan rule dengan alamat *sebelum* NAT dan zona *sesudah* NAT, sehingga VIP FortiGate menjadi objek alamat ditambah rule destination NAT ([NAT policy overview](https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-networking-admin/nat/nat-policy-rules/nat-policy-overview)). Penjelasan lengkap dan referensi: [modules/configuration-studio.md](modules/configuration-studio.md).
+
+## 7e. Menghitung kebutuhan penggantian (Sizing Tool)
+
+1. Buka **Analyze**, lalu **Sizing Tool**. Isi nama proyek dan growth margin. Belum punya capture? Tekan demo **Campus with wireless and licences**.
+2. Seret capture semua perangkat yang ingin dihitung (campuran vendor dan jenis perangkat boleh, satu file per perangkat, atau satu ZIP). Tambah capture nanti dengan **Add captures**.
+3. Tekan **Build the sizing inventory**. Baca **By device type** dulu, lalu **Gaps and inputs**: tab itu mendaftar apa yang tidak disebut capture (output lisensi, transceiver, angka puncak) supaya Anda tahu di mana angkanya tipis.
+4. Di **Replacement plan** ketik kapasitas satu unit model yang Anda pertimbangkan (dari datasheet), kapasitas cadangan yang disisakan dan redundansi (none, N+1, 2N). Tool menghitung jumlah unit. Simpan model kandidat di library dan bandingkan dua kandidat berdampingan.
+5. Baca **Licences** (yang dipakai, tier lisensi yang dibutuhkan pengganti, jendela perpanjangan yang bisa di-co-term) dan **Expiry**.
+6. Unduh **workbook Excel**, **bill of materials (CSV)** atau **ringkasan satu halaman** (HTML), dan **Save project** untuk membuka run itu lagi nanti.
+
+Tidak ada harga dan tidak ada katalog produk bawaan: kapasitas per unit adalah milik Anda. Setiap angka menunjukkan asalnya. Capture parsial satu perangkat digabung, pasangan HA dan vPC dikenali dari konfigurasi (bukan dari hostname), dan firewall dihitung dengan angka throughput yang sesuai inspeksi yang dipakainya. Detail: [modules/sizing-tool.md](modules/sizing-tool.md); langkah yang sama dengan gambar: [PANDUAN_ALAT.md](PANDUAN_ALAT.md#9-sizing-tool).
 
 ## 8. Tool yang mengubah perangkat
 
@@ -396,7 +418,11 @@ Di Windows, buka Command Prompt di folder Keystone, jalankan misalnya `set NES_P
 
 ## 12. Dokumen lain
 
+- [PANDUAN_ALAT.md](PANDUAN_ALAT.md): tujuh tool Analyze selangkah demi selangkah, untuk pemula dan yang sudah mahir, dengan tautan dokumentasi vendor (versi Inggris: [TOOLS_GUIDE.md](TOOLS_GUIDE.md))
 - [PRD.md](PRD.md): scope, vendor yang didukung, roadmap
+- [modules/sizing-tool.md](modules/sizing-tool.md): Sizing Tool (bahasa Inggris)
+- [modules/wireless.md](modules/wireless.md): Wireless Analyzer, log terminal dan tabel runtime Huawei (bahasa Inggris)
+- [modules/topology.md](modules/topology.md): semua opsi dan temuan Topology Builder (bahasa Inggris)
 - [../CONTRIBUTING.md](../CONTRIBUTING.md): aturan berkontribusi, cara membuka issue dan pull request
 - [PRESENTER_SCRIPT.md](PRESENTER_SCRIPT.md): demonstrasi lima menit dengan data contoh (bahasa Inggris)
 - [modules/configuration-studio.md](modules/configuration-studio.md): cara kerja Convert, Nexus, stack, katalog hardware

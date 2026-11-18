@@ -1,5 +1,5 @@
 // Topology Builder: "Topology history". Every build kept on this computer: details, download, rename, note, pin, compare, runbook, delete; search, filter and sort.
-// Talks to /topology/api/history (list, details, pin, rename, note, delete, clear). Comparing and the runbook are handed to the two panels below
+// Talks to /topology/api/history (list, details, pin, rename, note, delete, clear, download-all); "Open again all" opens /topology?open=<id> in new tabs. Comparing and the runbook are handed to the two panels below
 // through the events "tp:compare", "tp:runbook" and "tp:open" (Open again); "tp:built" (sent by topology.js after a build) refreshes the count on the button.
 (() => {
   const root = document.querySelector(".tp-page");
@@ -11,7 +11,7 @@
   if (!dialog || !openButton) return;
   const list = $("history-list"), statusLine = $("history-status"), search = $("history-search"), compareButton = $("history-compare");
   const sortBox = $("history-sort"), filterBox = $("history-filter");
-  const clearBox = $("history-clear-box"), foot = $("history-foot"), rule = $("history-rule");
+  const allBox = $("history-all-box"), clearBox = $("history-clear-box"), foot = $("history-foot"), rule = $("history-rule");
 
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + "s")}`;
@@ -31,7 +31,7 @@
   };
   const say = (text, error) => { statusLine.textContent = text || ""; statusLine.classList.toggle("error", !!error); };
 
-  let runs = [], info = { keep: 20, max_age_days: 30, max_pinned: 30, pinned: 0, total_size: 0 };
+  let runs = [], info = { keep: 40, max_age_days: 30, max_pinned: 30, pinned: 0, total_size: 0 };
   let selected = [];                 // run ids ticked for the comparison (at most two)
   let opened = new Set();            // run ids whose details are open
   let details = new Map();           // id -> details payload
@@ -39,6 +39,8 @@
   let noting = null;                 // id whose note is being edited
   let asking = null;                 // id waiting for the delete confirmation
   let askingClear = false;
+  let askingOpenAll = false;         // the question "open N tabs?" is showing
+  let tabsOpened = new Set();        // run ids already opened in a new tab by "Open again all" (a blocked pop-up leaves the rest for a second press)
 
   async function call(path, options) {
     let response, payload = null;
@@ -122,12 +124,64 @@
     }
     compareButton.textContent = `Compare selected (${selected.length} of 2)`;
     compareButton.disabled = selected.length !== 2;
+    paintAllBox(shown);
     const unpinned = runs.filter((r) => !r.pinned).length;
     clearBox.innerHTML = askingClear
       ? `<span class="tp-confirm" role="alert">Delete ${plural(unpinned, "unpinned run")}?</span> <button type="button" class="an-btn small danger" data-act="clear-yes">Delete</button> <button type="button" class="an-btn small" data-act="clear-no">Keep</button>`
       : `<button type="button" class="an-btn small" data-act="clear" ${unpinned ? "" : "disabled"}>Delete all unpinned</button>`;
     foot.textContent = `${plural(runs.length, "run")} kept (${info.pinned} pinned), ${size(info.total_size)} on disk.` + (shown.length !== runs.length ? ` Showing ${shown.length}.` : "");
     restoreFocus(mark);
+  }
+
+  // "Open again all" opens the runs shown (search and filter apply) that have a kept result, one new tab each, in the order of the list.
+  // "Download all" saves the packs of the runs shown in one ZIP. Runs without a pack or a kept result are left out and counted.
+  const OPEN_ASK_ABOVE = 5;          // more tabs than this are asked about first: every tab loads a whole result
+  function openable(shown) { return shown.filter((r) => r.has_result && !tabsOpened.has(r.id)); }
+  function packed(shown) { return shown.filter((r) => r.has_pack); }
+
+  function paintAllBox(shown) {
+    const todo = openable(shown), packs = packed(shown);
+    const again = tabsOpened.size > 0 && todo.length > 0;
+    if (askingOpenAll && !todo.length) askingOpenAll = false;
+    allBox.innerHTML = askingOpenAll
+      ? `<span class="tp-confirm" role="alert">Open ${plural(todo.length, "run")} in ${plural(todo.length, "new tab")}?</span> <button type="button" class="an-btn small primary" data-act="open-all-yes">Open</button> <button type="button" class="an-btn small" data-act="open-all-no">Cancel</button>`
+      : `<button type="button" class="an-btn small" data-act="open-all" ${todo.length ? "" : "disabled"} title="Open every run shown here in its own new browser tab, without building anything again">${again ? `Open the remaining (${todo.length})` : `Open again all (${todo.length})`}</button> `
+        + `<button type="button" class="an-btn small" data-act="download-all" ${packs.length ? "" : "disabled"} title="The documentation packs of the runs shown here in one ZIP, with an index of the runs">Download all (${packs.length})</button>`;
+  }
+
+  function tabUrl(id) {
+    const url = new URL(location.href);
+    url.search = `?open=${encodeURIComponent(id)}`;
+    url.hash = "";
+    return url.toString();
+  }
+
+  function openAll() {                                       // runs inside the click that confirmed it: browsers allow pop-ups only then
+    const todo = openable(visibleRuns());
+    let done = 0;
+    for (const run of todo) {
+      const tab = window.open(tabUrl(run.id), "_blank");
+      if (!tab) break;                                       // blocked: the rest waits for the next press
+      try { tab.opener = null; } catch (err) { /* cross-origin guard: nothing to do */ }
+      tabsOpened.add(run.id); done += 1;
+    }
+    askingOpenAll = false;
+    const left = todo.length - done;
+    if (!left) { tabsOpened = new Set(); say(`${plural(done, "run")} opened in new tabs.`); }
+    else say(`${done ? `${plural(done, "tab")} opened. ` : ""}Your browser blocked the other ${left}. Allow pop-ups for this address (the icon at the end of the address bar), then press "Open the remaining (${left})".`, true);
+    render();
+  }
+
+  function downloadAll() {
+    const shown = visibleRuns(), packs = packed(shown);
+    if (!packs.length) return;
+    const everything = shown.length === runs.length;
+    const link = document.createElement("a");
+    link.href = `${api}/api/history/download-all` + (everything ? "" : `?ids=${packs.map((r) => r.id).join(",")}`);
+    link.download = "";
+    document.body.appendChild(link); link.click(); link.remove();
+    const missing = shown.length - packs.length;
+    say(`${plural(packs.length, "pack")} in one ZIP${missing ? `. ${plural(missing, "run")} ${missing === 1 ? "has" : "have"} no pack kept and ${missing === 1 ? "is" : "are"} only named in runs.csv inside the ZIP` : ""}.`);
   }
 
   function card(run) {
@@ -282,6 +336,19 @@
     if (opened.has(id)) await showDetails(id);
   });
 
+  allBox.addEventListener("click", (event) => {
+    const act = event.target.closest("[data-act]")?.dataset.act;
+    if (!act) return;
+    if (act === "download-all") { downloadAll(); return; }
+    if (act === "open-all-no") { askingOpenAll = false; render(); const again = allBox.querySelector('[data-act="open-all"]'); if (again) again.focus(); return; }
+    if (act === "open-all-yes") { openAll(); return; }
+    if (act === "open-all") {
+      const todo = openable(visibleRuns());
+      if (todo.length > OPEN_ASK_ABOVE) { askingOpenAll = true; render(); const yes = allBox.querySelector('[data-act="open-all-yes"]'); if (yes) yes.focus(); return; }
+      openAll();
+    }
+  });
+
   clearBox.addEventListener("click", async (event) => {
     const act = event.target.closest("[data-act]")?.dataset.act;
     if (!act) return;
@@ -308,7 +375,7 @@
   filterBox.addEventListener("change", render);
   try { const saved = localStorage.getItem("tp-history-sort"); if (saved && SORTS[saved]) sortBox.value = saved; } catch (err) { /* no storage: the default order */ }
   dialog.addEventListener("cancel", (event) => {            // Esc closes the panel, except while a name or note is being typed or a question is open
-    if (editing || noting || asking || askingClear) { event.preventDefault(); editing = null; noting = null; asking = null; askingClear = false; render(); }
+    if (editing || noting || asking || askingClear || askingOpenAll) { event.preventDefault(); editing = null; noting = null; asking = null; askingClear = false; askingOpenAll = false; render(); }
   });
   dialog.addEventListener("click", (event) => { if (event.target === dialog) close(); });          // a click on the dark area closes it
   $("history-close").addEventListener("click", close);
@@ -317,7 +384,7 @@
   async function open() {
     say("Reading the history ...");
     if (typeof dialog.showModal === "function") { if (!dialog.open) dialog.showModal(); } else dialog.setAttribute("open", "");
-    editing = null; noting = null; asking = null; askingClear = false; details = new Map();
+    editing = null; noting = null; asking = null; askingClear = false; askingOpenAll = false; tabsOpened = new Set(); details = new Map();
     if (await load()) { say(""); render(); for (const id of opened) showDetails(id); }
   }
   openButton.addEventListener("click", open);

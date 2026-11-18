@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
+from core.safe_xml import fromstring as safe_fromstring
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -215,7 +216,7 @@ class Template:
     variables: dict[str, str] = field(default_factory=dict)
 
     def device_entry(self) -> ET.Element | None:
-        return self.config.find(f"devices/entry") if self.config is not None else None
+        return self.config.find("devices/entry") if self.config is not None else None
 
 
 @dataclass
@@ -354,7 +355,7 @@ def _variables(elem: ET.Element) -> dict[str, str]:
 def parse(content: str) -> Panorama:
     content = content.lstrip("﻿")
     try:
-        root = ET.fromstring(content)
+        root = safe_fromstring(content)
     except ET.ParseError as exc:
         raise ValueError(f"Not well-formed XML: {exc}") from exc
     if not is_panorama_root(root):

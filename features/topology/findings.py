@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .graph import Graph, link_ratings, link_speeds
@@ -14,6 +15,7 @@ DOC_LLDP = "https://1.ieee802.org/maintenance/p802-1ab-2016-revision-station-and
 DOC_VPC = "https://www.cisco.com/c/it_it/support/docs/switches/nexus-9000-series-switches/218333-understand-and-configure-nexus-9000-vpc.html"
 
 DOC_LACP = "https://www.cisco.com/c/en/us/support/docs/lan-switching/link-aggregation-control-protocol-lacp-8023ad/221051-troubleshoot-link-aggregation-control-pr.html"
+DOC_VSX = "https://arubanetworking.hpe.com/techdocs/VSG/docs/050-dc-deploy/esp-dc-deploy-540-central-two-tier-access/"
 DOC_VPC_RECOMMENDATIONS = "https://community.cisco.com/t5/networking-knowledge-base/nexus-vpc-recommendations/ta-p/3130797"
 DOC_NATIVE_VLAN = "https://community.cisco.com/t5/switching/cdp-4-native-vlan-mismatch-native-vlan-mismatch-discovered-on/m-p/3324797"
 DOC_AUTONEG = "https://www.cisco.com/c/en/us/support/docs/lan-switching/ethernet/10561-3.html"
@@ -30,7 +32,7 @@ def _row(code: str, severity: str, title: str, detail: str, devices: list[str], 
     return {"id": code, "severity": severity, "title": title, "detail": detail, "devices": devices, "recommendation": action, "reference": doc}
 
 
-def build_findings(graph: Graph) -> list[dict[str, Any]]:
+def build_findings(graph: Graph, model: Any = None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     # TOPO-001 / TOPO-004
     single = [l for l in graph.links if l.state == "single" and "captured but" in l.note]
@@ -76,10 +78,15 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
                              "One protocol table is stale (a cable was moved and the old CDP entry has not aged out). Clear the neighbor tables ('clear cdp table', 'clear lldp table') and capture again.", DOC_CDP))
     # TOPO-007 / TOPO-012 / TOPO-014 from MAC and routed-link inference
     many = [i for i in graph.issues if i["type"] == "many-macs"]
-    for issue in many:
+    many_action = "Probably an unmanaged switch, a hypervisor host, a wireless bridge or an access point without CDP/LLDP. Add it to the inventory or enable CDP/LLDP on it."
+    if len(many) == 1:
+        issue = many[0]
         rows.append(_row("TOPO-007", "info", "Many MAC addresses behind a port with no network neighbor",
-                         f"{issue['node']} {issue['port']}: {issue['count']} MAC addresses", [issue["node"]],
-                         "Probably an unmanaged switch, a hypervisor host, a wireless bridge or an access point without CDP/LLDP. Add it to the inventory or enable CDP/LLDP on it."))
+                         f"{issue['node']} {issue['port']}: {issue['count']} MAC addresses", [issue["node"]], many_action))
+    elif many:                                                            # one row for all the ports (the same title seven times told the reader nothing): the ports are in the detail
+        listed = [f"{i['node']} {i['port']}: {i['count']} MAC addresses" for i in many]
+        rows.append(_row("TOPO-007", "info", f"{len(many)} ports with many MAC addresses behind a port with no network neighbor",
+                         "; ".join(listed[:8]) + (" ..." if len(listed) > 8 else ""), sorted({i["node"] for i in many}), many_action))
     moved = [i for i in graph.issues if i["type"] == "mac-twice"]
     if moved:
         rows.append(_row("TOPO-014", "info", f"{len(moved)} MAC address(es) learned on edge ports of two switches",
@@ -106,13 +113,26 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
                              ", ".join(sorted(names)[:15]) + (" ..." if len(names) > 15 else ""), sorted(names),
                              "Add the command to the capture: neighbors that speak only that protocol, port-channels or vPC pairs are otherwise invisible or drawn as plain links."))
     # TOPO-008
+    no_table: dict[str, list[Any]] = {}
+    silent: list[Any] = []
     for node in graph.nodes.values():
         if node.captured and not node.halves and node.vendor.lower() in _NO_NEIGHBOR_TABLE:
-            rows.append(_row("TOPO-008", "info", f"{node.hostname}: no neighbor table is read from a {node.vendor} configuration", node.source, [node.hostname],
-                             "A FortiGate, PAN-OS or BIG-IP configuration has no CDP/LLDP table; its cables are drawn from the other end's neighbors, from ARP / MAC evidence and from port descriptions or aliases written 'HOST - port'."))
+            no_table.setdefault(node.vendor, []).append(node)
         elif node.captured and not node.halves:
-            rows.append(_row("TOPO-008", "low", f"{node.hostname}: no CDP or LLDP neighbors in the capture", node.source, [node.hostname],
-                             "Add 'show cdp neighbors detail' and 'show lldp neighbors detail' (display lldp neighbor-information verbose on Huawei) to the capture, or enable the protocol."))
+            silent.append(node)
+    table_action = "A FortiGate, PAN-OS or BIG-IP configuration has no CDP/LLDP table; its cables are drawn from the other end's neighbors, from ARP / MAC evidence and from port descriptions or aliases written 'HOST - port'."
+    for vendor, nodes in no_table.items():                                # one row per vendor (six F5 units were six identical rows); a lone device keeps its own title
+        if len(nodes) == 1:
+            rows.append(_row("TOPO-008", "info", f"{nodes[0].hostname}: no neighbor table is read from a {vendor} configuration", nodes[0].source, [nodes[0].hostname], table_action))
+        else:
+            rows.append(_row("TOPO-008", "info", f"{len(nodes)} {vendor} devices: no neighbor table is read from a {vendor} configuration",
+                             ", ".join(n.hostname for n in nodes[:12]) + (" ..." if len(nodes) > 12 else ""), [n.hostname for n in nodes], table_action))
+    silent_action = "Add 'show cdp neighbors detail' and 'show lldp neighbors detail' (display lldp neighbor-information verbose on Huawei) to the capture, or enable the protocol."
+    if len(silent) == 1:
+        rows.append(_row("TOPO-008", "low", f"{silent[0].hostname}: no CDP or LLDP neighbors in the capture", silent[0].source, [silent[0].hostname], silent_action))
+    elif silent:
+        rows.append(_row("TOPO-008", "low", f"{len(silent)} devices: no CDP or LLDP neighbors in the capture", ", ".join(n.hostname for n in silent[:12]) + (" ..." if len(silent) > 12 else ""),
+                         [n.hostname for n in silent], silent_action))
     # TOPO-009
     for conn in graph.connections:
         for link in conn.links:
@@ -145,6 +165,12 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
     rows += _port_findings(graph)
     rows += _native_vlan_findings(graph)
     rows += _vpc_findings(graph)
+    rows += _stackwise_findings(graph)
+    rows += _bypass_findings(graph)
+    rows += _f5_findings(graph)
+    rows += _sdwan_findings(graph)
+    rows += _sdwan_control_findings(graph)
+    rows += _described_findings(graph)
     from .l2findings import l2_findings            # needs _row and _few of this module, so it is imported when the findings are built
     rows += l2_findings(graph)
     from .paramfindings import param_findings      # the MTU and OSPF parameters of the two ends (TOPO-036 to 039)
@@ -153,6 +179,8 @@ def build_findings(graph: Graph) -> list[dict[str, Any]]:
     rows += peer_findings(graph)
     from .panolink import panorama_findings       # firewalls read together with the template stack of their Panorama (TOPO-044)
     rows += panorama_findings(graph)
+    from .sitefindings import site_findings      # a main site and its recovery site compared: VLANs, routing, equipment, the interconnect, the WAN providers (TOPO-047 to 051)
+    rows += site_findings(graph, model)
     rows += _carried_findings(graph)
     rows.sort(key=lambda r: (SEVERITY_ORDER[r["severity"]], r["id"]))
     return rows
@@ -191,6 +219,17 @@ def _shared_name_findings(graph: Graph) -> list[dict[str, Any]]:
                          "One device does not normally hang from this many separate cables or port-channels. The name is probably a vendor string sent by the NIC or hypervisor LLDP agent, "
                          "so the box stands for several different hosts. Read 'show lldp neighbors detail' (port description, chassis ID) on those ports, give the LLDP agent of the "
                          "servers a real system name or turn the NIC firmware LLDP off, and do not read the picture as one dual-homed device.", DOC_LLDP))
+    for issue in graph.issues:                                            # names that sharedname.split_shared_names already cut into one end point per attachment
+        if issue.get("type") != "shared-name":
+            continue
+        count = sum(issue["units"].values())
+        rows.append(_row("TOPO-045", "low", f"{issue['name']}: {count} separate attachments on {len(issue['units'])} switch(es) advertise the same neighbor name",
+                         f"{', '.join(f'{name} ({n})' for name, n in sorted(issue['units'].items())[:6])}; every attachment is its own cable or port-channel" + (f"; model text '{issue['model']}'" if issue.get("model") else "")
+                         + f"; drawn as {len(issue['nodes'])} separate end points, one per attachment",
+                         [issue["name"]],
+                         "One device does not normally hang from this many separate cables or port-channels. The name is probably a vendor string sent by the NIC or hypervisor LLDP agent, "
+                         "so the picture draws one end point under each attachment instead of one box that spans the racks. Read 'show lldp neighbors detail' (port description, chassis ID) on those ports, "
+                         "give the LLDP agent of the servers a real system name or turn the NIC firmware LLDP off.", DOC_LLDP))
     return rows
 
 
@@ -363,6 +402,163 @@ def _plain_vlan(value: str) -> bool:
     return bool(value) and value.isdigit()
 
 
+def _sdwan_findings(graph: Graph) -> list[dict[str, Any]]:
+    """TOPO-061 BFD sessions that are not up; TOPO-062 a remote SD-WAN site that a captured edge reaches over one transport colour only.
+
+    A Catalyst SD-WAN edge builds a BFD session to every remote TLOC (system IP + colour); the sessions that are down are the first thing an engineer checks, and a site that is
+    reachable over a single colour has no transport to fail over to.  Only what the ``show sdwan bfd sessions`` output of the captured edges holds is judged."""
+    down: list[str] = []
+    single: list[str] = []
+    devices: set[str] = set()
+    alone: set[str] = set()
+    for node in sorted((n for n in graph.nodes.values() if n.captured and (n.l3facts or {}).get("overlay")), key=lambda n: n.hostname):
+        by_site: dict[str, list[dict[str, Any]]] = {}
+        for session in node.l3facts["overlay"]:
+            by_site.setdefault(str(session.get("system_ip") or session.get("site_id") or "?"), []).append(session)
+        for site, sessions in sorted(by_site.items()):
+            bad = [x for x in sessions if str(x.get("state", "")).lower() != "up"]
+            if bad:
+                devices.add(node.hostname)
+                down.append(f"{node.hostname} to site {sessions[0].get('site_id', '?')} ({site}): {len(bad)} of {len(sessions)} down (" + ", ".join(sorted({f"{x.get('local_color', '?')} > {x.get('remote_color', '?')}" for x in bad})) + ")")
+            colours = {(str(x.get("local_color", "")), str(x.get("remote_color", ""))) for x in sessions if str(x.get("state", "")).lower() == "up"}
+            if len(sessions) >= 1 and len(colours) == 1 and len({str(x.get("local_color", "")) for x in sessions}) == 1 and len(by_site) >= 2:
+                alone.add(node.hostname)
+                single.append(f"{node.hostname} to site {sessions[0].get('site_id', '?')} ({site}): only {next(iter(colours))[0]} > {next(iter(colours))[1]}")
+    rows: list[dict[str, Any]] = []
+    if down:
+        rows.append(_row("TOPO-061", "medium", f"{len(down)} SD-WAN site(s) with BFD sessions that are not up", _few(down, 8), sorted(devices),
+                         "Check 'show sdwan bfd sessions' and 'show sdwan control connections' on both edges, the transport interface of the colour that is down and the underlay path "
+                         "(ISP, firewall, NAT) before the next change window. A session that flaps is worse than one that is down: look at 'show sdwan bfd history'.", DOC_SDWAN))
+    if single:
+        rows.append(_row("TOPO-062", "low", f"{len(single)} SD-WAN site(s) reached over one transport colour only", _few(single, 8), sorted(alone),
+                         "With one colour up between two edges there is no second transport to fail over to. Confirm that this is the design (a site with one circuit); otherwise bring the "
+                         "second transport up, or capture the edge's other sessions too.", DOC_SDWAN))
+    return rows
+
+
+DOC_F5_SNAT = "https://techdocs.f5.com/kb/en-us/products/big-ip_ltm/manuals/product/ltm-concepts-11-5-1/17.html"
+
+
+def _f5_findings(graph: Graph) -> list[dict[str, Any]]:
+    """TOPO-065: a virtual server whose pool member stands on the same VLAN as the virtual address, without source address translation (the member answers the client past the BIG-IP)."""
+    from . import f5zones
+    try:
+        table = f5zones.rows(graph)
+    except Exception:                                                                    # the findings never stop a run
+        return []
+    risky = [r for r in table if r.get("return_path_at_risk")]
+    if not risky:
+        return []
+    seen: dict[tuple[str, str], list[str]] = {}
+    for r in risky:
+        seen.setdefault((r["bigip"], r["virtual_server"]), []).append(r["member"])
+    lines = [f"{bigip}: {vs} -> {', '.join(members[:3])}" + (f" and {len(members) - 3} more" if len(members) > 3 else "") + f" (VLAN {next(r['member_vlan'] for r in risky if r['virtual_server'] == vs and r['bigip'] == bigip)})" for (bigip, vs), members in sorted(seen.items())]
+    return [_row("TOPO-065", "medium", f"{len(seen)} F5 virtual server(s) one-armed without source NAT: the member answers the client past the BIG-IP", _few(lines, 8),
+                 sorted({b for b, _ in seen}),
+                 "Enable source address translation on the virtual server (SNAT automap, or a SNAT pool when the member must see more than one address), or make the BIG-IP the default gateway of the pool "
+                 "members, or move the members to a VLAN of their own behind the BIG-IP. Without one of these the TCP handshake never completes.", DOC_F5_SNAT)]
+
+
+def _sdwan_control_findings(graph: Graph) -> list[dict[str, Any]]:
+    """The control plane of the captured Catalyst SD-WAN edges, from ``show sdwan control connections`` and ``show sdwan omp peers``.
+
+    TOPO-066 no vSmart connection is up (the edge has no overlay routes); TOPO-067 another controller connection (vBond, vManage, a second vSmart) is not up; TOPO-068 an OMP session is up and
+    installs no route; TOPO-069 the edge has one vSmart only (no controller redundancy); TOPO-070 two captured edges report the same system IP (the controllers accept one of them)."""
+    no_vsmart: list[str] = []
+    not_up: list[str] = []
+    no_routes: list[str] = []
+    one_vsmart: list[str] = []
+    devices: dict[str, set[str]] = {"066": set(), "067": set(), "068": set(), "069": set(), "070": set()}
+    system: dict[str, list[str]] = {}
+    for node in sorted((n for n in graph.nodes.values() if n.captured and n.l3facts), key=lambda n: n.hostname):
+        facts = node.l3facts
+        if facts.get("system_ip"):
+            system.setdefault(str(facts["system_ip"]), []).append(node.hostname)
+        control = facts.get("control") or []
+        if control:
+            vsmart_up = [r for r in control if r["type"] == "vsmart" and r["state"].lower() == "up"]
+            bad = [r for r in control if r["state"].lower() != "up"]
+            if not vsmart_up:
+                no_vsmart.append(f"{node.hostname}: " + (", ".join(f"{r['type']} {r['system_ip']} {r['state']} on {r['local_color'] or '?'}" for r in bad[:4]) or "no vSmart connection in the table"))
+                devices["066"].add(node.hostname)
+            elif bad:
+                not_up.append(f"{node.hostname}: " + ", ".join(f"{r['type']} {r['system_ip']} {r['state']} on {r['local_color'] or '?'}" for r in bad[:4]))
+                devices["067"].add(node.hostname)
+            if len({r["system_ip"] for r in vsmart_up}) == 1 and len({r["system_ip"] for r in control if r["type"] == "vsmart"}) == 1:
+                one_vsmart.append(f"{node.hostname}: only {vsmart_up[0]['system_ip']} ({vsmart_up[0]['local_color'] or '?'})")
+                devices["069"].add(node.hostname)
+        for peer in facts.get("omp_peers") or []:
+            if peer["state"].lower() == "up" and peer["installed"] == 0:
+                no_routes.append(f"{node.hostname}: OMP peer {peer['peer']} ({peer['type']}) up, {peer['received']} received, 0 installed")
+                devices["068"].add(node.hostname)
+    duplicates = {ip: names for ip, names in system.items() if len(names) > 1}
+    rows: list[dict[str, Any]] = []
+    if no_vsmart:
+        rows.append(_row("TOPO-066", "high", f"{len(no_vsmart)} SD-WAN edge(s) without a vSmart control connection that is up", _few(no_vsmart, 8), sorted(devices["066"]),
+                         "Without a vSmart connection the edge learns no overlay routes and no policy. Check 'show sdwan control connections' and 'show sdwan control connection-history' for the error code "
+                         "(certificate, vBond reachability, a blocked DTLS or TLS port), and the underlay of the colour that carries the connection.", DOC_SDWAN))
+    if not_up:
+        rows.append(_row("TOPO-067", "medium", f"{len(not_up)} SD-WAN edge(s) with a controller connection that is not up", _few(not_up, 8), sorted(devices["067"]),
+                         "The edge still has a vSmart, but another controller connection is down or stuck in connect: a second vSmart that is lost leaves one controller, a vManage that is lost means no "
+                         "configuration or monitoring. Read the error code in 'show sdwan control connection-history'.", DOC_SDWAN))
+    if no_routes:
+        rows.append(_row("TOPO-068", "medium", f"{len(no_routes)} OMP session(s) that are up and install no route", _few(no_routes, 8), sorted(devices["068"]),
+                         "An OMP session that installs nothing usually means a control policy or a VPN / service-side mismatch drops every route, or the other edges have not advertised yet. "
+                         "Compare 'show sdwan omp routes' and 'show sdwan policy from-vsmart' with a working edge of the same site.", DOC_SDWAN))
+    if one_vsmart:
+        rows.append(_row("TOPO-069", "low", f"{len(one_vsmart)} SD-WAN edge(s) connected to one vSmart only", _few(one_vsmart, 8), sorted(devices["069"]),
+                         "Cisco's design guide places at least two vSmart controllers in a fabric so that one failure does not stop route exchange. Confirm that the fabric has one vSmart on purpose, "
+                         "otherwise add the second to the edge's controller list.", DOC_SDWAN))
+    if duplicates:
+        rows.append(_row("TOPO-070", "high", f"{len(duplicates)} SD-WAN system IP(s) used by more than one captured device", _few([f"{ip}: {', '.join(names)}" for ip, names in sorted(duplicates.items())], 8),
+                         sorted({n for names in duplicates.values() for n in names}),
+                         "The system IP is the identity of an edge in the overlay; the controllers keep one control session per system IP. Change the system IP of the copy, then re-onboard it.", DOC_SDWAN))
+    return rows
+
+
+def _bypass_findings(graph: Graph) -> list[dict[str, Any]]:
+    """TOPO-059 two zones of one firewall joined by switches in one VLAN (firm); TOPO-060 the same where the VLAN of an untagged interface is not in any capture (possible)."""
+    from . import fwzones
+    found = fwzones.bypasses(graph)
+    rows: list[dict[str, Any]] = []
+    vendors = {graph.nodes[k].vendor for k in graph.nodes if graph.nodes[k].role_hint == "firewall"}
+    doc = DOC_PAN_ZONES if vendors == {"Palo Alto Networks"} else DOC_FORTI_ZONES if vendors == {"Fortinet"} else DOC_NIST_FW
+    for certain, code, severity, title, advice in (
+            (True, "TOPO-059", "high", "firewall zone(s) joined by a cable path that does not pass the firewall",
+             "Both firewall interfaces reach the same switch in the same VLAN, so a frame can go from one zone to the other without being inspected. Move one of the two legs to its own switch or "
+             "VLAN, or remove the VLAN from the trunk that joins them, then capture again. Segmentation between zones is a PCI DSS (requirement 1) and IEC 62443-3-2 (zones and conduits) expectation."),
+            (False, "TOPO-060", "info", "firewall zone pair(s) whose separation depends on a switch VLAN that no capture shows",
+             "The interfaces are cabled to switches that join, and at least one is untagged, so the VLAN of its switch port decides whether the two zones are really apart. "
+            "Add 'show interfaces status' / 'show running-config' (access VLAN, native VLAN, trunk list) of those switches to the run, or tag the firewall interface.")):
+        items = [r for r in found if r["certain"] == certain]
+        if items:
+            lines = [f"{r['firewall']}: {r['zone_a']} ({r['interface_a']}) and {r['zone_b']} ({r['interface_b']}) meet at {r['through']}" + (f" in VLAN {r['vlan']}" if r["vlan"] not in ("", "?") else "") for r in items]
+            firewalls = sorted({r["firewall"] for r in items})
+            count = len(items) if certain else len(firewalls)
+            rows.append(_row(code, severity, f"{count} {title}" if certain else f"{count} firewall(s) with zone pairs whose separation depends on a switch VLAN that no capture shows ({len(items)} pair(s))",
+                             _few(lines, 8), sorted({d for r in items for d in r["devices"]}), advice, doc))
+    routed = fwzones.routed_bypasses(graph)
+    for certain, code, severity, title, advice in (
+            (True, "TOPO-063", "high", "firewall zone pair(s) routed to each other by a Layer 3 switch without passing the firewall",
+             "A switch that carries the VLAN of each zone has a routed interface (SVI) in both, in one VRF, so it forwards between the zones itself. Put the SVI of one zone in its own VRF, "
+             "or remove the SVI and let the firewall be the default gateway of that VLAN, or filter between the two SVIs with an access list that is part of the change record. "
+             "Segmentation between zones is a PCI DSS (requirement 1) and IEC 62443-3-2 (zones and conduits) expectation."),
+            (False, "TOPO-064", "low", "firewall zone pair(s) that a router is cabled into on both sides",
+             "A router is reached from two zones of the same firewall. Whether it forwards between them depends on its routing table, VRFs and access lists, which a topology capture does not prove: "
+             "add its 'show ip route' / 'show ip interface' output, or confirm that it is meant to join the zones (a managed hand-off), and otherwise separate the two cables.")):
+        items = [r for r in routed if r["certain"] == certain]
+        if items:
+            lines = [f"{r['firewall']}: {r['zone_a']} ({r['interface_a']}) and {r['zone_b']} ({r['interface_b']}) through {r['via']} ({r['detail']})" for r in items]
+            rows.append(_row(code, severity, f"{len(items)} {title}", _few(lines, 8), sorted({d for r in items for d in r["devices"]}), advice, doc))
+    return rows
+
+
+def _pair_doc(graph: Graph, hosts: list[str]) -> str:
+    """The Aruba page when every switch named is a VSX member, the Cisco vPC page otherwise."""
+    nodes = [n for n in graph.nodes.values() if n.hostname in set(hosts)]
+    return DOC_VSX if nodes and all(getattr(n, "pair_kind", "") == "VSX" for n in nodes) else DOC_VPC
+
+
 def _vpc_findings(graph: Graph) -> list[dict[str, Any]]:
     """TOPO-019 vPC state not healthy, TOPO-020 single-member peer-link, TOPO-021 peer of a captured vPC switch not captured."""
     rows: list[dict[str, Any]] = []
@@ -388,20 +584,82 @@ def _vpc_findings(graph: Graph) -> list[dict[str, Any]]:
             devices.add(node.hostname)
     if unhealthy:
         rows.append(_row("TOPO-019", "medium", f"{len(unhealthy)} vPC switch(es) not reporting a healthy vPC", _few(unhealthy), sorted(devices),
-                         "Look at 'show vpc', 'show vpc consistency-parameters global' and the keep-alive path before the next change window; "
-                         "a vPC that is not consistent can suspend its member ports.", DOC_VPC))
+                         "Look at 'show vpc', 'show vpc consistency-parameters global' and the keep-alive path before the next change window "
+                         "(on Aruba CX VSX: 'show vsx status' and 'show vsx status keepalive'); a pair that is not consistent can suspend its member ports.", _pair_doc(graph, sorted(devices))))
     single = [f"{n.hostname} {n.vpc_peer_link}" for n in sorted(graph.nodes.values(), key=lambda n: n.hostname)
               if n.captured and n.vpc_peer_link and len(n.bundles.get(n.vpc_peer_link, [])) == 1]
     if single:
         rows.append(_row("TOPO-020", "low", f"{len(single)} vPC peer-link(s) with only one member", "; ".join(single[:8]), sorted(h.split()[0] for h in single),
                          "One cable or transceiver failure splits the pair. The Cisco community knowledge base recommends a minimum of two 10G links on separate line cards "
-                         "(on fixed switches, two links on different ports).", DOC_VPC_RECOMMENDATIONS))
+                         "(on fixed switches, two links on different ports).", (DOC_VSX if _pair_doc(graph, [h.split()[0] for h in single]) == DOC_VSX else DOC_VPC_RECOMMENDATIONS)))
     paired = {n for a, b, _ in graph.vpc_pairs for n in (a, b)}
     alone = [n.hostname for n in sorted(graph.nodes.values(), key=lambda n: n.hostname) if n.captured and n.vpc_domain and n.key not in paired]
     if alone:
         rows.append(_row("TOPO-021", "info", f"{len(alone)} vPC switch(es) whose peer was not captured", ", ".join(alone), alone,
-                         "Capture the vPC peer too: the pair is then drawn as one frame in the vPC view and the peer-link is confirmed from both ends.", DOC_VPC))
+                         "Capture the vPC / M-LAG / VSX peer too: the pair is then drawn as one frame in the vPC view and the peer-link is confirmed from both ends.", _pair_doc(graph, alone)))
     return rows
+
+
+DOC_SDWAN = "https://www.cisco.com/c/en/us/td/docs/solutions/CVD/SDWAN/cisco-sdwan-design-guide.html"
+DOC_NIST_FW = "https://csrc.nist.gov/pubs/sp/800/41/r1/final"
+DOC_PAN_ZONES = "https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-web-interface-help/network/network-zones/security-zone-overview"
+DOC_FORTI_ZONES = "https://docs.fortinet.com/document/fortigate/7.2.10/administration-guide/116821/zone"
+DOC_SVL = "https://www.cisco.com/c/en/us/support/docs/switches/catalyst-9500-series-switches/216537-troubleshoot-svl-on-catalyst-9000-switch.html"
+_CHASSIS_OF_PORT = re.compile(r"(\d+)/\d+/\d+$")
+
+
+def _chassis_counts(ports) -> dict[str, int]:
+    """Ports per chassis of a StackWise Virtual pair: the first number of ``Hu1/0/51`` is the chassis."""
+    counts: dict[str, int] = {}
+    for port in ports:
+        found = _CHASSIS_OF_PORT.search(port)
+        if found:
+            counts[found.group(1)] = counts.get(found.group(1), 0) + 1
+    return counts
+
+
+def _stackwise_findings(graph: Graph) -> list[dict[str, Any]]:
+    """TOPO-057 a Cisco StackWise Virtual pair without dual-active detection, or whose chassis are tied by one cable.
+
+    Two chassis that lose every StackWise Virtual Link cannot tell whether the other one is dead: without a dual-active-detection link both become active
+    with the same addresses (split brain).  Cisco recommends a DAD link on each chassis next to two or more SVLs."""
+    lines: list[str] = []
+    devices: list[str] = []
+    severe = False
+    for node in sorted((n for n in graph.nodes.values() if n.captured and n.svl_domain), key=lambda n: n.hostname):
+        problems = []
+        chassis = _chassis_counts(node.svl_links)
+        if not node.svl_dad:
+            problems.append("no dual-active-detection link is configured")
+            severe = True
+        elif len(_chassis_counts(node.svl_dad)) < max(len(chassis), 2):
+            problems.append(f"dual-active detection is configured on {len(_chassis_counts(node.svl_dad))} chassis only")
+        if node.svl_links and min(chassis.values() or [0]) < 2:
+            problems.append("a chassis has a single StackWise Virtual Link cable")
+        if problems:
+            lines.append(f"{node.hostname} (SVL domain {node.svl_domain}): " + "; ".join(problems))
+            devices.append(node.hostname)
+    if not lines:
+        return []
+    return [_row("TOPO-057", "medium" if severe else "low", f"{len(lines)} StackWise Virtual pair(s) not protected against a split", _few(lines), devices,
+                 "If every StackWise Virtual Link fails, each chassis may become active with the same addresses. Configure 'stackwise-virtual dual-active-detection' on a port of each "
+                 "chassis (fast-hello) and keep two or more SVL cables on each chassis.", DOC_SVL)]
+
+
+def _described_findings(graph: Graph) -> list[dict[str, Any]]:
+    """TOPO-058: devices that link descriptions name but no capture holds (inferred.infer_neighbors, ``described-device``).  They are not drawn: a box built from a text a
+    person typed on a layer-2 port is weaker evidence than a neighbor table, and a page full of them is harder to read than the list of what to capture next."""
+    items = [i for i in graph.issues if i.get("type") == "described-device"]
+    if not items:
+        return []
+    names = sorted({d for i in items for d in i["devices"]})
+    lines = []
+    for item in items:
+        shown = ", ".join(port["device"] + " " + port["port"] for port in item["ports"][:3])
+        lines.append(f"{item['name']} ({shown}{', ...' if len(item['ports']) > 3 else ''})")
+    return [_row("TOPO-058", "info", f"{len(items)} device(s) named in link descriptions have no capture", _few(lines, 8), names,
+                 "Interface descriptions that start with a link word ('LINK-SW-TOR2B', 'UPLINK TO ...') name a device on the far end, but no capture holds it and CDP/LLDP did not report it on that port. "
+                 "Capture these devices (or enable LLDP toward them) so the cables are drawn from a neighbor table instead of a text a person typed.", DOC_LLDP)]
 
 
 DOC_ARP = "https://www.rfc-editor.org/rfc/rfc826"

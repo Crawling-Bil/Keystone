@@ -1,64 +1,61 @@
+import importlib
+import os
+
 from features.configuration_studio.converter_engine.profiles.base import Profile
 
-# Toyota Astra Motor — final ops-confirmed infrastructure standard,
-# 18 Aug 2026. Sourced verbatim from memory-tam-2026-huawei-switch.md
-# section 30 ("OPS-CONFIRMED FINAL INFRASTRUCTURE STANDARD") and
-# independently re-confirmed against the primary source document,
-# "switch replacement - confirm ip.txt" (Ops_Handoff folder). Do not
-# hand-edit the values below without checking those files first —
-# they're the actual project decision record, this is just the value
-# carried into Keystone as reusable data.
+# The "TAM Standard" profile: one organisation's infrastructure standard (NTP, syslog, AAA, SNMP, DHCP helper, NETCONF/callhome) carried into
+# Keystone as reusable data.  The values in this file are INVENTED examples (documentation addresses, example names): they show the shape and keep the
+# tests deterministic.  The real values live in profiles/local/tam_standard_local.py, a gitignored file that is never pushed; when it exists it
+# overrides the defaults below, unless KEYSTONE_IGNORE_LOCAL=1 is set (the test suite sets it, so tests always see the invented values).
 #
-# SNMP location and DHCP helper both resolve a device's site through
-# HuaweiSwitchTranslator.get_site_code(), which reads the "Site"
-# column of mappings/migration_inventory.csv — the same inventory
-# already used for hostname/PoE lookups. That column is real,
-# per-device confirmed data, not a hostname-text guess, which is what
-# resolves a genuine ambiguity in the DHCP-helper rule as written:
-# the rule names sites as "SUNTER 2", "SUNTER 3", "ADM SUNTER", "HO",
-# but no device hostname literally contains "SUNTER" — the inventory's
-# actual Site codes for those four are STR2, STR3, ADM, HO (confirmed
-# against every hostname in migration_inventory.csv/hostname_mapping.csv:
-# these are exactly the 4 codes left over once every other site is
-# accounted for under Option B, and "STR" softly reads as "sunTeR"'s
-# consonants — but the load-bearing fact is the 1:1, no-leftover match
-# against the CSV, not the spelling resemblance).
+# SNMP location and DHCP helper resolve a device's site through HuaweiSwitchTranslator.get_site_code(), which reads the "Site" column of
+# mappings/migration_inventory.csv (or mappings/local/migration_inventory.csv when present): per-device confirmed data, not a hostname guess.
+
+
+def _local_overrides():
+    """The private override dictionary, or {} when the local file is absent or ignored."""
+    if os.environ.get("KEYSTONE_IGNORE_LOCAL") == "1":
+        return {}
+    try:
+        module = importlib.import_module("features.configuration_studio.converter_engine.profiles.local.tam_standard_local")
+    except ImportError:
+        return {}
+    return dict(getattr(module, "OVERRIDES", {}) or {})
+
+
+_LOCAL = _local_overrides()
 
 # ---------------------------------------------------------------------
 # SITE CLASSIFICATION
 # ---------------------------------------------------------------------
-# Every "Site" value that appears in mappings/migration_inventory.csv,
-# grouped per the ops-confirmed rules below. A site code that shows up
-# in neither GTOPAS_CITY_NAMES nor OPTION_A_SITE_CODES simply falls
-# through to Option B, which is defined as the complete "all site
-# other than option A" catch-all — there is no third, unhandled case.
+# A site code that is neither a depot (SITE_CITY_NAMES) nor in OPTION_A_SITE_CODES falls through to Option B, the "every other site" catch-all.
 
-# GTOPAS-<code> is the inventory's internal site code for what ops
-# calls "Depo <city>" (see snmp-agent sys-info location's own example,
-# "DEPO-MANADO"). City names below are the ones ops themselves used,
-# verbatim, in the raw ip-dhcp-helper section of the confirming
-# source document ("Depo Makassar / Manado / Pekanbaru / Semarang").
-GTOPAS_CITY_NAMES = {
-    "GTOPAS-MKS": "MAKASSAR",
-    "GTOPAS-MND": "MANADO",
-    "GTOPAS-PKU": "PEKANBARU",
-    "GTOPAS-SMG": "SEMARANG",
-}
+# Depot site codes -> the city text used in the SNMP location, e.g. "DEPO-BRAVO".
+SITE_CITY_NAMES = dict(_LOCAL.get("SITE_CITY_NAMES") or {
+    "DEPO-AA": "ALPHA",
+    "DEPO-BB": "BRAVO",
+    "DEPO-CC": "CHARLIE",
+    "DEPO-DD": "DELTA",
+})
 
-# DHCP helper Option A — the 4 sites named in the confirmed rule
-# ("SUNTER 2", "SUNTER 3", "ADM SUNTER", "HO"), as inventory Site
-# codes. See module docstring above for how these were matched.
-OPTION_A_SITE_CODES = {"STR2", "STR3", "ADM", "HO"}
+# DHCP helper Option A: the inventory site codes that use the first helper pair; every other site uses Option B.
+OPTION_A_SITE_CODES = set(_LOCAL.get("OPTION_A_SITE_CODES") or {"SB2", "SB3", "AD1", "HO"})
 
-OPTION_A_HELPERS = ["10.86.48.112", "10.185.80.110"]
-OPTION_B_HELPERS = ["10.185.80.110", "10.85.76.110"]
+OPTION_A_HELPERS = list(_LOCAL.get("OPTION_A_HELPERS") or ["192.0.2.112", "198.51.100.110"])
+OPTION_B_HELPERS = list(_LOCAL.get("OPTION_B_HELPERS") or ["198.51.100.110", "203.0.113.110"])
+
+NTP_DOMAIN = _LOCAL.get("NTP_DOMAIN") or "ntp.keystone.invalid"
+SYSLOG_HOST = _LOCAL.get("SYSLOG_HOST") or "192.0.2.187"
+SNMP_COMMUNITIES = list(_LOCAL.get("SNMP_COMMUNITIES") or ["Ro-Example-1", "Ro-Example-2"])
+SNMP_CONTACT = _LOCAL.get("SNMP_CONTACT") or "NOC"
+NETCONF_PEER_IP = _LOCAL.get("NETCONF_PEER_IP") or "192.0.2.101"
 
 
 def resolve_snmp_location(site_code):
     """
     site_code -> SNMP sys-info location text, all-caps, matching the
-    confirmed format ("each site name in all capital like
-    TTC/HO/CCY/DEPO-MANADO etc"). Returns None when the device has no
+    standard format (every site name in capitals, a depot as
+    DEPO-<CITY>). Returns None when the device has no
     resolvable inventory site — never a guess.
     """
 
@@ -67,7 +64,7 @@ def resolve_snmp_location(site_code):
 
     site_code = site_code.strip().upper()
 
-    city = GTOPAS_CITY_NAMES.get(site_code)
+    city = SITE_CITY_NAMES.get(site_code)
 
     if city:
         return f"DEPO-{city}"
@@ -78,7 +75,7 @@ def resolve_snmp_location(site_code):
 def resolve_dhcp_helpers(site_code):
     """
     site_code -> (helpers, note). Always returns a concrete helper
-    list — Option A for the 4 confirmed sites, Option B (the defined
+    list — Option A for the sites in OPTION_A_SITE_CODES, Option B (the
     "everything else" default) otherwise — plus a note the translator
     surfaces as a REVIEW-DHCP-HELPER comment, so a human confirms the
     classification actually matches the physical device before
@@ -100,13 +97,13 @@ def resolve_dhcp_helpers(site_code):
         return (
             OPTION_A_HELPERS,
             f'inventory site "{normalized}" matched Option A '
-            "(SUNTER 2 / SUNTER 3 / ADM SUNTER / HO) — applied "
+            "(one of OPTION_A_SITE_CODES) — applied "
             "Option A helper IPs.",
         )
 
     return (
         OPTION_B_HELPERS,
-        f'inventory site "{normalized}" is not one of the 4 Option A '
+        f'inventory site "{normalized}" is not one of the Option A '
         "sites — applied Option B (default) helper IPs per \"all site "
         "other than option A\".",
     )
@@ -115,23 +112,22 @@ def resolve_dhcp_helpers(site_code):
 TAM_STANDARD = Profile(
     name="TAM Standard",
     description=(
-        "Toyota Astra Motor project-wide infrastructure standard, "
-        "ops-confirmed 18 Aug 2026 (memory-tam-2026-huawei-switch.md "
-        "section 30, cross-checked against switch replacement - "
-        "confirm ip.txt). NTP/syslog/AAA/DNS are fully standardized; "
+        "Project-wide infrastructure standard (example values: the real "
+        "ones load from the gitignored profiles/local file). "
+        "NTP/syslog/AAA/DNS are fully standardized; "
         "SNMP communities+version+location(fallback)+contact are "
         "standardized; DHCP helper IPs are substituted by site group."
     ),
 
     # NTP — domain-based primary, kept public-pool fallback per the
     # user's explicit "keep the pool fallback lines" decision. Every
-    # old IP-based unicast-server value (10.85.80.137 and friends) is
+    # old IP-based unicast-server value (10.220.80.137 and friends) is
     # dropped project-wide, not carried forward from any source device.
     ntp_lines=[
         "ntp server source-interface Vlanif-mgmt "
         "# REVIEW-CONFIRM: replace Vlanif-mgmt with this device's "
         "real management VLANIF",
-        "ntp unicast-server domain ntp.toyota.astra.co.id",
+        f"ntp unicast-server domain {NTP_DOMAIN}",
         "ntp unicast-server domain 0.id.pool.ntp.org",
         "ntp unicast-server domain 1.id.pool.ntp.org",
         "ntp unicast-server domain 2.id.pool.ntp.org",
@@ -141,7 +137,7 @@ TAM_STANDARD = Profile(
 
     # Syslog — single project-wide host, no more per-site host lists.
     syslog_lines=[
-        "info-center loghost 10.85.80.187 port 514 transport udp",
+        f"info-center loghost {SYSLOG_HOST} port 514 transport udp",
         "info-center loghost source Vlanif-mgmt "
         "# REVIEW-CONFIRM: replace Vlanif-mgmt with this device's "
         "real management VLANIF",
@@ -156,13 +152,13 @@ TAM_STANDARD = Profile(
     aaa_authentication_scheme_name="LOCAL_LOGIN",
     aaa_authorization_scheme_name="LOCAL_AUTHOR",
 
-    # STP — every real TAM 2026 draft uses Huawei's VBST mode project-
+    # STP — every draft of this project uses Huawei's VBST mode project-
     # wide, confirmed directly against multiple real drafted devices
-    # this session (e.g. ADM-SWAC-OT-S5735.txt line 330,
-    # ADM-SWCODI-S5755.txt line 384: "stp mode vbst") — independent of
+    # this session (e.g. AD1-SWAC-OT-S5735.txt line 330,
+    # AD1-SWCODI-S5755.txt line 384: "stp mode vbst") — independent of
     # whatever STP mode the Cisco/Aruba source used. The one documented
-    # exception is the TTC DMZ M-LAG core pair, which deliberately uses
-    # root-bridge mode instead (memory-tam-2026-huawei-switch.md
+    # exception is the DC1 DMZ M-LAG core pair, which deliberately uses
+    # root-bridge mode instead (the project decision log
     # section 31c: "STP mode — root bridge, not V-STP/V-VBST") — those
     # 2 devices were hand-drafted to match the M-LAG design, not run
     # through this generic auto-converter, so VBST is still the
@@ -177,10 +173,10 @@ TAM_STANDARD = Profile(
     # VRP defaults to v3 only, and these are v1/v2c-style community
     # strings. Location/contact are fallback-only (see resolve_snmp_
     # location's docstring above) — a source-config value always wins.
-    snmp_communities=["G0tInf0", "K3rb3r0s"],
+    snmp_communities=list(SNMP_COMMUNITIES),
     snmp_version_line="snmp-agent sys-info version v2c v3",
     snmp_location_resolver=resolve_snmp_location,
-    snmp_contact_value="TAM",
+    snmp_contact_value=SNMP_CONTACT,
 
     # DNS — removed entirely ("ops teams confirm not use dns config").
     dns_command_prefixes=(
@@ -195,7 +191,7 @@ TAM_STANDARD = Profile(
     # classification actually works.
     dhcp_helper_resolver=resolve_dhcp_helpers,
 
-    # NETCONF / callhome to iMaster NCE, ops-confirmed 30 Aug 2026 —
+    # NETCONF / callhome to iMaster NCE, ops-confirmed —
     # required for every V600-OS device so NCE can manage it. Verified
     # against V600R025C00 Configuration Guide - System Management,
     # NETCONF Configuration (pp. 479-507), and cross-checked against
@@ -219,8 +215,8 @@ TAM_STANDARD = Profile(
     netconf_lines=[
         "netconf",
         " callhome default-callhome",
-        "  endpoint netconf_10.85.10.101",
-        "   peer-ip 10.85.10.101 port 10020 "
+        f"  endpoint netconf_{NETCONF_PEER_IP}",
+        f"   peer-ip {NETCONF_PEER_IP} port 10020 "
         "local-address <MGMT-IP> "
         "# REVIEW-CONFIRM: replace <MGMT-IP> with this "
         "device's actual management IP",

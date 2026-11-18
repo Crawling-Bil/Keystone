@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 from topology_samples import iosxe_capture, lab_dc, nxos_arp, nxos_capture, nxos_mac_table  # noqa: E402
 
 from features.switch_analyzer.service import analyze  # noqa: E402
-from features.topology import hosts as hosts_module  # noqa: E402
 from features.topology.excel import to_xlsx  # noqa: E402
 from features.topology.extract import mac12  # noqa: E402
 from features.topology.ingest import IngestError, to_captures  # noqa: E402

@@ -94,7 +94,7 @@ class ZtpRoutesTests(unittest.TestCase):
         payload = {
             "esn": esn,
             "mac": "AA:BB:CC:DD:EE:01",
-            "hostname": "TTC-SWAC-TEST-01",
+            "hostname": "DC1-SWAC-TEST-01",
             "mgmt_ip": "10.50.1.11",
             "gateway": "10.50.1.1",
             "vrp_username": "keystone-ztp",
@@ -298,7 +298,7 @@ class ZtpRoutesTests(unittest.TestCase):
     def test_missing_password_on_register_is_400(self):
         payload = {
             "esn": "2102311LDL0000000806",
-            "hostname": "TTC-SWAC-TEST-01",
+            "hostname": "DC1-SWAC-TEST-01",
             "mgmt_ip": "10.50.1.11",
         }
         r = self.client.post("/ztp/api/devices", json=payload)

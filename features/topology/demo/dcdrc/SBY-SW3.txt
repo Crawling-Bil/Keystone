@@ -1,0 +1,277 @@
+SBY-SW3# show version
+-----------------------------------------------------------------------------
+AOS-CX
+(c) Copyright 2017-2025 Hewlett Packard Enterprise Development LP
+-----------------------------------------------------------------------------
+Version      : ML.10.13.1000
+Build Date   : 2024-09-12 20:56:14 UTC
+Build ID     : AOS-CX:ML.10.13.1000:35060c169154:202409122045
+Build SHA    : 35060c1691541672955d13b3006613274c87d269
+Hot Patches  :
+Active Image : primary
+
+Service OS Version : ML.01.18.0001
+BIOS Version       : ML.01.0002
+
+SBY-SW3# show system
+Hostname               : SBY-SW3
+Product Name           : JL724B 6200F 24G 4SFP+ Switch
+Chassis Serial Nbr     : SG24230AB3
+Base MAC Address       : 0a:1b:00:00:01:23
+AOS-CX Version         : ML.10.13.1000
+Time Zone              : Asia/Jakarta
+
+SBY-SW3# show system inventory
+
+Type                 Location        Product          Description                                        Serial           Hardware
+                                     Number                                                              Number           Version
+-------------------- --------------- ---------------- -------------------------------------------------- ---------------- -----------
+Chassis              1               JL724B           6200F 24G 4SFP+ Switch                             SG24230AB3       2
+
+SBY-SW3# show running-config
+!Version AOS-CX ML.10.13.1000
+hostname SBY-SW3
+user admin group administrator
+ntp server 10.10.0.5
+ntp enable
+clock timezone asia/jakarta
+ssh server vrf default
+
+vlan 1
+vlan 10
+    name USERS
+vlan 20
+    name WIFI
+vlan 30
+    name VOICE
+vlan 99
+    name MGMT
+spanning-tree
+spanning-tree mode rpvst
+interface 1/1/27
+    no shutdown
+    description to SBY-SW2 1/1/26
+    no routing
+    vlan trunk native 99
+    vlan trunk allowed 10,20,30,99
+interface 1/1/1
+    no shutdown
+    description SBY-PC5
+    no routing
+    vlan access 10
+    spanning-tree port-type admin-edge
+interface 1/1/2
+    no shutdown
+    description SBY-PC6
+    no routing
+    vlan access 10
+    spanning-tree port-type admin-edge
+interface 1/1/3
+    no shutdown
+    description SBY-PHONE3
+    no routing
+    vlan trunk native 10
+    vlan trunk allowed 10,30
+interface 1/1/4
+    no shutdown
+    description SBY-AP3
+    no routing
+    vlan trunk native 99
+    vlan trunk allowed 20,99
+interface vlan 99
+    description MGMT
+    ip address 10.102.99.13/24
+ip route 0.0.0.0/0 10.102.99.1
+https-server vrf default
+
+SBY-SW3# show vlan
+
+------------------------------------------------------------------------------------------------------------------
+VLAN  Name                              Status  Reason                  Type        Interfaces
+------------------------------------------------------------------------------------------------------------------
+10    USERS                             up      ok                      static      1/1/27,1/1/1,1/1/2,1/1/3
+20    WIFI                              up      ok                      static      1/1/27,1/1/4
+30    VOICE                             up      ok                      static      1/1/27,1/1/3
+99    MGMT                              up      ok                      static      1/1/27,1/1/4
+
+SBY-SW3# show interface
+Interface 1/1/27 is up
+ Admin state is up
+ Link state: up for 23 weeks (since Tue Jun 02 08:00:00 WIB 2026)
+ Link transitions: 1
+ Description: to SBY-SW2 1/1/26
+ Persona:
+ Hardware: Ethernet, MAC Address: 0a:1b:00:00:01:23
+ MTU 1500
+ Type 1GbT
+ Full-duplex
+ qos trust none
+ Speed 1000 Mb/s
+ Auto-negotiation is on
+ Flow-control: off
+ Error-control: off
+ MDI mode: MDIX
+ VLAN Mode: native-untagged
+ Native VLAN: 99
+ Allowed VLAN List: 10,20,30,99
+ Rate collection interval: 300 seconds
+
+Interface 1/1/1 is up
+ Admin state is up
+ Link state: up for 23 weeks (since Tue Jun 02 08:00:00 WIB 2026)
+ Link transitions: 1
+ Description: SBY-PC5
+ Persona:
+ Hardware: Ethernet, MAC Address: 0a:1b:00:00:01:23
+ MTU 1500
+ Type 1GbT
+ Full-duplex
+ qos trust none
+ Speed 1000 Mb/s
+ Auto-negotiation is on
+ Flow-control: off
+ Error-control: off
+ MDI mode: MDIX
+ VLAN Mode: access
+ Access VLAN: 10
+ Rate collection interval: 300 seconds
+
+Interface 1/1/2 is up
+ Admin state is up
+ Link state: up for 23 weeks (since Tue Jun 02 08:00:00 WIB 2026)
+ Link transitions: 1
+ Description: SBY-PC6
+ Persona:
+ Hardware: Ethernet, MAC Address: 0a:1b:00:00:01:23
+ MTU 1500
+ Type 1GbT
+ Full-duplex
+ qos trust none
+ Speed 1000 Mb/s
+ Auto-negotiation is on
+ Flow-control: off
+ Error-control: off
+ MDI mode: MDIX
+ VLAN Mode: access
+ Access VLAN: 10
+ Rate collection interval: 300 seconds
+
+SBY-SW3# show ip interface brief
+
+Interface         IP Address             Interface Status
+                                           link/admin
+vlan99           10.102.99.13/24           up/up
+
+SBY-SW3# show lacp aggregates
+
+SBY-SW3# show lldp neighbor-info detail
+LLDP Neighbor Information
+=========================
+
+Total Neighbor Entries          : 3
+
+Port                           : 1/1/27
+Neighbor Entries               : 1
+Neighbor Entries Deleted       : 0
+Neighbor Entries Dropped       : 0
+Neighbor Entries Aged-Out      : 0
+Neighbor Chassis-Name          : SBY-SW2
+Neighbor Chassis-Description   : 6200F 24G 4SFP+
+Neighbor Chassis-ID            : 0a:1b:00:00:01:22
+Neighbor Management-Address    : 10.102.99.12
+Chassis Capabilities Available : Bridge, Router, WLAN, Telephone
+Chassis Capabilities Enabled   : Bridge, Router
+Neighbor Port-ID               : 1/1/26
+Neighbor Port-Desc             : 
+Neighbor Port VLAN ID          : 1
+TTL                            : 120
+Neighbor System-Name           : SBY-SW2
+Neighbor System-Description    : 6200F 24G 4SFP+
+-------------------------------------------------------------------------------
+Port                           : 1/1/3
+Neighbor Entries               : 1
+Neighbor Entries Deleted       : 0
+Neighbor Entries Dropped       : 0
+Neighbor Entries Aged-Out      : 0
+Neighbor Chassis-Name          : SBY-PHONE3
+Neighbor Chassis-Description   : Cisco endpoint
+Neighbor Chassis-ID            : 02:e1:00:00:22:03
+Neighbor Management-Address    : 10.102.30.103
+Chassis Capabilities Available : Bridge, Router, WLAN, Telephone
+Chassis Capabilities Enabled   : Telephone
+Neighbor Port-ID               : 1
+Neighbor Port-Desc             : 
+Neighbor Port VLAN ID          : 1
+TTL                            : 120
+Neighbor System-Name           : SBY-PHONE3
+Neighbor System-Description    : Cisco endpoint
+-------------------------------------------------------------------------------
+Port                           : 1/1/4
+Neighbor Entries               : 1
+Neighbor Entries Deleted       : 0
+Neighbor Entries Dropped       : 0
+Neighbor Entries Aged-Out      : 0
+Neighbor Chassis-Name          : SBY-AP3
+Neighbor Chassis-Description   : Cisco endpoint
+Neighbor Chassis-ID            : 02:a9:00:00:24:03
+Neighbor Management-Address    : 10.102.99.23
+Chassis Capabilities Available : Bridge, Router, WLAN, Telephone
+Chassis Capabilities Enabled   : WLAN
+Neighbor Port-ID               : Gi0
+Neighbor Port-Desc             : 
+Neighbor Port VLAN ID          : 1
+TTL                            : 120
+Neighbor System-Name           : SBY-AP3
+Neighbor System-Description    : Cisco endpoint
+-------------------------------------------------------------------------------
+
+SBY-SW3# show mac-address-table
+MAC age-time            : 300 seconds
+Number of MAC addresses : 22
+
+MAC Address          VLAN     Type                      Port
+--------------------------------------------------------------
+02:c0:00:00:21:05    10       dynamic                   1/1/1
+02:c0:00:00:21:06    10       dynamic                   1/1/2
+02:e1:00:00:22:03    30       dynamic                   1/1/3
+02:a9:00:00:24:03    99       dynamic                   1/1/4
+02:f1:00:00:23:05    20       dynamic                   1/1/4
+02:f1:00:00:23:06    20       dynamic                   1/1/4
+02:c0:00:00:21:01    10       dynamic                   1/1/27
+02:c0:00:00:21:02    10       dynamic                   1/1/27
+02:e1:00:00:22:01    30       dynamic                   1/1/27
+02:a9:00:00:24:01    99       dynamic                   1/1/27
+02:f1:00:00:23:01    20       dynamic                   1/1/27
+02:f1:00:00:23:02    20       dynamic                   1/1/27
+02:c0:00:00:21:03    10       dynamic                   1/1/27
+02:c0:00:00:21:04    10       dynamic                   1/1/27
+02:e1:00:00:22:02    30       dynamic                   1/1/27
+02:a9:00:00:24:02    99       dynamic                   1/1/27
+02:f1:00:00:23:03    20       dynamic                   1/1/27
+02:f1:00:00:23:04    20       dynamic                   1/1/27
+0a:1b:00:00:01:21    10       dynamic                   1/1/27
+0a:1b:00:00:01:21    20       dynamic                   1/1/27
+0a:1b:00:00:01:21    30       dynamic                   1/1/27
+0a:1b:00:00:01:21    99       dynamic                   1/1/27
+
+SBY-SW3# show ip route
+
+Displaying ipv4 routes selected for forwarding
+
+Origin Codes: C - connected, S - static, L - local
+              R - RIP, B - BGP, O - OSPF, D - DHCP
+Type Codes:   E - External BGP, I - Internal BGP, V - VPN, EV - EVPN
+              IA - OSPF internal area, E1 - OSPF external type 1
+              E2 - OSPF external type 2
+
+VRF: default
+
+Prefix              Nexthop                                  Interface     VRF(egress)       Origin/   Distance/    Age
+                                                                                             Type      Metric
+--------------------------------------------------------------------------------------------------------
+0.0.0.0/0           10.102.99.1                              Vlan99        -                 S         [1/1]   01d:02h:15m
+10.102.99.0/24      -                                        vlan99        -                 C         [0/0]        -
+
+Total Route Count : 2
+
+SBY-SW3# 

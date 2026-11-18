@@ -1,0 +1,183 @@
+<MKS-SW3>display version
+Huawei Versatile Routing Platform Software
+VRP (R) software, Version 5.170 (S5735-S24T4X V200R022C00SPC500)
+Copyright (C) 2000-2023 HUAWEI TECH CO., LTD
+HUAWEI S5735-S24T4X Routing Switch uptime is 120 days, 5 hours, 42 minutes
+
+<MKS-SW3>display esn
+ESN of master board: 2102353430K0003
+
+<MKS-SW3>display device
+S5735-S24T4X's Device status:
+Slot Sub  Type                   Online    Power    Register     Status   Role
+-------------------------------------------------------------------------------
+0    -    S5735-S24T4X           Present   PowerOn  Registered   Normal   Master
+
+<MKS-SW3>display current-configuration
+#
+sysname MKS-SW3
+#
+vlan batch 10 20 30 99
+#
+dhcp enable
+#
+vlan 10
+ name USERS
+#
+vlan 20
+ name WIFI
+#
+vlan 30
+ name VOICE
+#
+vlan 99
+ name MGMT
+#
+interface Vlanif99
+ description MGMT
+ ip address 10.104.99.13 255.255.255.0
+#
+interface XGigabitEthernet0/0/2
+ description to MKS-SW1 XGE0/0/3
+ port link-type trunk
+ port trunk pvid vlan 99
+ port trunk allow-pass vlan 10 20 30 99
+#
+interface GigabitEthernet0/0/1
+ description MKS-PC5
+ port link-type access
+ port default vlan 10
+ stp edged-port enable
+#
+interface GigabitEthernet0/0/2
+ description MKS-PC6
+ port link-type access
+ port default vlan 10
+ stp edged-port enable
+#
+interface GigabitEthernet0/0/3
+ description MKS-PHONE3
+ port link-type access
+ port default vlan 10
+ stp edged-port enable
+ voice-vlan 30 enable
+#
+interface GigabitEthernet0/0/4
+ description MKS-AP3
+ port link-type trunk
+ port trunk pvid vlan 99
+ port trunk allow-pass vlan 20 99
+#
+ip route-static 0.0.0.0 0.0.0.0 10.104.99.1
+return
+
+<MKS-SW3>display eth-trunk
+
+<MKS-SW3>display lldp neighbor brief
+Local Interface         Exptime(s) Neighbor Interface      Neighbor Device
+XGigabitEthernet0/0/2   105        XGigabitEthernet0/0/3  MKS-SW1
+GigabitEthernet0/0/3    105        1                      MKS-PHONE3
+GigabitEthernet0/0/4    105        Gi0                    MKS-AP3
+
+<MKS-SW3>display lldp neighbor
+XGigabitEthernet0/0/2 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :0a1b-0000-0141
+Port ID subtype                    :Interface Name
+Port ID                            :XGigabitEthernet0/0/3
+Port description                   :
+System name                        :MKS-SW1
+System description                 :S5735-S24T4X
+System capabilities supported      :bridge router
+System capabilities enabled        :bridge router
+Management address type            :ipv4
+Management address value           :10.104.99.1
+Port VLAN ID(PVID)                 :1
+
+GigabitEthernet0/0/3 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :02e1-0000-4203
+Port ID subtype                    :Interface Name
+Port ID                            :1
+Port description                   :
+System name                        :MKS-PHONE3
+System description                 :Cisco endpoint
+System capabilities supported      :telephone
+System capabilities enabled        :telephone
+Management address type            :ipv4
+Management address value           :10.104.30.103
+Port VLAN ID(PVID)                 :1
+
+GigabitEthernet0/0/4 has 1 neighbor(s):
+
+Neighbor index                     :1
+Chassis type                       :MAC Address
+Chassis ID                         :02a9-0000-4403
+Port ID subtype                    :Interface Name
+Port ID                            :Gi0
+Port description                   :
+System name                        :MKS-AP3
+System description                 :Cisco endpoint
+System capabilities supported      :wlan-access-point
+System capabilities enabled        :wlan-access-point
+Management address type            :ipv4
+Management address value           :10.104.99.23
+Port VLAN ID(PVID)                 :1
+
+<MKS-SW3>display ip interface brief
+*down: administratively down
+^down: standby
+(l): loopback
+(s): spoofing
+(d): Dampening Suppressed
+Interface                         IP Address/Mask      Physical   Protocol
+Vlanif99                      10.104.99.13/24     up        up
+
+<MKS-SW3>display mac-address
+Flags: * - Backup
+       # - forwarding logical interface, operations cannot be performed based
+           on the interface.
+BD   : bridge-domain   Age : dynamic MAC learned time in seconds
+-------------------------------------------------------------------------------
+MAC Address    VLAN/VSI/BD   Learned-From        Type                Age
+-------------------------------------------------------------------------------
+02c0-0000-4105 10/-/-         GigabitEthernet0/0/1 dynamic             600
+02c0-0000-4106 10/-/-         GigabitEthernet0/0/2 dynamic             601
+02e1-0000-4203 30/-/-         GigabitEthernet0/0/3 dynamic             602
+02a9-0000-4403 99/-/-         GigabitEthernet0/0/4 dynamic             603
+02f1-0000-4305 20/-/-         GigabitEthernet0/0/4 dynamic             604
+02f1-0000-4306 20/-/-         GigabitEthernet0/0/4 dynamic             605
+02c0-0000-4101 10/-/-         XGigabitEthernet0/0/2 dynamic             606
+02c0-0000-4102 10/-/-         XGigabitEthernet0/0/2 dynamic             607
+02e1-0000-4201 30/-/-         XGigabitEthernet0/0/2 dynamic             608
+02a9-0000-4401 99/-/-         XGigabitEthernet0/0/2 dynamic             609
+02f1-0000-4301 20/-/-         XGigabitEthernet0/0/2 dynamic             610
+02f1-0000-4302 20/-/-         XGigabitEthernet0/0/2 dynamic             611
+02c0-0000-4103 10/-/-         XGigabitEthernet0/0/2 dynamic             612
+02c0-0000-4104 10/-/-         XGigabitEthernet0/0/2 dynamic             613
+02e1-0000-4202 30/-/-         XGigabitEthernet0/0/2 dynamic             614
+02a9-0000-4402 99/-/-         XGigabitEthernet0/0/2 dynamic             615
+02f1-0000-4303 20/-/-         XGigabitEthernet0/0/2 dynamic             616
+02f1-0000-4304 20/-/-         XGigabitEthernet0/0/2 dynamic             617
+0a1b-0000-0141 10/-/-         XGigabitEthernet0/0/2 dynamic             618
+0a1b-0000-0141 20/-/-         XGigabitEthernet0/0/2 dynamic             619
+0a1b-0000-0141 30/-/-         XGigabitEthernet0/0/2 dynamic             620
+0a1b-0000-0141 99/-/-         XGigabitEthernet0/0/2 dynamic             621
+-------------------------------------------------------------------------------
+Total items displayed = 22
+
+<MKS-SW3>display ip routing-table
+Route Flags: R - relay, D - download to fib
+------------------------------------------------------------------------------
+Routing Tables: Public
+         Destinations : 1       Routes : 1
+
+Destination/Mask    Proto   Pre  Cost        Flags NextHop         Interface
+
+            0.0.0.0/0   Static  60   1           D   10.104.99.1     Vlanif99
+
+<MKS-SW3>

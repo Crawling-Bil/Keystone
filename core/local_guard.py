@@ -83,12 +83,14 @@ def refusal_reason(method: str, host_header: str, origin: str | None, fetch_site
 #
 # * Content-Security-Policy: nothing is loaded from, or sent to, another site (no CDN, font host or analytics is used), so a script that slipped in
 #   through a captured config's text could not send it anywhere; the page cannot be framed by another site (clickjacking), and a plug-in object or a
-#   ``<base>`` tag cannot be injected.  Inline scripts and styles stay allowed because the pages use a few.
+#   ``<base>`` tag cannot be injected.  Scripts must come from a file under /static: no inline script or inline event handler is
+#   allowed, so a hostname such as ``<img src=x onerror=...>`` that slipped past an escape helper still cannot run.  Inline *styles* stay
+#   allowed because the pages set a few colours and sizes from data.
 #   https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP and https://owasp.org/www-project-secure-headers/
 # * X-Content-Type-Options: a download is never guessed to be a page.
 # * Referrer-Policy: a link to a vendor documentation page does not send the address of the Keystone page.
 SECURITY_HEADERS = {
-    "Content-Security-Policy": ("default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+    "Content-Security-Policy": ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
                                 "font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"),
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",

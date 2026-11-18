@@ -170,6 +170,11 @@ def export_results(results: list[dict[str, Any]], path: Path, *, analyzer_label:
                 result.get("hostname", ""), SEVERITY_LABEL.get(item["severity"], item["severity"]), item.get("id", ""), item.get("category", ""),
                 item.get("title", ""), item.get("object", ""), item.get("detail", ""), item.get("recommendation", ""), item.get("reference", ""),
             ])
+            rows[-1] += ["; ".join(item.get("standards", [])), item.get("evidence", "")]
+    if any(row[-2] or row[-1] for row in rows):
+        headers += ["Standards", "Evidence"]                      # audit columns appear only when a rule supplied them
+    else:
+        rows = [row[:-2] for row in rows]
     # severity column holds the label; map back for fill
     _write_table(ws, headers, rows)
     for row_index, row in enumerate(rows, start=2):

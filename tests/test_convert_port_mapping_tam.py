@@ -1,6 +1,6 @@
 """Convert Switch: port mapping for the legacy Catalyst / Aruba 2540 sources seen in the TAM captures.
 
-Real behaviour behind these tests (TTC cutover captures and staging log): a 2960 with 48 FastEthernet ports and two Gigabit uplinks produced two
+Real behaviour behind these tests (DC1 cutover captures and staging log): a 2960 with 48 FastEthernet ports and two Gigabit uplinks produced two
 ``interface GE1/0/1`` blocks (Fa0/1 and Gi0/1), a 1G optic in a 10GE cage needs ``device transceiver 1000BASE-X``, in a 25GE cage also
 ``port mode GE``, and ``undo poe enable`` belongs on copper access ports only.  The configurations here are synthetic (invented host names, RFC 5737 addresses).
 """

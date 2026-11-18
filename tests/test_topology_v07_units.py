@@ -19,7 +19,7 @@ EDGE = (FIXTURES / "firewall/fortigate_vdom_edge_synthetic.conf").read_text(enco
 def _forti(extra_rows: str = "", vdoms: str = "root CORP", mgmt_only_root: bool = False) -> str:
     """A small multi-VDOM FortiGate: port1/port2 in CORP, port3 in DMZ, plus whatever ``extra_rows`` adds to 'config system interface'."""
     root_rows = "" if mgmt_only_root else '    edit "port9"\n        set vdom "root"\n        set ip 10.9.0.1 255.255.255.0\n        set type physical\n    next\n'
-    return (f"#config-version=FG100F-7.2.8-FW-build1639-240000:opmode=0:vdom=1:user=admin\nconfig vdom\nedit root\nnext\nedit CORP\nnext\nedit DMZ\nnext\nend\n"
+    return ("#config-version=FG100F-7.2.8-FW-build1639-240000:opmode=0:vdom=1:user=admin\nconfig vdom\nedit root\nnext\nedit CORP\nnext\nedit DMZ\nnext\nend\n"
             "config global\nconfig system global\n    set hostname \"FW-SPLIT-01\"\n    set vdom-mode multi-vdom\nend\nconfig system interface\n"
             '    edit "mgmt"\n        set vdom "root"\n        set ip 192.0.2.5 255.255.255.0\n        set type physical\n    next\n' + root_rows +
             '    edit "port1"\n        set vdom "CORP"\n        set ip 10.1.0.1 255.255.255.0\n        set alias "to CORE-SW - Eth1/1"\n        set type physical\n    next\n'

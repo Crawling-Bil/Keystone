@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Sizing Tool · Keystone{% endblock %}
+{% block page_title %}Sizing Tool{% endblock %}
+{% block page_subtitle %}One inventory of every access point, controller, switch, router, firewall and load balancer: hardware, modules, optics, licences and the features in use, grouped for a refresh project.{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/analyzer_kit.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='css/sizing_tool.css') }}">{% endblock %}
+{% block content %}
+{#- No element ids: the SPA router keeps every visited page mounted; sizing_tool.js scopes itself to .sz-page. -#}
+<section class="sz-page" data-api="/sizing-tool" data-max-files="{{ max_files }}" data-growth="{{ default_growth }}">
+  <form class="panel sz-intake" data-role="form" enctype="multipart/form-data" novalidate>
+    <div class="sz-intake-main">
+      <div class="sz-row">
+        <label class="an-field sz-name"><span class="an-label">Project name (optional)</span>
+          <input class="sz-text" type="text" maxlength="60" autocomplete="off" data-role="name" placeholder="Used in the Excel file name, for example Refresh 2027 campus">
+        </label>
+        <label class="an-field sz-growth"><span class="an-label">Growth margin (%)</span>
+          <input class="sz-text" type="number" min="0" max="500" step="5" value="{{ default_growth }}" data-role="growth">
+        </label>
+      </div>
+      <p class="an-hint" data-role="growth-help">Target = today x (1 + growth), rounded up, for quantities that add up (ports, interfaces, policies, virtual servers, access points). Use the figure of the customer's change plan; 25 % is a common planning margin for a three-to-five-year refresh.</p>
+      <span class="an-label">Device captures</span>
+      <div class="sz-demo" data-role="demo" hidden>
+        <span class="sz-demo-label">No captures at hand? Combine invented ones (the Topology Builder scenarios plus a campus written for sizing):</span>
+        <span class="sz-demo-buttons" data-role="demo-buttons"></span>
+      </div>
+      <label class="an-drop" data-role="drop">
+        <input type="file" data-role="file-input" multiple accept=".txt,.log,.cfg,.conf,.config,.cap,.out,.xml,.zip,.ucs,.qkview">
+        <span class="an-drop-icon"><svg class="an-icon" aria-hidden="true"><use href="/static/icons/nes-icons.svg#upload"></use></svg></span>
+        <span><strong>Select or drop device captures</strong><small>Any mix of Cisco, Huawei, Aruba, Palo Alto, FortiGate and F5 captures: one file per device, a file holding several devices, or a .zip. The same captures the analyzers read: switches, routers, firewalls, F5 BIG-IP (.ucs or tmsh) and wireless controllers (Cisco 9800, Huawei AC). Add the inventory, licence and transceiver commands (<code>show inventory</code>, <code>show license summary</code>, <code>show interface transceiver</code>) to list modules, optics and licences. Up to {{ max_files }} devices.</small></span>
+      </label>
+      <ul class="an-file-list hidden" data-role="file-list" aria-label="Selected files"></ul>
+    </div>
+    <div class="sz-intake-side">
+      <div class="an-actions">
+        <button type="submit" class="an-btn primary" data-role="analyze">Build the sizing inventory</button>
+        <button type="button" class="an-btn" data-role="clear">Clear</button>
+        <button type="button" class="an-btn" data-role="open-project">Open a saved project</button>
+        <input type="file" data-role="project-input" accept=".json,.sizing.json" hidden>
+      </div>
+      <div class="an-status" data-role="status" role="status" aria-live="polite"></div>
+      <p class="an-hint">Nothing leaves this computer. The readers are the analyzers' own, so a device is counted the way its analyzer reads it. Credentials, keys and hashes found in a capture are never shown or exported.</p>
+    </div>
+  </form>
+
+  <div class="panel sz-empty" data-role="empty">
+    <h2>Before you start: what to collect</h2>
+    <p>The short list of read-only commands per platform that gives the sizing its numbers (identity, inventory, optics, PoE, licences, peak figures). One saved terminal buffer per device.</p>
+    <div class="sz-pack-bar"><a class="an-btn primary" href="/sizing-tool/api/capture-pack.txt" download>Download the capture pack (.txt)</a></div>
+    <div class="sz-packs" data-role="packs"></div>
+  </div>
+
+  <div class="panel sz-empty" data-role="empty-what">
+    <h2>What this page gives the architect team</h2>
+    <p>One place to see what runs today before choosing the replacement.</p>
+    <ul class="sz-points">
+      <li><strong>Grouped by device type.</strong> Access points, controllers, switches, routers, firewalls and load balancers, each with its models, brands, redundancy and tiers.</li>
+      <li><strong>Every component.</strong> Chassis, modules, power supplies, fans, stack cables and optics with part numbers, added up into one bill of materials.</li>
+      <li><strong>Licences and features.</strong> The licences and entitlements the captures hold, and the features switched on with how many objects sit behind each (VLANs, BGP peers, policies, virtual servers, WLANs).</li>
+      <li><strong>Today and target.</strong> What a replacement must carry now, and with your growth margin, plus the figures a configuration cannot hold (throughput, sessions) listed per device type as a checklist to collect.</li>
+      <li><strong>Honest gaps.</strong> Each missing command (no inventory, no licence output, no transceiver table) is listed with the devices it concerns, so the architect knows what to ask for.</li>
+    </ul>
+  </div>
+
+  <div class="sz-result" data-role="result" hidden>
+    <div class="sz-cards" data-role="cards"></div>
+    <div class="panel sz-downloads">
+      <div class="sz-note" data-role="result-note"></div>
+      <div class="sz-buttons">
+        <button type="button" class="an-btn primary" data-role="export">Download Excel workbook</button>
+        <button type="button" class="an-btn" data-role="summary">One-page summary for the customer (HTML)</button>
+        <button type="button" class="an-btn" data-role="export-bom">Download bill of materials (CSV)</button>
+        <button type="button" class="an-btn" data-role="save-project">Save project</button>
+        <button type="button" class="an-btn" data-role="add-more">Add captures</button>
+        <input type="file" data-role="add-input" multiple accept=".txt,.log,.cfg,.conf,.config,.cap,.out,.xml,.zip,.ucs,.qkview" hidden>
+        <button type="button" class="an-btn" data-role="recalc" hidden>Recalculate with my changes</button>
+      </div>
+    </div>
+    <fieldset class="panel sz-settings">
+      <legend>Sizing settings</legend>
+      <label class="an-field"><span class="an-label">Spare capacity kept free per unit (%)</span><input class="sz-text" type="number" min="0" max="90" step="5" data-role="spare" value="20"></label>
+      <label class="an-field"><span class="an-label">Redundancy of the replacement</span>
+        <select class="sz-text" data-role="redundancy"><option value="none">None (units as calculated)</option><option value="n+1">N+1 (one spare unit)</option><option value="2n">2N (every unit doubled)</option></select></label>
+      <label class="an-field"><span class="an-label">Port demand is counted on</span>
+        <select class="sz-text" data-role="basis"><option value="in_use">Ports in use (link up at capture time)</option><option value="physical">Ports that exist (physical)</option></select></label>
+      <label class="an-field"><span class="an-label">Show licences ending within (months)</span><input class="sz-text" type="number" min="1" max="60" step="1" data-role="months" value="12"></label>
+    </fieldset>
+    <div class="sz-tabs" role="tablist" aria-label="Sizing sections" data-role="tabs">
+      <button type="button" role="tab" data-tab="types" aria-selected="true" tabindex="0">By device type</button>
+      <button type="button" role="tab" data-tab="plan" aria-selected="false" tabindex="-1">Replacement plan</button>
+      <button type="button" role="tab" data-tab="bom" aria-selected="false" tabindex="-1">Bill of materials</button>
+      <button type="button" role="tab" data-tab="licences" aria-selected="false" tabindex="-1">Licences</button>
+      <button type="button" role="tab" data-tab="expiry" aria-selected="false" tabindex="-1">Expiry</button>
+      <button type="button" role="tab" data-tab="peaks" aria-selected="false" tabindex="-1">Peak figures</button>
+      <button type="button" role="tab" data-tab="features" aria-selected="false" tabindex="-1">Features in use</button>
+      <button type="button" role="tab" data-tab="devices" aria-selected="false" tabindex="-1">Devices</button>
+      <button type="button" role="tab" data-tab="evidence" aria-selected="false" tabindex="-1">Evidence</button>
+      <button type="button" role="tab" data-tab="sites" aria-selected="false" tabindex="-1">Sites</button>
+      <button type="button" role="tab" data-tab="imports" aria-selected="false" tabindex="-1">Imports</button>
+      <button type="button" role="tab" data-tab="compare" aria-selected="false" tabindex="-1">Compare</button>
+      <button type="button" role="tab" data-tab="gaps" aria-selected="false" tabindex="-1">Gaps and inputs</button>
+    </div>
+    <div class="panel sz-panel" data-role="panel" role="tabpanel"></div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/sizing_tool.js') }}"></script>{% endblock %}

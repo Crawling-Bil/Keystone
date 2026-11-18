@@ -12,6 +12,10 @@ Two ``topology.json`` files (or the ``keystone-topology-pack.zip`` that holds on
 Every row says whether it needs attention.  A device or a link that disappears, a link that slows down, a duplex, bundle or native VLAN change, a
 new management address, a vPC role change and a new medium finding need attention; additions and the rest are information.
 
+A device whose **name** changed is not reported as one removed and one added: a device that left the first run and a device that is new in the second share a serial number (or, failing that, a
+management address), and no other device does, is a **rename** (``find_renames``): one row says so, its links, hosts and findings are compared under the new name, and the other fields are compared
+as usual.  Two candidates for one name, or one candidate for two, are not guessed: they stay removed and added.
+
 A device that is in the first run and not in the second may simply not have been captured the second time.  The summary says how many devices
 were captured in both runs, and a device that is still in the second run but was only seen by neighbors is reported as "no longer captured".
 
@@ -96,6 +100,62 @@ def load_run(data: bytes) -> dict[str, Any]:
 
 def _is_captured(row: dict) -> bool:
     return _text(row.get("captured")).lower().startswith("yes")
+
+
+def _serials(row: dict) -> set[str]:
+    return {part.strip().upper() for part in _text(row.get("serial")).split(",") if part.strip()}
+
+
+def find_renames(before: list[dict], after: list[dict]) -> dict[str, str]:
+    """``{old name: new name}`` for devices that left ``before`` and appear in ``after`` under another name with the same serial number or, without a serial in common, the same management address.
+    Only a match that is one to one on both sides counts; ambiguity leaves both devices as removed and added."""
+    old = {_text(r.get("device")): r for r in before if _text(r.get("device"))}
+    new = {_text(r.get("device")): r for r in after if _text(r.get("device"))}
+    gone = {n: r for n, r in old.items() if n not in new}
+    fresh = {n: r for n, r in new.items() if n not in old}
+
+    def counts(rows: dict[str, dict], tokens) -> dict[str, int]:
+        found: dict[str, int] = {}
+        for row in rows.values():
+            for token in tokens(row):
+                found[token] = found.get(token, 0) + 1
+        return found
+
+    def ip(row: dict) -> set[str]:
+        return {_text(row.get("management_ip"))} - {""}
+
+    # a serial number or an address is evidence only when exactly one device of each run holds it: stacks share a model, a default address is on many devices
+    serial_old, serial_new, ip_old, ip_new = counts(old, _serials), counts(new, _serials), counts(old, ip), counts(new, ip)
+    pairs: dict[str, list[str]] = {}
+    for g_name, g in gone.items():
+        by_serial = [n for n, r in fresh.items() if any(serial_old[t] == 1 and serial_new[t] == 1 for t in _serials(g) & _serials(r))]
+        by_ip = [n for n, r in fresh.items() if any(ip_old[t] == 1 and ip_new[t] == 1 for t in ip(g) & ip(r))]
+        pairs[g_name] = by_serial or by_ip
+    renames: dict[str, str] = {}
+    for g_name, candidates in pairs.items():
+        if len(candidates) == 1 and sum(1 for c in pairs.values() if candidates[0] in c) == 1:
+            renames[g_name] = candidates[0]
+    return renames
+
+
+def apply_renames(run: dict[str, Any], renames: dict[str, str]) -> dict[str, Any]:
+    """A copy of ``run`` in which every table names the renamed devices by their new name (devices, links, hosts, behind-devices, findings)."""
+    if not renames:
+        return run
+    def name(value: Any) -> Any:
+        return renames.get(_text(value), value)
+    out = dict(run)
+    out["devices"] = [{**r, "device": name(r.get("device"))} for r in run.get("devices", [])]
+    out["links"] = [{**r, "device_a": name(r.get("device_a")), "device_b": name(r.get("device_b"))} for r in run.get("links", [])]
+    out["hosts"] = [{**r, "device": name(r.get("device"))} for r in run.get("hosts", [])]
+    out["behind"] = [{**r, "switch": name(r.get("switch"))} for r in run.get("behind", [])]
+    findings = []
+    for r in run.get("findings", []):
+        devices = r.get("devices", [])
+        devices = [name(d) for d in devices] if isinstance(devices, list) else ", ".join(str(name(part.strip())) for part in str(devices).split(",") if part.strip())
+        findings.append({**r, "devices": devices})
+    out["findings"] = findings
+    return out
 
 
 def _device_rows(before: list[dict], after: list[dict]) -> tuple[list[dict], dict[str, int]]:
@@ -321,9 +381,9 @@ def _finding_rows(before: list[dict], after: list[dict]) -> tuple[list[dict], di
         scope = ", ".join(key[1][:4]) + (" ..." if len(key[1]) > 4 else "")
         if a is None:
             counts["added"] += 1
-            medium = _text(b.get("severity")) == "medium"
+            medium = _text(b.get("severity")) in ("high", "medium")                  # v2.6 added "high" (TOPO-059, 063 ...): a new one is the first thing to read
             rows.append(_row("Findings", "added", "attention" if medium else "info", label, scope, "", _text(b.get("severity")),
-                             "a new finding of medium severity" if medium else ""))
+                             f"a new finding of {_text(b.get('severity'))} severity" if medium else ""))
         elif b is None:
             counts["resolved"] += 1
             rows.append(_row("Findings", "resolved", "info", label, scope, _text(a.get("severity")), "", "no longer reported in the second run"))
@@ -337,7 +397,7 @@ def _finding_rows(before: list[dict], after: list[dict]) -> tuple[list[dict], di
 
 
 def _severity_rank(severity: str) -> int:
-    return {"medium": 0, "low": 1, "info": 2}.get(severity, 3)
+    return {"high": -1, "medium": 0, "low": 1, "info": 2}.get(severity, 3)
 
 
 def _host_rows(before: list[dict], after: list[dict]) -> tuple[list[dict], dict[str, int]]:
@@ -407,6 +467,9 @@ def _row(area: str, change: str, impact: str, item: str, field: str, before: str
 def compare_runs(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
     """``{"summary": ..., "rows": [...], "columns": [...]}``; rows are ordered by area, then the ones that need attention, then by name.
     An area with more than ``MAX_ROWS_PER_AREA`` rows keeps the first rows and says so in ``summary["truncated"]``."""
+    renames = find_renames(before.get("devices", []), after.get("devices", []))
+    old_rows = {_text(r.get("device")): r for r in before.get("devices", [])}
+    before = apply_renames(before, renames)
     parts = {
         "Devices": _device_rows(before.get("devices", []), after.get("devices", [])),
         "Links": _link_rows(before.get("links", []), after.get("links", [])),
@@ -417,6 +480,14 @@ def compare_runs(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any
     rows: list[dict] = []
     areas: dict[str, dict[str, int]] = {}
     truncated: dict[str, int] = {}
+    if renames:
+        by_new = {new: old for old, new in renames.items()}
+        counts = parts["Devices"][1]
+        counts["renamed"] = len(renames)
+        new_rows = {_text(r.get("device")): r for r in after.get("devices", [])}
+        for new, old in sorted(by_new.items(), key=lambda item: item[0].lower()):
+            why = "the same serial number" if _serials(old_rows[old]) & _serials(new_rows[new]) else "the same management address"
+            parts["Devices"][0].append(_row("Devices", "renamed", "info", new, "name", old, new, f"{why} under another name: renamed, not replaced"))
     for area in AREAS:
         area_rows, counts = parts[area]
         areas[area] = counts
@@ -426,7 +497,7 @@ def compare_runs(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any
             area_rows = area_rows[:MAX_ROWS_PER_AREA]
         rows.extend(area_rows)
     attention = sum(1 for r in rows if r["impact"] == "attention")
-    differences = sum(counts.get("added", 0) + counts.get("removed", 0) + counts.get("changed", 0) + counts.get("moved", 0) + counts.get("resolved", 0)
+    differences = sum(counts.get("added", 0) + counts.get("removed", 0) + counts.get("changed", 0) + counts.get("moved", 0) + counts.get("resolved", 0) + counts.get("renamed", 0)
                       for counts in areas.values())
     summary = {
         "areas": areas, "attention": attention, "differences": differences, "truncated": truncated,

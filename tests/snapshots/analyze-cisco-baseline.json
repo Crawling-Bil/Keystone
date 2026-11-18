@@ -3,14 +3,14 @@
   "checks": [
    {
     "check": "NTP servers",
-    "expected": "ntp.toyota.astra.co.id, 0.id.pool.ntp.org, 1.id.pool.ntp.org, 2.id.pool.ntp.org, 3.id.pool.ntp.org",
+    "expected": "ntp.keystone.invalid, 0.id.pool.ntp.org, 1.id.pool.ntp.org, 2.id.pool.ntp.org, 3.id.pool.ntp.org",
     "found": "198.51.100.1",
     "id": "SW-BASE-001",
     "status": "fail"
    },
    {
     "check": "Syslog hosts",
-    "expected": "10.85.80.187",
+    "expected": "192.0.2.187",
     "found": "198.51.100.2",
     "id": "SW-BASE-002",
     "status": "fail"

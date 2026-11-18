@@ -22,6 +22,7 @@ import re
 from datetime import date, datetime, timezone
 from typing import Any
 from xml.etree import ElementTree as ET
+from core.safe_xml import fromstring as safe_fromstring
 
 from ..analyzer_core.findings import finding
 from ..analyzer_core.result import kv_section, table_section
@@ -92,7 +93,7 @@ def extract(content: str) -> dict[str, Any] | None:
     if not text.startswith("<"):
         return None
     try:
-        root = ET.fromstring(text)
+        root = safe_fromstring(text)
     except ET.ParseError:
         return None
     device = root.find("devices/entry")

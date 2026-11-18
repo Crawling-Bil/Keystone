@@ -1,14 +1,32 @@
 # Keystone
 
-Keystone is a local web tool for network engineers. It reads device captures and builds assessment reports, converts configurations between vendors, writes the LLD (Low Level Design) Word document of a project, and runs firmware and configuration jobs on switches. It runs on your own computer, so customer configurations never leave your machine.
+[![tests](https://github.com/Crawling-Bil/Keystone/actions/workflows/tests.yml/badge.svg)](https://github.com/Crawling-Bil/Keystone/actions/workflows/tests.yml)
 
-Current version: 1.11.0. Indonesian guide: [docs/PANDUAN.md](docs/PANDUAN.md).
+Keystone is a local web tool for network engineers. It reads device captures and builds assessment reports (wireless, switch, router, firewall and load balancer), draws the network from the neighbours in the captures, sizes a refresh project from any mix of captures, converts configurations between vendors, writes the LLD (Low Level Design) Word document of a project, and runs firmware and configuration jobs on switches. It runs on your own computer, so customer configurations never leave your machine.
+
+Current version: 1.12.0. Indonesian guide: [docs/PANDUAN.md](docs/PANDUAN.md). Every tool explained step by step, for a first-time user and for an expert: [docs/TOOLS_GUIDE.md](docs/TOOLS_GUIDE.md) (Bahasa Indonesia: [docs/PANDUAN_ALAT.md](docs/PANDUAN_ALAT.md)).
 
 ## See it work
 
-![Topology Builder: load the invented data center, build, pin it as the baseline, load the after-change captures and see what changed](docs/img/keystone-topology-demo.gif)
+![Tour of the seven Analyze tools: Wireless, Switch, Router, Firewall, Load Balancer, Topology Builder and Sizing Tool, each opened with an invented capture and shown with its result](docs/img/keystone-tools-tour.gif)
 
-The recording uses only the invented captures that ship with the Topology Builder. A five-minute walk-through with the talking points is in [docs/PRESENTER_SCRIPT.md](docs/PRESENTER_SCRIPT.md).
+The seven Analyze tools, each with its result:
+
+![Wireless Analyzer, Switch Analyzer, Router Analyzer, Firewall Analyzer, Load Balancer Analyzer, Topology Builder and Sizing Tool](docs/img/keystone-tools-overview.png)
+
+| Tool | You give it | You get |
+| --- | --- | --- |
+| [Wireless Analyzer](docs/TOOLS_GUIDE.md#3-wireless-analyzer) | Cisco 9800 or Huawei AC capture | APs, WLANs, tags, licences, findings, AP role diff |
+| [Switch Analyzer](docs/TOOLS_GUIDE.md#4-switch-analyzer) | Cisco, Huawei or Aruba switch capture | VLANs, spanning tree, port-channels, PoE, optics, health, findings |
+| [Router Analyzer](docs/TOOLS_GUIDE.md#5-router-analyzer) | Cisco IOS, IOS-XE or SD-WAN capture | Interfaces, routing, BGP / OSPF, VPN, NAT, findings |
+| [Firewall Analyzer](docs/TOOLS_GUIDE.md#6-firewall-analyzer) | FortiGate, Palo Alto, MikroTik | Policies, NAT, VPN, routing, hardening findings |
+| [Load Balancer Analyzer](docs/TOOLS_GUIDE.md#7-load-balancer-analyzer) | F5 BIG-IP `.ucs` or `tmsh` | Virtual server to pool map, SSL, HA, findings |
+| [Topology Builder](docs/TOOLS_GUIDE.md#8-topology-builder) | One capture per device | draw.io diagram with the ports on every line |
+| [Sizing Tool](docs/TOOLS_GUIDE.md#9-sizing-tool) | Any mix of captures | One inventory with hardware, licences, features, and a replacement plan |
+
+All pictures use invented captures that ship with Keystone or with its tests; no customer data is shown. The Topology Builder also has a five-minute walk-through with talking points: [docs/PRESENTER_SCRIPT.md](docs/PRESENTER_SCRIPT.md).
+
+![Topology Builder: load the invented data center, build, pin it as the baseline, load the after-change captures and see what changed](docs/img/keystone-topology-demo.gif)
 
 ## Quick start
 
@@ -36,14 +54,17 @@ Keystone only listens on your own computer (`127.0.0.1`), so another machine on 
 
 ## What it does
 
+Each Analyze tool is explained step by step, with pictures, in [docs/TOOLS_GUIDE.md](docs/TOOLS_GUIDE.md).
+
 | Group | Tool | What you give it | What you get |
 | --- | --- | --- | --- |
-| Analyze | Wireless Analyzer | Pick the controller first. Huawei: `display current-configuration` + AP Info. Cisco 9800: `show tech-support wireless` | Per-vendor tables (Cisco: WLAN, Policy Profile, Policy/Site/RF Tag, AP Join/Flex/RF, APs with tags), findings, AP master validation, AP role diff, source-to-target delta |
+| Analyze | Wireless Analyzer | Pick the controller first. Huawei: `display current-configuration` + AP Info, or a terminal log with `display ap all` / `display radio all` / `display ap lldp neighbor brief`. Cisco 9800: `show tech-support wireless` | Per-vendor tables (Cisco: WLAN, Policy Profile, Policy/Site/RF Tag, AP Join/Flex/RF, APs with tags; Huawei: VAP, SSID, security, AP group, radio planning, radios and AP uplinks from the runtime tables), findings, AP master validation, AP role diff, source-to-target delta |
 | Analyze | Switch Analyzer | Cisco (Catalyst, Nexus), Huawei, Aruba (ArubaOS-Switch, AOS-CX) configuration and `show` output | Inventory, VLANs, spanning tree, port-channels, vPC/M-LAG, PoE, transceivers, findings, Excel export (with a Health Details sheet) |
 | Analyze | Router Analyzer | Cisco IOS, IOS-XE or SD-WAN capture | Interfaces, routing, BGP/OSPF, VPN, hardening findings |
 | Analyze | Firewall Analyzer | FortiGate, FortiSwitch, Palo Alto (configuration or runtime log), MikroTik RouterOS 6/7 | Policies, NAT, VPN, routing, objects, hardening findings |
 | Analyze | Load Balancer Analyzer | F5 BIG-IP `.ucs`, `bigip.conf` or `tmsh` output | Virtual server to pool map, monitors, SSL, HA, DNS (GTM), findings |
 | Analyze | Topology Builder | Captures (or a ZIP) of switches, routers, FortiGate, Palo Alto and F5 BIG-IP (`.ucs` or `tmsh`), with CDP / LLDP neighbors, optionally MAC / ARP tables and routing facts | draw.io diagram with L3 over L2, L3 logical and route, logical IP, physical, vPC and F5 map views (keeps your layout between runs), neighbors from ARP / MAC / descriptions where CDP/LLDP is silent, one page per site on large networks, SD-WAN overlay and provider clouds, trace of a path, link speeds, documentation pack (ZIP / HTML report), Excel, link, bundle, host and L3 tables, devices behind uncaptured devices, the captures to take next, merge with a previous run, optional anonymized copy, a progress bar while it builds |
+| Analyze | Sizing Tool | Any mix of captures of access points, controllers, switches, routers, firewalls and load balancers (Cisco, Huawei, Aruba, FortiGate, Palo Alto, F5, MikroTik) | One inventory: hardware, modules, optics, licences and features in use; partial captures of one device merged; HA and vPC pairs found from the configuration; replacement plan from the per-unit capacity you type (spare, N+1 / 2N); firewalls sized on the throughput that matches their inspection; licence tier the replacement needs and renewal windows; Excel, bill of materials (CSV), one-page summary, saved project |
 | Convert | Convert Switch | Cisco, Huawei or Aruba switch configuration (Aruba 2540 / ArubaOS-Switch and AOS-CX), or a terminal session capture of it | Configuration for another vendor, interface map, pre-flight summary; every statement without a safe equivalent is a `REVIEW-` line |
 | Convert | Convert Firewall | MikroTik configuration | Palo Alto (Panorama-ready) configuration, in one click or step by step (Guided Conversion: target model, interface and VLAN mapping, zones, checked at every step) |
 | Convert | Wireless, Router, Load Balancer | none yet | These pages say what is needed first and link to the matching analyzer |
@@ -94,7 +115,7 @@ With git: `git pull`, then run the setup file once (`setup_windows.bat` or `bash
 4. Go to **Single Device**, drop the file in, leave Vendor on Auto Detect and press **Analyze Switch**.
 5. Read **Overview**, **Findings** and **Health**, then **Export to Excel (.xlsx)** for the report.
 
-The other analyzers work the same way. Each has a Collect Backup tab or list for its platforms: Cisco IOS-XE and SD-WAN routers, FortiGate, MikroTik, Palo Alto, F5 BIG-IP (LTM and DNS).
+The other analyzers work the same way. Each has a Collect Backup tab or list for its platforms: Cisco IOS-XE and SD-WAN routers, FortiGate, MikroTik, Palo Alto, F5 BIG-IP (LTM and DNS). Which commands to capture, how to read each tab and what the findings mean are in [docs/TOOLS_GUIDE.md](docs/TOOLS_GUIDE.md).
 
 A file that belongs to another tool (for example a router capture on the Switch page) is not forced through the wrong parser. The page tells you which analyzer to use.
 
@@ -139,6 +160,17 @@ Several files or a ZIP can be converted in one go with **batch conversion**. Det
 
 The pack contains `run-settings.txt`: the options you set, the creation time and the topology name. Send it together with a question or a bug report. Everything else, including finding IDs (TOPO-001 ...) and what each option does, is in [docs/modules/topology.md](docs/modules/topology.md).
 
+## Size a refresh
+
+1. Open **Analyze**, then **Sizing Tool**. Type a project name and the growth margin. No captures at hand? Press the demo **Campus with wireless and licences**.
+2. Drop the captures of every device you want to count (any mix of vendors and device types, one file each, or a ZIP). Add more later with **Add captures**.
+3. Press **Build the sizing inventory**. Read **By device type** first, then **Gaps and inputs**: it lists what the captures did not say (licence output, transceivers, peak figures) so that you know where the numbers are thin.
+4. In **Replacement plan** type the capacity of one unit of the model you are considering (from its datasheet), the spare capacity to keep free and the redundancy (none, N+1, 2N). The tool counts the units. Save candidate models in the library and compare two side by side.
+5. Read **Licences** (what is in use, the tier the replacement needs, renewal windows that can be co-termed) and **Expiry**.
+6. Download the **Excel workbook**, the **bill of materials (CSV)** or the **one-page summary** (HTML), and **Save project** to reopen the run later.
+
+Nothing is priced and no product catalogue is bundled: the per-unit capacity is yours. Every figure shows where it came from. Details and every option: [docs/modules/sizing-tool.md](docs/modules/sizing-tool.md); the same steps with pictures: [docs/TOOLS_GUIDE.md](docs/TOOLS_GUIDE.md#9-sizing-tool).
+
 ## Write an LLD document
 
 1. Open **Document**, then **LLD Index**. Fill in the customer, project name, code, your name and the project goals. Turn on **Replacement project** when old devices are replaced.
@@ -154,7 +186,7 @@ The first time, open **Document Generator** and press **Import from the old Docu
 
 ## Tools that change devices
 
-Device Operations and ZTP Provisioning write to real devices. Real runs support Huawei VRP only; other vendors run in demo mode. Firmware upgrade and Config Push run a pre-check and take a configuration backup around the job. Use Demo Mode to rehearse first. The Backup and Live Logs tabs are read-only. Read [docs/modules/lifecycle-manager.md](docs/modules/lifecycle-manager.md) before the first real job.
+Device Operations and ZTP Provisioning write to real devices. Real runs support Huawei VRP only; other vendors run in demo mode. Firmware upgrade and Config Push run a pre-check and take a configuration backup around the job. Use Demo Mode to rehearse first. Every request that starts or changes a job in these two tools is also written to `logs/audit.jsonl`: time, address, the names of the submitted fields and the target host or serial, never a password or configuration text. Each line carries the hash of the line before it, so a changed or deleted line is detectable (`python -c "from core import audit_log; print(audit_log.verify())"`). The Backup and Live Logs tabs are read-only. Read [docs/modules/lifecycle-manager.md](docs/modules/lifecycle-manager.md) before the first real job.
 
 ## Settings (optional)
 
@@ -202,9 +234,15 @@ On Windows, open Command Prompt in the Keystone folder, run for example `set NES
 ## More documentation
 
 - [docs/PRD.md](docs/PRD.md): scope, supported vendors, roadmap (Indonesian)
-- [docs/PANDUAN.md](docs/PANDUAN.md): user guide in Bahasa Indonesia
+- [docs/TOOLS_GUIDE.md](docs/TOOLS_GUIDE.md): the seven Analyze tools step by step, for newcomers and experts, with vendor documentation links
+- [docs/PANDUAN_ALAT.md](docs/PANDUAN_ALAT.md): the same guide in Bahasa Indonesia
+- [docs/PANDUAN.md](docs/PANDUAN.md): user guide in Bahasa Indonesia (install, update, convert, LLD)
 - [docs/modules/configuration-studio.md](docs/modules/configuration-studio.md): how Convert works, Nexus, stacks, hardware catalog
 - [docs/modules/lifecycle-manager.md](docs/modules/lifecycle-manager.md): upgrade, push, backup and ZTP
+- [docs/modules/wireless.md](docs/modules/wireless.md): Wireless Analyzer, Huawei terminal logs and runtime tables
+- [docs/modules/topology.md](docs/modules/topology.md): every Topology Builder option and finding
+- [docs/modules/sizing-tool.md](docs/modules/sizing-tool.md): Sizing Tool inputs, plan, licences, project file
+- [docs/modules/panorama.md](docs/modules/panorama.md): Palo Alto Panorama in the Firewall Analyzer
 - [docs/modules/lld-index.md](docs/modules/lld-index.md): LLD index templates, inventory columns, rack layout, saved projects
 - [docs/modules/lld-generator.md](docs/modules/lld-generator.md): Document Generator, master template placeholders, Work Plan and Work Report, approvers, import from the old Document Generator
 - [CONTRIBUTING.md](CONTRIBUTING.md): reporting problems, keeping real data out, running the tests
@@ -213,12 +251,15 @@ On Windows, open Command Prompt in the Keystone folder, run for example `set NES
 ## Development
 
 ```bash
-pip install -r requirements.txt pytest
+pip install -r requirements-dev.txt
 python -m pytest -q
+pre-commit install    # optional: runs ruff before every commit
 ```
+
+The same checks run on GitHub for every pull request ([.github/workflows/tests.yml](.github/workflows/tests.yml)): the tests on Windows and Linux, a browser regression run, a coverage floor, `ruff` and `pip-audit`. A rule can carry optional `standards` (control identifiers such as a CIS or NIST SP 800-53 control) and `evidence` (the configuration line it was raised from) through `analyzer_core.findings.finding()`; the Findings sheet shows those two columns when a rule fills them in. Dependencies are pinned in `requirements-lock.txt`; [SECURITY.md](SECURITY.md) says how to report a vulnerability.
 
 The tool list lives in `core/modules.py`. To add a module, register its blueprint in `app.py` and add an entry there. Adding a converter is described in `docs/modules/configuration-studio.md`. The Word engine shared by the document tools is `core/docgen/` (docgen, importer, placeholders, and the master template in `core/docgen/master/`); change `docgen.py` only together with a test that compares the generated document. `core/local_guard.py` is the small guard that keeps other websites from calling Keystone; keep new routes behind the same app so they get it.
 
 ## License
 
-No license file has been published yet. Ask the repository owner before you reuse or redistribute the code.
+See [LICENSE](LICENSE). It is an internal-use notice, not an open-source licence: ask the repository owner before you reuse or redistribute the code.

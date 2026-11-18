@@ -162,7 +162,9 @@ def wrap_centre(text: str, width: int = 44) -> list[str]:
 
 def node_lines(node) -> list[str]:
     """Hostname, model (+STACK), management IP - the three lines used in the reference diagrams."""
-    model = " ".join(x for x in (node.model, "— STACK" if getattr(node, "stack_members", 1) > 1 else "") if x)
+    svl = getattr(node, "svl_domain", "")
+    model = " ".join(x for x in (node.model, f"— SVL DOMAIN {svl}" if svl else "— STACK" if getattr(node, "stack_members", 1) > 1 else "") if x)
     if not model and node.role_hint in ROLE_LABEL and node.role_hint not in ("host", "segment"):
         model = ROLE_LABEL[node.role_hint]              # an access point that reports no model still says what it is
-    return [node.hostname, model, node.mgmt_ip]
+    note = getattr(node, "mgmt_note", "")
+    return [node.hostname, model, node.mgmt_ip] + ([note] if note else [])          # a device whose link to the management switch is drawn as a note (mgmtnotes.py) says so on a fourth line

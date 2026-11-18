@@ -82,6 +82,9 @@ def score_page(page: Any) -> dict[str, float]:
                     cells[(cx, cy)].append((index, n))
     seen: set[tuple[tuple[int, int], tuple[int, int]]] = set()
     crossings = 0
+    bus = getattr(page, "bus", None) or set()
+    bus_lines = {n for n, index in enumerate(i for i, c in enumerate(page.connections) if c.a in centre and c.b in centre and c.a != c.b) if index in bus}         # the lines of ``scene._route_bus``
+    bundles: set[tuple[tuple[int, ...], tuple[int, ...]]] = set()        # two bundles meet once: the pair of crossing runs counts once however many lines ride on them
     for members in cells.values():
         for i, a in enumerate(members):
             for b in members[i + 1:]:
@@ -92,6 +95,11 @@ def score_page(page: Any) -> dict[str, float]:
                 if lines[b[0]][0] in ends or lines[b[0]][1] in ends:
                     continue
                 if crosses(lines[a[0]][2][a[1]], lines[b[0]][2][b[1]]):
+                    if a[0] in bus_lines and b[0] in bus_lines:
+                        run = tuple(sorted((tuple(round(v) for v in lines[a[0]][2][a[1]]), tuple(round(v) for v in lines[b[0]][2][b[1]]))))
+                        if run in bundles:
+                            continue
+                        bundles.add(run)
                     crossings += 1
     where: dict[tuple[int, int], list[str]] = defaultdict(list)
     for key, (x, y) in centre.items():

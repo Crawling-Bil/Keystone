@@ -5,7 +5,7 @@ Layouts copied from NX-OS 10.4(5) / 10.5(4) output; host names, serials and addr
 
 from __future__ import annotations
 
-from features.switch_analyzer import capture_text, nxos_state, service
+from features.switch_analyzer import capture_text, nxos_state
 
 MODULE = """\
 Mod Ports                  Module-Type                            Model           Status

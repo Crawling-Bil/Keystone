@@ -7,11 +7,13 @@ import re
 from dataclasses import dataclass
 
 from .graph import Graph
-from .roles import LEVEL_ROLES, depth_row, tier_of
+from .labels import node_lines
+from .textwidth import widest
+from .roles import LEVEL_ROLES, depth_row, tier_of, twin_clusters
 
 NODE_W, NODE_H = 76, 76          # icon size (as in the sample diagrams)
 X_STEP, Y_STEP = 230, 250        # label room between icons
-X_MAX = 300                      # widest step a long hostname may ask for
+X_MAX = 340                      # widest step a long hostname may ask for (34 capitals measure about 282 px, plus the margin)
 SUB_STEP = 175                   # distance between the staggered lines of one long row of endpoints
 GHOST_ROW_MAX = 8                # a row of this many devices of other sites is the most that stands on one line; more are dealt out over staggered lines
 WRAP_MIN = 12                    # a row of endpoints shorter than this is never cut
@@ -59,6 +61,8 @@ class Placed:
     tier: int
     box: str = ""            # end points drawn under a switch with "group end points": the key of that switch (the page draws one labelled frame per switch)
     depth: int | None = None  # hops from the core of its switch hierarchy (0 = core); None for a device outside every hierarchy
+    zone: str = ""            # the title of the zone (block round the core) the device belongs to; empty when the page is not laid out in zones
+    zone_id: str = ""         # "<kind>:<key>" of that zone (kind: core, external, internal, tall, management, other, ghost): two zones may have one title, never one id
 
 
 def natural_key(name: str, tie: str = "") -> tuple:
@@ -67,8 +71,18 @@ def natural_key(name: str, tie: str = "") -> tuple:
     return tuple((1, int(p), "") if p.isdigit() else (0, 0, p) for p in parts), tie
 
 
-def layered(graph: Graph, keys: list[str], x0: float = 0, y0: float = 0, tiers: dict[str, float] | None = None, ghosts: set[str] | None = None) -> tuple[dict[str, Placed], float, float]:
-    """Place ``keys`` (a subset of graph nodes). Returns positions plus the width and height used.  ``tiers`` overrides the row of single nodes (the L3 pages lift provider clouds above the routers)."""
+def layered(graph: Graph, keys: list[str], x0: float = 0, y0: float = 0, tiers: dict[str, float] | None = None, ghosts: set[str] | None = None,
+            ghost_side: dict[str, int] | None = None, zoned: bool = False, forced: dict[str, float] | None = None, middle: bool = True) -> tuple[dict[str, Placed], float, float]:
+    """Place ``keys`` (a subset of graph nodes). Returns positions plus the width and height used.  ``tiers`` overrides the row of single nodes (the L3 pages lift provider clouds above the routers).
+    ``ghost_side``: -1 / +1 for a ghost whose site stands left / right of this one on the Overview: in the natural order of a row it comes before / after the devices of this site.
+    ``zoned``: a page of one site (or one diagram) with a core in the middle is laid out in zones round it (``zonelayout``); a picture of many sites keeps the compact rows.
+    ``forced``: rows (icon steps) that win over every rule above, for the devices named.
+    ``middle``: a device with several uplinks and nothing beside it stands at the middle of its uplinks (the cable pages); the logical pages (route, IP) keep it in the order it had."""
+    if zoned and not tiers and getattr(graph, "zone_layout", "auto") != "off":
+        from .zonelayout import layered_zoned                          # imported here: zonelayout lays its blocks out with this function
+        done = layered_zoned(graph, keys, x0, y0, ghosts, ghost_side)
+        if done is not None:
+            return done
     members = set(keys)
     tier_value = _tier_values(graph, keys)
     tier_value.update({k: v for k, v in (tiers or {}).items() if k in tier_value})
@@ -81,14 +95,23 @@ def layered(graph: Graph, keys: list[str], x0: float = 0, y0: float = 0, tiers: 
     else:
         tier_value.update(uplink_routers(graph, keys, tier_value))
     if star:
-        tier_value.update(outside_in_rows(graph, keys, tier_value))
+        counted = outside_in_rows(graph, keys, tier_value, ghosts or set())
+        tier_value.update(counted)
+        if counted:                                                     # the rows counted in hops from the outside ignore what a device is for: a management switch stands under the rows it is cabled to, as on a page of rows by role
+            tier_value.update(_management_rows(graph, keys, tier_value))
+    if LIFT_ENDPOINTS:
+        tier_value.update(lift_endpoints(graph, keys, tier_value))
+    if forced:                                                          # the rows of a block of a zone page (hops from the head of the block), set by ``zonelayout``
+        tier_value.update({k: v for k, v in forced.items() if k in tier_value})
     framed = box_groups(graph, keys, tier_value)
+    _frames_below_children(graph, keys, framed, tier_value)
     beside = unlinked_siblings(graph, keys, tier_value)                 # a VDOM with no cable stands in the row of, and next to, a VDOM of its own firewall
     tiers: dict[float, list[str]] = {}
     for key in keys:
         tiers.setdefault(tier_value[key], []).append(key)
     order = sorted(tiers)
-    rows = {tier: sorted(tiers[tier], key=lambda k: _name_key(graph, k)) for tier in order}      # natural name order first
+    side = ghost_side or {}
+    rows = {tier: sorted(tiers[tier], key=lambda k: (side.get(k, 0), _name_key(graph, k))) for tier in order}      # natural name order first, the ghosts of a site on the left of this one before, those of a site on the right after
     neighbours: dict[str, set[str]] = {k: set() for k in keys}
     for conn in graph.connections:
         if conn.a in members and conn.b in members and conn.kind not in graph.hidden_kinds:
@@ -110,7 +133,7 @@ def layered(graph: Graph, keys: list[str], x0: float = 0, y0: float = 0, tiers: 
         parts[tier] = 1                                                 # a row with frames is set out in a grid per frame, not dealt out over staggered lines
     slots: dict[str, int] = {}                                          # line inside its row of every end point of a frame
     pairs = pairs | (ha_pairs(graph, keys) if star else set())
-    spot = _arrange(graph, rows, order, neighbours, pairs, parts, framed, xstep, slots, star)      # x of every node, in icon steps
+    spot = _arrange(graph, rows, order, neighbours, pairs, parts, framed, xstep, slots, star, middle)      # x of every node, in icon steps
     for tier in framed_tiers | {tier_value[k] for k in slots if k in tier_value and tier_value[k] <= STAR_MAX_TIER and star}:
         parts[tier] = max((slots.get(k, 0) for k in rows[tier]), default=0) + 1
     owner = {k: parent for parent, kids in framed.items() for k in kids}
@@ -128,7 +151,95 @@ def layered(graph: Graph, keys: list[str], x0: float = 0, y0: float = 0, tiers: 
     last_gap = gaps[-1] if gaps else Y_STEP
     width = MARGIN * 2 + side * 2 + (hi - lo) * xstep + NODE_W
     height = (y - last_gap) - y0 + NODE_H + 40 + MARGIN
+    if framed and clear_corridors(graph, placed, xstep):
+        left = min(p.x for p in placed.values())
+        floor = x0 + MARGIN + side
+        if left < floor:                                                  # a frame moved out past the left edge: the whole page moves right by what it took
+            placed = {k: Placed(p.x + floor - left, p.y, p.tier, p.box, p.depth, p.zone, p.zone_id) for k, p in placed.items()}
+        width = max(width, max(p.x for p in placed.values()) + NODE_W + side + MARGIN - x0)
     return placed, width, height
+
+
+CORRIDOR_STEP = 40.0           # px: a frame of end points that stands in the way of the cables of a child switch slides sideways in steps of this size
+CORRIDOR_REACH = 18            # ... at most this many steps to either side
+CORRIDOR_THROUGH = 5           # a cable to an end point that runs across an icon counts as this many crossings
+
+
+def _seg_cost(a: tuple[float, float], b: tuple[float, float], others: list[tuple[tuple[float, float], tuple[float, float]]], icons: list[tuple[float, float, float, float]]) -> int:
+    """Crossings of the segment a-b with ``others`` plus ``CORRIDOR_THROUGH`` for every icon it runs across."""
+    from .layoutscore import crosses, runs_through
+    line = (a[0], a[1], b[0], b[1])
+    return sum(1 for p, q in others if crosses(line, (p[0], p[1], q[0], q[1]))) + CORRIDOR_THROUGH * sum(1 for rect in icons if runs_through(line, rect))
+
+
+def clear_corridors(graph: Graph, placed: dict[str, Placed], xstep: float) -> bool:
+    """A switch with end points under it and child switches in the rows between: the cables from the switch to its end points run down through the row of the child switches, and
+    cross the cables of those children to their other uplinks (a pair of child switches cabled to two parents is a mesh in that row).  The frame of end points slides sideways (the
+    icons keep their order and their spacing) to the nearest place where its cables cross nothing of the children, and where it keeps clear of every other icon and frame.
+    Nothing moves unless it removes a crossing or a line across an icon; the page is only changed when the frame gains.  Returns True when a frame moved (``placed`` is changed in place)."""
+    owner_of: dict[str, list[str]] = {}
+    for key, p in placed.items():
+        if p.box and p.box in placed:
+            owner_of.setdefault(p.box, []).append(key)
+    if not owner_of:
+        return False
+    centre = {k: (p.x + NODE_W / 2, p.y + NODE_H / 2) for k, p in placed.items()}
+    switch_lines = [(a, b) for conn in graph.connections for a, b in [(conn.a, conn.b)]
+                    if a in placed and b in placed and a != b and conn.kind not in graph.hidden_kinds
+                    and graph.nodes[a].role_hint not in ENDPOINT_ROLES and graph.nodes[b].role_hint not in ENDPOINT_ROLES]
+    moved = False
+    for parent in sorted(owner_of, key=lambda k: placed[k].x):
+        kids = owner_of[parent]
+        ky = {round(placed[k].y) for k in kids}
+        pp = placed[parent]
+        if len(ky) != 1 or len(kids) < BOX_MIN or min(placed[k].y for k in kids) <= pp.y + NODE_H:
+            continue
+        row_y = next(iter(ky))
+        between = [k for k, p in placed.items() if k not in kids and k != parent and p.box == "" and graph.nodes[k].role_hint not in ENDPOINT_ROLES and pp.y + NODE_H / 2 < p.y < row_y]
+        if not between:
+            continue
+
+        def cost(shift: float) -> int:
+            where = {k: (centre[k][0] + (shift if k in kids else 0.0), centre[k][1]) for k in centre}
+            others = [(where[a], where[b]) for a, b in switch_lines if parent not in (a, b)]
+            icons = [(where[k][0] - NODE_W / 2 + 4, where[k][1] - NODE_H / 2 + 4, where[k][0] + NODE_W / 2 - 4, where[k][1] + NODE_H / 2 - 4) for k in between]
+            return sum(_seg_cost(where[parent], where[k], others, icons) for k in kids)
+
+        def fits(shift: float) -> bool:
+            xs = [placed[k].x + shift for k in kids]
+            frame = (min(xs) + NODE_W / 2 - BOX_HALF - BOX_GAP / 2, row_y - 46, max(xs) + NODE_W / 2 + BOX_HALF + BOX_GAP / 2, row_y + NODE_H + 62)
+            for key, p in placed.items():
+                if key in kids:
+                    continue
+                if p.box and p.box != parent and p.y == row_y:                          # the frame of another switch in the same row
+                    group = [q for k2, q in placed.items() if q.box == p.box]
+                    other = (min(q.x for q in group) + NODE_W / 2 - BOX_HALF, row_y - 46, max(q.x for q in group) + NODE_W / 2 + BOX_HALF, row_y + NODE_H + 62)
+                    if frame[0] < other[2] and other[0] < frame[2]:
+                        return False
+                elif not p.box and frame[0] < p.x + NODE_W and p.x < frame[2] and frame[1] < p.y + NODE_H + 40 and p.y < frame[3]:
+                    return False                                                          # an icon that is not an end point of this frame
+            return True
+
+        now = cost(0.0)
+        if now == 0:
+            continue
+        best: tuple[int, float, float] | None = None
+        for n in range(1, CORRIDOR_REACH + 1):
+            for sign in (-1, 1):
+                shift = sign * n * CORRIDOR_STEP
+                if not fits(shift):
+                    continue
+                c = cost(shift)
+                if c < now and (best is None or (c, abs(shift)) < (best[0], best[1])):
+                    best = (c, abs(shift), shift)
+        if best is not None:
+            shift = best[2]
+            for k in kids:
+                p = placed[k]
+                placed[k] = Placed(p.x + shift, p.y, p.tier, p.box, p.depth, p.zone, p.zone_id)
+                centre[k] = (centre[k][0] + shift, centre[k][1])
+            moved = True
+    return moved
 
 
 def unlinked_siblings(graph: Graph, keys: list[str], tier_value: dict[str, float]) -> dict[str, str]:
@@ -247,7 +358,7 @@ def _isolated_gaps(row: list[str], neighbours: dict[str, set[str]], gaps: list[f
 
 def _arrange(graph: Graph, rows: dict[float, list[str]], order: list[float], neighbours: dict[str, set[str]],
              pairs: set[frozenset], parts: dict[float, int], framed: dict[str, list[str]] | None = None, xstep: float = X_STEP,
-             slots: dict[str, float] | None = None, star: bool = False) -> dict[str, float]:
+             slots: dict[str, float] | None = None, star: bool = False, middle: bool = True) -> dict[str, float]:
     """Order every row and give every node its x (in icon steps).
     1. Bottom-up: devices whose only link goes down (an uplink-only router or firewall) sit over what they serve, several of them side by side
        (router A, B, C over the core they serve; the routers of core 1 never mix with those of core 2).
@@ -271,11 +382,12 @@ def _arrange(graph: Graph, rows: dict[float, list[str]], order: list[float], nei
         want: dict[str, float] = {}
         if index:
             known = {k for t in order[:index] for k in rows[t]}
-            row, want = _reorder(graph, rows[tier], neighbours, spot, known, gap)
+            row, want = _reorder(graph, rows[tier], neighbours, spot, known, gap, middle=middle)
             row, want = _pull_to_heavy_peer(graph, row, spot, known, want)
             rows[tier] = _keep_pairs_together(row, pairs)
         rows[tier] = _isolated_last(_cluster_row(rows[tier], neighbours, want, pairs), neighbours)
         if framed and slots is not None and any(k in kids for kids in framed.values() for k in rows[tier]):
+            rows[tier] = _frames_whole(rows[tier], {k: parent for parent, kids in framed.items() for k in kids})
             spot.update(_spread_framed(rows[tier], want, framed, xstep, slots))
         else:
             spot.update(_spread(rows[tier], want, gap, _isolated_gaps(rows[tier], neighbours, [gap] * max(len(rows[tier]) - 1, 0))))
@@ -325,7 +437,7 @@ def _arrange(graph: Graph, rows: dict[float, list[str]], order: list[float], nei
                         want[key] = centre[key]
                     elif key in follow:
                         want[key] = follow[key]
-                    elif follow:
+                    elif follow or key in frame_of:
                         want[key] = spot[key]                                    # the others of a row that is moved for a child stay where they are (a device with no wish is packed against the one before it)
                 items = list(row)
                 for key in sorted(follow, key=follow.get):                       # a row keeps its order, so a switch that comes back to its parent from the far end of the row takes the place in the row that its parent's x gives it
@@ -345,9 +457,11 @@ def _arrange(graph: Graph, rows: dict[float, list[str]], order: list[float], nei
                     want[mark] = spot[parent]
                     reach[mark] = reach[parent]
                 row_gaps = _isolated_gaps(items, neighbours, _owner_gaps(items, reach, xstep))
-                got = _spread(items, want, 1.0, row_gaps, OWNER_ROW_FOLLOW)
+                units, unit_gaps, unit_want, runs = _collapse_frames(items, want, row_gaps, spot, frame_of, xstep)
+                got = _spread(units, unit_want, 1.0, unit_gaps, OWNER_ROW_FOLLOW)
                 if passing:
-                    _pin_channels(items, got, row_gaps, {"\0" + p: spot[p] for p in passing})      # the channel is of the core above, which stays where it is: the devices of this row give way, not the channel
+                    _pin_channels(units, got, unit_gaps, {"\0" + p: spot[p] for p in passing})      # the channel is of the core above, which stays where it is: the devices of this row give way, not the channel
+                got = _expand_frames(got, runs, spot)
                 spot.update({k: x for k, x in got.items() if not k.startswith("\0")})
                 if follow:
                     rows[tier] = [k for k in items if not k.startswith("\0")]
@@ -371,7 +485,7 @@ def _arrange(graph: Graph, rows: dict[float, list[str]], order: list[float], nei
             _lower_in_the_way(rows, order, neighbours, spot, max(upper), slots)
             _stack_ha_pairs(rows, order, pairs, spot, max(upper), slots)
     if not star:
-        _centre_parents(graph, rows, order, neighbours, spot, parts)
+        _centre_parents(graph, rows, order, neighbours, spot, parts, {k for kids in (framed or {}).values() for k in kids})
     if framed and slots is not None:
         centre_owners()
     return spot
@@ -380,6 +494,89 @@ def _arrange(graph: Graph, rows: dict[float, list[str]], order: list[float], nei
 
 LONE_FRAME_MAX = 3               # a frame of this many end points or fewer is a unit that may move to the gap nearest to its switch
 LONE_FAR = 6.0                   # icon steps: a lone end point whose switch is more than one row above and farther than this goes to the nearest gap between frames
+
+
+def _collapse_frames(items: list[str], want: dict[str, float], gaps: list[float], spot: dict[str, float], frame_of: dict[str, str], xstep: float):
+    """A row that holds frames of end points, for the fit of its x: every frame is one unit as wide as its grid (the icons of a grid stand on several lines, so as single items of a row
+    they would be forced into one long line, each a step right of the one before).  Returns (units, gaps between units, wish of every unit, {unit: members of the frame})."""
+    units: list[str] = []
+    widths: list[float] = []
+    starts: list[int] = []
+    runs: dict[str, list[str]] = {}
+    i = 0
+    while i < len(items):
+        parent = frame_of.get(items[i])
+        j = i + 1
+        while parent is not None and j < len(items) and frame_of.get(items[j]) == parent:
+            j += 1
+        starts.append(i)
+        if parent is None or j - i < 2:
+            units.append(items[i])
+            widths.append(0.5)
+            j = i + 1
+        else:
+            run = items[i:j]
+            mark = "\1" + parent + str(i)
+            runs[mark] = run
+            units.append(mark)
+            cols = frame_columns(len(run))
+            widths.append(((cols - 1) * frame_pitch(len(run), xstep) * xstep / 2 + BOX_HALF) / xstep)
+        i = j
+    unit_want: dict[str, float] = {}
+    for unit in units:
+        if unit in runs:
+            unit_want[unit] = sum(want.get(k, spot[k]) for k in runs[unit]) / len(runs[unit])
+        elif unit in want:
+            unit_want[unit] = want[unit]
+    unit_gaps: list[float] = []
+    for n in range(len(units) - 1):
+        edge = starts[n + 1] - 1                                          # the gap between the last item of this unit and the first of the next
+        framed_pair = units[n] in runs or units[n + 1] in runs
+        unit_gaps.append(max(gaps[edge], widths[n] + widths[n + 1] + (BOX_GAP / xstep if framed_pair else 0.0)) if framed_pair else gaps[edge])
+    return units, unit_gaps, unit_want, runs
+
+
+def _expand_frames(got: dict[str, float], runs: dict[str, list[str]], spot: dict[str, float]) -> dict[str, float]:
+    """The x of the icons of every frame: the grid keeps its shape and moves with its unit."""
+    out = {k: x for k, x in got.items() if k not in runs}
+    for mark, run in runs.items():
+        middle = sum(spot[k] for k in run) / len(run)
+        for k in run:
+            out[k] = got[mark] + spot[k] - middle
+    return out
+
+
+def _frames_below_children(graph: Graph, keys: list[str], framed: dict[str, list[str]], tier_value: dict[str, float]) -> None:
+    """A switch with a frame of end points and other devices cabled to it that are not end points (a controller, a switch of its own): those stood in the row of the frame, beside it,
+    and the comb of lines to the frame kept them far out.  They get a row of their own between the switch and its frame; the frame moves half a row down.  ``tier_value`` changes in place."""
+    members = set(keys)
+    for parent, kids in framed.items():
+        tier = tier_value[kids[0]]
+        mine = set(kids)
+        beside = [c.b if c.a == parent else c.a for c in graph.connections
+                  if parent in (c.a, c.b) and c.a in members and c.b in members and c.kind not in graph.hidden_kinds]
+        if any(k not in mine and tier_value.get(k) == tier and k != parent for k in beside):
+            for kid in kids:
+                tier_value[kid] = tier + 0.5
+
+
+def _frames_whole(row: list[str], owner: dict[str, str]) -> list[str]:
+    """The end points of one frame stand side by side in the row: a device that is not one of them (a controller, a switch of its own) between two of them would stretch the
+    frame round both sides of it (a frame of two clusters with an empty middle, the width of the whole zone).  The members of a frame close up at the place of its first member,
+    the others keep their order."""
+    out: list[str] = []
+    done: set[str] = set()
+    for key in row:
+        if key in done:
+            continue
+        parent = owner.get(key)
+        if parent is None:
+            out.append(key)
+            continue
+        run = [k for k in row if owner.get(k) == parent]
+        out.extend(run)
+        done.update(run)
+    return out
 
 
 def _bring_lone_ends(row: list[str], framed: dict[str, list[str]], frame_of: dict[str, str], neighbours: dict[str, set[str]], index_of: dict[str, int], index: int,
@@ -460,7 +657,7 @@ def _pin_channels(items: list[str], got: dict[str, float], gaps: list[float], fi
 
 
 def _centre_parents(graph: Graph, rows: dict[float, list[str]], order: list[float], neighbours: dict[str, set[str]], spot: dict[str, float],
-                    parts: dict[float, int]) -> None:
+                    parts: dict[float, int], skip: set[str] | frozenset[str] = frozenset()) -> None:
     """The switches of a hierarchy (``Placed.depth``) stand over what hangs under them: from the deepest row up, every switch moves to the middle of its own
     switches one hop further from the core, and the rest of its row gives way (the order of a row never changes); a row is left as it is when a router or firewall in it has lines to the rows below (its position there is decided by them).  A switch with two parents belongs to
     the nearer one.  The last switch of a branch (no switch under it) stands over the end points that hang on it alone and sit in the row right below
@@ -484,6 +681,8 @@ def _centre_parents(graph: Graph, rows: dict[float, list[str]], order: list[floa
             kids[switch] = below
     for index in range(len(order) - 1, -1, -1):
         row = rows[order[index]]
+        if skip and any(k in skip for k in row):
+            continue                                                     # a row that holds the grids of end points of frames (and, beside them, a switch with a frame of its own below): respreading it one step apart would pull every grid into a single line, so the frames keep their grids (``centre_owners`` moves the switches over their frames)
         if any(depth[k] is None and any(line_of[m] > index for m in neighbours[k]) for k in row):
             continue                                                     # a router or firewall of this row that has lines to the rows below keeps the row as it is
         want = {k: (min(spot[c] for c in kids[k]) + max(spot[c] for c in kids[k])) / 2 for k in row if k in kids}
@@ -506,7 +705,7 @@ def _owner_gaps(row: list[str], reach: dict[str, float], xstep: float) -> list[f
 
 
 def _reorder(graph: Graph, row: list[str], neighbours: dict[str, set[str]], spot: dict[str, float], known: set[str],
-             gap: float = 1.0, stubs_only: bool = False) -> tuple[list[str], dict[str, float]]:
+             gap: float = 1.0, stubs_only: bool = False, middle: bool = False) -> tuple[list[str], dict[str, float]]:
     """One row against the rows already placed (``known``). A device with exactly one neighbour there and none beside it is a child
     of that neighbour: the children of one parent form one block under it, in name order. The others keep the order they have and
     are only moved right where their neighbours sit to the right of the devices before them. Returns the new row and the x each
@@ -526,21 +725,35 @@ def _reorder(graph: Graph, row: list[str], neighbours: dict[str, set[str]], spot
     for i, key in enumerate(free):
         refs = [spot[n] for n in neighbours[key] if n in known]
         if refs and not stubs_only:
-            anchor = max(anchor, sum(refs) / len(refs))
+            own = sum(refs) / len(refs)
+            anchor = own if middle and len(refs) > 1 and not (neighbours[key] & beside) else max(anchor, own)          # a device with several uplinks and no neighbour in its row stands at the middle of its uplinks, not after the last device before it: dual-homed hosts and switches no longer end up at the far end of the row from their two parents
         units.append((anchor, 0, i, [key]))
     for parent, group in kids.items():
-        units.append((spot[parent], 1, _name_key(graph, parent), sorted(group, key=lambda k: _name_key(graph, k))))
+        units.append((spot[parent], 1, _name_key(graph, parent), _kid_order(graph, group)))
     units.sort(key=lambda u: (u[0], u[1], u[2]))
     new = [key for unit in units for key in unit[3]]
     want: dict[str, float] = {}
     for parent, group in kids.items():
-        for j, key in enumerate(sorted(group, key=lambda k: _name_key(graph, k))):
+        for j, key in enumerate(_kid_order(graph, group)):
             want[key] = spot[parent] + (j - (len(group) - 1) / 2) * gap
     for key in free:
         refs = [spot[n] for n in neighbours[key] if n in known]
         if refs and not stubs_only:
             want[key] = sum(refs) / len(refs)
     return new, want
+
+
+def _kid_order(graph: Graph, group: list[str]) -> list[str]:
+    """The children of one parent, left to right: in name order, except that a parent which has switches and a frame of its own end points under it (a distribution hub with its closets and its
+    own users) puts the frame in the middle, with half of the switches on each side, so the hub stands over its own frame and every closet is as near to it as it can be."""
+    kids = sorted(group, key=lambda k: _name_key(graph, k))
+    roles = framed_roles(graph)
+    ends = [k for k in kids if roles and not graph.nodes[k].captured and graph.nodes[k].role_hint in roles]
+    others = [k for k in kids if k not in ends]
+    if len(ends) < BOX_MIN or len(others) < 2:
+        return kids
+    half = (len(others) + 1) // 2
+    return others[:half] + ends + others[half:]
 
 
 PEER_TIE_MIN = 6                 # links between two devices of one row from which the lighter-tied one is drawn next to the other (a server with many NICs on two switches)
@@ -625,13 +838,16 @@ def _spread(row: list[str], want: dict[str, float], gap: float, gaps: list[float
 ROUTERISH = ("router", "firewall", "loadbalancer")
 
 
-def outside_in_rows(graph: Graph, keys: list[str], value: dict[str, float]) -> dict[str, float]:
+def outside_in_rows(graph: Graph, keys: list[str], value: dict[str, float], ghosts: set[str] | frozenset[str] = frozenset()) -> dict[str, float]:
     """Rows counted from the outside in, for a page whose role rows contradict the cables.
 
     The role rows put every core switch above every distribution switch, every router above everything.  A pair of *edge* switches that sits between the WAN routers and the
     core is then drawn below the core it feeds: all its lines run upward past the core.  When at least one cable joins two network devices so that the device in the
     upper role row is farther from the outside (the routers and clouds) than the device in the lower row, the rows of the whole page are counted in hops from the outside instead:
-    the routers, then what they reach, then what that reaches (``depth_row``).  A page without such a cable keeps its role rows."""
+    the routers, then what they reach, then what that reaches (``depth_row``).  A page without such a cable keeps its role rows.
+
+    A device of another site (a ghost) cabled to a device of this site that has the same role (the edge pair of a recovery site, joined by the data center interconnect, to
+    the edge pair here) is that device's *peer*: it stands in the same row, beside it, not one row down as the one hop from it would say."""
     members = set(keys)
     outside = [k for k in keys if graph.nodes[k].role_hint in ("router", "cloud") and value[k] <= 0]
     if not outside:
@@ -650,13 +866,49 @@ def outside_in_rows(graph: Graph, keys: list[str], value: dict[str, float]) -> d
         key = todo.pop(0)
         for other in sorted(near[key]):
             if other not in hops:
-                hops[other] = hops[key] + 1
+                peer = other in ghosts and key not in ghosts and hops[key] > 0 and graph.nodes[other].role_hint == graph.nodes[key].role_hint
+                hops[other] = hops[key] + (0 if peer else 1)
                 todo.append(other)
     inverted = any(hops.get(a, 0) > hops.get(b, 0) and value[a] < value[b] for a in hops for b in near[a] if b in hops)
     if not inverted:
         return {}
+    pairs = {frozenset((a, b)) for a, b, _ in graph.vpc_pairs}
+    for cluster in twin_clusters(graph, {k for k in hops if graph.nodes[k].role_hint not in ROUTERISH and graph.nodes[k].role_hint != "cloud"}, pairs, near):
+        if len(cluster) > 1 and len({graph.nodes[k].role_hint for k in cluster}) == 1:
+            nearest = min(hops[k] for k in cluster)
+            for k in cluster:
+                hops[k] = nearest                                  # the two units of one logical device (a pair of edge switches, only one of which is cabled to a router) stand in one row
     return {k: float(-1 if graph.nodes[k].role_hint in ("router", "cloud") and value[k] < 0 else 0) if h == 0 else depth_row(h - 1) for k, h in hops.items()}
 
+
+
+LIFT_ENDPOINTS = True
+LIFT_MIN_BELOW = 2               # a switch with fewer switches under it than this has no fan of lines that its end points' lines would cross: they stay in the last row
+LIFT_MIN_HOSTS = 3               # ... and so do the few end points of a switch (two PCs on the hub of a small branch): the lines they add are too few to be worth a row of their own
+LIFT_MAX_ROW = 2.0               # a switch above this row (the aggregation and core rows and the ones over them) keeps its own end points in the row under it
+
+
+def lift_endpoints(graph: Graph, keys: list[str], value: dict[str, float]) -> dict[str, float]:
+    """The hosts and servers of a switch that has other switches under it (an edge, core or aggregation switch with its own servers on it) stand in the row right under that
+    switch, not in the last row of the page: their lines no longer run down through every row below (the fan of the aggregation pair to its top-of-rack switches)."""
+    members = set(keys)
+    near: dict[str, set[str]] = {k: set() for k in keys}
+    for conn in graph.connections:
+        if conn.a in members and conn.b in members and conn.kind not in graph.hidden_kinds:
+            near[conn.a].add(conn.b)
+            near[conn.b].add(conn.a)
+    ends: dict[str, list[str]] = {}
+    for key in keys:
+        node = graph.nodes[key]
+        if node.captured or node.role_hint not in ("host", "server") or len(near[key]) != 1:
+            continue
+        parent = next(iter(near[key]))
+        pnode = graph.nodes[parent]
+        if pnode.role_hint in ENDPOINT_ROLES or pnode.role_hint in ("segment", "router", "firewall", "cloud") or value[parent] > LIFT_MAX_ROW:
+            continue
+        if sum(1 for n in near[parent] if graph.nodes[n].role_hint in SWITCH_ROLES and value[n] > value[parent]) >= LIFT_MIN_BELOW:
+            ends.setdefault(parent, []).append(key)
+    return {key: value[parent] + 0.5 for parent, kids in ends.items() if len(kids) >= LIFT_MIN_HOSTS for key in kids}
 
 
 def star_applicable(graph: Graph, keys: list[str]) -> bool:
@@ -979,10 +1231,19 @@ def _isotonic(values: list[float]) -> list[float]:
     return out
 
 
+CAPTION_MARGIN = 28.0              # clear space between the captions (name, model, address) of two neighbouring icons
+
+
+def caption_width(graph: Graph, key: str) -> float:
+    """Width in px of the widest line under the icon of ``key`` (12 px bold, each line cut to 34 letters like the picture): measured letter by letter, not guessed."""
+    node = graph.nodes[key]
+    return widest(node_lines(node))
+
+
 def _x_step(graph: Graph, keys: list[str]) -> float:
-    """Room between two icons of one row: the longest hostname, model or address under an icon decides (12 pt bold, about 7 px a letter)."""
-    longest = max((max(len(graph.nodes[k].hostname), len(graph.nodes[k].model or ""), len(graph.nodes[k].mgmt_ip or "")) for k in keys), default=12)
-    return min(X_MAX, max(X_STEP, 7.0 * min(longest, 34) + 44))
+    """Room between two icons of one row: the widest caption under an icon decides, measured with the real letter widths (``textwidth``), plus ``CAPTION_MARGIN`` between two of them."""
+    longest = max((caption_width(graph, k) for k in keys), default=84.0)
+    return min(X_MAX, max(X_STEP, longest + CAPTION_MARGIN + 16))
 
 
 def _gaps(graph: Graph, keys: list[str], order: list[float], rows: dict[float, list[str]]) -> list[float]:
@@ -1015,6 +1276,24 @@ def _gaps(graph: Graph, keys: list[str], order: list[float], rows: dict[float, l
     return out
 
 
+PHYSICAL_KINDS = {"link", "bundle", "parallel", "peer-link", "sitebundle", "vpc", "mgmt"}
+EDGE_ROW: float | None = 0.5                         # None: no row of its own for the edge switch (the mutation check of the tests)
+MGMT_SPAN = 3                                          # rows a management switch must be cabled across to leave the row of its role (0: never)
+
+
+def _management_rows(graph: Graph, keys: list[str], value: dict[str, float]) -> dict[str, float]:
+    members = set(keys)
+    out: dict[str, float] = {}
+    for key in keys:
+        if getattr(graph.nodes[key], "function", "") != "management":
+            continue
+        near = {o for conn in graph.connections if conn.kind in PHYSICAL_KINDS and key in (conn.a, conn.b) for o in (conn.a, conn.b) if o != key and o in members}
+        row = management_row(graph, key, near, value)
+        if row is not None:
+            out[key] = row
+    return out
+
+
 def _tier_values(graph: Graph, keys: list[str]) -> dict[str, float]:
     """Row of every node: the tier of its role, except that a device nobody captured which hangs only off devices of its own
     tier goes half a row lower (a switch behind an access pair is below that pair, not beside it)."""
@@ -1034,6 +1313,16 @@ def _tier_values(graph: Graph, keys: list[str]) -> dict[str, float]:
         if graph.nodes[key].role_hint == "segment":
             members = [value[m] for m in near[key] if m in value and graph.nodes[m].role_hint != "segment"]
             value[key] = (max(members) + 0.5) if members else value[key]
+    keyset = set(keys)
+    cabled = any(conn.kind in PHYSICAL_KINDS and conn.a in keyset and conn.b in keyset for conn in graph.connections)
+    for key in keys if cabled else ():                        # edge switch: between the WAN routers (row 0) and the core (row 1); management switch: out of the tiers (a routing page has no cables)
+        function = getattr(graph.nodes[key], "function", "")
+        if function == "edge" and EDGE_ROW is not None and any(graph.nodes[m].role_hint in ("router", "firewall") for m in near[key]):
+            value[key] = EDGE_ROW
+        elif function == "management":
+            row = management_row(graph, key, near[key], value)
+            if row is not None:
+                value[key] = row
     value.update(mesh_tiers(graph, keys, value, near, pairs))
     for key in keys:
         node = graph.nodes[key]
@@ -1049,6 +1338,14 @@ def _tier_values(graph: Graph, keys: list[str]) -> dict[str, float]:
             if any(value[n] < base for m in peers for n in near[m] if n != key):
                 value[key] = base + 0.5
     return value
+
+
+def management_row(graph: Graph, key: str, near: set[str], value: dict[str, float]) -> float | None:
+    """Row of a management switch: cabled across ``MGMT_SPAN`` or more rows, it stands half a row under the lowest of them, out of the way of the cables of the tiers.  ``None`` when it is not."""
+    if not MGMT_SPAN:
+        return None
+    rows = [value[m] for m in near if graph.nodes[m].role_hint not in ("ap", "phone", "host", "server", "segment") and m in value]
+    return max(rows) + 0.5 if len({round(r) for r in rows}) >= MGMT_SPAN else None
 
 
 MESH_ROLES = {"router", "firewall", "loadbalancer", "core", "aggregation", "switch", "access", "wlc", "fabric"}
@@ -1157,6 +1454,10 @@ def _keep_pairs_together(row: list[str], pairs: set[frozenset]) -> list[str]:
 def groups_of(graph: Graph, mode: str, follow: bool = True) -> dict[str, list[str]]:
     """The groups of ``_groups_of`` after the site rules the engineer typed (``graph.site_rules``, see ``sites.parse_rules``); one diagram has no sites to correct."""
     groups = _groups_of(graph, mode, follow)
+    if mode == SITES_MODE or mode in PREFIX_WORDS:
+        from . import sites
+
+        groups = sites.qualify(graph, groups)               # HQ-DC-CORE1 ... HQ-DC-SF2: the site is HQ-DC
     rules = getattr(graph, "site_rules", None)
     if rules and (mode == SITES_MODE or mode in PREFIX_WORDS):
         from . import sites
@@ -1273,6 +1574,10 @@ def auto_reason(graph: Graph, mode: str) -> str:
         if any(sites.one_site(graph, words) for words in PREFIX_WORDS.values()):
             return (f"All {count} devices are cabled together as one site; the first hostname words only tell roles or rooms apart, "
                     "so Automatic keeps one diagram instead of cutting one place into pages.")
+        zones = {z[1] for z in (sites.zone_suffix(sites._host(graph, k)) for k in visible if graph.nodes[k].captured) if z}
+        if len(zones) == 1 and any(_role_names(groups_of(graph, m, follow=False)) for m in PREFIX_WORDS):
+            return (f"The hostnames of these {count} devices say the role first (SW-AGG1-{next(iter(zones))}): the first words tell what a device is, not where it stands, and every captured device "
+                    f"ends in the same zone, {next(iter(zones))}, so Automatic keeps one diagram. A second zone (a recovery site beside it) would be drawn as a second site.")
         return (f"The hostnames of these {count} devices give no site that holds two devices and the cables do not show one either, so Automatic keeps one diagram. "
                 "Choose \"Group by first hostname word\" or \"first two words\" if your names carry the site.")
     groups = {name: keys for name, keys in groups_of(graph, mode).items() if name != "Other devices"}
@@ -1290,7 +1595,34 @@ def auto_reason(graph: Graph, mode: str) -> str:
         place = max(set(heads), key=heads.count)
         return (f"One place ({place}) of {count} devices, too big for one diagram, split into {pages} floors or areas by {basis}: {listed}. "
                 "The areas hang from each other by cables, so the Overview shows how they connect.")
-    return (f"{pages} separate sites found by {basis}: {listed}. Each site has a page of its own, and the Overview shows the links between them.")
+    text = f"{pages} separate sites found by {basis}: {listed}. Each site has a page of its own, and the Overview shows the links between them."
+    return text + _zone_hint(graph, groups)
+
+
+def _zone_hint(graph: Graph, groups: dict[str, list[str]]) -> str:
+    """When a site is named after a zone word (HQ-DC, JKT-PDC) or a site is a recovery site (HQ-DR, DRC): why, and the site rule that overrides it."""
+    from . import sites
+    from .sitefindings import twin_sites
+
+    zoned = sorted(n for n in groups if len(sites.words(n)) > 1 and sites.words(n)[-1] in sites.QUALIFIERS)
+    pairs = twin_sites(graph, groups)
+    if not (zoned or pairs):
+        return ""
+    parts = []
+    if zoned:
+        parts.append(f"{', '.join(zoned[:4])} {'is' if len(zoned) == 1 else 'are'} named after the zone word the hostnames spell after the site word (DC, DR, DRC, PDC, SDC ...), "
+                     "so the same site word with another zone is another site")
+    if pairs:
+        parts.append("; ".join(f"{recovery} is read as the recovery site of {main} (drawn after it, and compared with it in the findings TOPO-047 to 051)" for main, recovery in pairs[:2]))
+    biggest = max((n for n in groups if n != sites.OTHER), key=lambda n: (len(groups[n]), not sites.is_recovery(n), n))
+    return " " + ". ".join(part[0].upper() + part[1:] for part in parts) + f". Not what you expected? Write your own site under Site rules, for example \"{biggest} = {biggest}-\"."
+
+
+def _role_names(named: dict[str, list[str]]) -> bool:
+    """Every group is named by a role word first (SW, RTR, FW, TOR ...): see ``sites._named_by_role``."""
+    from . import sites
+
+    return sites._named_by_role(sites.Sites(0, set(), named))
 
 
 def _prefix_mode(graph: Graph, visible: list[str]) -> str:
@@ -1303,6 +1635,8 @@ def _prefix_mode(graph: Graph, visible: list[str]) -> str:
         multi = [keys for keys in named.values() if len(keys) >= 2]
         if len(multi) < 2 or len(groups) > AUTO_MAX_SITES:
             continue
+        if _role_names(named):
+            continue                       # SW and RTR (or SW-AGG1 and SW-TOR1A) tell what a device is, not where it stands: not sites
         biggest = max(len(keys) for keys in named.values())
         if biggest <= AUTO_MAX_SITE:
             return mode

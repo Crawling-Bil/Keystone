@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 
 from features.configuration_studio.converter_engine.detector import DeviceDetector
-from features.switch_analyzer import aoscx, aoscx_logs, capture_text, coverage, health_aoscx, service
+from features.switch_analyzer import aoscx, aoscx_logs, capture_text, health_aoscx, service
 from features.switch_analyzer.exporters.excel_exporter import SwitchExcelExporter
 
 FIXTURES = Path(__file__).parent / "fixtures" / "real_captures"

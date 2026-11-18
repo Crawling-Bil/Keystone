@@ -63,7 +63,7 @@ class TamProfileInfrastructureOverrideTest(unittest.TestCase):
     just supplement, the source-driven values — a real risk given
     TACACS+/NTP-IP-server values must NOT survive alongside the new
     standard (that would be a broken/duplicate config, not a correct
-    one). Values checked against memory-tam-2026-huawei-switch.md
+    one). Values checked against the project decision log
     section 30b verbatim.
     """
 
@@ -76,9 +76,9 @@ class TamProfileInfrastructureOverrideTest(unittest.TestCase):
             source_device_type="Switch",
             source_file="test.txt",
         )
-        config.ntp_commands = ["ntp server 10.85.80.137"]
+        config.ntp_commands = ["ntp server 10.220.80.137"]
         config.logging_commands = ["logging host 10.1.1.50"]
-        config.tacacs_commands = ["tacacs-server host 10.85.1.7 key OLDKEY"]
+        config.tacacs_commands = ["tacacs-server host 10.220.1.7 key OLDKEY"]
         config.aaa_commands = [
             "aaa new-model",
             "aaa authentication login default group tacacs+ local",
@@ -100,9 +100,9 @@ class TamProfileInfrastructureOverrideTest(unittest.TestCase):
                 self._config_with_old_infrastructure(), profile=TAM_STANDARD
             )
         )
-        self.assertIn("ntp unicast-server domain ntp.toyota.astra.co.id", output)
-        self.assertNotIn("10.85.80.137", output)
-        self.assertIn("info-center loghost 10.85.80.187 port 514", output)
+        self.assertIn("ntp unicast-server domain ntp.keystone.invalid", output)
+        self.assertNotIn("10.220.80.137", output)
+        self.assertIn("info-center loghost 192.0.2.187 port 514", output)
         self.assertNotIn("10.1.1.50", output)
 
     def test_profile_replaces_tacacs_with_local_only_aaa(self):
@@ -123,8 +123,8 @@ class TamProfileInfrastructureOverrideTest(unittest.TestCase):
                 self._config_with_old_infrastructure(), profile=TAM_STANDARD
             )
         )
-        self.assertIn("snmp-agent community read G0tInf0", output)
-        self.assertIn("snmp-agent community read K3rb3r0s", output)
+        self.assertIn("snmp-agent community read Ro-Example-1", output)
+        self.assertIn("snmp-agent community read Ro-Example-2", output)
         self.assertIn("snmp-agent sys-info version v2c v3", output)
         self.assertNotIn("OLDCOMM", output)
         # Location is fallback-only — an snmp-server location actually
@@ -148,7 +148,7 @@ class TamProfileInfrastructureOverrideTest(unittest.TestCase):
         output = "\n".join(
             self.translator.translate(self._config_with_old_infrastructure())
         )
-        self.assertIn("10.85.80.137", output)
+        self.assertIn("10.220.80.137", output)
         self.assertIn("hwtacacs-server", output)
         self.assertNotIn("LOCAL_LOGIN", output)
 
@@ -193,29 +193,29 @@ class TamProfileSnmpLocationFallbackTest(unittest.TestCase):
 
     def test_fills_location_and_contact_when_source_provides_neither(self):
         translator = HuaweiSwitchTranslator(
-            inventory=_FakeInventory({"TTC-SWCO-BU-N9108-DMZ": "TTC"})
+            inventory=_FakeInventory({"DC1-SWCO-BU-N9108-DMZ": "DC1"})
         )
         output = "\n".join(
             translator.translate(
-                self._config("TTC-SWCO-BU-N9108-DMZ"), profile=TAM_STANDARD
+                self._config("DC1-SWCO-BU-N9108-DMZ"), profile=TAM_STANDARD
             )
         )
-        self.assertIn("snmp-agent sys-info location TTC", output)
-        self.assertIn("snmp-agent sys-info contact TAM", output)
+        self.assertIn("snmp-agent sys-info location DC1", output)
+        self.assertIn("snmp-agent sys-info contact NOC", output)
         self.assertIn("REVIEW-SNMP-LOCATION-DERIVED", output)
 
-    def test_gtopas_site_formats_as_depo_city(self):
+    def test_depo_site_formats_as_depo_city(self):
         translator = HuaweiSwitchTranslator(
             inventory=_FakeInventory(
-                {"GTOPAS-MND-SWCODI-C3650": "GTOPAS-MND"}
+                {"DEPO-BB-SWCODI-C3650": "DEPO-BB"}
             )
         )
         output = "\n".join(
             translator.translate(
-                self._config("GTOPAS-MND-SWCODI-C3650"), profile=TAM_STANDARD
+                self._config("DEPO-BB-SWCODI-C3650"), profile=TAM_STANDARD
             )
         )
-        self.assertIn("snmp-agent sys-info location DEPO-MANADO", output)
+        self.assertIn("snmp-agent sys-info location DEPO-BRAVO", output)
 
     def test_source_location_and_contact_always_win(self):
         translator = HuaweiSwitchTranslator(
@@ -236,7 +236,7 @@ class TamProfileSnmpLocationFallbackTest(unittest.TestCase):
         self.assertIn("SOURCE-PROVIDED", output)
         self.assertIn("NETOPS-TEAM", output)
         self.assertNotIn("snmp-agent sys-info location HO", output)
-        self.assertNotIn("snmp-agent sys-info contact TAM", output)
+        self.assertNotIn("snmp-agent sys-info contact NOC", output)
         self.assertNotIn("REVIEW-SNMP-LOCATION-DERIVED", output)
 
     def test_unmatched_hostname_skips_location_but_still_sets_contact(self):
@@ -249,7 +249,7 @@ class TamProfileSnmpLocationFallbackTest(unittest.TestCase):
             )
         )
         self.assertNotIn("REVIEW-SNMP-LOCATION-DERIVED", output)
-        self.assertIn("snmp-agent sys-info contact TAM", output)
+        self.assertIn("snmp-agent sys-info contact NOC", output)
 
     def test_no_profile_means_no_fallback_at_all(self):
         translator = HuaweiSwitchTranslator(
@@ -265,7 +265,7 @@ class TamProfileSnmpLocationFallbackTest(unittest.TestCase):
 class TamProfileDhcpHelperTest(unittest.TestCase):
     """
     "dhcp helper / there are 2 options for dhcp helper ip address group
-    by site" — Option A (STR2/STR3/ADM/HO) vs Option B (everything
+    by site" — Option A (SB2/SB3/AD1/HO) vs Option B (everything
     else, the confirmed catch-all). Which interfaces relay DHCP at all
     must stay purely source-driven; only the IP values on an interface
     that already relays get swapped.
@@ -287,62 +287,62 @@ class TamProfileDhcpHelperTest(unittest.TestCase):
 
     def test_option_a_site_gets_option_a_helpers(self):
         translator = HuaweiSwitchTranslator(
-            inventory=_FakeInventory({"ADM-SWDI-MAIN2-2960": "ADM"})
+            inventory=_FakeInventory({"AD1-SWDI-MAIN2-2960": "AD1"})
         )
         output = "\n".join(
             translator.translate(
-                self._config_with_helper("ADM-SWDI-MAIN2-2960"),
+                self._config_with_helper("AD1-SWDI-MAIN2-2960"),
                 profile=TAM_STANDARD,
             )
         )
-        self.assertIn("dhcp relay server-ip 10.86.48.112", output)
-        self.assertIn("dhcp relay server-ip 10.185.80.110", output)
+        self.assertIn("dhcp relay server-ip 192.0.2.112", output)
+        self.assertIn("dhcp relay server-ip 198.51.100.110", output)
         self.assertNotIn("192.0.2.99", output)
         self.assertIn("REVIEW-DHCP-HELPER", output)
         self.assertIn("Option A", output)
 
     def test_option_b_site_gets_option_b_helpers(self):
         translator = HuaweiSwitchTranslator(
-            inventory=_FakeInventory({"TTC-SWAC-LAN-2960": "TTC"})
+            inventory=_FakeInventory({"DC1-SWAC-LAN-2960": "DC1"})
         )
         output = "\n".join(
             translator.translate(
-                self._config_with_helper("TTC-SWAC-LAN-2960"),
+                self._config_with_helper("DC1-SWAC-LAN-2960"),
                 profile=TAM_STANDARD,
             )
         )
-        self.assertIn("dhcp relay server-ip 10.185.80.110", output)
-        self.assertIn("dhcp relay server-ip 10.85.76.110", output)
+        self.assertIn("dhcp relay server-ip 198.51.100.110", output)
+        self.assertIn("dhcp relay server-ip 203.0.113.110", output)
         self.assertNotIn("192.0.2.99", output)
         self.assertIn("REVIEW-DHCP-HELPER", output)
         self.assertIn("Option B", output)
 
-    def test_gtopas_depo_site_gets_option_b_helpers(self):
+    def test_depo_site_gets_option_b_helpers(self):
         translator = HuaweiSwitchTranslator(
             inventory=_FakeInventory(
-                {"GTOPAS-PKU-SWCO-C3650": "GTOPAS-PKU"}
+                {"DEPO-CC-SWCO-C3650": "DEPO-CC"}
             )
         )
         output = "\n".join(
             translator.translate(
-                self._config_with_helper("GTOPAS-PKU-SWCO-C3650"),
+                self._config_with_helper("DEPO-CC-SWCO-C3650"),
                 profile=TAM_STANDARD,
             )
         )
-        self.assertIn("dhcp relay server-ip 10.185.80.110", output)
-        self.assertIn("dhcp relay server-ip 10.85.76.110", output)
+        self.assertIn("dhcp relay server-ip 198.51.100.110", output)
+        self.assertIn("dhcp relay server-ip 203.0.113.110", output)
         self.assertNotIn("192.0.2.99", output)
 
     def test_interface_without_helper_stays_untouched(self):
         translator = HuaweiSwitchTranslator(
-            inventory=_FakeInventory({"ADM-SWDI-MAIN2-2960": "ADM"})
+            inventory=_FakeInventory({"AD1-SWDI-MAIN2-2960": "AD1"})
         )
         config = SwitchConfig(
             source_vendor="Cisco",
             source_device_type="Switch",
             source_file="test.txt",
         )
-        config.hostname = "ADM-SWDI-MAIN2-2960"
+        config.hostname = "AD1-SWDI-MAIN2-2960"
         interface = Interface(name="Vlan20")
         interface.ip_address = "10.20.20.1"
         interface.subnet_mask = "255.255.255.0"
@@ -363,17 +363,17 @@ class TamProfileDhcpHelperTest(unittest.TestCase):
                 profile=TAM_STANDARD,
             )
         )
-        self.assertIn("dhcp relay server-ip 10.185.80.110", output)
-        self.assertIn("dhcp relay server-ip 10.85.76.110", output)
+        self.assertIn("dhcp relay server-ip 198.51.100.110", output)
+        self.assertIn("dhcp relay server-ip 203.0.113.110", output)
         self.assertIn("REVIEW-DHCP-HELPER", output)
 
     def test_no_profile_leaves_source_helper_untouched(self):
         translator = HuaweiSwitchTranslator(
-            inventory=_FakeInventory({"ADM-SWDI-MAIN2-2960": "ADM"})
+            inventory=_FakeInventory({"AD1-SWDI-MAIN2-2960": "AD1"})
         )
         output = "\n".join(
             translator.translate(
-                self._config_with_helper("ADM-SWDI-MAIN2-2960")
+                self._config_with_helper("AD1-SWDI-MAIN2-2960")
             )
         )
         self.assertIn("dhcp relay server-ip 192.0.2.99", output)
@@ -410,7 +410,7 @@ class TamProfileNetconfCallhomeTest(unittest.TestCase):
             self.translator.translate(self._config(), profile=TAM_STANDARD)
         )
         self.assertIn("callhome default-callhome", output)
-        self.assertIn("peer-ip 10.85.10.101 port 10020", output)
+        self.assertIn("peer-ip 192.0.2.101 port 10020", output)
         self.assertIn("REVIEW-CONFIRM", output)
         self.assertIn("ssh user huawei authentication-type x509v3-rsa", output)
         self.assertIn("pki import-certificate default_ca realm default", output)
@@ -494,7 +494,7 @@ class SnmpSectionAlwaysClosedTest(unittest.TestCase):
         # the profile's fallback (resolver + fixed "TAM" value).
         output = self.translator.translate(config, profile=TAM_STANDARD)
 
-        contact_idx = output.index("snmp-agent sys-info contact TAM")
+        contact_idx = output.index("snmp-agent sys-info contact NOC")
         aaa_idx = output.index("aaa")
 
         self.assertLess(contact_idx, aaa_idx)

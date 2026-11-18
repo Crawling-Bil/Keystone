@@ -7,7 +7,7 @@ def _device(**overrides):
     device = {
         "esn": "2102311LDL0000000806",
         "mac": "aa:bb:cc:dd:ee:01",
-        "hostname": "TTC-SWAC-TEST-01",
+        "hostname": "DC1-SWAC-TEST-01",
         "vrp_version": "",
         "firmware_filename": "",
     }
@@ -81,7 +81,7 @@ class IntermediateFileTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            cfg_name = intf._sanitize_config_filename("TTC-SWAC-TEST-01")
+            cfg_name = intf._sanitize_config_filename("DC1-SWAC-TEST-01")
             (root / cfg_name).write_text("dummy config content", encoding="utf-8")
             text, _ = intf.build_intermediate_file([_device()], self.FILESERVER, ztp_root=root)
             self.assertIn("SHA256_1=", text)

@@ -98,7 +98,6 @@ def test_converter_says_in_english_what_it_cannot_do(tmp_path):
 
 
 def test_fortigate_file_converts_to_panos_since_fwconvert(tmp_path):
-    import pytest
 
     from features.configuration_studio import service as studio
 

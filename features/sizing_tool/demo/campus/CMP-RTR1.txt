@@ -1,0 +1,135 @@
+CMP-RTR1#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], ISR Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.9.4a, RELEASE SOFTWARE (fc3)
+cisco ISR4451-X/K9 (2RU) processor with 3949217K/6147K bytes of memory.
+Processor board ID FOC24510R01
+CMP-RTR1 uptime is 29 weeks, 1 day, 7 hours, 40 minutes
+
+License Level: securityk9
+License Type: Smart License
+Next reload license Level: securityk9
+
+Smart Licensing Status: Registered/Authorized
+
+Technology Package License Information:
+
+------------------------------------------------------------------------------
+Technology    Technology-package                    Technology-package
+              Current                Type           Next reboot
+------------------------------------------------------------------------------
+appxk9           appxk9                RightToUse       appxk9
+uck9             uck9                  RightToUse       uck9
+securityk9       securityk9            Permanent        securityk9
+ipbase           ipbasek9              Permanent        ipbasek9
+
+CMP-RTR1#show inventory
+NAME: "Chassis", DESCR: "Cisco ISR4451-X Chassis"
+PID: ISR4451-X/K9      , VID: V06  , SN: FOC24510R01
+
+NAME: "Power Supply Module 0", DESCR: "450W AC Power Supply for Cisco ISR4450, ISR4350"
+PID: PWR-4450-AC       , VID: V01  , SN: DCA2451A001
+
+NAME: "NIM subslot 0/1", DESCR: "Front Panel 4-port Gigabit Ethernet Network Interface Module"
+PID: NIM-4MFT-T1/E1    , VID: V01  , SN: FOC24510NIM
+
+NAME: "SM subslot 1/0", DESCR: "Front Panel 8-port Gigabit Ethernet Service Module"
+PID: SM-X-ES3-16-P     , VID: V01  , SN: FOC24510SM1
+
+NAME: "GigabitEthernet0/0/0", DESCR: "SFP-GE-L"
+PID: SFP-GE-L          , VID: V01  , SN: FNS24510R01
+
+CMP-RTR1#show running-config
+Building configuration...
+
+Current configuration : 7312 bytes
+!
+version 17.9
+!
+hostname CMP-RTR1
+!
+no aaa new-model
+ip routing
+ip domain name campus.example.test
+!
+vrf definition INET
+ address-family ipv4
+ exit-address-family
+!
+crypto ikev2 proposal PROP1
+ encryption aes-cbc-256
+ integrity sha256
+ group 14
+crypto ikev2 policy POL1
+ proposal PROP1
+crypto ikev2 keyring KR1
+ peer HQ
+  address 198.51.100.1
+  pre-shared-key local REDACTED
+crypto ikev2 profile PROF1
+ match identity remote address 198.51.100.1 255.255.255.255
+ authentication remote pre-share
+ authentication local pre-share
+ keyring local KR1
+crypto ipsec transform-set TS1 esp-aes 256 esp-sha256-hmac
+crypto ipsec profile IPSEC1
+ set transform-set TS1
+ set ikev2-profile PROF1
+!
+interface Loopback0
+ ip address 10.50.255.9 255.255.255.255
+!
+interface Tunnel1
+ description IPsec to HQ
+ ip address 172.31.50.2 255.255.255.252
+ tunnel source GigabitEthernet0/0/0
+ tunnel destination 198.51.100.1
+ tunnel protection ipsec profile IPSEC1
+!
+interface GigabitEthernet0/0/0
+ description INTERNET ISP-A
+ ip address 203.0.113.10 255.255.255.252
+ ip nat outside
+!
+interface GigabitEthernet0/0/1
+ description to CMP-CORE1 Te2/0/3
+ ip address 10.50.0.2 255.255.255.252
+ ip nat inside
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+!
+interface GigabitEthernet0/0/2
+ description MPLS ISP-B
+ ip address 192.0.2.10 255.255.255.252
+!
+router ospf 1
+ router-id 10.50.255.9
+ default-information originate
+!
+router bgp 65050
+ bgp router-id 10.50.255.9
+ neighbor 192.0.2.9 remote-as 64700
+ neighbor 192.0.2.9 description MPLS ISP-B
+ address-family ipv4
+  network 10.50.0.0 mask 255.255.0.0
+  neighbor 192.0.2.9 activate
+!
+ip access-list extended NAT-LAN
+ permit ip 10.50.0.0 0.0.255.255 any
+ip nat inside source list NAT-LAN interface GigabitEthernet0/0/0 overload
+ip route 0.0.0.0 0.0.0.0 203.0.113.9
+ip route 172.16.0.0 255.240.0.0 Tunnel1
+!
+ntp server 10.50.40.10
+snmp-server community REDACTED RO
+!
+end
+
+CMP-RTR1#show ip route
+Codes: L - local, C - connected, S - static, O - OSPF, B - BGP
+Gateway of last resort is 203.0.113.9 to network 0.0.0.0
+
+S*    0.0.0.0/0 [1/0] via 203.0.113.9
+      10.0.0.0/8 is variably subnetted, 3 subnets, 2 masks
+C        10.50.0.0/30 is directly connected, GigabitEthernet0/0/1
+O        10.50.10.0/24 [110/20] via 10.50.0.1, 00:12:11, GigabitEthernet0/0/1
+B        10.60.0.0/16 [20/0] via 192.0.2.9, 3d02h

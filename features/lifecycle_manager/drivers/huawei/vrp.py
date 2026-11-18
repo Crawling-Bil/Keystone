@@ -60,7 +60,7 @@ class HuaweiVRPDriver(BaseDriver):
                 "usually means the device is still legitimately busy (e.g. a "
                 "slow flash write) rather than truly stuck; if it keeps "
                 "happening, this step's timeout may need to be raised further."
-            )
+            ) from None
 
     def _send_patient(self, command, read_timeout=60, max_retries=2, retry_gap=5):
         """Like _send(), but tolerates the device still being busy from a

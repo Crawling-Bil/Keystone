@@ -95,7 +95,7 @@ def _routes(data: dict[str, Any], names: dict[str, str]) -> list[dict[str, Any]]
     return list(groups.values())
 
 
-_MAP_FACTS = ("Destination", "Protocol", "Address", "Port", "Pool", "Node", "Used by", "Reached", "Load-balancing method", "Members", "Default pool", "Type", "Description")
+_MAP_FACTS = ("Destination", "Protocol", "Address", "Port", "Pool", "Node", "Used by", "Reached", "Load-balancing method", "Members", "Default pool", "Type", "SNAT", "Description")
 
 
 def _map_nodes(data: dict[str, Any], runtime: dict[str, Any]) -> list[dict[str, Any]]:

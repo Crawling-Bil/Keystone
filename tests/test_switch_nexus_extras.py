@@ -12,7 +12,7 @@ import re
 import unittest
 from pathlib import Path
 
-from features.switch_analyzer import capture_text, coverage, health_other, licence_detail, nxos_extras
+from features.switch_analyzer import capture_text, licence_detail, nxos_extras
 from features.switch_analyzer.service import analyze
 
 FIXTURE = (Path(__file__).parent / "fixtures" / "real_captures" / "nxos_9k_extras_synthetic.txt").read_text(encoding="utf-8")

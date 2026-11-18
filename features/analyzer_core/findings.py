@@ -6,6 +6,11 @@ A finding is a plain dict so it serialises straight to JSON and Excel:
      "title": "...", "object": "neighbor 10.0.0.1", "detail": "...",
      "recommendation": "...", "reference": "https://..."}
 
+Two optional fields serve audit work and are left out of the dict when empty (so existing results and exports do not change):
+``standards`` is a list of control identifiers the rule maps to, written the way the framework writes them (for example
+``"CIS Benchmark for Palo Alto Networks PAN-OS 1.1.0 - 2.1"``, ``"NIST SP 800-53 Rev. 5 AC-6"``, ``"PCI DSS v4.0 1.3.1"``) and
+``evidence`` is the configuration line(s) the finding was raised from, so a reviewer can find it in the capture without re-reading it.
+
 ``reference`` is always a vendor documentation URL.  The analyzers keep a
 small registry of those so every rule can cite real documentation.
 """
@@ -29,10 +34,12 @@ def finding(
     detail: str = "",
     recommendation: str = "",
     reference: str = "",
+    standards: Iterable[str] = (),
+    evidence: str = "",
 ) -> dict[str, Any]:
     if severity not in SEVERITY_RANK:
         raise ValueError(f"unknown severity {severity!r}")
-    return {
+    item = {
         "id": rule_id,
         "severity": severity,
         "category": category,
@@ -42,6 +49,12 @@ def finding(
         "recommendation": recommendation,
         "reference": reference,
     }
+    controls = [str(code).strip() for code in ([standards] if isinstance(standards, str) else standards) if str(code).strip()]
+    if controls:
+        item["standards"] = controls
+    if evidence:
+        item["evidence"] = evidence
+    return item
 
 
 def sort_findings(findings: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:

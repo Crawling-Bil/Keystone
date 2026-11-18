@@ -65,8 +65,34 @@ def test_capture_names_are_reduced_to_safe_characters_and_sorted():
 def test_every_finding_the_builder_can_raise_has_controls():
     ids = set(re.findall(r'"(TOPO-\d{3})"', "\n".join(p.read_text(encoding="utf-8") for p in SRC.glob("*.py") if p.name != "evidence.py")))
     assert ids and ids <= set(evidence.THEMES), sorted(ids - set(evidence.THEMES))
-    for controls in evidence.THEMES.values():
-        assert {f for f, _, _ in controls} <= {evidence.CIS, evidence.NIST, evidence.PCI, evidence.ISO} and len(controls) >= 2
+    frameworks = {evidence.CIS, evidence.NIST, evidence.PCI, evidence.ISO}
+    for finding, controls in evidence.THEMES.items():
+        allowed = frameworks | ({evidence.OJK} if finding in RECOVERY_SITE else set()) | ({evidence.IEC} if finding in SEGMENTATION else set())
+        assert {f for f, _, _ in controls} <= allowed and len(controls) >= 2 and len(set(controls)) == len(controls), finding
+
+
+RECOVERY_SITE = {f"TOPO-0{n}" for n in range(47, 57)}
+SEGMENTATION = {"TOPO-059", "TOPO-060", "TOPO-063", "TOPO-064"}                 # the zones of a firewall: IEC 62443-3-3 SR 5.1 / 5.2 apply as well
+
+
+def test_the_recovery_site_findings_are_mapped_to_the_bank_regulation_and_the_dr_controls():
+    for finding in RECOVERY_SITE:
+        text = evidence.controls_text(finding)
+        assert "POJK 11/POJK.03/2022 Pasal 37" in text and "CP-7" in text and "A.5.30" in text and "A.8.14" in text, finding
+    for finding in ("TOPO-047", "TOPO-048", "TOPO-049", "TOPO-052", "TOPO-053", "TOPO-054", "TOPO-055", "TOPO-056"):
+        assert "Pasal 18" in evidence.controls_text(finding) and "CP-2" in evidence.controls_text(finding), finding
+    for finding in ("TOPO-050", "TOPO-051"):
+        assert "Pasal 18" not in evidence.controls_text(finding), finding
+
+
+def test_the_other_findings_do_not_claim_the_bank_regulation():
+    assert not [f for f in evidence.THEMES if f not in RECOVERY_SITE and "POJK" in evidence.controls_text(f)]
+    assert evidence.controls_text("TOPO-999") == ""
+
+
+def test_the_audit_readme_names_the_regulation_and_the_parity_table():
+    text = evidence.audit_readme(True)
+    assert "POJK 11/POJK.03/2022" in text
 
 
 def test_control_rows_start_with_the_drawing_and_follow_the_findings():

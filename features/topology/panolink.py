@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import threading
 import xml.etree.ElementTree as ET
+from core.safe_xml import fromstring as safe_fromstring
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any
@@ -32,7 +33,7 @@ class LinkInfo:
 
 def _parsed(text: str):
     from ..firewall_analyzer import panorama_parse as pp
-    key = hashlib.sha1(text.encode("utf-8", "replace")).hexdigest()
+    key = hashlib.sha1(text.encode("utf-8", "replace"), usedforsecurity=False).hexdigest()
     with _LOCK:
         hit = _PARSED.get(key)
         if hit is not None:
@@ -51,7 +52,7 @@ def _xml_root(text: str) -> ET.Element | None:
     if not head.startswith("<"):
         return None
     try:
-        root = ET.fromstring(text)
+        root = safe_fromstring(text)
     except ET.ParseError:
         return None
     return root if root.tag == "config" and root.find("devices/entry") is not None else None

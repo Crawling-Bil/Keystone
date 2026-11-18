@@ -542,9 +542,9 @@ class HuaweiSwitchParser:
                 # NQA TEST-INSTANCE -- Huawei's IP-SLA-probe
                 # equivalent, confirmed real and LIVE DEPLOYED
                 # backing a Policy-Based Routing redirect
-                # (GTOPAS-MKS-SWCODI-S5755-FIX.txt):
+                # (DEPO-AA-SWCODI-S5755-FIX.txt):
                 #
-                #   nqa test-instance admin gtopas_mks_lintas
+                #   nqa test-instance admin depo_aa_transit
                 #    test-type icmp
                 #    destination-address ipv4 172.20.20.26
                 #    timeout 1
@@ -552,7 +552,7 @@ class HuaweiSwitchParser:
                 #    start now
                 #
                 # "probe-count <n>" appears in this project's own
-                # draft template (ADM-SWCODI-S5755.txt) but was
+                # draft template (AD1-SWCODI-S5755.txt) but was
                 # absent from the real deployed capture above -- see
                 # models/switch.py's NqaTestInstance. TAM
                 # memory-keystone.md Section 1ac.
@@ -609,7 +609,7 @@ class HuaweiSwitchParser:
                 # a standalone numbered track object referencing an
                 # NQA test-instance by name. Confirmed real VRP
                 # syntax (this project's own NQA + Track template,
-                # draft_huawei_master.txt / ADM-SWCODI-S5755.txt) --
+                # draft_huawei_master.txt / AD1-SWCODI-S5755.txt) --
                 # single-line, no sub-block, same shape as Cisco's
                 # "track <id> ip sla <id> reachability". See
                 # models/switch.py's TrackObject.nqa_name.
@@ -633,13 +633,13 @@ class HuaweiSwitchParser:
                 # chain, the Huawei-native equivalent of Cisco's
                 # route-map/set-ip-next-hop PBR (see cisco.py's
                 # ROUTE-MAP handling). Confirmed real and LIVE
-                # DEPLOYED (GTOPAS-MKS-SWCODI-S5755-FIX.txt):
+                # DEPLOYED (DEPO-AA-SWCODI-S5755-FIX.txt):
                 #
                 #   traffic classifier LINTAS type or
                 #    if-match acl 3001
                 #   traffic behavior LINTAS
                 #    redirect nexthop 172.29.88.2 track nqa admin
-                #    gtopas_mks_lintas
+                #    depo_aa_transit
                 #   traffic policy LINTAS
                 #    classifier LINTAS behavior LINTAS precedence 5
                 #
@@ -1083,7 +1083,7 @@ class HuaweiSwitchParser:
             # VLAN in the local VLAN database by default (Huawei has no
             # allow-list mechanism on this kind of port — "exclude" is
             # the only lever) — confirmed real VRP syntax on a real
-            # S5755 M-LAG peer-link (TTC-SWCODI-MN/BU-DMZ Eth-Trunk2,
+            # S5755 M-LAG peer-link (DC1-SWCODI-MN/BU-DMZ Eth-Trunk2,
             # which carries no "port link-type" line at all, just this
             # exclude command). Modeled the same way an unrestricted
             # Cisco trunk's default is: the sentinel ["all"] value
@@ -1197,13 +1197,13 @@ class HuaweiSwitchParser:
             # VRRP (Cisco HSRP's Huawei equivalent) — only the bare
             # "vrrp vrid <id> virtual-ip <vip>" form is captured, the
             # only one confirmed on real hardware in this project (a
-            # real S5755 M-LAG pair, TTC-SWCODI-MN/BU-DMZ — every VRRP-
+            # real S5755 M-LAG pair, DC1-SWCODI-MN/BU-DMZ — every VRRP-
             # enabled Vlanif in both real source files uses exactly
             # this one-line form, no priority/preempt/track
             # sub-commands). See Interface.vrrp_vrid/vrrp_virtual_ip.
             #
             #   interface Vlanif201
-            #    vrrp vrid 201 virtual-ip 10.85.28.1
+            #    vrrp vrid 201 virtual-ip 10.220.28.1
             # =================================================
 
             vrrp_match = re.match(
@@ -1394,7 +1394,7 @@ class HuaweiSwitchParser:
             # TRAFFIC-POLICY APPLICATION (PBR/QoS binding on an
             # interface) -- Huawei's per-interface equivalent of
             # Cisco's "ip policy route-map <name>". Confirmed real
-            # and LIVE DEPLOYED (GTOPAS-MKS-SWCODI-S5755-FIX.txt):
+            # and LIVE DEPLOYED (DEPO-AA-SWCODI-S5755-FIX.txt):
             # "interface Vlanif109" / " traffic-policy LINTAS
             # inbound". See Interface.traffic_policy_inbound/
             # outbound and TAM memory-keystone.md Section 1ac.

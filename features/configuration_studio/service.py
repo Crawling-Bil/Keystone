@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -18,10 +19,19 @@ from .converter_engine.translators.firewall.paloalto import PALOALTO_TARGET_MODE
 BASE_DIR = Path(__file__).resolve().parent
 MAPPINGS_DIR = BASE_DIR / "mappings"
 INVENTORY_FILE = MAPPINGS_DIR / "migration_inventory.csv"
+LOCAL_INVENTORY_FILE = MAPPINGS_DIR / "local" / "migration_inventory.csv"
+
+
+def inventory_path() -> Path:
+    """The inventory the converter reads: the private ``mappings/local/migration_inventory.csv`` (gitignored, holds the real devices) when it exists,
+    otherwise the invented sample that ships in the repository.  ``KEYSTONE_IGNORE_LOCAL=1`` (set by the test suite) always selects the sample."""
+    if os.environ.get("KEYSTONE_IGNORE_LOCAL") != "1" and LOCAL_INVENTORY_FILE.is_file():
+        return LOCAL_INVENTORY_FILE
+    return INVENTORY_FILE
 
 
 def create_engine() -> MigrationEngine:
-    return MigrationEngine(inventory_file=INVENTORY_FILE)
+    return MigrationEngine(inventory_file=inventory_path())
 
 
 def available_profiles() -> list[dict[str, str]]:

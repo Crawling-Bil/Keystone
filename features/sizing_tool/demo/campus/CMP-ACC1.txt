@@ -1,0 +1,188 @@
+CMP-ACC1#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.9.4a, RELEASE SOFTWARE (fc3)
+cisco C9300-48P (X86) processor (revision V02) with 1331342K/6147K bytes of memory.
+Processor board ID FOC2412ACA1
+CMP-ACC1 uptime is 33 weeks, 6 days, 5 hours, 21 minutes
+
+CMP-ACC1#show switch
+Switch/Stack Mac Address : 0cd2.9200.1000 - Local Mac Address
+Mac persistency wait time: Indefinite
+                                             H/W   Current
+Switch#  Role    Mac Address     Priority Version  State
+-------------------------------------------------------------
+*1       Active  0cd2.9200.1000     15     V02     Ready
+ 2       Standby 0cd2.9200.2000     14     V02     Ready
+
+CMP-ACC1#show inventory
+NAME: "c93xx Stack", DESCR: "c93xx Stack"
+PID: C9300-48P         , VID: V02  , SN: FOC2412ACA1
+
+NAME: "Switch 1", DESCR: "Cisco Catalyst 9300 48-port PoE+ switch"
+PID: C9300-48P         , VID: V02  , SN: FOC2412ACA1
+
+NAME: "Switch 1 - Power Supply B", DESCR: "Switch 1 - Power Supply B"
+PID: PWR-C1-715WAC-P   , VID: V01  , SN: DCC2412A101
+
+NAME: "Switch 1 - Power Supply A", DESCR: "Switch 1 - Power Supply A"
+PID: PWR-C1-715WAC-P   , VID: V01  , SN: DCC2412A102
+
+NAME: "Switch 1 - FRULink Module", DESCR: "Switch 1 - FRULink Module"
+PID: C9300-NM-8X       , VID: V02  , SN: FOC2412NM01
+
+NAME: "Switch 1 - StackPort1/1", DESCR: "Switch 1 - StackPort1/1"
+PID: STACK-T1-50CM     , VID: V01  , SN: MOC2412ST01
+
+NAME: "Switch 2", DESCR: "Cisco Catalyst 9300 48-port PoE+ switch"
+PID: C9300-48P         , VID: V02  , SN: FOC2412ACA2
+
+NAME: "Switch 2 - Power Supply B", DESCR: "Switch 2 - Power Supply B"
+PID: PWR-C1-715WAC-P   , VID: V01  , SN: DCC2412A201
+
+NAME: "Switch 2 - FRULink Module", DESCR: "Switch 2 - FRULink Module"
+PID: C9300-NM-8X       , VID: V02  , SN: FOC2412NM02
+
+NAME: "TenGigabitEthernet1/1/1", DESCR: "SFP-10GBase-SR"
+PID: SFP-10G-SR        , VID: V03  , SN: FNS2412C101
+
+NAME: "TenGigabitEthernet2/1/1", DESCR: "SFP-10GBase-SR"
+PID: SFP-10G-SR        , VID: V03  , SN: FNS2412C102
+
+CMP-ACC1#show license summary
+Account Information:
+  Smart Account: Example Campus Demo
+  Virtual Account: CAMPUS-ACCESS
+
+License Usage:
+  License                 Entitlement Tag               Count Status
+  -----------------------------------------------------------------------------
+  network-essentials      (C9300-48 Network Essentials)     2 IN USE
+  dna-essentials          (C9300-48 DNA Essentials)         2 IN USE
+
+CMP-ACC1#show power inline
+Available:1440.0(w)  Used:612.4(w)  Remaining:827.6(w)
+
+Interface Admin  Oper       Power   Device              Class Max
+                            (Watts)
+--------- ------ ---------- ------- ------------------- ----- ----
+Gi1/0/1   auto   on         15.4    Ieee PD             4     30.0
+Gi1/0/2   auto   on         12.9    Ieee PD             3     30.0
+Gi1/0/3   auto   on         30.0    AIR-AP-C9130AXI     4     30.0
+Gi1/0/4   auto   on         30.0    AIR-AP-C9130AXI     4     30.0
+Gi2/0/1   auto   on         15.4    Ieee PD             4     30.0
+Gi2/0/2   auto   on         12.9    Ieee PD             3     30.0
+Gi2/0/3   auto   on         30.0    AIR-AP-C9130AXI     4     30.0
+Gi2/0/4   auto   off        0.0     n/a                 n/a   30.0
+
+CMP-ACC1#show interfaces status
+Port         Name               Status       Vlan       Duplex  Speed Type
+Gi1/0/1      phone              connected    20         a-full a-1000 10/100/1000BaseTX
+Gi1/0/2      phone              connected    20         a-full a-1000 10/100/1000BaseTX
+Gi1/0/3      ap                 connected    30         a-full a-1000 10/100/1000BaseTX
+Gi1/0/4      ap                 connected    30         a-full a-1000 10/100/1000BaseTX
+Gi1/0/5                         notconnect   10           auto   auto 10/100/1000BaseTX
+Gi2/0/1      phone              connected    20         a-full a-1000 10/100/1000BaseTX
+Gi2/0/2      phone              connected    20         a-full a-1000 10/100/1000BaseTX
+Gi2/0/3      ap                 connected    30         a-full a-1000 10/100/1000BaseTX
+Gi2/0/4      ap spare           notconnect   30           auto   auto 10/100/1000BaseTX
+Te1/1/1      to CMP-CORE1       connected    trunk      full    10G SFP-10GBase-SR
+Te2/1/1      to CMP-CORE1       connected    trunk      full    10G SFP-10GBase-SR
+
+CMP-ACC1#show running-config
+Building configuration...
+
+Current configuration : 5120 bytes
+!
+version 17.9
+!
+hostname CMP-ACC1
+!
+no aaa new-model
+switch 1 provision c9300-48p
+switch 2 provision c9300-48p
+ip domain name campus.example.test
+lldp run
+cdp run
+!
+spanning-tree mode rapid-pvst
+!
+vlan 10
+ name USERS
+vlan 20
+ name VOICE
+vlan 30
+ name WIFI
+vlan 50
+ name MGMT
+!
+interface Port-channel11
+ description to CMP-CORE1
+ switchport mode trunk
+!
+interface TenGigabitEthernet1/1/1
+ description to CMP-CORE1 Te2/0/1
+ switchport mode trunk
+ channel-group 11 mode active
+!
+interface TenGigabitEthernet2/1/1
+ description to CMP-CORE1 Te2/0/2
+ switchport mode trunk
+ channel-group 11 mode active
+!
+interface GigabitEthernet1/0/1
+ description phone
+ switchport access vlan 10
+ switchport voice vlan 20
+ power inline auto
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/3
+ description ap
+ switchport access vlan 30
+ power inline auto
+!
+interface GigabitEthernet2/0/1
+ description phone
+ switchport access vlan 10
+ switchport voice vlan 20
+ power inline auto
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/2
+ description phone
+ switchport access vlan 10
+ switchport voice vlan 20
+ power inline auto
+!
+interface GigabitEthernet1/0/4
+ description ap
+ switchport access vlan 30
+ power inline auto
+!
+interface GigabitEthernet1/0/5
+ switchport access vlan 10
+!
+interface GigabitEthernet2/0/2
+ description phone
+ switchport access vlan 10
+ switchport voice vlan 20
+ power inline auto
+!
+interface GigabitEthernet2/0/3
+ description ap
+ switchport access vlan 30
+ power inline auto
+!
+interface GigabitEthernet2/0/4
+ description ap spare
+ switchport access vlan 30
+ power inline auto
+!
+interface Vlan50
+ ip address 10.50.50.11 255.255.255.0
+!
+ip default-gateway 10.50.50.1
+snmp-server community REDACTED RO
+ntp server 10.50.40.10
+!
+end

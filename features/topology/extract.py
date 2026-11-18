@@ -46,6 +46,9 @@ class Device:
     serials: set[str] = field(default_factory=set)
     macs: set[str] = field(default_factory=set)         # own chassis / stack-member MACs, 12 hex digits
     stack_members: int = 1
+    svl_domain: str = ""                                              # Cisco StackWise Virtual domain number (stackwise.py); "" when the box is not an SVL
+    svl_links: dict[str, str] = field(default_factory=dict)           # canonical port -> SVL number (the cables between the two chassis)
+    svl_dad: list[str] = field(default_factory=list)                  # canonical ports that carry dual-active detection
     halves: list[HalfEdge] = field(default_factory=list)
     bundles: dict[str, list[str]] = field(default_factory=dict)       # Po name -> canonical member ports
     bundle_of: dict[str, str] = field(default_factory=dict)           # canonical member port -> Po name
@@ -58,6 +61,8 @@ class Device:
     vpc_peer_link: str = ""
     vpc_keepalive: str = ""
     vpc_ids: dict[str, str] = field(default_factory=dict)             # Po name -> vPC id
+    fw_ifaces: list[dict] = field(default_factory=list)               # firewall only: {"name", "zone", "parent", "vlan", "type"} of every interface that sits in a security zone (fwzones.py)
+    pair_kind: str = ""                                               # "VSX" when the pair fields above come from an Aruba CX VSX configuration (vsx.py); "" for vPC / M-LAG
     stp_blocking: set[str] = field(default_factory=set)               # canonical ports
     stp_protocol: str = ""                                            # rstp / mstp / pvst ... as printed by "show spanning-tree"
     stp_root_for: list[str] = field(default_factory=list)             # instances ("VLAN0010", "MST0") this switch is the root bridge of
@@ -90,7 +95,7 @@ class Device:
 
     @property
     def label_lines(self) -> list[str]:
-        return [self.hostname, " ".join(x for x in (self.model, "STACK" if self.stack_members > 1 else "") if x), self.mgmt_ip]
+        return [self.hostname, " ".join(x for x in (self.model, f"SVL DOMAIN {self.svl_domain}" if self.svl_domain else "STACK" if self.stack_members > 1 else "") if x), self.mgmt_ip]
 
 
 _MGMT_WORDS = ("mgmt", "management", "oob")
@@ -126,13 +131,23 @@ def _pick_mgmt_ip(l3: dict[str, Any]) -> tuple[str, set[str]]:
     return (ranking[0][1] if ranking else ""), ips
 
 
+PLACEHOLDER_PIDS = ("built-in", "builtin", "n/a", "unknown", "")   # what an IOS fixed-configuration switch prints in `show inventory` PID where it has no orderable PID
+CHASSIS_SLOTS = ("chassis", "switch 1", "1", "0")                   # a fixed switch (Catalyst 1000/2960) names its single entry NAME: "1"
+
+
+def _real_pid(pid: Any) -> str:
+    text = str(pid or "").strip()
+    return "" if text.lower() in PLACEHOLDER_PIDS else text
+
+
 def _model(result: dict[str, Any]) -> str:
-    hint = ((result.get("detection") or {}).get("model_hint") or "").strip()
+    hint = _real_pid((result.get("detection") or {}).get("model_hint"))
     modules = (result.get("inventory") or {}).get("modules") or []
     for module in modules:
-        slot = str(module.get("slot", "")).lower()
-        if slot.startswith(("chassis", "switch 1")) and module.get("pid"):
-            return str(module["pid"])
+        slot = str(module.get("slot", "")).strip().lower().strip('"')
+        if slot.startswith(("chassis", "switch 1")) or slot in CHASSIS_SLOTS:
+            if _real_pid(module.get("pid")):
+                return str(module["pid"])
     return hint
 
 
@@ -410,7 +425,16 @@ def device_from_analysis(result: dict[str, Any], source: str) -> Device:
                 device.member_state[member] = flag
     vpc = result.get("vpc_mlag") or {}
     summary = vpc.get("summary") or {}
-    if summary.get("domain_id") and vpc.get("source") == "live":      # a configuration-only capture has no vPC state to judge
+    if summary.get("domain_id") and vpc.get("source") != "live":
+        # a configuration-only capture (``vpc domain 140``, ``vpc peer-link``, ``peer-keepalive``) has no vPC state to judge, but it names the domain, the peer-link and the vPC numbers of the
+        # member ports: enough to draw the pair when both switches were captured
+        device.vpc_domain = str(summary["domain_id"])
+        device.vpc_peer_link = canon_port(str(summary.get("peer_link", "")))
+        device.vpc_keepalive = str(summary.get("peer_keepalive_dest_ip", ""))
+        for member in vpc.get("members") or []:
+            if member.get("port") and member.get("id"):
+                device.vpc_ids[canon_port(str(member["port"]))] = str(member["id"])
+    if summary.get("domain_id") and vpc.get("source") == "live":      # the vPC state is read only from a live capture
         device.vpc_health = {key: str(summary.get(key, "")) for key in ("peer_status", "keepalive_status", "consistency_status", "peer_link_status")}
         for member in vpc.get("members") or []:
             if member.get("port"):

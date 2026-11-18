@@ -131,6 +131,7 @@ _STATUS_WORDS = {
 
 _STATUS_HEADER_RE = re.compile(r"^\s*Port\s+(?:Name\s+)?Status\s+Vlan\b", re.IGNORECASE)
 _DASH_RE = re.compile(r"^[\s\-+=]+$")
+_PORT_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z-]*\d")
 
 
 def _parse_interface_status_table(section: list[str]) -> dict[str, dict[str, Any]]:
@@ -161,6 +162,8 @@ def _parse_interface_status_table(section: list[str]) -> dict[str, dict[str, Any
             if status_word.lower() not in _STATUS_WORDS:
                 tokens = line.split()
                 status_word = next((t for t in tokens[1:] if t.lower() in _STATUS_WORDS), status_word)
+        if not _PORT_NAME_RE.match(port):
+            continue                              # a log line ("*Jul 14 04:17 ...") that landed in the table is not a port
         mapped = _STATUS_WORDS.get(status_word.lower())
         if not mapped:
             continue

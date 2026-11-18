@@ -18,12 +18,16 @@ not mean reading twenty ``topology.json`` files of several megabytes each.
 from __future__ import annotations
 
 import contextlib
+import csv
 import datetime as dt
 import gzip
+import io
 import json
 import os
 import re
+import tempfile
 import time
+import zipfile
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterator
@@ -41,8 +45,8 @@ MAX_PINNED = 30                      # a pinned run is exempt from the clean-up,
 MAX_LISTED = 100
 MAX_NAME = 60
 TOP_FINDINGS = 12
-OPTION_KEYS = ("view", "group_used", "line_style", "line_shape", "show_ports", "show_link_ips", "bundle_members", "exclude_endpoints", "collapse_endpoints", "collapse_aps",
-               "infer_neighbors", "include_routed", "hide_mgmt", "include_hosts", "overlay_sites", "tool_version")
+OPTION_KEYS = ("view", "group_used", "line_style", "line_shape", "zone_layout", "zone_boxes", "show_ports", "show_link_ips", "bundle_members", "exclude_endpoints", "collapse_endpoints", "collapse_aps",
+               "infer_neighbors", "include_routed", "hide_mgmt", "mgmt_notes", "include_hosts", "overlay_sites", "tool_version")
 NAME_SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
@@ -412,3 +416,66 @@ def clear(export_dir: Path, keep_pinned: bool = True, protect: str | None = None
 
 def disk_usage(export_dir: Path) -> int:
     return sum(folder_size(folder) for folder in _run_folders(export_dir))
+
+
+# ---------------------------------------------------------------- download all
+PACK_FILES = ("keystone-topology-pack.zip", "keystone-topology-pack.zip.sha256", "keystone-topology-pack-anonymized.zip")
+INDEX_COLUMNS = ("folder", "built", "name", "note", "pinned", "devices", "links", "findings", "pack_sha256", "in_this_zip")
+
+
+def _cell(value: object) -> object:
+    """Cells that start with = + - @ are executed as formulas by Excel; a name or a note typed by the engineer can do that."""
+    text = str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@") and text.strip("-") and not text.lstrip("-").isdigit() else value
+
+
+def bundle_folder_name(row: dict[str, Any]) -> str:
+    """One folder per run inside the big ZIP: built date, topology name, first 8 characters of the id (two runs with one name stay apart)."""
+    stamp = NAME_SAFE.sub("", str(row.get("built", "")).replace(" ", "_").replace(":", "-")) or "run"
+    name = clean_name(row.get("name", "")) or "Unnamed"
+    return f"{stamp}_{NAME_SAFE.sub('-', name).strip('.-_')[:40] or 'Unnamed'}_{str(row['id'])[:8]}"
+
+
+def bundle(export_dir: Path, max_age_days: float, run_ids: list[str] | None = None) -> tuple[Any, list[str], list[str]]:
+    """Every kept pack (or those named in ``run_ids``) in one ZIP, one folder per run, plus ``runs.csv`` saying what is inside.
+
+    Returns ``(file, included, skipped)``: ``file`` is an open temporary file at position 0 (it is deleted when closed; the packs are
+    already compressed, so they are stored, not compressed again), ``included`` the ids whose pack is in the ZIP, ``skipped`` the ids that
+    have no pack (built before packs were kept, or removed).  Ids that are not kept runs are ignored.  Nothing is read outside a run's folder."""
+    rows = list_runs(export_dir, max_age_days)
+    if run_ids is not None:
+        wanted = {str(r) for r in run_ids}
+        rows = [row for row in rows if row["id"] in wanted]
+    handle = tempfile.TemporaryFile()                            # noqa: SIM115 - the caller streams it and closes it
+    included: list[str] = []
+    skipped: list[str] = []
+    used: set[str] = set()
+    table = io.StringIO()
+    writer = csv.writer(table, lineterminator="\r\n")
+    writer.writerow(INDEX_COLUMNS)
+    try:
+        with zipfile.ZipFile(handle, "w", zipfile.ZIP_STORED, allowZip64=True) as archive:
+            for row in rows:
+                folder = folder_of(export_dir, row["id"])
+                pack = folder / PACK_FILES[0] if folder is not None else None
+                ok = pack is not None and pack.is_file() and not pack.is_symlink()
+                label = bundle_folder_name(row)
+                if label in used:                                    # two runs that share date, name and the start of the id: the whole id keeps them apart
+                    label = label.rsplit("_", 1)[0] + "_" + str(row["id"])
+                used.add(label)
+                if ok and folder is not None:
+                    for name in PACK_FILES:
+                        path = folder / name
+                        if path.is_file() and not path.is_symlink():
+                            archive.write(path, f"{label}/{name}")
+                    included.append(row["id"])
+                else:
+                    skipped.append(row["id"])
+                writer.writerow([_cell(v) for v in (label if ok else "", row["built"], row["name"], row["note"], "yes" if row["pinned"] else "", row["devices"], row["links"], row["findings"],
+                                                  pack_hash(folder) if ok and folder is not None else "", "yes" if ok else "no pack kept")])
+            archive.writestr("runs.csv", table.getvalue())
+    except BaseException:
+        handle.close()
+        raise
+    handle.seek(0)
+    return handle, included, skipped

@@ -38,10 +38,11 @@ def _build(layout=None) -> dict:
     return build_topology(_captures(), group="auto", collapse_endpoints=False, include_hosts=False, view="physical", group_endpoints=True, collapse_aps=False, layout=layout)
 
 
-def test_only_the_multisite_set_declares_a_layout_and_serves_it(client):
+def test_only_the_two_company_sets_declare_a_layout_and_serve_it(client):
     sets = {s["id"]: s for s in client.get("/topology/api/demo").get_json()["sets"]}
-    assert sets["multisite"]["layout"] == "layout.drawio"
+    assert sets["multisite"]["layout"] == sets["dcdrc"]["layout"] == "layout.drawio"
     assert all(sets[i]["layout"] == "" for i in ("before", "after", "edge"))
+    assert client.get("/topology/api/demo/dcdrc/layout.drawio").status_code == 200
     answer = client.get("/topology/api/demo/multisite/layout.drawio")
     assert answer.status_code == 200 and answer.data.lstrip().startswith(b"<?xml") and b"<mxfile" in answer.data
     assert client.get("/topology/api/demo/before/layout.drawio").status_code == 404          # a set serves only the layout it declares

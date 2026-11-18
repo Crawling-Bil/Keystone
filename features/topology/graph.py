@@ -300,6 +300,8 @@ def build(devices: list[Device]) -> Graph:
                         seen_native_a=reverse.native_vlan if reverse else "", seen_native_b=half.native_vlan)
             graph.links.append(link)
     _connections(graph)
+    from .pairs import config_pairs
+    config_pairs(graph)                                         # the peer-link of a pair that no neighbor table shows (Huawei M-LAG)
     return graph
 
 

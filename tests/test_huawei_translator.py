@@ -426,8 +426,8 @@ class LocalUserYConfirmationTest(unittest.TestCase):
     def test_multiple_users_each_get_their_own_y_pair(self):
         output = self.translator.translate_usernames(
             [
-                "username kijang privilege 15 password 0 Toyota2026!@#",
-                "username recon privilege 15 password 0 Toyota2026!@#",
+                "username netadmin privilege 15 password 0 Example2026!@#",
+                "username recon privilege 15 password 0 Example2026!@#",
             ]
         )
         self.assertEqual(
@@ -442,8 +442,8 @@ class PrivilegeLevelMappingTest(unittest.TestCase):
     does NOT translate directly. A previous version of this code
     emitted "privilege level 15" (or 10) verbatim, which VRP rejects
     outright at paste-time. The only mapping confirmed against real
-    hardware this project (TAM migration, memory-tam-2026-huawei-
-    switch.md Section 66) is Cisco 15 -> Huawei 3. Anything else is
+    hardware this project (TAM migration, the project decision log,
+    Section 66) is Cisco 15 -> Huawei 3. Anything else is
     unconfirmed and must be flagged for a human decision rather than
     silently guessed.
     """
@@ -506,7 +506,7 @@ class PrivilegeLevelMappingTest(unittest.TestCase):
 class BannerLengthLimitTest(unittest.TestCase):
     """
     Hard, real-hardware-confirmed VRP limit (TAM migration project,
-    memory-tam-2026-huawei-switch.md Section 67): "header <type>
+    the project decision log Section 67): "header <type>
     information" text is capped at 480 characters including
     delimiters. Exceeding it is not truncated -- VRP rejects the
     whole command, and because it's a multi-line inline-input command,
@@ -1120,8 +1120,8 @@ class PbrNqaTrackTest(unittest.TestCase):
     Huawei "nqa test-instance" + the traffic classifier/behavior/
     policy MQC redirect chain + "traffic-policy ... inbound" on the
     interface. TAM memory-keystone.md Sections 1kk/1ll -- ported here
-    from the real, live-hardware-confirmed GTOPAS-MKS-SWCODI-S5755
-    pattern (complete chain) and the real GTOPAS-MND pattern (a
+    from the real, live-hardware-confirmed DEPO-AA-SWCODI-S5755
+    pattern (complete chain) and the real DEPO-BB pattern (a
     track/ip-sla pair present but unreferenced by anything live,
     i.e. dead config that must be dropped, not translated).
     """
@@ -1137,7 +1137,7 @@ class PbrNqaTrackTest(unittest.TestCase):
         )
 
         config.acl_commands = [
-            "ip access-list extended GTOPAS_Lintas",
+            "ip access-list extended DEPO_Lintas",
             "permit ip 172.29.88.0 0.0.7.255 host 161.95.212.46",
         ]
 
@@ -1158,7 +1158,7 @@ class PbrNqaTrackTest(unittest.TestCase):
             RouteMapClause(
                 sequence=10,
                 action="permit",
-                match_acl="GTOPAS_Lintas",
+                match_acl="DEPO_Lintas",
                 set_next_hop="172.29.88.2",
                 set_next_hop_track_id=2,
             )
@@ -1181,7 +1181,7 @@ class PbrNqaTrackTest(unittest.TestCase):
         self.assertIn(" start now", output)
 
         self.assertIn("traffic classifier LINTAS type or", output)
-        self.assertIn(" if-match acl GTOPAS_Lintas", output)
+        self.assertIn(" if-match acl DEPO_Lintas", output)
         # Confirmed VRP-specific exception (Section 1aa): never
         # "if-match acl name <ACL-NAME>".
         self.assertNotIn("if-match acl name", output)
@@ -1201,7 +1201,7 @@ class PbrNqaTrackTest(unittest.TestCase):
         self.assertNotIn("REVIEW-PBR", output)
 
     def test_unreferenced_track_is_dropped_not_translated(self):
-        # Real GTOPAS-MND pattern: a track/ip-sla pair with no live
+        # Real DEPO-BB pattern: a track/ip-sla pair with no live
         # route-map (or anything else) referencing it. Section 1kk's
         # dead-config rule -- silently dropped, no nqa test-instance
         # invented for it.
@@ -1423,7 +1423,7 @@ class AclApplicationTest(unittest.TestCase):
     def setUp(self):
         self.translator = HuaweiSwitchTranslator()
 
-    def _config_with_acl(self, acl_name="VOIP-GA-TTC"):
+    def _config_with_acl(self, acl_name="VOIP-GA-DC1"):
         config = SwitchConfig(
             source_vendor="Cisco",
             source_device_type="Switch",
@@ -1438,24 +1438,24 @@ class AclApplicationTest(unittest.TestCase):
     def test_inbound_acl_application_emits_full_chain_and_binds(self):
         config = self._config_with_acl()
         interface = Interface(name="GigabitEthernet1/0/1")
-        interface.access_group_in = "VOIP-GA-TTC"
+        interface.access_group_in = "VOIP-GA-DC1"
         config.interfaces.append(interface)
 
         output = "\n".join(self.translator.translate(config))
 
-        self.assertIn("traffic classifier VOIP-GA-TTC type or", output)
-        self.assertIn(" if-match acl VOIP-GA-TTC", output)
+        self.assertIn("traffic classifier VOIP-GA-DC1 type or", output)
+        self.assertIn(" if-match acl VOIP-GA-DC1", output)
         # Confirmed VRP-specific exception (Section 1aa): never
         # "if-match acl name <ACL-NAME>".
         self.assertNotIn("if-match acl name", output)
-        self.assertIn("traffic behavior VOIP-GA-TTC", output)
+        self.assertIn("traffic behavior VOIP-GA-DC1", output)
         self.assertIn(" permit", output)
-        self.assertIn("traffic policy VOIP-GA-TTC", output)
+        self.assertIn("traffic policy VOIP-GA-DC1", output)
         self.assertIn(
-            " classifier VOIP-GA-TTC behavior VOIP-GA-TTC precedence 5",
+            " classifier VOIP-GA-DC1 behavior VOIP-GA-DC1 precedence 5",
             output,
         )
-        self.assertIn(" traffic-policy VOIP-GA-TTC inbound", output)
+        self.assertIn(" traffic-policy VOIP-GA-DC1 inbound", output)
 
     def test_outbound_acl_application_binds_outbound(self):
         config = self._config_with_acl("OUT-FILTER")

@@ -72,14 +72,14 @@ def test_a_line_without_a_route_keeps_its_straight_segment_when_others_are_route
 
 
 # the guard: a layout rule must not make the demo sets worse than they are today (small room for the pages that move by one line); counted on the lines as they are drawn
-BUDGET = {"before": (7, 1), "edge": (2, 1), "multisite": (36, 1)}
+BUDGET = {"before": (7, 1), "edge": (2, 1), "multisite": (36, 1), "dcdrc": (81, 1)}
 
 
-@pytest.mark.parametrize("set_id", ["before", "edge", "multisite"])
+@pytest.mark.parametrize("set_id", ["before", "edge", "multisite", "dcdrc"])
 def test_the_demo_sets_keep_their_crossings_and_lines_through_icons_within_budget(set_id):
     names = [f["name"] for f in next(s for s in demo.list_sets() if s["id"] == set_id)["files"]]
     files = [(name, demo.read_file(set_id, name).decode("utf-8")) for name in names]
-    result = service.build_topology(files, group="auto", view="physical")
+    result = service.build_topology(files, group="auto", view="physical", zone_layout="off")        # the compact rows; the zone layout is guarded by the corpus baseline
     rows = score_pages(result["pages"])
     crossings, through = BUDGET[set_id]
     assert sum(r["crossings"] for r in rows) <= crossings

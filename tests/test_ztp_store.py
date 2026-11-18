@@ -25,7 +25,7 @@ class ZtpStoreTests(unittest.TestCase):
         record = {
             "esn": "2102311LDL0000000806",
             "mac": "AA:BB:CC:DD:EE:01",
-            "hostname": "TTC-SWAC-TEST-01",
+            "hostname": "DC1-SWAC-TEST-01",
             "mgmt_ip": "10.50.1.11",
             "vrp_username": "keystone-ztp",
             "vrp_password": "Str0ngP@ssw0rd!",

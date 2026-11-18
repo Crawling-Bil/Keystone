@@ -107,8 +107,22 @@ def _external_shape(ident: str, node: dict[str, Any], x: float, y: float) -> Sha
     return Shape(ident, "external", x, y, EXT_W, EXT_H, [node["name"], node.get("badge") or facts.get("Destination", "")], node.get("status", ""), attrs)
 
 
+MEM_STACK = 12           # members one above the other in a pool frame before a second column starts: one pool of 44 members made the whole row, and the page, 1,800 px taller than the rest
+MEM_COLS_MAX = 4
+
+
+def _pool_cols(members: int) -> int:
+    return min(MEM_COLS_MAX, max(1, -(-members // MEM_STACK)))
+
+
+def _pool_width(members: int) -> float:
+    cols = _pool_cols(members)
+    return cols * MEM_W + (cols - 1) * POOL_PAD + 2 * POOL_PAD
+
+
 def _pool_height(members: int) -> float:
-    return POOL_HEAD + max(members, 1) * (MEM_H + 8) + POOL_PAD
+    rows = -(-max(members, 1) // _pool_cols(members))
+    return POOL_HEAD + rows * (MEM_H + 8) + POOL_PAD
 
 
 def _vlan_table(facts: dict[str, Any]) -> TableBox | None:
@@ -250,19 +264,29 @@ def page_for(graph: Graph, key: str) -> Page | None:
     member_shapes: dict[tuple[str, str], Shape] = {}
     node_addresses: dict[str, list[Shape]] = {}
     row_y = y
-    for start in range(0, len(pool_names), per_row):
-        chunk = pool_names[start:start + per_row]
+    limit = per_row * (POOL_W + GAP) - GAP                  # the width of a row of pool frames
+    pool_rows: list[list[str]] = []
+    row_used = 0.0
+    for name in pool_names:                                 # frames side by side; a frame of many members is wider (several columns), so the row breaks by width, not by count
+        wide = _pool_width(len(pools[name]["members"]))
+        if pool_rows and row_used + GAP + wide <= limit:
+            pool_rows[-1].append(name)
+            row_used += GAP + wide
+        else:
+            pool_rows.append([name])
+            row_used = wide
+    for chunk in pool_rows:
         row_h = max(_pool_height(len(pools[n]["members"])) for n in chunk)
-        for col, name in enumerate(chunk):
+        x = MARGIN
+        for name in chunk:
             pool = pools[name]
             node_ = pool["node"]
-            x = MARGIN + col * (POOL_W + GAP)
             used = pool["used_by"]
             subtitle = (node_.get("badge") or "") + (f" · used by {len(used)} virtual server(s)" if len(used) > 1 else (f" · used by {used[0]}" if used else (" · not used" if pool["orphan"] else "")))
             attrs = {"object": "GTM pool" if node_["type"] == "dnspool" else "Pool", "name": name, "status": node_.get("status") or "n/a", "source": node_.get("source", ""), "reason": node_.get("reason", ""),
                      "used_by": ", ".join(used)}
             attrs.update({k.lower().replace(" ", "_"): v for k, v in (node_.get("facts") or {}).items()})
-            frame = Shape(f"p{len(shapes)}", "pool", x, row_y, POOL_W, _pool_height(len(pool["members"])), [name, subtitle.strip(" ·")], node_.get("status", ""), attrs)
+            frame = Shape(f"p{len(shapes)}", "pool", x, row_y, _pool_width(len(pool["members"])), _pool_height(len(pool["members"])), [name, subtitle.strip(" ·")], node_.get("status", ""), attrs)
             shapes.append(frame)
             pool_shapes[name] = frame
             for n, member in enumerate(pool["members"].values()):
@@ -270,12 +294,14 @@ def page_for(graph: Graph, key: str) -> Page | None:
                 mattrs = {"object": "GTM pool member" if member["type"] == "dnsmember" else "Pool member", "name": member["name"], "status": member.get("status") or "n/a", "source": member.get("source", ""),
                           "reason": member.get("reason", ""), "pool": name}
                 mattrs.update({k.lower().replace(" ", "_"): v for k, v in facts_m.items()})
-                box = Shape(f"m{len(shapes)}", "member", x + POOL_PAD, row_y + POOL_HEAD + n * (MEM_H + 8), MEM_W, MEM_H, [member["name"], member.get("badge", "")], member.get("status", ""), mattrs)
+                cols_here = _pool_cols(len(pool["members"]))
+                box = Shape(f"m{len(shapes)}", "member", x + POOL_PAD + (n % cols_here) * (MEM_W + POOL_PAD), row_y + POOL_HEAD + (n // cols_here) * (MEM_H + 8), MEM_W, MEM_H, [member["name"], member.get("badge", "")], member.get("status", ""), mattrs)
                 shapes.append(box)
                 member_shapes[(name, member["name"])] = box
                 address = facts_m.get("Address", "")
                 if _is_ipv4(address):
                     node_addresses.setdefault(address, []).append(box)
+            x += _pool_width(len(pool["members"])) + GAP
         row_y += row_h + ROW_GAP
     pool_end = row_y - ROW_GAP if pool_names else y
 

@@ -11,6 +11,8 @@ from openpyxl.utils import get_column_letter
 
 HEADER_FILL = PatternFill("solid", fgColor="005073")
 SEVERITY_FILL = {"medium": "F8CBAD", "low": "FFE699", "info": "DDEBF7"}
+PARITY_FILL = {"same": "C6E0B4", "differs": "FFE699", "needs input": "DDEBF7", "not shown at one site": "EDEDED", "no cable captured": "F8CBAD",
+               "same virtual address at both sites": "F8CBAD", "same domain ID at both sites": "F8CBAD", "stretched": "FFE699"}
 STATE_FILL = {"confirmed": "C6E0B4", "single": "FFE699", "conflict": "F8CBAD", "inferred": "DDEBF7"}
 
 
@@ -38,7 +40,7 @@ def _table(workbook: Workbook, title: str, rows: list[dict[str, Any]], fill_colu
             if isinstance(value, (list, tuple)):
                 value = ", ".join(str(v) for v in value)
             cell = _put(sheet, r, c, value)
-            cell.alignment = Alignment(vertical="top", wrap_text=name in ("detail", "recommendation", "note"))
+            cell.alignment = Alignment(vertical="top", wrap_text=name in ("detail", "recommendation", "note", "aspect"))
             if name == fill_column and fills and str(value) in fills:
                 cell.fill = PatternFill("solid", fgColor=fills[str(value)])
     for c, name in enumerate(columns, 1):
@@ -50,7 +52,7 @@ def _table(workbook: Workbook, title: str, rows: list[dict[str, Any]], fill_colu
 
 def to_xlsx(summary: dict[str, Any], devices: list[dict], links: list[dict], hosts: list[dict], findings: list[dict],
             behind: list[dict] | None = None, bundles: list[dict] | None = None, by_device: list[dict] | None = None,
-            l3: dict[str, list[dict]] | None = None, priority: list[dict] | None = None) -> bytes:
+            l3: dict[str, list[dict]] | None = None, priority: list[dict] | None = None, parity: list[dict] | None = None) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Summary"
@@ -82,6 +84,8 @@ def to_xlsx(summary: dict[str, Any], devices: list[dict], links: list[dict], hos
             _table(workbook, "SD-WAN overlay", l3["overlay"])
         if l3.get("unresolved"):
             _table(workbook, "L3 unresolved", l3["unresolved"])
+    if parity:
+        _table(workbook, "DR parity", parity, "result", PARITY_FILL)
     _table(workbook, "Findings", [{**f, "devices": ", ".join(f["devices"])} for f in findings], "severity", SEVERITY_FILL)
     if by_device:
         _table(workbook, "Findings by device", by_device)

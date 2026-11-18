@@ -70,7 +70,7 @@ class Profile:
     # of what the source config had) and replaced with a fixed
     # local-only AAA scheme using the two scheme names below. This
     # mirrors a real, ops-confirmed decision (see
-    # memory-tam-2026-huawei-switch.md section 30b) — TACACS+ removed
+    # the project decision log section 30b) — TACACS+ removed
     # project-wide, local users only.
     aaa_local_only: bool = False
     aaa_authentication_scheme_name: str = "LOCAL_LOGIN"

@@ -131,20 +131,26 @@ def _cisco_inventory(clean: list[str]) -> dict[str, Any]:
     return {"members": members, "chassis": chassis, "stack_summary": stack_summary}
 
 
+HEADER_REACH = 30   # lines between a ``Switch 02`` header and its ``System Serial Number``: a header further up belongs to some other command's output
+
+
 def _cisco_version(clean: list[str]) -> dict[str, Any]:
     system: list[tuple[str, str]] = []  # (member number or "", serial)
     board = ""
     header = ""
-    for raw in clean:
+    header_at = -HEADER_REACH
+    for index, raw in enumerate(clean):
         hdr = _VER_SWITCH_HEADER_RE.match(raw)
         if hdr:
-            header = _member_number(hdr.group(1))
+            header, header_at = _member_number(hdr.group(1)), index
             continue
         match = _VER_SYSTEM_SERIAL_RE.match(raw)
         if match:
             serial = clean_serial(match.group(1))
-            if serial and (header, serial) not in system:
-                system.append((header, serial))
+            number = header if index - header_at <= HEADER_REACH else ""
+            # one serial is one member: a capture that holds `show version` twice (the tech-support part and the prompt) lists the same boxes twice
+            if serial and serial not in {known for _n, known in system}:
+                system.append((number, serial))
             header = ""
             continue
         match = _VER_BOARD_ID_RE.match(raw)

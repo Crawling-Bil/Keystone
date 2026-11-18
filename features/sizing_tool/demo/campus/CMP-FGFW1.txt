@@ -1,0 +1,284 @@
+CMP-FGFW1 # get system status
+Version: FortiGate-100F v7.2.8,build1639,240123 (GA.M)
+Serial-Number: FG100FTK20000141
+BIOS version: 05000008
+Operation Mode: NAT
+Current virtual domain: root
+Max number of virtual domains: 10
+Virtual domains status: 1 in NAT mode, 0 in TP mode
+Virtual domain configuration: disable
+Current HA mode: a-p, primary
+Cluster uptime: 88 days, 6 hours, 2 minutes, 11 seconds
+License Status: Valid
+Hostname: CMP-FGFW1
+System time: Sat Nov 14 09:15:02 2026
+
+CMP-FGFW1 # get system ha status
+HA Health Status: OK
+Model: FortiGate-100F
+Mode: HA A-P
+Group Name: CMP-FG-HA
+Group ID: 20
+Cluster Uptime: 88 days 6:02:11
+Master: CMP-FGFW1          FG100FTK20000141  0
+Slave : CMP-FGFW2          FG100FTK20000142  1
+
+CMP-FGFW1 # show full-configuration
+#config-version=FortiGate-100F-7.2.8-FW-build1639-240123:opmode=0:vdom=0:user=admin
+config system global
+    set admintimeout 10
+    set hostname "CMP-FGFW1"
+    set timezone "Asia/Jakarta"
+    set strong-crypto enable
+end
+config system interface
+    edit "wan1"
+        set vdom "root"
+        set ip 198.51.100.18 255.255.255.248
+        set allowaccess ping
+        set type physical
+        set alias "internet ISP-B"
+        set role wan
+    next
+    edit "wan2"
+        set vdom "root"
+        set ip 192.0.2.18 255.255.255.248
+        set allowaccess ping
+        set type physical
+        set alias "internet ISP-C"
+        set role wan
+    next
+    edit "port1"
+        set vdom "root"
+        set ip 10.50.110.1 255.255.255.0
+        set allowaccess ping https ssh
+        set type physical
+        set alias "to CMP-CORE1 Twe2/0/22 (guest and partner)"
+        set role lan
+    next
+    edit "dmz"
+        set vdom "root"
+        set ip 10.50.111.1 255.255.255.0
+        set allowaccess ping
+        set type physical
+        set alias "DMZ servers"
+        set role dmz
+    next
+    edit "ha1"
+        set vdom "root"
+        set type physical
+        set alias "HA heartbeat"
+    next
+    edit "mgmt"
+        set vdom "root"
+        set ip 10.50.50.43 255.255.255.0
+        set allowaccess ping https ssh
+        set type physical
+        set alias "out-of-band management"
+    next
+end
+config system ha
+    set group-id 20
+    set group-name "CMP-FG-HA"
+    set mode a-p
+    set hbdev "ha1" 50
+    set session-pickup enable
+    set override enable
+    set priority 200
+end
+config system sdwan
+    set status enable
+    config zone
+        edit "virtual-wan-link"
+        next
+    end
+    config members
+        edit 1
+            set interface "wan1"
+            set zone "virtual-wan-link"
+            set gateway 198.51.100.17
+        next
+        edit 2
+            set interface "wan2"
+            set zone "virtual-wan-link"
+            set gateway 192.0.2.17
+        next
+    end
+end
+config router static
+    edit 1
+        set dst 10.60.0.0 255.255.0.0
+        set gateway 10.50.110.254
+        set device "port1"
+    next
+    edit 2
+        set dst 10.70.0.0 255.255.0.0
+        set gateway 10.50.110.254
+        set device "port1"
+    next
+end
+config firewall address
+    edit "LAN-NET"
+        set subnet 10.50.0.0 255.255.0.0
+    next
+    edit "GUEST-NET"
+        set subnet 10.50.110.0 255.255.255.0
+    next
+    edit "WEB-DMZ"
+        set subnet 10.50.111.10 255.255.255.255
+    next
+    edit "HQ-NET"
+        set subnet 10.10.0.0 255.255.0.0
+    next
+    edit "partner-api.example.test"
+        set type fqdn
+        set fqdn "partner-api.example.test"
+    next
+end
+config firewall vip
+    edit "VIP-WEB-443"
+        set extip 198.51.100.19
+        set mappedip "10.50.111.10"
+        set extintf "wan1"
+        set portforward enable
+        set extport 443
+        set mappedport 443
+    next
+    edit "VIP-WEB-80"
+        set extip 198.51.100.19
+        set mappedip "10.50.111.10"
+        set extintf "wan1"
+        set portforward enable
+        set extport 80
+        set mappedport 80
+    next
+end
+config firewall ippool
+    edit "POOL-GUEST"
+        set startip 198.51.100.20
+        set endip 198.51.100.21
+    next
+end
+config webfilter profile
+    edit "WF-STANDARD"
+        config ftgd-wf
+            set options error-allow
+        end
+    next
+end
+config antivirus profile
+    edit "AV-STANDARD"
+        set feature-set proxy
+    next
+end
+config ips sensor
+    edit "IPS-STANDARD"
+    next
+end
+config application list
+    edit "APP-STANDARD"
+    next
+end
+config firewall policy
+    edit 1
+        set name "GUEST-TO-INTERNET"
+        set srcintf "port1"
+        set dstintf "virtual-wan-link"
+        set action accept
+        set srcaddr "GUEST-NET"
+        set dstaddr "all"
+        set schedule "always"
+        set service "HTTP" "HTTPS" "DNS"
+        set utm-status enable
+        set webfilter-profile "WF-STANDARD"
+        set av-profile "AV-STANDARD"
+        set ips-sensor "IPS-STANDARD"
+        set application-list "APP-STANDARD"
+        set ssl-ssh-profile "certificate-inspection"
+        set nat enable
+        set ippool enable
+        set poolname "POOL-GUEST"
+        set logtraffic all
+    next
+    edit 2
+        set name "PUBLISH-WEB"
+        set srcintf "virtual-wan-link"
+        set dstintf "dmz"
+        set action accept
+        set srcaddr "all"
+        set dstaddr "VIP-WEB-443" "VIP-WEB-80"
+        set schedule "always"
+        set service "HTTPS" "HTTP"
+        set utm-status enable
+        set ips-sensor "IPS-STANDARD"
+        set ssl-ssh-profile "certificate-inspection"
+        set logtraffic all
+    next
+    edit 3
+        set name "PARTNER-API"
+        set srcintf "dmz"
+        set dstintf "virtual-wan-link"
+        set action accept
+        set srcaddr "WEB-DMZ"
+        set dstaddr "partner-api.example.test"
+        set schedule "always"
+        set service "HTTPS"
+        set nat enable
+        set logtraffic all
+    next
+    edit 4
+        set name "SITE-TO-SITE-HQ"
+        set srcintf "port1"
+        set dstintf "TUN-HQ"
+        set action accept
+        set srcaddr "LAN-NET"
+        set dstaddr "HQ-NET"
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+    next
+    edit 5
+        set name "DENY-ALL"
+        set srcintf "any"
+        set dstintf "any"
+        set action deny
+        set srcaddr "all"
+        set dstaddr "all"
+        set schedule "always"
+        set service "ALL"
+        set logtraffic all
+    next
+end
+config vpn ipsec phase1-interface
+    edit "TUN-HQ"
+        set interface "wan1"
+        set ike-version 2
+        set peertype any
+        set proposal aes256-sha256
+        set remote-gw 203.0.113.50
+        set psksecret ENC SYNTHETIC-DO-NOT-LEAK
+    next
+end
+config vpn ipsec phase2-interface
+    edit "TUN-HQ"
+        set phase1name "TUN-HQ"
+        set proposal aes256-sha256
+        set src-subnet 10.50.0.0 255.255.0.0
+        set dst-subnet 10.10.0.0 255.255.0.0
+    next
+end
+CMP-FGFW1 # get router info routing-table all
+Codes: K - kernel, C - connected, S - static, R - RIP, B - BGP
+       O - OSPF, IA - OSPF inter area
+       * - candidate default
+
+Routing table for VRF=0
+S*      0.0.0.0/0 [10/0] via 198.51.100.17, wan1
+S       10.60.0.0/16 [10/0] via 10.50.110.254, port1
+S       10.70.0.0/16 [10/0] via 10.50.110.254, port1
+C       10.50.110.0/24 is directly connected, port1
+C       10.50.111.0/24 is directly connected, dmz
+C       198.51.100.16/29 is directly connected, wan1
+C       192.0.2.16/29 is directly connected, wan2
+
+CMP-FGFW1 #

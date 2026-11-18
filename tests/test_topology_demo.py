@@ -40,7 +40,9 @@ def test_the_page_has_the_demo_row_and_its_script(client):
 
 def test_all_sets_are_listed_with_their_files(client):
     sets = {s["id"]: s for s in client.get("/topology/api/demo").get_json()["sets"]}
-    assert set(sets) == {"before", "after", "edge", "multisite"} and len(sets["multisite"]["files"]) == 44 and sets["multisite"]["group"] == "auto"
+    assert set(sets) == {"before", "after", "edge", "multisite", "dcdrc"} and len(sets["multisite"]["files"]) == 44 and sets["multisite"]["group"] == "auto"
+    assert len(sets["dcdrc"]["files"]) == 64 and sets["dcdrc"]["group"] == "auto" and sets["dcdrc"]["layout"] == "layout.drawio"
+    assert [sets[i]["label"] for i in ("multisite", "dcdrc")] == ["HQ DC Branches", "HQ DC DRC Branches"]          # the buttons, in this order
     assert [f["name"] for f in sets["edge"]["files"]] == ["DC1-CORE1.txt", "DC1-CORE2.txt", "DC1-FW1.txt", "DC1-LB1.txt"]
     assert [f["name"] for f in sets["before"]["files"]] == ["DC1-ACC1.txt", "DC1-ACC2.txt", "DC1-ACC3.txt", "DC1-ACC4.txt", "DC1-CORE1.txt", "DC1-CORE2.txt"]
     assert len(sets["after"]["files"]) == 7 and "DC1-ACC5.txt" in [f["name"] for f in sets["after"]["files"]]
@@ -88,7 +90,7 @@ def test_the_third_set_draws_a_firewall_and_an_f5_on_the_core_pair(client):
 
 def test_the_demo_files_hold_only_invented_values():
     for path in sorted(demo.DEMO_DIR.glob("*/*.txt")):
-        if path.parent.name == "multisite":
+        if path.parent.name in ("multisite", "dcdrc"):
             continue                                       # has its own, wider check below
         text = path.read_text(encoding="utf-8")
         assert set(re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text)) <= {f"10.20.{m}.{n}" for m in (0, 10, 20, 30, 200) for n in range(0, 256)} | {"255.255.255.0", "255.255.255.252", "255.255.255.255", "0.0.0.0", "15.1.8.2"}, path.name
@@ -113,6 +115,51 @@ def test_the_multisite_files_hold_only_invented_values():
             assert re.match(r"(HQ|JKT|SBY|YOG|MKS|MED|BAL)-", host), (path.name, host)
 
 
+def test_the_fifth_set_holds_only_invented_values():
+    import ipaddress
+    allowed = [ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.31.100.0/22", "172.31.110.0/23", "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "198.18.0.0/15", "198.19.10.0/24", "169.254.0.0/16")]
+    masks = {"255.255.255.0", "255.255.255.252", "255.255.255.248", "255.255.255.192", "255.255.255.255", "255.255.0.0", "255.0.0.0", "0.0.0.0", "0.0.0.255", "0.0.0.63", "0.0.0.7",
+             "255.255.255.128", "255.255.255.254", "255.255.255.240", "255.255.255.224"}
+    files = sorted((demo.DEMO_DIR / "dcdrc").glob("*.txt"))
+    assert len(files) == 64
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        for found in set(re.findall(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", text)):
+            assert found in masks or any(ipaddress.ip_address(found) in net for net in allowed), (path.name, found)
+        assert not re.search(r"password|secret|cipher|snmp-(?:server|agent) community|\bkey\b", text, re.I), path.name
+        for host in set(re.findall(r"\b([A-Za-z][\w-]*)\.demo\.example\.test", text)):
+            assert re.match(r"(HQ-DC|DRC|JKT|SBY|YOG|MKS|MED|BAL)-", host), (path.name, host)
+
+
+def test_the_fifth_set_is_a_dc_and_its_drc_with_six_branches(client):
+    names = [f["name"] for f in next(s for s in client.get("/topology/api/demo").get_json()["sets"] if s["id"] == "dcdrc")["files"]]
+    hq, drc = sorted(n[6:] for n in names if n.startswith("HQ-DC-")), sorted(n[4:] for n in names if n.startswith("DRC-"))
+    assert len(hq) == 20 and hq == drc                                   # the DRC is a complete copy: the same 20 devices under their own names
+    assert all(sum(n.startswith(f"{code}-") for n in names) == 4 for code in ("JKT", "SBY", "YOG", "MKS", "MED", "BAL"))
+    body = client.post("/topology/api/build", data={"files": _files(client, "dcdrc"), "group": "auto", "name": "Demo DC DRC"}, content_type="multipart/form-data").get_json()
+    assert body["ok"], body
+    summary = body["summary"]
+    assert summary["captured"] == 64 and summary["skipped"] == 0 and summary["conflicts"] == 0 and summary["vpc_pairs"] == 8
+    pages = [p["name"] for p in body["pages"]]
+    assert {"L2 Physical View", "HQ-DC", "DRC", "JKT", "SBY", "YOG", "MKS", "MED", "BAL"} <= set(pages) and "HQ" not in pages        # the site is named after what its devices spell
+    assert {f["id"] for f in body["findings"]} <= {"TOPO-008", "TOPO-027", "TOPO-043"} and not any(f["severity"] in ("medium", "high") for f in body["findings"])
+    assert len(body["l3_links"]) == 90 and all(l["state"] == "working" for l in body["l3_links"]) and body["l3_unresolved"] == []
+    dci = [l for l in body["l3_links"] if {l["device_a"][:3], l["device_b"][:3]} == {"HQ-", "DRC"}]
+    assert sorted((l["device_a"], l["device_b"]) for l in dci) == [("DRC-EDGE1", "HQ-DC-EDGE1"), ("DRC-EDGE2", "HQ-DC-EDGE2")]      # two dedicated links, edge to edge
+    assert all("OSPF neighbor" in l["evidence"] and l["interface_a"] == l["interface_b"] for l in dci)
+    clouds = {l["device_b"] for l in body["l3_links"] if "provider" in l["kind"].lower()}
+    assert {"MPLS · Telkom", "MPLS · Lintasarta", "MPLS · Icon+", "MPLS · Trigatra"} <= clouds                         # both sites reach the same providers
+
+
+def test_the_fifth_set_has_its_own_addresses_on_every_device():
+    def own(prefix):                                                    # the addresses a device configures on its interfaces (the routes may name the other site)
+        found = set()
+        for path in (demo.DEMO_DIR / "dcdrc").glob(f"{prefix}-*.txt"):
+            found |= set(re.findall(r"^\s*ip address 10\.(10|30|255)\.", path.read_text(encoding="utf-8"), re.M))
+        return found
+    assert own("HQ-DC") == {"10", "255"} and own("DRC") == {"30", "255"}            # 10.255.0.0/24 is the DCI, the only block the two sites share
+
+
 def test_the_fourth_set_is_a_head_quarter_with_six_branches(client):
     sets = {s["id"]: s for s in client.get("/topology/api/demo").get_json()["sets"]}
     names = [f["name"] for f in sets["multisite"]["files"]]
@@ -127,7 +174,7 @@ def test_the_fourth_set_is_a_head_quarter_with_six_branches(client):
     vendors = {d["vendor"] for d in body["devices"] if d["device"] in set(n[:-4] for n in names)}
     assert {"Cisco", "Fortinet", "Palo Alto Networks", "Aruba", "Huawei"} <= vendors
     pages = [p["name"] for p in body["pages"]]
-    assert {"Overview", "HQ", "JKT", "SBY", "YOG", "MKS", "MED", "BAL"} <= set(pages)
+    assert {"L2 Physical View", "HQ", "JKT", "SBY", "YOG", "MKS", "MED", "BAL"} <= set(pages)
     assert {f["id"] for f in body["findings"]} <= {"TOPO-008", "TOPO-027", "TOPO-043"} and not any(f["severity"] in ("medium", "high") for f in body["findings"])
     assert len(body["l3_links"]) == 53 and all(l["state"] == "working" for l in body["l3_links"]) and body["l3_unresolved"] == []
     clouds = {l["device_b"] for l in body["l3_links"] if "provider" in l["kind"].lower()}

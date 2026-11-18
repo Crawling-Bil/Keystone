@@ -1,6 +1,6 @@
 """Health tab for Cisco NX-OS, Huawei VRP / YunShan OS and ArubaOS-Switch (features/switch_analyzer/health_other.py).
 
-The fixtures are masked excerpts of the real TTC captures (see fixtures/real_captures/README.md): the DMZ Nexus 9000 pair, an S5735-S-V2 and an
+The fixtures are masked excerpts of the real DC1 captures (see fixtures/real_captures/README.md): the DMZ Nexus 9000 pair, an S5735-S-V2 and an
 S5755-H on YunShan OS V600R025, and an Aruba 2540 on YC.16.06. Where a test changes a fixture to make a rule fire, the change is a one-line
 substitution on real text, named in the test. Lines typed inline are synthetic and say so.
 """
@@ -451,7 +451,7 @@ class PromptRecognitionTests(unittest.TestCase):
         self.assertFalse(capture_text.is_prompt_line(' \\n#########################################################################\\n#'))
 
     def test_real_prompts_still_are(self):
-        for line in ("SW1#", "SW1(config)#", "SW1>", "SW-1# show version", "<HUAWEI-S5735>", "[~HUAWEI]", "TTC-SWAC-PABXGA2-2540# show system"):
+        for line in ("SW1#", "SW1(config)#", "SW1>", "SW-1# show version", "<HUAWEI-S5735>", "[~HUAWEI]", "DC1-SWAC-PABXGA2-2540# show system"):
             self.assertTrue(capture_text.is_prompt_line(line) or capture_text.split_prompt(line), line)
 
 

@@ -55,8 +55,8 @@ _HEADER_TO_FIELD = {
 _TEMPLATE_COLUMNS = [
     ("ESN (Serial Number)", "esn", "2102311LDL0000000806"),
     ("MAC Address", "mac", "AA:BB:CC:DD:EE:01"),
-    ("Hostname", "hostname", "TTC-SWAC-NEW-01"),
-    ("Site", "site", "TTC"),
+    ("Hostname", "hostname", "DC1-SWAC-NEW-01"),
+    ("Site", "site", "DC1"),
     ("Management IP", "mgmt_ip", "10.50.1.11"),
     ("Subnet Mask", "mgmt_mask", "255.255.255.0"),
     ("Gateway", "gateway", "10.50.1.1"),
@@ -139,7 +139,7 @@ def _read_device_rows(workbook):
     try:
         header_row = next(rows_iter)
     except StopIteration:
-        raise DeviceImportError("The workbook is empty -- no header row found.")
+        raise DeviceImportError("The workbook is empty -- no header row found.") from None
 
     field_by_column = {}
     for index, header in enumerate(header_row):

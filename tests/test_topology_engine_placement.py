@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import itertools
 
-import pytest
 
 from features.topology import demo, layout
 from features.topology.service import build_topology
@@ -18,8 +17,8 @@ def _captures(setid: str) -> list[tuple[str, str]]:
     return [(p.name, p.read_text(encoding="utf-8")) for p in sorted((demo.DEMO_DIR / setid).glob("*.txt"))]
 
 
-def _build(setid: str) -> dict:
-    return build_topology(_captures(setid), group="auto" if setid == "multisite" else "none", collapse_endpoints=False, include_hosts=False, view="physical", group_endpoints=True, collapse_aps=False)
+def _build(setid: str, **more) -> dict:
+    return build_topology(_captures(setid), group="auto" if setid == "multisite" else "none", collapse_endpoints=False, include_hosts=False, view="physical", group_endpoints=True, collapse_aps=False, **more)
 
 
 def _crossings(page) -> int:
@@ -61,14 +60,15 @@ def _places(built: dict) -> dict:
 
 def test_the_rule_stays_out_of_pages_whose_role_rows_agree_with_the_cables(monkeypatch):
     with_rule = {setid: _places(_build(setid)) for setid in ("before", "after", "edge")}
-    monkeypatch.setattr(layout, "outside_in_rows", lambda graph, keys, value: {})
+    monkeypatch.setattr(layout, "outside_in_rows", lambda graph, keys, value, *_: {})
     without = {setid: _places(_build(setid)) for setid in ("before", "after", "edge")}
     assert with_rule == without and all(with_rule.values())                  # the small sets keep every position they always had
 
 
 def test_without_the_rule_the_edge_switches_fall_below_the_core(monkeypatch):
-    monkeypatch.setattr(layout, "outside_in_rows", lambda graph, keys, value: {})
-    page = _hq(_build("multisite"))
+    monkeypatch.setattr(layout, "outside_in_rows", lambda graph, keys, value, *_: {})
+    monkeypatch.setattr(layout, "EDGE_ROW", None)                           # the function of the edge switch (functions.py) lifts it above the core as well: both off for the mutation check
+    page = _hq(_build("multisite", zone_layout="off"))                         # the zone layout puts the edge zone above the core by itself (test_topology_zones.py): off for this one
     assert page.nodes["HQ-EDGE1"].y > page.nodes["HQ-CORE1"].y               # the mutation check: the tests above fail for this reason
     assert _crossings(page) > 18
 

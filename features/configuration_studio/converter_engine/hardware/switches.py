@@ -368,7 +368,7 @@ SWITCH_MODELS: tuple[HardwareModel, ...] = (
         max_members=9, detect=("S5755-H24T4Y2CZ",),
         doc_title="Huawei CloudEngine S5755-H Series High-Quality Gigabit Switches", doc_url=HUAWEI_S5755_GE_DS,
         target_ok=True,
-        # Four real 2-member core stacks (GTOPAS Makassar / Manado / Pekanbaru / Semarang, `display stack configuration`): Stack-Port<m>/1 =
+        # Four real 2-member core stacks (DEPO Alpha / Bravo / Charlie / Delta, `display stack configuration`): Stack-Port<m>/1 =
         # 25GE<m>/0/3 and Stack-Port<m>/2 = 25GE<m>/0/4, ring, 10G links, every one of the eight ports with `device transceiver 10GBASE-COPPER`.
         stack_ports=("25GE{m}/0/3", "25GE{m}/0/4"), stack_transceiver="10GBASE-COPPER", stack_shares_bank=True,
         notes=(

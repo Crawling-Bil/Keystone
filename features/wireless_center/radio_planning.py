@@ -18,6 +18,8 @@ import re
 from collections import Counter, defaultdict
 from typing import Any
 
+from . import huawei_runtime
+
 BANDS = {"0": "2.4 GHz", "1": "5 GHz", "2": "Radio 2"}
 EIRP_REAL_MAX = 30            # no indoor radio transmits more; higher values act as "maximum"
 PLAN_KEYS = ("eirp", "calibrate auto-txpower-select", "calibrate auto-channel-select", "channel ", "channel-monitor",
@@ -116,8 +118,28 @@ def _site(name: str, group: str) -> str:
     return (name.split("-")[0] if name and "-" in name else "") or group or "-"
 
 
+def _now(live: dict[str, Any] | None) -> dict[str, Any]:
+    """The values a radio runs with at capture time (``display radio all``); empty when the capture has no such table."""
+    live = live or {}
+    return {"standard": live.get("standard", ""), "channel_now": live.get("channel", ""), "width_now": live.get("width", ""), "eirp_now": live.get("eirp_now"), "eirp_max_now": live.get("eirp_max"),
+            "clients": live.get("clients"), "utilisation": live.get("utilisation"), "on_now": live.get("on")}
+
+
+def _once(aps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A terminal log that holds the configuration three times lists every AP three times: one entry per ap-id, the one with most radio lines."""
+    best: dict[str, dict[str, Any]] = {}
+    for ap in aps:
+        mine = sum(len(v) for v in ap["radios"].values())
+        kept = best.get(ap["ap_id"])
+        if kept is None or mine >= sum(len(v) for v in kept["radios"].values()):
+            best[ap["ap_id"]] = ap
+    return list(best.values())
+
+
 def plan(content: str) -> dict[str, Any]:
     parsed = parse(content)
+    parsed["aps"] = _once(parsed["aps"])
+    runtime = {(r["ap_id"], r["radio"]): r for r in huawei_runtime.parse_radios(content)}
     rows, findings = [], []
     ignored, over_max, fixed_channel_auto, monitor = [], [], [], []
     for ap in parsed["aps"]:
@@ -148,6 +170,7 @@ def plan(content: str) -> dict[str, Any]:
                 "status": "Disabled" if disabled else "Enabled",
                 "set_on": "AP" if a else "AP Group",
                 "note": "",
+                **_now(runtime.get((ap["ap_id"], radio))),
             }
             if power_fixed and not eirp and not disabled:
                 row["note"] = "Automatic power off without EIRP: the radio keeps its last or default power"
@@ -164,6 +187,19 @@ def plan(content: str) -> dict[str, Any]:
                 monitor.append(f"{label} radio {radio}")
             rows.append(row)
 
+    known = {(r["ap_id"], r["radio"]) for r in rows}
+    for (ap_id, radio), live in runtime.items():        # radios the configuration leaves at their defaults still run: they are in the capture's radio table
+        if (ap_id, radio) in known:
+            continue
+        ap = next((x for x in parsed["aps"] if x["ap_id"] == ap_id), None) or {"name": live["ap"], "mac": "", "group": ""}
+        rows.append({"ap_id": ap_id, "ap": ap["name"] or live["ap"], "mac": ap["mac"], "group": ap["group"], "site": _site(ap["name"], ap["group"]), "radio": radio, "band": live["band"],
+                     "power_mode": "Auto", "eirp": "", "eirp_source": "", "channel_mode": "Auto", "channel": "", "channel_source": "", "antenna_gain": "", "work_mode": live["work_mode"],
+                     "radio_profile": "default", "status": "Enabled" if live["on"] else "Disabled", "set_on": "Default", "note": "", **_now(live)})
+    summary_now = huawei_runtime.radio_summary(list(runtime.values())) if runtime else {}
+    if summary_now.get("utilisation_over_50"):
+        busy = [f"{r['ap']} radio {r['radio']} ({r['band']}, {r['utilisation']} % utilised, {r['clients']} clients)" for r in summary_now["busiest"] if (r["utilisation"] or 0) >= 50]
+        findings.append({"severity": "Info", "title": f"{summary_now['utilisation_over_50']} radio with channel utilisation of 50 % or more at capture time",
+                         "detail": "A moment in time, not a peak: repeat `display radio all` in the busiest hour before sizing the refresh. The ten busiest are listed.", "items": busy})
     if ignored:
         findings.append({"severity": "Warning", "title": f"{len(ignored)} radio with EIRP that does not apply",
                          "detail": "EIRP is set but calibrate auto-txpower-select is still on, so the controller keeps choosing the power. Add `calibrate auto-txpower-select disable` or remove the EIRP.",
@@ -200,6 +236,7 @@ def plan(content: str) -> dict[str, Any]:
                     for kind, items in parsed["profiles"].items() for name, lines in items.items()]
     return {
         "rows": rows, "sites": sites, "groups": group_rows, "profiles": profile_rows, "findings": findings,
+        "runtime": summary_now and {k: v for k, v in summary_now.items() if k != "busiest"},
         "summary": {"aps_planned": len({r["mac"] or r["ap_id"] for r in rows if r["set_on"] == "AP"}),
                     "radios": len(rows), "fixed_power": sum(r["power_mode"] == "Fixed" for r in rows),
                     "fixed_channel": sum(r["channel_mode"] == "Fixed" for r in rows),

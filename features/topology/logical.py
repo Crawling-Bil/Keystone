@@ -13,7 +13,7 @@ import copy
 
 from .graph import Connection, Graph, Link
 from .layout import NODE_H, NODE_W
-from .scene import Page, PairBox, _route, bundle_sites
+from .scene import Page, PairBox, _route, bundle_sites, zone_boxes
 
 FRAME_SIDE = 26          # room left and right of the two icons
 FRAME_TOP = 38           # room for the frame title
@@ -94,6 +94,31 @@ def _collapse(graph: Graph, page: Page, frames: dict[str, PairBox]) -> list[Conn
     return kept + merged
 
 
+def _zones_with_frames(graph: Graph, clone: Page, physical: Page) -> list[tuple[str, str, float, float, float, float]]:
+    """The zone boxes of the physical page (the devices stand where they stood), each one grown to hold the vPC frames of the pairs inside it, so a frame never crosses a zone border.
+    A page that had no zone boxes keeps having none (its ``zone_note`` says why)."""
+    if not physical.zones or not getattr(graph, "zone_boxes", True):
+        return []
+    framed = {m for frame in clone.pair_boxes.values() for m in frame.members}
+    kept = []
+    for centre in physical.centers:                           # the frame round the core units is the vPC frame itself here: it needs no second box; a centre without a pair frame stays a frame
+        _, fx, fy, fw, fh = centre
+        inside = [k for k, p in clone.nodes.items() if fx <= p.x and p.x + NODE_W <= fx + fw and fy <= p.y <= fy + fh]
+        if not (inside and all(k in framed for k in inside)):
+            kept.append(centre)
+    clone.centers = list(physical.centers)                    # zone_boxes leaves out the core box of a pair that has a frame
+    zones = zone_boxes(graph, clone)
+    clone.centers = kept
+    out = []
+    for title, kind, x, y, w, h in zones:
+        x0, y0, x1, y1 = x, y, x + w, y + h
+        for frame in clone.pair_boxes.values():
+            if all(m in clone.nodes and x <= clone.nodes[m].x and clone.nodes[m].x + NODE_W <= x + w and y <= clone.nodes[m].y <= y + h for m in frame.members):
+                x0, y0, x1, y1 = min(x0, frame.x - 14), min(y0, frame.y - 14), max(x1, frame.x + frame.w + 14), max(y1, frame.y + frame.h + 14)
+        out.append((title, kind, x0, y0, x1 - x0, y1 - y0))
+    return out
+
+
 def logical_page(graph: Graph, page: Page) -> Page | None:
     """The logical twin of a physical page, or None when the page holds no vPC pair to collapse."""
     frames = _frames(graph, page)
@@ -102,6 +127,8 @@ def logical_page(graph: Graph, page: Page) -> Page | None:
     clone = Page(page.name + VIEW_SUFFIX, dict(page.nodes), set(page.ghosts), list(page.boxes), [], {}, page.width, page.height, page.kept,
                  pair_boxes=frames, view="logical", curved=page.curved)
     clone.end_boxes = list(page.end_boxes)
+    clone.zones = _zones_with_frames(graph, clone, page)
+    clone.zone_note = "" if clone.zones else page.zone_note
     clone.connections = _collapse(graph, page, frames)
     if len(clone.connections) == len(page.unbundled()):
         return None                                           # nothing collapsed: the physical page already says it all

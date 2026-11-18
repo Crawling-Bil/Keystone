@@ -74,7 +74,7 @@ def ntp_servers(lines: list[str]) -> list[str]:
     found: list[str] = []
     for line in lines:
         match = (re.match(r"^ntp(?:-service)?\s+unicast-server\s+(?:domain\s+|ip-address\s+)?(\S+)", line)
-                 or re.match(rf"^ntp\s+server\s+(?:vrf\s+\S+\s+)?(?:ip(?:v4|v6)?\s+)?(?!source-interface\b)(\S+)", line)
+                 or re.match(r"^ntp\s+server\s+(?:vrf\s+\S+\s+)?(?:ip(?:v4|v6)?\s+)?(?!source-interface\b)(\S+)", line)
                  or re.match(r"^sntp\s+server\s+(?:priority\s+\d+\s+)?(\S+)", line))
         if match:
             name = match.group(1).lower()

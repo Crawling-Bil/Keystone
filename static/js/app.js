@@ -136,3 +136,9 @@ window.NES.initDashboardExtras = function initDashboardExtras() {
 };
 
 window.NES.initDashboardExtras();
+
+// A converter page that is only planned shows its form but must not submit it (replaces an inline onsubmit handler,
+// which the content security policy no longer allows).
+document.addEventListener("submit", event => {
+  if (event.target.closest("form[data-planned]")) event.preventDefault();
+});

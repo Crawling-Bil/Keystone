@@ -69,6 +69,18 @@ def _overlay(ctx: Any) -> list[dict[str, Any]]:
              "local_ip": row.get("source_ip", ""), "remote_ip": row.get("dst_public_ip", ""), "encap": row.get("encap", "")} for row in ctx.get("sdwan_bfd") or []]
 
 
+def _control(ctx: Any) -> list[dict[str, Any]]:
+    """The rows of ``show sdwan control connections``: one per controller connection (type vsmart / vbond / vmanage, its system IP and site, the colour it runs over, its state)."""
+    return [{"type": str(row.get("type", "")), "system_ip": str(row.get("system_ip", "")), "site_id": str(row.get("site_id", "")), "local_color": str(row.get("local_color", "")),
+             "state": str(row.get("state", "")), "uptime": str(row.get("uptime", ""))} for row in ctx.get("sdwan_control") or []]
+
+
+def _omp_peers(ctx: Any) -> list[dict[str, Any]]:
+    """The rows of ``show sdwan omp peers``: the OMP sessions and the routes received / installed / sent on each."""
+    return [{"peer": str(row.get("peer", "")), "type": str(row.get("type", "")), "state": str(row.get("state", "")), "received": int(row.get("received") or 0), "installed": int(row.get("installed") or 0),
+             "sent": int(row.get("sent") or 0), "site_id": str(row.get("site_id", ""))} for row in ctx.get("sdwan_omp_peers") or []]
+
+
 def _tunnels(ctx: Any) -> list[dict[str, Any]]:
     out = []
     for rec in ctx.interfaces or []:
@@ -110,7 +122,7 @@ def read(text: str, name: str = "") -> dict[str, Any]:
     state = {canon_port(str(rec.get("name", ""))): _state(rec.get("brief"), rec.get("config")) for rec in ctx.interfaces or []}
     colours = {canon_port(str(t.get("interface", ""))): str(t.get("color", "")) for t in ((ctx.sdwan_cfg or {}).get("tunnel_interfaces", []) if ctx.sdwan_cfg else [])}
     dialect = getattr(ctx, "dialect", {}) or {}
-    facts = {"hostname": str(ctx.hostname or ""), "model": str(dialect.get("model") or ""), "release": str(dialect.get("release") or ""), "interfaces": _interfaces(ctx), "routes": _routes(ctx), "neighbors": _neighbors(ctx), "overlay": _overlay(ctx), "tunnels": _tunnels(ctx), "state": {k: v for k, v in state.items() if v},
+    facts = {"hostname": str(ctx.hostname or ""), "model": str(dialect.get("model") or ""), "release": str(dialect.get("release") or ""), "interfaces": _interfaces(ctx), "routes": _routes(ctx), "neighbors": _neighbors(ctx), "control": _control(ctx), "omp_peers": _omp_peers(ctx), "overlay": _overlay(ctx), "tunnels": _tunnels(ctx), "state": {k: v for k, v in state.items() if v},
              "wan_colour": {k: v for k, v in colours.items() if v}, "system_ip": str(system.get("system-ip", "")), "site_id": str(system.get("site-id", "")),
              "gateway": [], "arp": [{"ip_address": r.get("address", ""), "mac_address": r.get("mac", ""), "interface": canon_port(str(r.get("interface", ""))), "vrf": r.get("vrf", "")} for r in ctx.arp or []]}
     return facts

@@ -51,7 +51,7 @@ def client(tmp_path, monkeypatch):
     from features.topology import routes
     monkeypatch.setattr(routes, "EXPORT_DIR", tmp_path)
     app = create_app()
-    app.config.update(TESTING=True, TOPOLOGY_KEEP_RUNS=20, TOPOLOGY_MAX_AGE_DAYS=30)
+    app.config.update(TESTING=True, TOPOLOGY_KEEP_RUNS=40, TOPOLOGY_MAX_AGE_DAYS=30)
     return app.test_client()
 
 
@@ -66,7 +66,7 @@ def test_the_list_describes_each_run_newest_first(tmp_path, client):
     first = {r["id"]: r for r in body["runs"]}[f"{1:032x}"]
     assert first["devices"] == 3 and first["links"] == 2 and first["findings"] == 2 and first["findings_medium"] == 1
     assert first["built"] == "2026-10-30 14:05" and first["view"] == "all" and not first["pinned"] and first["size"] > 0
-    assert body["keep"] == 20 and body["max_age_days"] == 30 and body["total_size"] >= first["size"]
+    assert body["keep"] == 40 and body["max_age_days"] == 30 and body["total_size"] >= first["size"]
     assert old.exists()
 
 
@@ -262,8 +262,8 @@ def test_the_scripts_talk_to_each_other_through_the_events():
 def test_the_defaults_are_twenty_runs_and_thirty_days():
     from features.topology import retention
     import app
-    assert (retention.DEFAULT_KEEP, retention.DEFAULT_MAX_AGE_DAYS) == (20, 30)
-    assert (app.TOPOLOGY_KEEP_RUNS, app.TOPOLOGY_MAX_AGE_DAYS) == (20, 30)
+    assert (retention.DEFAULT_KEEP, retention.DEFAULT_MAX_AGE_DAYS) == (40, 30)
+    assert (app.TOPOLOGY_KEEP_RUNS, app.TOPOLOGY_MAX_AGE_DAYS) == (40, 30)
 
 
 def test_only_a_run_folder_can_be_touched_even_when_another_folder_exists(tmp_path):

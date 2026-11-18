@@ -69,7 +69,7 @@ Expires: October 20, 2026
 Expired?: no
 """
 
-INTERFACES = f"""
+INTERFACES = """
 total configured hardware interfaces: 4
 
 name                    id    speed/duplex/state        mac address

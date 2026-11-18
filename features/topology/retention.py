@@ -7,7 +7,7 @@ which lists, downloads and compares the runs that are kept. One run is about 2 M
 Rules (``prune_runs``):
 
 * only folders whose name is a run id are touched; anything else in the folder is left alone,
-* the newest ``keep`` runs stay (20 by default),
+* the newest ``keep`` runs stay (40 by default),
 * a run older than ``max_age_days`` goes, whatever the count (30 days by default),
 * a pinned run (a ``_pinned`` marker file, set from the Topology history panel) is never removed and does not count towards ``keep``,
 * an empty run folder (a build that stopped before it wrote anything) goes,
@@ -30,7 +30,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 RUN_ID = re.compile(r"^[a-f0-9]{32}$")
-DEFAULT_KEEP = 20
+DEFAULT_KEEP = 40
 DEFAULT_MAX_AGE_DAYS = 30
 PIN_FILE = "_pinned"
 GRACE_SECONDS = 600

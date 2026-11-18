@@ -67,7 +67,7 @@ class CompareLogicTest(unittest.TestCase):
         # given this key at all, so a stacked device's member count
         # silently vanished the moment it was compared against another
         # device — confirmed against your own live screenshot of
-        # GTOPAS-MKS-SWCODI-S5755 (a real 2-member stack).
+        # DEPO-AA-SWCODI-S5755 (a real 2-member stack).
         result = compare(RESULT_A, RESULT_B)
         self.assertEqual(result["device_a"]["stack_member_count"], 1)
         self.assertEqual(result["device_b"]["stack_member_count"], 2)

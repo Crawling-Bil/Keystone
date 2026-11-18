@@ -817,7 +817,7 @@ def _huawei_sections(config: list[str]) -> list[tuple[str, list[str]]]:
 def _huawei_flow_and_source(findings: list[dict[str, Any]], config: list[str]) -> None:
     """NetStream export and management source-interface checks on a Huawei ``display current-configuration``.
 
-    Written from four real S5755-H24T4Y2CZ core stacks (Depo Makassar, Manado, Pekanbaru, Semarang). Commands are from the Huawei CloudEngine
+    Written from four real S5755-H24T4Y2CZ core stacks (Depo Alpha, Bravo, Charlie, Delta). Commands are from the Huawei CloudEngine
     S300, S500, S2700, S5700 and S6700 V600R025C00 command reference: `netstream export ip source <ip>` (an address, not an interface),
     `netstream timeout ip active <seconds>` (default 1800), `ntp server source-interface <interface>` and `info-center loghost source <interface>`.
     """

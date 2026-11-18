@@ -1751,7 +1751,7 @@ class PaloAltoFirewallTranslator:
             output.append(f"set deviceconfig system timezone {config.timezone}")
 
         if config.dns_servers:
-            output.append(f"")
+            output.append("")
             output.append(f"set deviceconfig system dns-setting servers primary {config.dns_servers[0]}")
             if len(config.dns_servers) > 1:
                 output.append(f"set deviceconfig system dns-setting servers secondary {config.dns_servers[1]}")

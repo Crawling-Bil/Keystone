@@ -8,11 +8,11 @@ NX-OS prints a route as a prefix line followed by one ``via`` line per next hop,
     '[x/y]' denotes [preference/metric]
 
     0.0.0.0/0, ubest/mbest: 1/0
-        *via 10.85.3.26, [1/0], 1y6w, static
-    10.85.3.24/29, ubest/mbest: 1/0, attached
-        *via 10.85.3.29, Vlan205, [0/0], 1y6w, direct
-    10.85.3.25/32, ubest/mbest: 1/0, attached
-        *via 10.85.3.25, Vlan205, [0/0], 1y6w, hsrp
+        *via 10.220.3.26, [1/0], 1y6w, static
+    10.220.3.24/29, ubest/mbest: 1/0, attached
+        *via 10.220.3.29, Vlan205, [0/0], 1y6w, direct
+    10.220.3.25/32, ubest/mbest: 1/0, attached
+        *via 10.220.3.25, Vlan205, [0/0], 1y6w, hsrp
     172.16.0.0/16, ubest/mbest: 2/0
         *via 10.0.0.1, Eth1/1, [110/41], 3d04h, ospf-1, intra
         *via 10.0.0.5, Eth1/2, [110/41], 3d04h, ospf-1, intra
@@ -25,7 +25,7 @@ per next hop.
 Layout reference (Cisco, "Configure Route Redistribution on Nexus Switches", the Verify section prints this exact layout,
 including ``*via 10.12.1.2, Eth1/36, [110/1], 00:00:57, ospf-21, type-2, tag 6500``):
 https://www.cisco.com/c/en/us/support/docs/switches/nexus-9000-series-switches/220615-configure-route-redistribution-on-nexus.html
-Real capture it was written against: the TTC Nexus 9000 DMZ pair (``fixtures/real_captures/cisco_nxos_9k_routes_arp_masked.txt``).
+Real capture it was written against: the DC1 Nexus 9000 DMZ pair (``fixtures/real_captures/cisco_nxos_9k_routes_arp_masked.txt``).
 """
 from __future__ import annotations
 

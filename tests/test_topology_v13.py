@@ -10,7 +10,15 @@ from features.topology import scene
 from features.topology.extract import Device
 from features.topology.graph import Connection, Graph, Link
 from features.topology.layout import NODE_H, NODE_W
-from features.topology.scene import _arrange_groups, _detour, _frames, build_pages
+from features.topology.scene import _arrange_groups, _detour, _frames
+from features.topology.scene import build_pages as _build_pages
+
+
+def build_pages(graph, *args, **kwargs):
+    """These tests are about the compact rows (zone layout Off); the zone layout has its own tests (test_topology_zones.py, test_topology_v23.py)."""
+    graph.zone_layout = "off"
+    return _build_pages(graph, *args, **kwargs)
+
 
 
 def _graph(rng: random.Random) -> Graph:

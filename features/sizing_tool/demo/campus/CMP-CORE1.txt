@@ -1,0 +1,201 @@
+CMP-CORE1#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.9.4a, RELEASE SOFTWARE (fc3)
+cisco C9404R (X86) processor (revision V01) with 1795979K/6147K bytes of memory.
+Processor board ID FXS2412Q0A1
+CMP-CORE1 uptime is 41 weeks, 3 days, 2 hours, 8 minutes
+
+CMP-CORE1#show inventory
+NAME: "Chassis", DESCR: "Cisco Catalyst 9400 Series 4 Slot Chassis"
+PID: C9404R            , VID: V01  , SN: FXS2412Q0A1
+
+NAME: "Slot 1 Linecard", DESCR: "Cisco Catalyst 9400 Series 48-Port 10/100/1000 (RJ-45)"
+PID: C9400-LC-48T      , VID: V01  , SN: JAE241200A1
+
+NAME: "Slot 2 Linecard", DESCR: "Cisco Catalyst 9400 Series 24-Port 10G/25G (SFP+/SFP28)"
+PID: C9400-LC-24XY     , VID: V01  , SN: JAE241200A2
+
+NAME: "Slot 3 Supervisor", DESCR: "Cisco Catalyst 9400 Series Supervisor 1 Module"
+PID: C9400-SUP-1       , VID: V02  , SN: JAE241200A3
+
+NAME: "Power Supply Module 1", DESCR: "Cisco Catalyst 9400 Series 3200W AC Power Supply"
+PID: C9400-PWR-3200AC  , VID: V01  , SN: ART241200A4
+
+NAME: "Power Supply Module 2", DESCR: "Cisco Catalyst 9400 Series 3200W AC Power Supply"
+PID: C9400-PWR-3200AC  , VID: V01  , SN: ART241200A5
+
+NAME: "Fan Tray", DESCR: "Cisco Catalyst 9404R Fan Tray"
+PID: C9404-FAN         , VID: V01  , SN: FAN241200A6
+
+NAME: "TenGigabitEthernet2/0/1", DESCR: "SFP-10GBase-SR"
+PID: SFP-10G-SR        , VID: V03  , SN: FNS24120A01
+
+NAME: "TenGigabitEthernet2/0/2", DESCR: "SFP-10GBase-SR"
+PID: SFP-10G-SR        , VID: V03  , SN: FNS24120A02
+
+NAME: "TenGigabitEthernet2/0/3", DESCR: "SFP-10GBase-LR"
+PID: SFP-10G-LR        , VID: V02  , SN: FNS24120A03
+
+NAME: "TwentyFiveGigE2/0/21", DESCR: "SFP-25G-SR-S"
+PID: SFP-25G-SR-S      , VID: V01  , SN: FNS24120A04
+
+NAME: "TwentyFiveGigE2/0/22", DESCR: "SFP-25G-SR-S"
+PID: SFP-25G-SR-S      , VID: V01  , SN: FNS24120A05
+
+CMP-CORE1#show license summary
+Account Information:
+  Smart Account: Example Campus Demo
+  Virtual Account: CAMPUS-CORE
+
+License Usage:
+  License                 Entitlement Tag               Count Status
+  -----------------------------------------------------------------------------
+  network-advantage       (C9400_Network_Advantage)         1 IN USE
+  dna-advantage           (C9400_DNA_Advantage)             1 IN USE
+
+CMP-CORE1#show license usage
+License Authorization:
+  Status: Authorized
+
+network-advantage (C9400_Network_Advantage):
+  Description: C9400 Network Advantage
+  Count: 1
+  Version: 1.0
+  Status: IN USE
+  Export status: NOT RESTRICTED
+  Feature Name: network-advantage
+  Feature Description: C9400 Network Advantage
+  Enforcement type: NOT ENFORCED
+  License type: Perpetual
+
+dna-advantage (C9400_DNA_Advantage):
+  Description: C9400 DNA Advantage
+  Count: 1
+  Version: 1.0
+  Status: IN USE
+  Export status: NOT RESTRICTED
+  Feature Name: dna-advantage
+  Feature Description: C9400 DNA Advantage
+  Enforcement type: NOT ENFORCED
+  License type: Subscription
+
+CMP-CORE1#show running-config
+Building configuration...
+
+Current configuration : 6120 bytes
+!
+version 17.9
+service timestamps log datetime msec
+!
+hostname CMP-CORE1
+!
+no aaa new-model
+ip routing
+!
+ip domain name campus.example.test
+vtp mode transparent
+lldp run
+cdp run
+!
+spanning-tree mode rapid-pvst
+spanning-tree extend system-id
+!
+vlan 10
+ name USERS
+vlan 20
+ name VOICE
+vlan 30
+ name WIFI
+vlan 40
+ name SERVERS
+vlan 50
+ name MGMT
+!
+interface Loopback0
+ ip address 10.50.255.1 255.255.255.255
+ ip ospf 1 area 0
+!
+interface Port-channel1
+ description to CMP-CORE2 (peer link)
+ switchport mode trunk
+!
+interface TenGigabitEthernet2/0/1
+ description to CMP-ACC1 stack uplink 1
+ switchport mode trunk
+ channel-group 11 mode active
+!
+interface TenGigabitEthernet2/0/2
+ description to CMP-ACC1 stack uplink 2
+ switchport mode trunk
+ channel-group 11 mode active
+!
+interface TenGigabitEthernet2/0/3
+ description to CMP-RTR1 WAN router
+ no switchport
+ ip address 10.50.0.1 255.255.255.252
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+!
+interface TwentyFiveGigE2/0/21
+ description to CMP-PAFW1 ethernet1/1
+ switchport mode trunk
+!
+interface TwentyFiveGigE2/0/22
+ description to CMP-LB1 trunk
+ switchport mode trunk
+!
+interface GigabitEthernet1/0/1
+ description to CMP-WLC1 management
+ switchport access vlan 50
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/2
+ description to CMP-WLC2 management
+ switchport access vlan 50
+ spanning-tree portfast
+!
+interface Vlan10
+ ip address 10.50.10.2 255.255.255.0
+ standby 10 ip 10.50.10.1
+ standby 10 priority 110
+ standby 10 preempt
+ ip helper-address 10.50.40.10
+!
+interface Vlan20
+ ip address 10.50.20.2 255.255.255.0
+ standby 20 ip 10.50.20.1
+ standby 20 priority 110
+ ip helper-address 10.50.40.10
+!
+interface Vlan30
+ ip address 10.50.30.2 255.255.255.0
+ standby 30 ip 10.50.30.1
+ standby 30 priority 110
+ ip helper-address 10.50.40.10
+!
+interface Vlan50
+ ip address 10.50.50.2 255.255.255.0
+!
+router ospf 1
+ router-id 10.50.255.1
+ passive-interface default
+ no passive-interface TenGigabitEthernet2/0/3
+!
+ip route 0.0.0.0 0.0.0.0 10.50.0.2
+!
+snmp-server community REDACTED RO
+snmp-server host 10.50.40.20 version 2c REDACTED
+ntp server 10.50.40.10
+!
+end
+
+CMP-CORE1#show interfaces status
+Port         Name               Status       Vlan       Duplex  Speed Type
+Gi1/0/1      to CMP-WLC1 mgmt   connected    50         a-full a-1000 10/100/1000BaseTX
+Gi1/0/2      to CMP-WLC2 mgmt   connected    50         a-full a-1000 10/100/1000BaseTX
+Gi1/0/3                         notconnect   1            auto   auto 10/100/1000BaseTX
+Te2/0/1      to CMP-ACC1 up1    connected    trunk      full    10G SFP-10GBase-SR
+Te2/0/2      to CMP-ACC1 up2    connected    trunk      full    10G SFP-10GBase-SR
+Te2/0/3      to CMP-RTR1        connected    routed     full    10G SFP-10GBase-LR
+Twe2/0/21    to CMP-PAFW1       connected    trunk      full    25G SFP-25G-SR-S
+Twe2/0/22    to CMP-LB1         connected    trunk      full    25G SFP-25G-SR-S

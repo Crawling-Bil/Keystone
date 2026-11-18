@@ -11,7 +11,7 @@
   converter renders the same card with every control disabled, so the five pages look alike and
   a converter that gets registered later only switches the controls on (see domains.py).
 #}
-<form id="converter-form" class="workflow-layout convert-layout{% if off %} is-planned{% endif %}" enctype="multipart/form-data" data-domain="{{ domain.key }}"{% if off %} data-planned="true" onsubmit="return false"{% endif %}>
+<form id="converter-form" class="workflow-layout convert-layout{% if off %} is-planned{% endif %}" enctype="multipart/form-data" data-domain="{{ domain.key }}"{% if off %} data-planned="true"{% endif %}>
     <input type="hidden" name="domain" value="{{ domain.key }}">
     <input type="hidden" name="source_device_type" id="source-device-type" value="Auto Detect">
     <input type="hidden" name="target_device_type" id="target-device-type" value="">

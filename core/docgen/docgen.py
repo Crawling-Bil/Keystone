@@ -462,7 +462,7 @@ def generate(
         except KeyError:
             raise DocGenError(
                 f"Template tidak punya style '{style_name}' (dipakai untuk bab level {level})."
-            )
+            ) from None
         if level == 1:
             p.paragraph_format.page_break_before = True
             if orientation != "portrait":

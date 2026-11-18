@@ -1,0 +1,335 @@
+admin@CMP-PAFW1> show system info
+hostname: CMP-PAFW1
+ip-address: 10.50.50.41
+netmask: 255.255.255.0
+default-gateway: 10.50.50.1
+mac-address: 00:00:5e:00:53:41
+time: Sat Nov 14 09:12:41 2026
+uptime: 201 days, 4:10:33
+family: 3200
+model: PA-3220
+serial: 007254000141
+sw-version: 10.2.9-h1
+app-version: 8895-8501
+threat-version: 8895-8501
+av-version: 4812-5321
+url-filtering-version: 20261114.20123
+multi-vsys: off
+operational-mode: normal
+advanced-routing: off
+
+admin@CMP-PAFW1> show config running
+
+config {
+  devices {
+    localhost.localdomain {
+      deviceconfig {
+        system {
+          hostname CMP-PAFW1;
+          ip-address 10.50.50.41;
+          netmask 255.255.255.0;
+          default-gateway 10.50.50.1;
+          dns-setting {
+            servers {
+              primary 10.50.40.10;
+            }
+          }
+          ntp-servers {
+            primary-ntp-server {
+              ntp-server-address 10.50.40.10;
+            }
+          }
+        }
+        high-availability {
+          enabled yes;
+          group {
+            group-id 1;
+            peer-ip 10.50.50.42;
+            mode {
+              active-passive;
+            }
+          }
+        }
+      }
+      network {
+        interface {
+          ethernet {
+            ethernet1/1 {
+              layer3 {
+                ip {
+                  10.50.100.1/24;
+                }
+              }
+              comment "to CMP-CORE1 Twe2/0/21 (inside)";
+            }
+            ethernet1/2 {
+              layer3 {
+                ip {
+                  203.0.113.18/29;
+                }
+              }
+              comment "internet ISP-A (outside)";
+            }
+            ethernet1/3 {
+              layer3 {
+                ip {
+                  10.50.101.1/24;
+                }
+              }
+              comment DMZ;
+            }
+          }
+          tunnel {
+            units {
+              tunnel.1 {
+                ip {
+                  172.31.60.1/30;
+                }
+              }
+            }
+          }
+        }
+        virtual-router {
+          default {
+            interface [ ethernet1/1 ethernet1/2 ethernet1/3 tunnel.1 ];
+            routing-table {
+              ip {
+                static-route {
+                  default-gw {
+                    destination 0.0.0.0/0;
+                    nexthop {
+                      ip-address 203.0.113.17;
+                    }
+                    interface ethernet1/2;
+                  }
+                }
+              }
+            }
+          }
+        }
+        ike {
+          gateway {
+            GW-HQ {
+              protocol {
+                ikev2 {
+                  ike-crypto-profile default;
+                }
+              }
+              local-address {
+                interface ethernet1/2;
+              }
+              authentication {
+                pre-shared-key {
+                  key SYNTHETIC-PSK-DO-NOT-LEAK;
+                }
+              }
+              peer-address {
+                ip 198.51.100.1;
+              }
+            }
+          }
+        }
+        tunnel {
+          ipsec {
+            TUN-HQ {
+              tunnel-interface tunnel.1;
+              auto-key {
+                ike-gateway {
+                  GW-HQ;
+                }
+                ipsec-crypto-profile default;
+              }
+            }
+          }
+        }
+      }
+      vsys {
+        vsys1 {
+          zone {
+            inside {
+              network {
+                layer3 ethernet1/1;
+              }
+            }
+            outside {
+              network {
+                layer3 ethernet1/2;
+              }
+            }
+            dmz {
+              network {
+                layer3 ethernet1/3;
+              }
+            }
+            vpn {
+              network {
+                layer3 tunnel.1;
+              }
+            }
+          }
+          address {
+            WEB-DMZ {
+              ip-netmask 10.50.101.10/32;
+            }
+            LAN-NET {
+              ip-netmask 10.50.0.0/16;
+            }
+            HQ-NET {
+              ip-netmask 10.10.0.0/16;
+            }
+          }
+          service {
+            svc-https-8443 {
+              protocol {
+                tcp {
+                  port 8443;
+                }
+              }
+            }
+          }
+          profile-group {
+            STANDARD {
+              virus default;
+              spyware default;
+              vulnerability default;
+              url-filtering default;
+              wildfire-analysis default;
+            }
+          }
+          rulebase {
+            security {
+              rules {
+                ALLOW-INTERNET {
+                  from inside;
+                  to outside;
+                  source LAN-NET;
+                  destination any;
+                  application [ ssl web-browsing dns ];
+                  service application-default;
+                  action allow;
+                  profile-setting {
+                    group {
+                      STANDARD;
+                    }
+                  }
+                  log-end yes;
+                }
+                PUBLISH-WEB {
+                  from outside;
+                  to dmz;
+                  source any;
+                  destination WEB-DMZ;
+                  application ssl;
+                  service svc-https-8443;
+                  action allow;
+                  profile-setting {
+                    group {
+                      STANDARD;
+                    }
+                  }
+                  log-end yes;
+                }
+                SITE-TO-SITE {
+                  from [ inside vpn ];
+                  to [ inside vpn ];
+                  source [ LAN-NET HQ-NET ];
+                  destination [ LAN-NET HQ-NET ];
+                  application any;
+                  service application-default;
+                  action allow;
+                  log-end yes;
+                }
+                DENY-ALL {
+                  from any;
+                  to any;
+                  source any;
+                  destination any;
+                  application any;
+                  service any;
+                  action deny;
+                  log-end yes;
+                }
+              }
+            }
+            nat {
+              rules {
+                SNAT-INTERNET {
+                  from inside;
+                  to outside;
+                  source LAN-NET;
+                  destination any;
+                  service any;
+                  source-translation {
+                    dynamic-ip-and-port {
+                      interface-address {
+                        interface ethernet1/2;
+                      }
+                    }
+                  }
+                }
+                DNAT-WEB {
+                  from outside;
+                  to outside;
+                  source any;
+                  destination 203.0.113.19;
+                  service svc-https-8443;
+                  destination-translation {
+                    translated-address 10.50.101.10;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+admin@CMP-PAFW1> request license info
+Current GMT Date: November 14, 2026
+
+License entry:
+Feature: PA-3220
+Description: PA-3220 Base License
+Serial: 007254000141
+Issued: January 12, 2024
+Expires: Never
+Expired?: no
+
+License entry:
+Feature: Threat Prevention
+Description: Threat Prevention
+Issued: January 12, 2024
+Expires: January 12, 2027
+Expired?: no
+
+License entry:
+Feature: PAN-DB URL Filtering
+Description: Palo Alto Networks URL Filtering License
+Issued: January 12, 2024
+Expires: January 12, 2027
+Expired?: no
+
+License entry:
+Feature: WildFire License
+Description: WildFire signature feed, integrated WildFire logs, WildFire API
+Issued: January 12, 2024
+Expires: January 12, 2027
+Expired?: no
+
+License entry:
+Feature: GlobalProtect Gateway
+Description: GlobalProtect Gateway License
+Issued: January 12, 2024
+Expires: January 12, 2027
+Expired?: no
+
+License entry:
+Feature: Premium Support
+Description: Premium Support
+Issued: January 12, 2024
+Expires: January 12, 2027
+Expired?: no
+

@@ -5,25 +5,32 @@ from __future__ import annotations
 import copy
 import csv
 import datetime as _dt
+import functools
 import hashlib
 import threading
+import time
 from collections import OrderedDict
 import re
 import io
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..analyzer_core.capture import F5_PROMPT
 from ..analyzer_core.vendor_hint import identify
 from ..switch_analyzer.service import analyze as analyze_switch
 from . import progress, bigipdev, fortidev, panosdev, hosts as hosts_module, l3facts, l3switch, labels, roles, split as split_module
+from . import stackwise, vsx
+from .bulk import trim_bulk
 from .drawio import to_drawio
 from . import ifparams
-from .extract import Device, device_from_analysis, os_from_text
+from .extract import Device, HalfEdge, device_from_analysis, os_from_text
 from .findings import build_findings, findings_by_device
+from .sitefindings import parity_rows
 from .graph import Graph, build, link_ratings, link_speeds
-from .names import port_sort_key, speed_text
+from .names import canon_port, port_sort_key, short_host, speed_text
 from .rollup import hide_endpoints, rollup
+from .sharedname import split_shared_names
+from .mgmtnotes import apply as mgmtnotes_apply
 from .through import apply as through_apply
 from .f5neighbors import assume_f5_neighbors
 from .panha import assume_pan_ha
@@ -47,8 +54,12 @@ from .priority import capture_priority
 from .routed import infer_routed
 from .state import merge, state_json
 from .logical import logical_pages
-from .scene import build_pages
+from .orthogonal import orthogonalize
+from .scene import build_pages, display_name
 from .svg import to_svg
+
+if TYPE_CHECKING:
+    from .isolate import Isolated
 
 GROUP_MODES = (("auto", "Automatic (one page per site when the network is large)"), ("none", "One diagram"), ("prefix1", "Group by first hostname word (BGR, JKT, DRC)"),
                ("prefix2", "Group by first two hostname words (JKT-A02)"),
@@ -91,10 +102,50 @@ def _is_f5_capture(text: str) -> bool:
     return any(F5_PROMPT.match(line) for line in text[:300_000].splitlines()[:600])
 
 
+MAX_CAPTURE_CHARS = 64_000_000     # a capture longer than this after bulk.trim_bulk is not read: the readers hold it several times in memory (lines, sections, copies) and a run would end in the out-of-memory killer
+
+
+def _controller_ap_uplinks(text: str) -> list[dict[str, str]]:
+    """``display ap lldp neighbor brief`` of a Huawei AC with the AP's address and model from ``display ap all``; [] for any other capture."""
+    if "display ap lldp neighbor" not in text:
+        return []
+    try:
+        from features.wireless_center import huawei_runtime
+        table = huawei_runtime.parse_ap_table(text)
+        return [{**row, "ip": table.get(row["ap"], {}).get("ip", ""), "model": table.get(row["ap"], {}).get("model", "")} for row in huawei_runtime.parse_ap_uplinks(text)]
+    except Exception:           # an addition: the controller's own neighbours are still drawn without it
+        return []
+
+
+def attach_controller_aps(devices: list[Device]) -> int:
+    """Access points the controller sees on a captured switch's port appear under that switch as its LLDP neighbours would, unless the switch already lists them.
+    Returns the number of access points added."""
+    by_host = {short_host(d.hostname): d for d in devices if d.hostname}
+    added = 0
+    for controller in devices:
+        for row in getattr(controller, "ap_uplinks", None) or []:
+            switch = by_host.get(short_host(row["switch"]))
+            if switch is None or switch is controller:
+                continue
+            port, ap_name = canon_port(row["switch_port"]), row["ap"]
+            if not port or any(short_host(h.remote_name) == short_host(ap_name) for h in switch.halves):
+                continue
+            half = HalfEdge(port, ap_name, canon_port(row["ap_port"]), protocols={"LLDP"}, raw_local=row["switch_port"], raw_remote=row["ap_port"])
+            half.remote_ip, half.remote_platform, half.remote_caps = row.get("ip", ""), row.get("model", ""), "wlan-access-point"
+            half.remote_descr = f"seen by the controller {controller.hostname}"
+            switch.halves.append(half)
+            added += 1
+    return added
+
+
 def _read_one(name: str, text: str) -> tuple[Device | list[Device] | None, dict[str, str] | None]:
     """One capture -> a device, or the reason it is skipped.  The Switch Analyzer's full reading takes seconds per capture, so the result is kept (see ``read_devices``)."""
     if not text.strip():
         return None, {"file": name, "reason": "The file is empty."}
+    text, _left_out = trim_bulk(text)                          # a 700 000 line login history of a support capture is not read (see bulk.py)
+    if type(text) is str and len(text) > MAX_CAPTURE_CHARS:
+        return None, {"file": name, "reason": f"The capture is {len(text) / 1e6:,.0f} million characters even after the long logs it does not read were left out; the limit is {MAX_CAPTURE_CHARS // 1_000_000} million. "
+                                              "Collect the commands the topology uses (show cdp/lldp neighbors detail, show interfaces status, show port-channel summary, show mac address-table, show ip arp, show running-config) instead of a full support dump."}
     found = identify(text)
     if found["kind"] == "firewall" and found["label"].startswith("Fortinet"):
         try:
@@ -158,6 +209,16 @@ def _read_one(name: str, text: str) -> tuple[Device | list[Device] | None, dict[
     if facts.get("interfaces") and not device.l3:
         device.l3 = facts["interfaces"]
     device.capture_gap = capture_gap(text)
+    device.ap_uplinks = _controller_ap_uplinks(text)           # a Huawei AC lists the switch port of each access point it manages
+    try:
+        svl = stackwise.read(text)                              # Cisco StackWise Virtual: domain, SVL cables, dual-active detection (stackwise.py)
+        device.svl_domain, device.svl_links, device.svl_dad = svl["domain"], svl["links"], svl["dad"]
+    except Exception:
+        pass
+    try:
+        vsx.apply(device, text)                                  # Aruba CX VSX: the pair, its ISL and keepalive, filled like a vPC / M-LAG domain (vsx.py)
+    except Exception:
+        pass
     if not device.os_version:
         device.os_version = os_from_text(text)
     if not device.halves and not device.hostname:
@@ -173,7 +234,40 @@ def _merge_f5(files: list[tuple[str, str]]) -> list[tuple[str, str]]:
     return merge_same_unit(files)
 
 
-def read_devices(files: list[tuple[str, str]]) -> tuple[list[Device], list[dict[str, str]]]:
+READ_BUDGET_SECONDS = 900          # all the captures of one run together: a capture that would start after this is not read (it is listed as skipped, with the reason); the ones read stay
+ISOLATE_MIN_CHARS = 400_000        # a capture this long is read in a helper process that can be stopped (``isolate.py``); a small one is read in the run itself, which is faster
+ISOLATE_LONG_LINE = 2_000          # ... and so is a capture of any size with a line this long: what makes a pattern run away is a long line, not the length of the whole text (a 30 KB capture with one 5,000-character line hangs as well as a 4 MB one)
+READ_SLOW_SECONDS = 20             # a capture read in the run itself that took longer than this: the rest of the run is read in the helper, where one that hangs can be stopped (the time and size of a capture cannot always be told from its text)
+READ_CAPTURE_SECONDS = 240         # the most one such capture may take: after that the helper is stopped and the capture is listed as skipped, the others of the run are read as usual
+
+
+def _needs_helper(text: str) -> bool:
+    """A capture is read in the helper when it is long or has a long line (``ISOLATE_MIN_CHARS``, ``ISOLATE_LONG_LINE``); every other one is read in the run itself."""
+    if len(text) >= ISOLATE_MIN_CHARS:
+        return True
+    return any(len(line) >= ISOLATE_LONG_LINE for line in text.splitlines())
+
+
+def _read_one_guarded(name: str, text: str, helper: Any, limit: float, isolate_all: bool = False) -> tuple[tuple[Device | list[Device] | None, dict[str, str] | None], bool, "Isolated | None"]:
+    """(what ``_read_one`` returns, whether it may be cached, the helper).  A large capture goes to the helper process; when it is too slow it is stopped and the capture is skipped with
+    the reason, and when the helper cannot run it (it cannot send the result back) the capture is read here, as before."""
+    if type(text) is not str or not (isolate_all or _needs_helper(text)):
+        return _read_one(name, text), True, helper
+    from .isolate import FAILED, OK, TIMEOUT, Isolated
+    helper = helper or Isolated()
+    kind, value = helper.call(_read_one, (name, text), limit)
+    if kind == OK:
+        return value, True, helper
+    if kind == TIMEOUT:
+        return (None, {"file": name, "reason": f"Reading this capture took longer than {limit:,.0f} seconds, so the reader was stopped and the capture is left out; the other captures were read. "
+                                               "Something in it (a very long line, an unusual layout) keeps the reader busy. Send the commands the topology uses (show cdp/lldp neighbors detail, "
+                                               "show interfaces status, show port-channel summary, show running-config) instead of the whole dump."}), False, helper
+    if kind == "error":
+        return (None, {"file": name, "reason": f"The capture could not be read ({value})."}), False, helper
+    return _read_one(name, text), True, helper                      # FAILED: the helper could not run it
+
+
+def read_devices(files: list[tuple[str, str]], budget: float | None = None) -> tuple[list[Device], list[dict[str, str]]]:
     """Every capture read into a device (copies: the build changes devices, the cache must not see that)."""
     devices: list[Device] = []
     skipped: list[dict[str, str]] = []
@@ -182,31 +276,49 @@ def read_devices(files: list[tuple[str, str]]) -> tuple[list[Device], list[dict[
     merged, pano_info = link_files(merged)                       # firewalls of a Panorama are read together with their template stack
     total = max(sum(len(text) for _, text in merged), 1)         # the bar follows the bytes: a 4 MB capture is most of the time
     done = 0
-    for number, (name, text) in enumerate(merged, 1):
-        progress.report("read", done / total, f"Capture {number} of {len(merged)}: {name}")
-        key = hashlib.sha1(f"{name}\0{text}\0{getattr(text, 'live', '')}".encode("utf-8", "replace")).hexdigest()
-        with _CACHE_LOCK:
-            hit = _CACHE.get(key)
-            if hit is not None:
-                _CACHE.move_to_end(key)
-        if hit is None:
-            hit = _read_one(name, text)
+    limit = READ_BUDGET_SECONDS if budget is None else budget
+    started = time.monotonic()
+    helper = None
+    isolate_all = False
+    try:
+        for number, (name, text) in enumerate(merged, 1):
+            progress.report("read", done / total, f"Capture {number} of {len(merged)}: {name}")
+            key = hashlib.sha1(f"{name}\0{text}\0{getattr(text, 'live', '')}".encode("utf-8", "replace"), usedforsecurity=False).hexdigest()
             with _CACHE_LOCK:
-                _CACHE[key] = hit
-                while len(_CACHE) > CACHE_FILES:
-                    _CACHE.popitem(last=False)
-        device, reason = hit
-        if reason:
-            skipped.append(dict(reason))
-        if isinstance(device, list):
-            devices.extend(copy.deepcopy(device))
-        elif device is not None:
-            devices.append(copy.deepcopy(device))
-        done += len(text)
+                hit = _CACHE.get(key)
+                if hit is not None:
+                    _CACHE.move_to_end(key)
+            if hit is None and limit and time.monotonic() - started > limit:
+                skipped.append({"file": name, "reason": f"The reading time of this run ({limit:,.0f} seconds for all captures together) was used up before this capture; it was not read. "
+                                                        "Run the remaining captures in a second run, or in smaller sets."})
+                done += len(text)
+                continue
+            if hit is None:
+                began = time.monotonic()
+                hit, cacheable, helper = _read_one_guarded(name, text, helper, READ_CAPTURE_SECONDS, isolate_all)
+                if helper is None and time.monotonic() - began > READ_SLOW_SECONDS:
+                    isolate_all = True                            # this one was slow although nothing in its text said so: the next ones can be stopped
+                if cacheable:
+                    with _CACHE_LOCK:
+                        _CACHE[key] = hit
+                        while len(_CACHE) > CACHE_FILES:
+                            _CACHE.popitem(last=False)
+            device, reason = hit
+            if reason:
+                skipped.append(dict(reason))
+            if isinstance(device, list):
+                devices.extend(copy.deepcopy(device))
+            elif device is not None:
+                devices.append(copy.deepcopy(device))
+            done += len(text)
+    finally:
+        if helper is not None:
+            helper.__exit__()
     progress.report("read", 1.0, f"{len(merged)} capture(s) read")
     if pano_info.panoramas:
         from .panolink import apply as apply_panorama
         devices = apply_panorama(devices, pano_info)
+    attach_controller_aps(devices)
     return _drop_replaced_guests(devices), skipped
 
 
@@ -214,6 +326,15 @@ def _drop_replaced_guests(devices: list[Device]) -> list[Device]:
     """A vCMP guest known only from its host's configuration (name, management address, VLANs) steps aside when the guest's own capture is uploaded too."""
     own = {d.hostname for d in devices if not (d.l3facts.get("f5") or {}).get("vcmp")}
     return [d for d in devices if not ((d.l3facts.get("f5") or {}).get("vcmp") and d.hostname in own)]
+
+
+def _vsdx_bytes(pages: list, graph: Graph, line_style: str, title: str) -> bytes:
+    """The Visio file of the pages shown (vsdx.py); empty bytes when it cannot be written, so that a drawing the Visio writer cannot handle never stops the run."""
+    from .vsdx import to_vsdx
+    try:
+        return to_vsdx(pages, graph, line_style, title)
+    except Exception:
+        return b""
 
 
 def all_views_order(l3_pages: list, l3_extra: list, ip_pages: list, pages: list, twins: list, f5_pages_: list | None = None) -> list:
@@ -246,14 +367,56 @@ def grouping_notices(graph: Graph, group: str, pages: list) -> list[str]:
             "Build the captures of each site (or each building) as a separate run, or pick \"Group by first hostname word\" or \"first two words\" if your names carry the site."]
 
 
-def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_endpoints: bool = True,
+ZONE_TOTAL_SLACK = 1.5           # the zone layout may cost this share (and ZONE_TOTAL_ABS crossings) more than the plain rows over all pages before the run keeps the plain rows
+ZONE_TOTAL_ABS = 60
+
+
+def _with_zone_check(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """The pictures of one run (``_build``).  In ``auto`` zone layout a run that drew zones is built once more with the compact rows, and the one with fewer crossings
+    over all its pages (physical and L3 over L2) is kept: the L3 pages are made from the positions of the physical page, and a zone layout that is better for the cables can
+    still be worse for the routes (a little worse is the price of the zones: the check allows ``ZONE_TOTAL_SLACK``)."""
+    result = _build(*args, **kwargs)
+    mode = kwargs.get("zone_layout", "auto")
+    if mode != "auto" or not any(n.zone for page in result["pages"] for n in page.nodes.values()):
+        return result
+    plain = _build(*args, **{**kwargs, "zone_layout": "off", "devices": result["devices"]})        # the devices were read and merged once: not again
+    if _total_cost(result) > _total_cost(plain) * (1 + ZONE_TOTAL_SLACK) + ZONE_TOTAL_ABS:
+        plain["notices"] = [*plain.get("notices", []), "Zone layout: the zones round the core would have clearly more line crossings than the plain rows for this network, so the plain rows are kept "
+                            "(choose Zone layout: Always to draw the zones anyway)."]
+        plain["settings"]["zone_layout"] = "off (kept the plain rows)"
+        return plain
+    return result
+
+
+def _zone_note(page: Any, graph: Any) -> str:
+    """What the page says about its zone boxes when it has none: its own reason, or (the views that have a layout of their own) that the boxes belong to the L2 physical and the L3 over L2 pages."""
+    if page.zones:
+        return ""
+    if page.view in ("physical", "l3over2", "logical"):
+        return page.zone_note or "This page has no zones."
+    return "Zone boxes are drawn on the L2 Physical View and the L3 over L2 pages: this view puts the devices in rows of its own."
+
+
+def _total_cost(result: dict[str, Any]) -> float:
+    from .layoutscore import score_page
+    total = 0.0
+    for key in ("pages", "l3_pages", "l3_extra_pages"):
+        for page in result.get(key) or []:
+            scored = score_page(page)
+            total += scored["crossings"] + 5 * scored["through"]
+    return total
+
+
+def _build(files: list[tuple[str, str]], group: str = "none", collapse_endpoints: bool = True,
                    show_ports: bool = True, include_hosts: bool = False, include_routed: bool = True,
                    layout: dict[str, dict[str, tuple[float, float]]] | None = None, line_style: str = "state",
-                   view: str = "both", hide_mgmt: bool = True, previous: list[Device] | None = None,
+                   view: str = "both", hide_mgmt: bool = True, mgmt_notes: bool = True, previous: list[Device] | None = None, compare_with: dict | None = None, compare_label: str = "the earlier run",
                    collapse_aps: bool | None = None, exclude_endpoints: bool = False, infer_neighbors_from_arp: bool = True,
                    name: str = "", created: _dt.datetime | None = None, provider_hints: str = "", site_rules: str = "", line_shape: str = "angled", show_link_ips: bool = True, bundle_members: bool = True, overlay_sites: str = "captured", focus_sites: str = "", group_gateways: bool = True, group_endpoints: bool = True,
-                   devices: list[Device] | None = None) -> dict[str, Any]:
-    """``collapse_endpoints`` folds IP phones and hosts into one node per switch; ``collapse_aps`` does the same for access points
+                   devices: list[Device] | None = None, zone_layout: str = "auto", zone_boxes: bool = True) -> dict[str, Any]:
+    """``zone_layout``: ``auto`` lays a page that has a core in zones round it (external zones on top, internal ones below, see zones.py) and keeps the compact rows where those have fewer
+    crossings (the page itself, and the L3 pages made from it); ``always`` keeps the zones; ``off`` never builds them.  ``zone_boxes`` draws a box with a title round each zone.
+    ``collapse_endpoints`` folds IP phones and hosts into one node per switch; ``collapse_aps`` does the same for access points
     (default: as ``collapse_endpoints``, so older callers keep their picture).  ``exclude_endpoints`` leaves phones, hosts and servers
     out of the pictures altogether so only network devices remain.  ``group_endpoints`` frames the end points of each switch (a box named after the
     switch); it acts only when end points are drawn one by one, that is neither excluded nor collapsed.
@@ -267,6 +430,9 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
             devices, replaced = merge(previous, devices)
     progress.report("link", 0.0, f"{len(devices)} device(s)")
     graph = build(devices)
+    graph.zone_layout = zone_layout if zone_layout in ("auto", "always", "off") else "auto"
+    graph.zone_boxes = bool(zone_boxes)
+    graph.mgmt_notes = bool(mgmt_notes)
     if hide_mgmt:
         graph.hidden_kinds.add("mgmt")
     fill_addresses_from_arp(graph)
@@ -274,6 +440,8 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
     seen_through = through_apply(graph)            # end points listed on a port that faces a switch (CDP flooded by a switch that does not speak it) are not plugged into this switch
     if seen_through:
         graph.issues += seen_through
+        roles.classify(graph)
+    if split_shared_names(graph):                  # a vendor string sent as the LLDP system name is every server on those ports, not one box (sharedname.py)
         roles.classify(graph)
     if infer_neighbors_from_arp:
         found = infer_neighbors(graph) + assume_f5_neighbors(graph) + assume_pan_ha(graph)
@@ -287,6 +455,7 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
         annotate_link_ips(graph)
     if bundle_members:
         annotate_members(graph)
+    mgmt_notices = mgmtnotes_apply(graph)          # the links of a management switch to routers, firewalls and switches become notes on those devices (mgmtnotes.py)
     fold = {"phone", "host"} if collapse_endpoints else set()
     if collapse_endpoints if collapse_aps is None else collapse_aps:
         fold.add("ap")
@@ -304,17 +473,27 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
     used = auto_mode(graph) if group == "auto" else group          # the grouping that was applied
     curved = line_shape == "curved"
     progress.report("pages", 0.0, "Placing devices")
+    orthogonal = line_shape == "orthogonal"                          # right angles only (orthogonal.py): applied to every page that is made of cables
     pages = build_pages(graph, used, layout, curved)
+    if orthogonal:
+        for page in pages:
+            orthogonalize(page)
     for number, page in enumerate(pages, 1):
         progress.report("pages", 0.15 + 0.5 * number / len(pages), f"Page {number} of {len(pages)}: {page.name}")
         place_labels(page, graph, show_ports)
-    notices = grouping_notices(graph, group, pages)
+    notices = mgmt_notices + grouping_notices(graph, group, pages)
     twins = logical_pages(graph, pages)
+    if orthogonal:
+        for page in twins:
+            orthogonalize(page)
     for number, page in enumerate(twins, 1):
         progress.report("pages", 0.65 + 0.25 * number / len(twins), f"Logical page {number} of {len(twins)}")
         place_labels(page, graph, show_ports)
     progress.report("pages", 0.9, "IP and F5 maps")
     ip_pages = [page for page in [ip_page(graph, curved)] if page is not None]
+    if orthogonal:
+        for page in ip_pages:
+            orthogonalize(page)
     f5_maps = f5_pages(graph)
     hints = {"rules": parse_hints(provider_hints)}
     focus = Focus.of(overlay_sites, focus_sites)
@@ -324,6 +503,9 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
     route_page = l3_page(graph, hints, curved, model, focus) if want_l3 else None
     over2_pages = l3over2_pages(graph, pages, hints, model, focus) if want_l3 else []
     route_pages = [route_page] if route_page is not None else []
+    if orthogonal:
+        for page in route_pages:
+            orthogonalize(page)
     over2_first = view in ("l3over2", "all")
     l3_pages = over2_pages if over2_first else route_pages                     # the pages the tables, the trace and the draw.io file are built from
     l3_extra = route_pages if over2_first else over2_pages                     # the other L3 view: in the preview, so one build shows both
@@ -346,20 +528,41 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
         model = l3_pages[0].l3["model"]
         l3_trace = trace_data(graph, model, {id(e): ident for page in l3_pages for ident, e in page.l3["all"]})
     progress.report("l3", 0.8, "Findings")
-    findings = build_findings(graph)
+    findings = build_findings(graph, model if want_l3 else None)
+    from . import diffmark, f5zones, fwzones
+    marks = None
+    change_window = None
+    if compare_with:                                                    # the changes since an earlier run, marked on the diagrams (diffmark.py) and listed for a change record (changewindow.py)
+        try:
+            marks = diffmark.collect(compare_with, {"devices": devices_table(graph), "links": links_table(graph)}, compare_label)
+            from .diff import compare_runs
+            change_window = {"label": compare_label, "diff": compare_runs(compare_with, {"devices": devices_table(graph), "links": links_table(graph), "hosts": hosts_table(graph),
+                                                                                         "behind": behind_table(graph), "findings": findings})}
+        except Exception:                                               # an earlier run this cannot read leaves the diagrams unmarked
+            marks = None
+            change_window = None
+    try:
+        fw_zone_map, fw_bypass = fwzones.zone_map(graph, pages), fwzones.all_bypasses(graph)      # firewall zone <-> drawing zone, and the cables that go round a firewall (fwzones.py)
+        f5_table = f5zones.rows(graph, pages)                                                      # virtual server -> member -> VLAN -> cable -> neighbor -> zone of the drawing (f5zones.py)
+    except Exception:                                                   # an addition: a graph it cannot read leaves the tables empty, never stops the run
+        fw_zone_map, fw_bypass, f5_table = [], [], []
+    dr_parity = parity_rows(graph, model if want_l3 else None)          # the main site / recovery site table (sitefindings.parity_rows)
     progress.report("export", 0.0, "draw.io file and pictures")
     kept = sum(page.kept for page in pages)
     shown = {"physical": pages, "logical": twins or pages, "both": pages + twins, "ip": ip_pages or pages, "l3route": l3_pages or pages, "l3over2": l3_pages or pages,
              "f5map": f5_maps or pages, "all": all_views_order(l3_pages, l3_extra, ip_pages, pages, twins, f5_maps)}.get(view, pages + twins)
-    settings = {"tool_version": _tool_version(), "name": name, "created": (created or _dt.datetime.now()).strftime("%Y-%m-%d %H:%M:%S"), "group": group, "group_used": used, "group_reason": auto_reason(graph, used) if group == "auto" else "", "layout_check": score_pages(pages), "site_rules": len(graph.site_rules), "view": view,
+    settings = {"tool_version": _tool_version(), "name": name, "created": (created or _dt.datetime.now()).strftime("%Y-%m-%d %H:%M:%S"), "group": group, "group_used": used, "group_reason": auto_reason(graph, used) if group == "auto" else "", "layout_check": score_pages(pages), "layout_check_l3": score_pages(list(l3_pages) + list(l3_extra)), "site_rules": len(graph.site_rules), "view": view,
                 "line_style": line_style, "line_shape": line_shape, "show_link_ips": show_link_ips, "bundle_members": bundle_members, "exclude_endpoints": exclude_endpoints, "collapse_endpoints": collapse_endpoints, "group_endpoints": graph.group_endpoints,
                 "collapse_aps": collapse_endpoints if collapse_aps is None else collapse_aps, "show_ports": show_ports,
-                "infer_neighbors": infer_neighbors_from_arp, "include_routed": include_routed, "hide_mgmt": hide_mgmt, "include_hosts": include_hosts,
-                "previous_state": bool(previous), "keep_layout": bool(layout), "provider_hints": len(parse_hints(provider_hints)), "overlay_sites": focus.mode, "focus_sites": ", ".join(focus.sites), "group_gateways": group_gateways}
+                "infer_neighbors": infer_neighbors_from_arp, "include_routed": include_routed, "hide_mgmt": hide_mgmt, "mgmt_notes": mgmt_notes, "include_hosts": include_hosts,
+                "previous_state": bool(previous), "keep_layout": bool(layout), "provider_hints": len(parse_hints(provider_hints)), "overlay_sites": focus.mode, "focus_sites": ", ".join(focus.sites), "group_gateways": group_gateways,
+                "zone_layout": graph.zone_layout, "zone_boxes": graph.zone_boxes}
     return {
-        "settings": settings, "notices": notices, "group_reason": settings["group_reason"], "layout_scores": settings["layout_check"], "graph": graph, "pages": pages, "logical_pages": twins, "ip_pages": ip_pages, "l3_pages": l3_pages, "l3_links": l3_links, "l3_routes": l3_routes, "l3_unresolved": l3_unresolved, "l3_overlay": l3_overlay, "l3_sites": l3_sites, "l3_trace": l3_trace, "findings": findings, "findings_by_device": findings_by_device(graph, findings), "skipped": skipped,
+        "marks": marks, "change_window": change_window, "f5_table": f5_table, "fw_zone_map": fw_zone_map, "fw_bypass": [{k: v for k, v in r.items() if k != "devices"} for r in fw_bypass],
+        "settings": settings, "notices": notices, "group_reason": settings["group_reason"], "layout_scores": settings["layout_check"], "graph": graph, "pages": pages, "logical_pages": twins, "ip_pages": ip_pages, "l3_pages": l3_pages, "l3_links": l3_links, "l3_routes": l3_routes, "l3_unresolved": l3_unresolved, "l3_overlay": l3_overlay, "l3_sites": l3_sites, "l3_trace": l3_trace, "findings": findings, "dr_parity": dr_parity, "findings_by_device": findings_by_device(graph, findings), "skipped": skipped,
         "drawio": to_drawio(graph, used, show_ports, shown, line_style, title=name, created=created),
-        "svgs": [{"name": page.name, "view": page.view, "svg": to_svg(page, graph, show_ports, line_style)} for page in (shown if view == "all" else pages + twins + ip_pages + l3_pages + l3_extra + f5_maps)],
+        "vsdx": _vsdx_bytes(shown, graph, line_style, name),
+        "svgs": [{"name": display_name(page.name), "view": page.view, "svg": to_svg(page, graph, show_ports, line_style, marks), "zones": len(page.zones), "zone_note": _zone_note(page, graph)} for page in (shown if view == "all" else pages + twins + ip_pages + l3_pages + l3_extra + f5_maps)],
         "l3_extra_pages": l3_extra,
         "summary": {**summarize(graph, devices, findings, skipped), "layout_kept": kept, "carried": sum(1 for d in devices if d.carried),
                     "replaced": len(replaced), "behind_macs": sum(1 for h in graph.hosts if h.get("via"))},
@@ -367,13 +570,16 @@ def build_topology(files: list[tuple[str, str]], group: str = "none", collapse_e
     }
 
 
+
+build_topology = functools.wraps(_build)(_with_zone_check)                  # the public name keeps the signature and the docstring of ``_build``
+
 def summarize(graph: Graph, devices: list[Device], findings: list[dict], skipped: list[dict]) -> dict[str, Any]:
     captured = [n for n in graph.nodes.values() if n.captured]
     states = {"confirmed": 0, "single": 0, "conflict": 0, "inferred": 0}
     for link in graph.links:
         states[link.state] += 1
     routed = sum(1 for c in graph.connections if c.kind == "routed")
-    return {"captured": len(captured), "seen_only": len([n for n in graph.nodes.values() if not n.captured and n.role_hint != "host"]),
+    return {"captured": len(captured), "seen_only": len([n for n in graph.nodes.values() if not n.captured and n.role_hint not in ("host", "server")]),
             "hosts": len(graph.hosts), "routed": routed, "links": len([l for l in graph.links if l.state != "inferred"]),
             "connections": len([c for c in graph.connections if c.kind not in ("host",)]), "confirmed": states["confirmed"], "single_sided": states["single"],
             "conflicts": states["conflict"], "vpc_pairs": len(graph.vpc_pairs), "findings": len(findings), "skipped": len(skipped)}
@@ -395,6 +601,7 @@ def devices_table(graph: Graph) -> list[dict[str, Any]]:
         if node.role_hint == "host" and not node.captured and key.startswith(("HOST:", "HOSTS:")):
             continue
         rows.append({"device": node.hostname, "captured": "yes" if node.captured else "no (seen by neighbors)", "role": node.role_hint,
+                     "function": getattr(node, "function", ""), "function_why": getattr(node, "function_why", ""),
                      "vendor": node.vendor, "model": node.model, "os_version": node.os_version, "management_ip": node.mgmt_ip,
                      "serial": ", ".join(sorted(node.serials)), "stack_members": node.stack_members if node.captured else "",
                      "vpc_domain": node.vpc_domain, "vpc_role": node.vpc_role, "source_file": node.source,

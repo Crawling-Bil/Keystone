@@ -109,6 +109,27 @@ class TestDeviceDetector(unittest.TestCase):
         self.assertEqual(result.vendor, "Aruba")
         self.assertEqual(result.device_type, "WLC")
 
+    def test_huawei_controller_is_a_wlc_not_a_switch_although_it_shares_the_vrp_markers(self):
+        text = """
+        sysname TEST-AC-1
+        interface Vlanif130
+         ip address 10.50.130.1 255.255.255.0
+        capwap source interface vlanif130
+        wlan
+        ssid-profile name SSID-CORP
+        vap-profile name VAP-CORP
+        ap-group name CAMPUS
+        ap-id 0 type-id 148 ap-mac 00e0-fc01-0011 ap-sn 2102354TEST0001
+        <TEST-AC-1>display current-configuration
+        """
+        result = self.detector.detect_text(text)
+        self.assertEqual((result.vendor, result.device_type), ("Huawei", "WLC"))
+
+    def test_huawei_switch_stays_a_switch(self):
+        text = "sysname TEST-SW-1\ninterface Vlanif10\n ip address 10.0.0.1 255.255.255.0\nport link-type trunk\nport trunk allow-pass vlan 10\n"
+        result = self.detector.detect_text(text)
+        self.assertEqual((result.vendor, result.device_type), ("Huawei", "Switch"))
+
     def test_unrecognized_content_returns_unknown_with_zero_confidence(self):
         result = self.detector.detect_text("this is not a network config at all, just prose")
         self.assertEqual(result, DetectionResult(vendor="Unknown", device_type="Unknown", confidence=0))

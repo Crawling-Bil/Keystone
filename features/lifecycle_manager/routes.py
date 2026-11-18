@@ -785,7 +785,7 @@ def get_firmware():
 # ============================================================
 
 def _md5_of(path, chunk_size=1024 * 1024):
-    digest = hashlib.md5()
+    digest = hashlib.md5(usedforsecurity=False)  # a firmware checksum the vendor publishes, compared with the device's own MD5: not a security hash
     with open(path, "rb") as file:
         for chunk in iter(lambda: file.read(chunk_size), b""):
             digest.update(chunk)
@@ -2014,12 +2014,13 @@ def execute_upgrade_job(job_id, password=""):
 
     except Exception as exc:
         logger.error("Job %s: FAILED — %s", job_id, exc)
+        failure_text = str(exc)  # a nested helper must not read `exc`: Python deletes it when this block ends
 
         def _apply_failure(database):
             target_job = next((job for job in database.get("jobs", []) if job.get("id") == job_id), None)
             if target_job:
                 target_job["status"] = "failed"
-                target_job.setdefault("logs", []).append(UpgradeEngine.log_entry(str(exc), "error"))
+                target_job.setdefault("logs", []).append(UpgradeEngine.log_entry(failure_text, "error"))
                 for device in target_job.get("devices", []):
                     if device.get("status") != "completed":
                         device.update({"status": "failed", "stage": "Upgrade Failed"})
@@ -2155,12 +2156,13 @@ def execute_config_push_job(job_id, password=""):
 
     except Exception as exc:
         logger.error("Job %s: FAILED — %s", job_id, exc)
+        failure_text = str(exc)  # a nested helper must not read `exc`: Python deletes it when this block ends
 
         def _apply_failure(database):
             target_job = next((job for job in database.get("jobs", []) if job.get("id") == job_id), None)
             if target_job:
                 target_job["status"] = "failed"
-                target_job.setdefault("logs", []).append(UpgradeEngine.log_entry(str(exc), "error"))
+                target_job.setdefault("logs", []).append(UpgradeEngine.log_entry(failure_text, "error"))
                 for device in target_job.get("devices", []):
                     if device.get("status") != "completed":
                         device.update({"status": "failed", "stage": "Config Push Failed"})
@@ -2296,12 +2298,13 @@ def execute_config_capture_job(job_id, password=""):
 
     except Exception as exc:
         logger.error("Job %s: FAILED — %s", job_id, exc)
+        failure_text = str(exc)  # a nested helper must not read `exc`: Python deletes it when this block ends
 
         def _apply_failure(database):
             target_job = next((job for job in database.get("jobs", []) if job.get("id") == job_id), None)
             if target_job:
                 target_job["status"] = "failed"
-                target_job.setdefault("logs", []).append(UpgradeEngine.log_entry(str(exc), "error"))
+                target_job.setdefault("logs", []).append(UpgradeEngine.log_entry(failure_text, "error"))
                 for device in target_job.get("devices", []):
                     if device.get("status") != "completed":
                         device.update({"status": "failed", "stage": "Config Capture Failed"})

@@ -1,0 +1,266 @@
+[admin@CMP-LB1:Active:In Sync] ~ # tmsh show sys version
+Sys::Version
+Main Package
+  Product     BIG-IP
+  Version     15.1.8.2
+  Build       0.0.9
+  Edition     Point Release 2
+  Date        Thu Mar 23 2023
+
+[admin@CMP-LB1:Active:In Sync] ~ # tmsh show sys license
+
+Sys::License
+Licensed Version                 15.1.8
+Registration key                 AAAAA-BBBBB-CCCCC-DDDDD-EEEEEEE
+Licensed On                      2023/05/16
+Service Check Date               2023/03/01
+Platform ID                      C119
+Appliance Serial Number          f5-cmp-0001
+
+Active Modules
+  Best Bundle, i5800 (ABCDEFG-HIJKLMN)
+    Rate Shaping
+    DNSSEC
+    Advanced Web Application Firewall, i5800
+    Access Policy Manager, Base, i5800
+    Global Traffic Manager, i5800
+    BIG-IP VE, Large
+Time Limited Modules
+  IP Intelligence, 1Yr|ABCDEFG-HIJKLMN|20251206|20261206|SUBSCRIPTION
+  Threat Campaigns, 1Yr|ABCDEFG-HIJKLMN|20251206|20261206|SUBSCRIPTION
+
+[admin@CMP-LB1:Active:In Sync] ~ # tmsh show sys provision
+
+-----------------------------------------------------------------------
+Sys::Provision
+Module  CPU  Memory  Host Memory  Disk  Provisioned
+-----------------------------------------------------------------------
+afm        0     0     0     0
+apm        0     0     0     0
+asm        5  2688  2688     0
+avr        0     0     0     0
+gtm        0     0     0     0
+ltm        5  1920  1920     0
+sslo       0     0     0     0
+
+[admin@CMP-LB1:Active:In Sync] ~ # tmsh list
+cm device /Common/CMP-LB1.campus.example.test {
+    configsync-ip 10.50.50.51
+    failover-state active
+    hostname CMP-LB1.campus.example.test
+    marketing-name "BIG-IP i5800"
+    platform-id C119
+    self-device true
+    version 15.1.8
+}
+cm device /Common/CMP-LB2.campus.example.test {
+    configsync-ip 10.50.50.52
+    hostname CMP-LB2.campus.example.test
+    marketing-name "BIG-IP i5800"
+    platform-id C119
+    version 15.1.8
+}
+cm device-group /Common/campus-failover {
+    devices {
+        /Common/CMP-LB1.campus.example.test { }
+        /Common/CMP-LB2.campus.example.test { }
+    }
+    type sync-failover
+}
+cm traffic-group /Common/traffic-group-1 {
+    default true
+}
+ltm node /Common/10.50.111.10 {
+    address 10.50.111.10
+}
+ltm node /Common/10.50.111.11 {
+    address 10.50.111.11
+}
+ltm node /Common/10.50.111.20 {
+    address 10.50.111.20
+}
+ltm monitor http /Common/mon_app_http {
+    defaults-from /Common/http
+    destination *:*
+    interval 5
+    send "GET /health HTTP/1.1\r\nHost: app.example.test\r\n\r\n"
+    recv "200 OK"
+    timeout 16
+}
+ltm pool /Common/pool_web {
+    load-balancing-mode round-robin
+    members {
+        /Common/10.50.111.10:8443 {
+            address 10.50.111.10
+        }
+        /Common/10.50.111.11:8443 {
+            address 10.50.111.11
+        }
+    }
+    monitor /Common/mon_app_http
+}
+ltm pool /Common/pool_api {
+    load-balancing-mode least-connections-member
+    members {
+        /Common/10.50.111.20:9000 {
+            address 10.50.111.20
+        }
+    }
+    monitor /Common/tcp
+}
+ltm persistence cookie /Common/persist_cookie {
+    app-service none
+    defaults-from /Common/cookie
+}
+ltm profile client-ssl /Common/clientssl_web {
+    app-service none
+    cert /Common/web.example.test.crt
+    cert-key-chain {
+        web.example.test {
+            cert /Common/web.example.test.crt
+            key /Common/web.example.test.key
+        }
+    }
+    defaults-from /Common/clientssl
+}
+ltm profile http /Common/http_web {
+    defaults-from /Common/http
+    insert-xforwarded-for enabled
+}
+ltm rule /Common/rule_redirect_http {
+    when HTTP_REQUEST {
+        HTTP::redirect https://[getfield [HTTP::host] ":" 1][HTTP::uri]
+    }
+}
+ltm snatpool /Common/snat_server {
+    members {
+        /Common/10.50.111.100
+        /Common/10.50.111.101
+    }
+}
+ltm virtual /Common/vs_web_443 {
+    destination /Common/10.50.101.20:443
+    ip-protocol tcp
+    mask 255.255.255.255
+    persist {
+        /Common/persist_cookie {
+            default yes
+        }
+    }
+    pool /Common/pool_web
+    profiles {
+        /Common/clientssl_web {
+            context clientside
+        }
+        /Common/http_web { }
+        /Common/tcp { }
+    }
+    source 0.0.0.0/0
+    source-address-translation {
+        pool /Common/snat_server
+        type snat
+    }
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual /Common/vs_web_80 {
+    destination /Common/10.50.101.20:80
+    ip-protocol tcp
+    mask 255.255.255.255
+    profiles {
+        /Common/http { }
+        /Common/tcp { }
+    }
+    rules {
+        /Common/rule_redirect_http
+    }
+    source 0.0.0.0/0
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual /Common/vs_api_8443 {
+    destination /Common/10.50.101.21:8443
+    ip-protocol tcp
+    mask 255.255.255.255
+    pool /Common/pool_api
+    profiles {
+        /Common/tcp { }
+    }
+    source 0.0.0.0/0
+    source-address-translation {
+        type automap
+    }
+    translate-address enabled
+    translate-port enabled
+}
+ltm virtual-address /Common/10.50.101.20 {
+    address 10.50.101.20
+    traffic-group /Common/traffic-group-1
+}
+ltm virtual-address /Common/10.50.101.21 {
+    address 10.50.101.21
+    traffic-group /Common/traffic-group-1
+}
+net route-domain /Common/0 {
+    id 0
+    vlans {
+        /Common/client
+        /Common/server
+    }
+}
+net route /Common/default {
+    gateway 10.50.100.1
+    network default
+}
+net self /Common/self_client {
+    address 10.50.100.5/24
+    allow-service default
+    traffic-group /Common/traffic-group-local-only
+    vlan /Common/client
+}
+net self /Common/self_server {
+    address 10.50.111.5/24
+    allow-service default
+    traffic-group /Common/traffic-group-local-only
+    vlan /Common/server
+}
+net trunk /Common/trk_core {
+    interfaces {
+        1.1
+        1.2
+    }
+    lacp enabled
+}
+net vlan /Common/client {
+    interfaces {
+        trk_core {
+            tagged
+        }
+    }
+    tag 100
+}
+net vlan /Common/server {
+    interfaces {
+        trk_core {
+            tagged
+        }
+    }
+    tag 111
+}
+sys management-ip 10.50.50.51/24 {
+}
+sys snmp {
+    agent-addresses { tcp6:161 udp6:161 tcp:161 udp:161 }
+}
+
+[admin@CMP-LB1:Active:In Sync] ~ # tmsh show net interface
+-----------------------------------------------------------------
+Net::Interface
+Name  Status  Bits   Bits   Pkts  Pkts  Drops  Errs  Media
+                In    Out     In   Out
+-----------------------------------------------------------------
+1.1   up      1.2G   2.4G   1.1M  1.3M  0      0     10000T-FD
+1.2   up      1.0G   2.1G   1.0M  1.2M  0      0     10000T-FD
+mgmt  up      2.0K   8.3K   2.2K  1.1K  0      0     1000T-FD
+
+[admin@CMP-LB1:Active:In Sync] ~ #

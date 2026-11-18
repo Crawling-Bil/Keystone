@@ -7,7 +7,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, render_template
 
-from core import local_guard
+from core import audit_log, local_guard
 from core.database import initialize, recent_activity
 from core.modules import TOOLS, grouped_tools, health_modules, task_guide
 from features.configuration_studio.routes import bp as configuration_bp, pages_bp as convert_pages_bp
@@ -17,6 +17,7 @@ from features.router_analyzer.routes import bp as router_analyzer_bp
 from features.firewall_analyzer.routes import bp as firewall_analyzer_bp
 from features.lb_analyzer.routes import bp as lb_analyzer_bp
 from features.topology import routes as topology_routes
+from features.sizing_tool.routes import bp as sizing_bp, EXPORT_DIR as SIZING_EXPORT_DIR
 from features.topology.retention import prune_runs
 from features.topology.routes import bp as topology_bp
 from features.switch_analyzer.routes import bp as switch_analyzer_bp
@@ -25,7 +26,7 @@ from features.lld_index.routes import bp as lld_index_bp
 from features.lld_generator.routes import bp as lld_generator_bp
 
 APP_NAME = "Keystone"
-APP_VERSION = "1.11.0"
+APP_VERSION = "1.12.0"
 BASE_DIR = Path(__file__).resolve().parent
 
 # Age (in days) after which generated files in the folders below are
@@ -41,8 +42,18 @@ CLEANUP_DIRS = [
 # Topology Builder writes one folder (about 2 MB) to exports/topology for every build. A run is only needed while its page
 # is open (downloads, path trace) and by the Topology history panel, so those folders are kept to the newest TOPOLOGY_KEEP_RUNS and to TOPOLOGY_MAX_AGE_DAYS (pinned runs are never removed),
 # at startup and after every build. See features/topology/retention.py.
-TOPOLOGY_KEEP_RUNS = 20
-TOPOLOGY_MAX_AGE_DAYS = 30
+def _env_number(name: str, default: float, low: float, high: float) -> float:
+    """A number from the environment, kept inside ``low``..``high``; a missing or unreadable value gives ``default``."""
+    try:
+        value = float(os.environ.get(name, ""))
+    except ValueError:
+        return default
+    return min(max(value, low), high)
+
+
+# NES_TOPOLOGY_KEEP_RUNS (1-500) and NES_TOPOLOGY_MAX_AGE_DAYS (1-3650) change the two limits without editing the code, for a site that keeps its history longer or shorter.
+TOPOLOGY_KEEP_RUNS = int(_env_number("NES_TOPOLOGY_KEEP_RUNS", 40, 1, 500))
+TOPOLOGY_MAX_AGE_DAYS = _env_number("NES_TOPOLOGY_MAX_AGE_DAYS", 30, 1, 3650)
 
 
 def _get_or_create_secret_key() -> str:
@@ -102,7 +113,7 @@ def _sweep_stale_files() -> None:
     for directory in CLEANUP_DIRS:
         try:
             if directory.exists():
-                _sweep_directory(directory, cutoff, skip=(topology_routes.EXPORT_DIR,))
+                _sweep_directory(directory, cutoff, skip=(topology_routes.EXPORT_DIR, SIZING_EXPORT_DIR))
         except OSError:
             continue
 
@@ -111,6 +122,7 @@ def _prune_topology_exports() -> None:
     """Keep exports/topology to the newest runs (never raises)."""
     try:
         prune_runs(topology_routes.EXPORT_DIR, keep=TOPOLOGY_KEEP_RUNS, max_age_days=TOPOLOGY_MAX_AGE_DAYS)
+        prune_runs(SIZING_EXPORT_DIR, keep=20, max_age_days=30)
     except Exception:                                        # noqa: BLE001 - housekeeping must not stop the app
         pass
 
@@ -138,6 +150,7 @@ def create_app() -> Flask:
     _sweep_stale_files()
     app.config.update(TOPOLOGY_KEEP_RUNS=TOPOLOGY_KEEP_RUNS, TOPOLOGY_MAX_AGE_DAYS=TOPOLOGY_MAX_AGE_DAYS)
     local_guard.register(app)
+    audit_log.register(app)
     app.register_blueprint(configuration_bp)
     app.register_blueprint(convert_pages_bp)
     app.register_blueprint(wireless_bp)
@@ -146,6 +159,7 @@ def create_app() -> Flask:
     app.register_blueprint(firewall_analyzer_bp)
     app.register_blueprint(lb_analyzer_bp)
     app.register_blueprint(topology_bp)
+    app.register_blueprint(sizing_bp)
     app.register_blueprint(lifecycle_bp)
     app.register_blueprint(ztp_bp)
     app.register_blueprint(lld_index_bp)

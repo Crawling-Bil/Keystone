@@ -21,6 +21,7 @@ ABOVE = 250.0             # a cloud sits this far above the highest device it se
 SWAP_MAX = 36              # up to this many extras are improved by exchanging spots (more would take too long)
 SWAP_PASSES = 4
 HIT_COST = 400.0           # one line through another node costs as much as this many pixels of line
+LINE_MARGIN = 6.0         # px round an icon that a cable line must keep clear of
 SIDE = 300.0              # a satellite sits this far to the side of the device it serves
 
 
@@ -40,8 +41,23 @@ def _free(rect: tuple[float, float, float, float], taken: list[tuple[float, floa
     return not any(rect[0] < t[2] and t[0] < rect[2] and rect[1] < t[3] and t[1] < rect[3] for t in taken)
 
 
-def place(fixed: dict[str, tuple[float, float]], extras: list[Extra]) -> dict[str, tuple[float, float]]:
-    """{extra key: (x, y)} (top-left of the icon) for every extra; ``fixed`` holds the top-left of the devices already on the page."""
+def _on_a_line(x: float, y: float, lines: list[list[tuple[float, float]]]) -> bool:
+    """Does a cable line of the page run through the icon at (x, y) (top-left), margin included?"""
+    box = (x - LINE_MARGIN, y - LINE_MARGIN, x + NODE_W + LINE_MARGIN, y + NODE_H + LINE_MARGIN)
+    return any(_clips(box, p, q) for line in lines for p, q in zip(line, line[1:]))
+
+
+def place(fixed: dict[str, tuple[float, float]], extras: list[Extra], lines: list[list[tuple[float, float]]] | None = None) -> dict[str, tuple[float, float]]:
+    """{extra key: (x, y)} (top-left of the icon) for every extra; ``fixed`` holds the top-left of the devices already on the page.  ``lines`` are the cable lines of the page
+    (centre, bends, centre): a subnet or cloud icon goes to a spot that none of them runs through, when there is one in reach; a page that has no such spot is placed as before."""
+    if lines:
+        out = _place(fixed, extras, lines)
+        if out is not None:
+            return out
+    return _place(fixed, extras, None) or {}
+
+
+def _place(fixed: dict[str, tuple[float, float]], extras: list[Extra], lines: list[list[tuple[float, float]]] | None) -> dict[str, tuple[float, float]] | None:
     taken = [_rect(x, y) for x, y in fixed.values()]
     centre_x = (min(x for x, _ in fixed.values()) + max(x for x, _ in fixed.values())) / 2 if fixed else 0.0
     out: dict[str, tuple[float, float]] = {}
@@ -68,8 +84,10 @@ def place(fixed: dict[str, tuple[float, float]], extras: list[Extra]) -> dict[st
                     cost += 4000.0                                        # a provider goes over the devices it serves, not beside them
                 if best is not None and cost >= best[0]:
                     continue
-                if _free(_rect(x, y), taken):
+                if _free(_rect(x, y), taken) and not (lines and _on_a_line(x, y, lines)):
                     best = (cost, (x, y))
+        if best is None and lines:
+            return None                                                   # no spot clear of the cable lines: the caller places them as before
         if best is None:                                                  # no free spot in reach (a very crowded page): the column above everything
             best = (0.0, (want[0], min(min(y for _, y in fixed.values()), min((y for _, y in out.values()), default=0.0)) - CELL_H * (len(out) % 5 + 1)))
         out[extra.key] = best[1]

@@ -122,7 +122,7 @@ def expand_ports(text: str) -> list[str]:
     for part in re.split(r"\s*,\s*", (text or "").strip().strip(",")):
         if not part:
             continue
-        match = re.fullmatch(rf"(\d+)/(\d+)/(\d+)-(\d+)/(\d+)/(\d+)", part)
+        match = re.fullmatch(r"(\d+)/(\d+)/(\d+)-(\d+)/(\d+)/(\d+)", part)
         if match:
             m1, s1, p1, m2, s2, p2 = (int(x) for x in match.groups())
             if (m1, s1) == (m2, s2) and 0 <= p2 - p1 <= 256:
@@ -1181,7 +1181,7 @@ def parse_spanning_tree(clean: list[str]) -> dict[str, Any]:
                 current["last_change_seconds"] = int(seconds.group(1)) if seconds else None
                 continue
             if in_ports:
-                match = re.match(rf"^(\S+)\s+(Root|Designated|Alternate|Backup|Disabled|Master|Boundary)\s+(Forwarding|Blocking|Discarding|Learning|Listening|Down)\s+(\d+)\s+(\d+)\s+(\S+)(?:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+))?\s*$", text, re.IGNORECASE)
+                match = re.match(r"^(\S+)\s+(Root|Designated|Alternate|Backup|Disabled|Master|Boundary)\s+(Forwarding|Blocking|Discarding|Learning|Listening|Down)\s+(\d+)\s+(\d+)\s+(\S+)(?:\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+))?\s*$", text, re.IGNORECASE)
                 if match:
                     name_, role, state, cost, priority, kind = match.groups()[:6]
                     role_code, role_name = _STP_ROLE[role.lower()]

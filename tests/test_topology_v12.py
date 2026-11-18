@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import math
 import xml.etree.ElementTree as ET
 
 from features.topology import f5page
-from features.topology.extract import Device
-from features.topology.graph import Connection, Graph, Link
+from features.topology.graph import Graph
 from features.topology.labelplace import place_labels
 from features.topology.layout import NODE_H, NODE_W
 from features.topology.scene import build_pages

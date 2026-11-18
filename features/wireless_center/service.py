@@ -8,6 +8,7 @@ from .analyzers.relationship_analyzer import RelationshipAnalyzer
 from .exporters.excel_exporter import ExcelExporter
 from .importers.ap_inventory_importer import APInventoryImporter
 from .parsers.cisco9800_parser import Cisco9800ConfigParser
+from . import huawei_runtime
 from .parsers.config_parser import HuaweiConfigParser
 from .inventory_master import compare_inventory, read_inventory
 from .summaries import build_ap_device_summary
@@ -111,6 +112,16 @@ def _status_counts(data: dict[str, Any]) -> dict[str, int]:
     return counts
 
 
+def _huawei_runtime(content: str, vendor: str) -> dict[str, Any]:
+    """What a Huawei AC prints at run time and its configuration does not hold: radios in use, the switch port of each AP, the controller's own neighbours."""
+    if vendor.lower() != "huawei":
+        return {}
+    radios = huawei_runtime.parse_radios(content)
+    uplinks = huawei_runtime.parse_ap_uplinks(content)
+    return {"radio_runtime": {"rows": radios, "summary": huawei_runtime.radio_summary(radios)}, "ap_uplinks": {"rows": uplinks, "per_switch": huawei_runtime.uplink_summary(uplinks)},
+            "wlc_neighbours": huawei_runtime.parse_lldp_names(content)}
+
+
 def analyze(content: str, vendor: str = "Auto Detect", inventory_path: Path | None = None, deployment_mode: str = "existing") -> dict[str, Any]:
     resolved_vendor = detect_vendor(content) if vendor.lower().startswith("auto") else vendor.title()
     parser = Cisco9800ConfigParser(content) if resolved_vendor.lower() == "cisco" else HuaweiConfigParser(content)
@@ -194,6 +205,7 @@ def analyze(content: str, vendor: str = "Auto Detect", inventory_path: Path | No
         "status_counts": status_counts,
         "ap_device_summary": ap_device_summary,
         "radio_planning": radio_planning.plan(content) if resolved_vendor.lower() == "huawei" else {},
+        **_huawei_runtime(content, resolved_vendor),
         "cards": {
             "total_aps": len(data.get("aps", [])),
             "unique_ssids": len(unique_ssids),

@@ -5,7 +5,7 @@ memory-keystone.md Section 1u) rather than invented — in particular
 the transceiver-type normalization test reproduces a real, confirmed
 vendor-naming difference: Cisco IOS-XE calls a class "1000BaseSX SFP"
 while ArubaOS-Switch calls the identical physical part "1000SX"
-(TTC-SWAC-PABXGA2-2540, port 25).
+(DC1-SWAC-PABXGA2-2540, port 25).
 """
 from __future__ import annotations
 

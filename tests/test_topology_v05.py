@@ -9,7 +9,7 @@ from xml.etree import ElementTree as ET
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
-from topology_samples import iosxe_capture, lab_dc, nxos_arp, nxos_capture, nxos_mac_table  # noqa: E402
+from topology_samples import iosxe_capture, lab_dc, nxos_arp, nxos_capture  # noqa: E402
 
 from features.topology import labelplace  # noqa: E402
 from features.topology.inferred import parse_description  # noqa: E402
@@ -369,7 +369,7 @@ def test_devices_of_one_level_are_placed_left_to_right_in_natural_order():
     from features.topology.layout import natural_key
     assert sorted(["SW-10", "SW-2", "sw-1", "SW-B", "SW-A1", "SW-1A"], key=natural_key) == ["SW-A1", "SW-B", "sw-1", "SW-1A", "SW-2", "SW-10"]
     cdp = [(name, f"10.89.1.{i}", "C9300L-48P-4X", f"Ethernet1/{i + 1}", "Gi1/0/1") for i, name in enumerate(["ACC-10", "ACC-2", "ACC-1", "ACC-B", "ACC-A3"])]
-    result = build_topology([("core.txt", nxos_capture("CORE-1", "FDO00000091", "10.89.0.1", cdp=cdp))], exclude_endpoints=True)
+    result = build_topology([("core.txt", nxos_capture("CORE-1", "FDO00000091", "10.89.0.1", cdp=cdp))], exclude_endpoints=True, zone_layout="off")
     page = result["pages"][0]
     row = sorted((p.x, key) for key, p in page.nodes.items() if key.startswith("ACC-"))
     assert [key for _, key in row] == ["ACC-A3", "ACC-B", "ACC-1", "ACC-2", "ACC-10"]

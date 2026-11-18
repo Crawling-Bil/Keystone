@@ -18,12 +18,12 @@ from features.switch_analyzer.service import analyze
 KEY = "tam_standard"
 
 HUAWEI_OK = """sysname HW1
-ntp unicast-server domain ntp.toyota.astra.co.id
+ntp unicast-server domain ntp.keystone.invalid
 ntp unicast-server domain 0.id.pool.ntp.org
 ntp unicast-server domain 1.id.pool.ntp.org
 ntp unicast-server domain 2.id.pool.ntp.org
 ntp unicast-server domain 3.id.pool.ntp.org
-info-center loghost 10.85.80.187 port 514 transport udp
+info-center loghost 192.0.2.187 port 514 transport udp
 info-center loghost source Vlanif10
 stp enable
 stp mode vbst
@@ -35,12 +35,12 @@ return
 """
 
 CISCO_OK = """hostname SW1
-ntp server ntp.toyota.astra.co.id
+ntp server ntp.keystone.invalid
 ntp server 0.id.pool.ntp.org
 ntp server 1.id.pool.ntp.org
 ntp server 2.id.pool.ntp.org
 ntp server 3.id.pool.ntp.org
-logging host 10.85.80.187
+logging host 192.0.2.187
 logging trap informational
 no ip domain lookup
 snmp-server community SECRETCOMMUNITY2 RO
@@ -50,12 +50,12 @@ end
 """
 
 ARUBA_OK = """hostname AR1
-ntp server ntp.toyota.astra.co.id
+ntp server ntp.keystone.invalid
 ntp server 0.id.pool.ntp.org
 ntp server 1.id.pool.ntp.org
 ntp server 2.id.pool.ntp.org
 ntp server 3.id.pool.ntp.org
-logging 10.85.80.187
+logging 192.0.2.187
 interface 1/1/1
  no shutdown
 """
@@ -78,8 +78,8 @@ def status(result: dict) -> dict[str, str]:
 def test_the_standard_is_the_profile_not_a_second_copy():
     standard = baseline.standards()[KEY]
     assert standard.name == "TAM Standard"
-    assert standard.ntp_servers == ("ntp.toyota.astra.co.id", "0.id.pool.ntp.org", "1.id.pool.ntp.org", "2.id.pool.ntp.org", "3.id.pool.ntp.org")
-    assert standard.syslog_hosts == ("10.85.80.187",)
+    assert standard.ntp_servers == ("ntp.keystone.invalid", "0.id.pool.ntp.org", "1.id.pool.ntp.org", "2.id.pool.ntp.org", "3.id.pool.ntp.org")
+    assert standard.syslog_hosts == ("192.0.2.187",)
     assert standard.local_aaa_only is True
     assert standard.stp_mode == "vbst"
     assert standard.snmp_versions == ("v2c", "v3")
@@ -137,7 +137,7 @@ def test_ntp_with_other_servers_is_reported_with_what_is_missing_and_what_is_ext
 def test_no_ntp_at_all_is_reported_with_every_server_missing():
     text = CISCO_OK.replace("ntp server", "! ntp server")
     finding = base_findings(run(text, "Cisco"))["SW-BASE-001"]
-    assert "Configured: none" in finding["detail"] and "Missing: ntp.toyota.astra.co.id" in finding["detail"]
+    assert "Configured: none" in finding["detail"] and "Missing: ntp.keystone.invalid" in finding["detail"]
 
 
 def test_ntp_source_interface_is_not_a_server():
@@ -145,13 +145,13 @@ def test_ntp_source_interface_is_not_a_server():
 
 
 def test_ntp_server_names_are_compared_case_insensitively():
-    text = CISCO_OK.replace("ntp.toyota.astra.co.id", "NTP.Toyota.Astra.co.id")
+    text = CISCO_OK.replace("ntp.keystone.invalid", "NTP.Keystone.Invalid")
     assert "SW-BASE-001" not in base_findings(run(text, "Cisco"))
 
 
 def test_a_missing_syslog_host_is_medium_and_an_extra_host_is_low():
-    missing = base_findings(run(CISCO_OK.replace("logging host 10.85.80.187", "logging host 192.0.2.99"), "Cisco"))["SW-BASE-002"]
-    assert missing["severity"] == "medium" and "Missing: 10.85.80.187" in missing["detail"]
+    missing = base_findings(run(CISCO_OK.replace("logging host 192.0.2.187", "logging host 192.0.2.99"), "Cisco"))["SW-BASE-002"]
+    assert missing["severity"] == "medium" and "Missing: 192.0.2.187" in missing["detail"]
     extra = base_findings(run(CISCO_OK + "logging host 192.0.2.99\n", "Cisco"))["SW-BASE-002"]
     assert extra["severity"] == "low" and "192.0.2.99" in extra["detail"]
 

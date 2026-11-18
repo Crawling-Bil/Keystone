@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from xml.etree import ElementTree as ET
+from core.safe_xml import fromstring as safe_fromstring
 
 from .layout import NODE_H, NODE_W
 
 MAX_LAYOUT_BYTES = 30 * 1024 * 1024
+
+
+def _internal_name(name: str) -> str:
+    """A page saved as "L2 Physical View" (what the tab says since this release) is the page the engine calls "Overview"; older files say "Overview"."""
+    return "Overview" if name == "L2 Physical View" else name
 
 
 def read_layout(data: bytes) -> dict[str, dict[str, tuple[float, float]]]:
@@ -19,7 +25,7 @@ def read_layout(data: bytes) -> dict[str, dict[str, tuple[float, float]]]:
     if b"<!doctype" in head or b"<!entity" in data[:65536].lower():
         raise ValueError("This file contains a DOCTYPE declaration and is not read.")
     try:
-        root = ET.fromstring(data)
+        root = safe_fromstring(data)
     except ET.ParseError as exc:
         raise ValueError("The previous diagram is not a readable draw.io file (compressed pages are not supported: use File > Properties > uncheck Compressed).") from exc
     if root.tag != "mxfile":
@@ -41,5 +47,5 @@ def read_layout(data: bytes) -> dict[str, dict[str, tuple[float, float]]]:
             except ValueError:
                 continue
             positions[key] = (x - (NODE_W - w) / 2, y - (NODE_H - h) / 2)   # back to the 76 x 76 slot the layout uses
-        pages[diagram.get("name", "")] = positions
+        pages[_internal_name(diagram.get("name", ""))] = positions
     return pages

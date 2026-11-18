@@ -400,7 +400,7 @@ snmp-server user admin network-admin auth md5 0x00000000000000000000000000000001
 snmp-server user admin priv-7
 snmp-server user recon network-admin auth md5 0x00000000000000000000000000000002 priv 0x00000000000000000000000000000002 localizedkey
 snmp-server user yaris network-operator auth md5 0x00000000000000000000000000000003 priv 0x00000000000000000000000000000003 localizedkey
-snmp-server user kijang network-admin auth md5 0x00000000000000000000000000000003 priv 0x00000000000000000000000000000003 localizedkey
+snmp-server user netadmin network-admin auth md5 0x00000000000000000000000000000003 priv 0x00000000000000000000000000000003 localizedkey
 snmp-server host 10.255.0.9 traps version 2c <REDACTED>
 snmp-server community <REDACTED-1> group network-admin
 snmp-server community <REDACTED-2> group network-admin
