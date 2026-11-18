@@ -34,7 +34,6 @@ from features.configuration_studio.converter_engine.models.firewall import (
     IpsecPolicy,
     MssClamp,
     NatRule,
-    StaticRoute,
     FirewallFilterRule,
 )
 from features.configuration_studio.converter_engine.parsers.firewall.mikrotik import (

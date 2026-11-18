@@ -18,7 +18,7 @@ class HuaweiConfigParser:
     def parse(self):
         return {
             "wlc": self.parse_wlc(),
-            "interfaces": self.parse_interfaces(),
+            "interfaces": self.once_by_name(self.parse_interfaces()),
             "local_users": self.parse_local_users(),
             "security_profiles": self.parse_named_profiles(
                 "security-profile name"
@@ -48,8 +48,23 @@ class HuaweiConfigParser:
                 "wired-port-profile name"
             ),
             "aps": self.parse_aps(),
-            "ap_groups": self.parse_ap_groups(),
+            "ap_groups": self.once_by_name(self.parse_ap_groups()),
         }
+
+    @staticmethod
+    def once_by_name(items):
+        """A capture that holds the configuration more than once (a terminal log of several sessions) lists each object more than once:
+        keep one per name, the one with the most configuration lines, in the order first seen."""
+        best = {}
+        order = []
+        for item in items:
+            name = item.get("name", "")
+            if name not in best:
+                order.append(name)
+                best[name] = item
+            elif len(item.get("config") or []) > len(best[name].get("config") or []):
+                best[name] = item
+        return [best[name] for name in order]
 
     def parse_wlc(self):
         data = {
@@ -460,16 +475,17 @@ class HuaweiConfigParser:
 
     def enrich_ap_runtime(self, aps):
         """Enrich AP runtime data only from `display ap all`."""
-        by_id = {
-            str(ap.get("ap_id", "")).strip(): ap
-            for ap in aps
-            if str(ap.get("ap_id", "")).strip()
-        }
-        by_mac = {
-            self.normalize_ap_identity(ap.get("mac", "")): ap
-            for ap in aps
-            if self.normalize_ap_identity(ap.get("mac", ""))
-        }
+        # A capture that holds the same configuration several times (a terminal log of three sessions) lists one AP
+        # more than once: every copy is enriched, so de-duplication afterwards keeps a copy that has its runtime data.
+        by_id = {}
+        by_mac = {}
+        for ap in aps:
+            ap_key = str(ap.get("ap_id", "")).strip()
+            if ap_key:
+                by_id.setdefault(ap_key, []).append(ap)
+            mac_key = self.normalize_ap_identity(ap.get("mac", ""))
+            if mac_key:
+                by_mac.setdefault(mac_key, []).append(ap)
 
         in_section = False
         in_table = False
@@ -494,7 +510,7 @@ class HuaweiConfigParser:
             r"(\S+)\s+"
             r"(\d{1,3}(?:\.\d{1,3}){3}|-)\s+"
             r"(\S+)\s+"
-            r"(\S+)(?:\s+.*)?$"
+            r"(\S+)(?:\s+(\d+))?(?:\s+(\S+))?(?:\s+(\S+))?\s*$"
         )
 
         for line in self.lines:
@@ -535,21 +551,21 @@ class HuaweiConfigParser:
             if not match:
                 continue
 
-            ap_id, mac, ap_name, ap_group, ip, ap_type, raw_state = match.groups()
+            ap_id, mac, ap_name, ap_group, ip, ap_type, raw_state, sta, uptime, extra = match.groups()
 
-            ap = by_id.get(ap_id)
-            if ap is None:
-                ap = by_mac.get(self.normalize_ap_identity(mac))
-            if ap is None:
-                continue
+            copies = by_id.get(ap_id) or by_mac.get(self.normalize_ap_identity(mac)) or []
 
-            ap["name"] = ap_name
-            ap["group"] = ap_group
-            ap["ip"] = "" if ip == "-" else ip
-            ap["status"] = state_map.get(raw_state.lower(), raw_state)
-            ap["model"] = ap_type
-            ap["runtime_type"] = ap_type
-            ap["runtime_source"] = "display ap all"
+            for ap in copies:
+                ap["name"] = ap_name
+                ap["group"] = ap_group
+                ap["ip"] = "" if ip == "-" else ip
+                ap["status"] = state_map.get(raw_state.lower(), raw_state)
+                ap["model"] = ap_type
+                ap["runtime_type"] = ap_type
+                ap["runtime_source"] = "display ap all"
+                ap["clients"] = int(sta) if sta else None
+                ap["uptime"] = "" if uptime in (None, "-") else uptime
+                ap["extra_info"] = "" if extra in (None, "-") else extra
 
     def parse_ap_groups(self):
         groups = []

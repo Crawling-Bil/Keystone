@@ -6,13 +6,16 @@ HA1 is the control link, HA2 the data link that synchronises sessions, HA3 the p
 links are drawn as direct cables (that is how the dedicated HA ports are used) and labelled ``inferred HA``; capture the switch in between and the
 line is replaced by the real cables.
 
-* both units uploaded: the unit whose own HA1 address is the other's ``peer-ip`` is its peer; the two are joined once, each port of one unit to the same
+* both units uploaded: the unit whose own HA1 address is the other's ``peer-ip`` is its peer when the two agree on the HA mode and the Group ID and nothing fits better
+  (an HA1 address is local to a pair: every pair of a site can use 1.1.1.1 and 1.1.1.2, then the closed loop of addresses, the shared HA ports and the alike host
+  names decide, and a unit with no single best fit gets an assumed peer, never a wrong real one); the two are joined once, each port of one unit to the same
   HA role port of the other;
 * one unit uploaded: a grey firewall "HA peer of <host>" stands beside it (named by the peer address) with one line per HA port.
 """
 
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 from typing import Any
 
 from .extract import Device
@@ -25,18 +28,48 @@ def _ha(node: Device) -> dict[str, Any]:
     return node.l3facts.get("pan_ha") or {}
 
 
-def _peer_of(graph: Graph, key: str) -> str:
-    """The captured firewall that is the HA peer of ``key`` (its own HA1 address equals the peer-ip), or ''."""
-    mine = _ha(graph.nodes[key])
-    wanted = {mine.get("peer_ip"), mine.get("peer_ip_backup")} - {"", None}
-    for other, node in sorted(graph.nodes.items()):
-        if other == key or not node.captured or node.vendor != VENDOR:
-            continue
-        theirs = _ha(node)
-        own = {theirs.get("own_ip"), theirs.get("own_ip_backup")} - {"", None}
-        if wanted & own:
-            return other
-    return ""
+def _addresses(facts: dict[str, Any], *names: str) -> set[str]:
+    return {str(facts.get(name)) for name in names if facts.get(name)}
+
+
+def _is_candidate(mine: dict[str, Any], theirs: dict[str, Any]) -> bool:
+    """Could the unit with the facts ``theirs`` be the peer of the one with ``mine``?  The peer-ip of one is an HA1 address of the other, and the two agree on what PAN-OS
+    needs identical on both firewalls: the HA mode and the Group ID (https://docs.paloaltonetworks.com/pan-os/9-1/pan-os-admin/high-availability/set-up-activepassive-ha/configuration-guidelines-for-activepassive-ha)."""
+    if not _addresses(mine, "peer_ip", "peer_ip_backup") & _addresses(theirs, "own_ip", "own_ip_backup"):
+        return False
+    return all(not (mine.get(field) and theirs.get(field)) or str(mine[field]) == str(theirs[field]) for field in ("mode", "group"))
+
+
+def _score(graph: Graph, a: str, b: str) -> tuple[int, int, float]:
+    """How well two candidate units fit as a pair, most telling first: each one names the other's address (a pair is a closed loop of addresses), the number of HA links that
+    leave on the same port in the same role, and how alike the host names are (HQPAFW1 beside HQPAFW2, not beside DRPAFW2)."""
+    mine, theirs = _ha(graph.nodes[a]), _ha(graph.nodes[b])
+    closed = int(bool(_addresses(theirs, "peer_ip", "peer_ip_backup") & _addresses(mine, "own_ip", "own_ip_backup")))
+    shared = len({tuple(p) for p in mine.get("ports", [])} & {tuple(p) for p in theirs.get("ports", [])})
+    like = SequenceMatcher(None, graph.nodes[a].hostname.upper(), graph.nodes[b].hostname.upper()).ratio()
+    return closed, shared, like
+
+
+def pair_units(graph: Graph) -> dict[str, str]:
+    """The captured firewalls that are each other's HA peer.  An HA1 address is configured on each unit alone and a dedicated cable joins the two, so the same pair of addresses
+    (1.1.1.1 and 1.1.1.2) is normal on every pair of a site, and on every site: an address alone names several units.  A unit is paired with another only when each is the
+    other's single best fit (``_score``); a unit with no single best fit is left unpaired and gets an assumed peer, never the wrong real one."""
+    units = [k for k, n in sorted(graph.nodes.items()) if n.captured and n.vendor == VENDOR and _ha(n).get("ports")]
+    pool, pairs = set(units), {}
+
+    def best(key: str) -> str:
+        scored = sorted(((_score(graph, key, o), o) for o in pool if o != key and _is_candidate(_ha(graph.nodes[key]), _ha(graph.nodes[o]))), reverse=True)
+        return scored[0][1] if scored and (len(scored) == 1 or scored[0][0] > scored[1][0]) else ""
+
+    while True:
+        for key in sorted(pool):
+            other = best(key)
+            if other and best(other) == key:
+                pairs[key], pairs[other] = other, key
+                pool -= {key, other}
+                break
+        else:
+            return pairs
 
 
 def _assumed_peer(graph: Graph, key: str) -> str:
@@ -60,11 +93,12 @@ def assume_pan_ha(graph: Graph) -> list[dict[str, Any]]:
     """Add the HA peer and the HA links of every captured Palo Alto firewall that has high availability enabled.  Returns the facts for TOPO-027."""
     facts: list[dict[str, Any]] = []
     done: set[frozenset] = set()
+    pairs = pair_units(graph)
     for key in sorted(k for k, n in graph.nodes.items() if n.captured and n.vendor == VENDOR and _ha(n)):
         mine = _ha(graph.nodes[key])
         if not mine.get("ports"):
             continue
-        peer = _peer_of(graph, key)
+        peer = pairs.get(key, "")
         if peer and frozenset((key, peer)) in done:
             continue
         far_ports = {role: port for role, port in _ha(graph.nodes[peer]).get("ports", [])} if peer else {}

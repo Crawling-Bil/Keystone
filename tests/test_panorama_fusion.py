@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
-import pytest
 
 from features.firewall_analyzer import panorama_fusion as pf
 from features.firewall_analyzer import service

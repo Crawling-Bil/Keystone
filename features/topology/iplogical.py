@@ -175,7 +175,7 @@ def ip_page(graph: Graph, curved: bool = False) -> Page | None:
     if not conns:
         return None
     sub = Graph(nodes=nodes, links=links, connections=conns, hidden_kinds=set())
-    placed, width, height = layered(sub, list(nodes))
+    placed, width, height = layered(sub, list(nodes), middle=False)
     page = Page(VIEW_NAME, placed, set(), [], conns, {}, width, height, view="ip", graph=sub, curved=curved)
     _route(page)
     place_labels(page, sub, True)

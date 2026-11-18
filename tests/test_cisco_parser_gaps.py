@@ -288,7 +288,7 @@ class PbrNqaTrackParsingTest(ParserGapTestBase):
         config = self.parse_text(
             "hostname SW1\n"
             "route-map LINTAS permit 10\n"
-            " match ip address GTOPAS_Lintas\n"
+            " match ip address DEPO_Lintas\n"
             " set ip next-hop verify-availability 172.29.88.2 10 track 2\n"
         )
         self.assertEqual(len(config.route_maps), 1)
@@ -298,7 +298,7 @@ class PbrNqaTrackParsingTest(ParserGapTestBase):
         clause = route_map.clauses[0]
         self.assertEqual(clause.sequence, 10)
         self.assertEqual(clause.action, "permit")
-        self.assertEqual(clause.match_acl, "GTOPAS_Lintas")
+        self.assertEqual(clause.match_acl, "DEPO_Lintas")
         self.assertEqual(clause.set_next_hop, "172.29.88.2")
         self.assertEqual(clause.set_next_hop_track_id, 2)
 
@@ -336,7 +336,7 @@ class EemDynamicPbrParsingTest(ParserGapTestBase):
     Parser-side coverage for "event manager applet <name>" blocks that
     dynamically toggle PBR via "ip policy route-map <name>" / "no ip
     policy route-map <name>" CLI actions -- a REAL, currently-active
-    pattern on TAM 2026's Catalyst 3650 stacks (GTOPAS-PKU/MND/SMG/
+    pattern on TAM 2026's Catalyst 3650 stacks (DEPO-CC/MND/SMG/
     MKS-SWCO-C3650.txt real backups), where the route-map is NEVER
     statically bound under any interface's own config. Captured
     separately from config.route_maps per Section 1ll Part 1's
@@ -419,10 +419,10 @@ class AclApplicationParsingTest(ParserGapTestBase):
         config = self.parse_text(
             "hostname SW1\n"
             "interface GigabitEthernet1/0/1\n"
-            " ip access-group VOIP-GA-TTC in\n"
+            " ip access-group VOIP-GA-DC1 in\n"
         )
         self.assertEqual(
-            config.interfaces[0].access_group_in, "VOIP-GA-TTC"
+            config.interfaces[0].access_group_in, "VOIP-GA-DC1"
         )
         self.assertEqual(config.interfaces[0].access_group_out, "")
 

@@ -19,21 +19,21 @@ def _entry(name: str, ip: str, local: str, remote: str) -> tuple:
     return (name, ip, PLATFORM, local, remote)
 
 
-def _build(files: list[tuple[str, str]]):
-    return build_topology(files, group="none", view="physical")
+def _build(files: list[tuple[str, str]], zone_layout: str = "auto"):
+    return build_topology(files, group="none", view="physical", zone_layout=zone_layout)
 
 
-def _tree(core: str, dists: list[str], access: dict[str, list[str]], direct: list[str] | None = None):
+def _tree(core: str, dists: list[str], access: dict[str, list[str]], direct: list[str] | None = None, zone_layout: str = "auto"):
     """A core over two distribution switches with three access switches each (captured: core and distribution); ``direct`` access switches hang off the core."""
     files = []
-    core_rows = [_entry(d, f"192.0.2.{10 + i}", f"Gi1/0/{i + 1}", f"Gi1/0/48") for i, d in enumerate(dists)]
+    core_rows = [_entry(d, f"192.0.2.{10 + i}", f"Gi1/0/{i + 1}", "Gi1/0/48") for i, d in enumerate(dists)]
     core_rows += [_entry(a, f"192.0.2.{50 + i}", f"Gi1/0/{20 + i}", "Gi0/1") for i, a in enumerate(direct or [])]
     files.append(("core.txt", iosxe_capture(core, "FOC00000001", "192.0.2.2", cdp=core_rows)))
     for n, dist in enumerate(dists):
         rows = [_entry(core, "192.0.2.2", "Gi1/0/48", f"Gi1/0/{n + 1}")]
         rows += [_entry(a, f"192.0.2.{100 + 10 * n + i}", f"Gi1/0/{i + 1}", "Gi0/1") for i, a in enumerate(access[dist])]
         files.append((f"d{n}.txt", iosxe_capture(dist, f"FOC0000001{n}", f"192.0.2.{10 + n}", cdp=rows)))
-    return _build(files)
+    return _build(files, zone_layout)
 
 
 TREE = dict(core="LAB-ALPHA", dists=["LAB-BRAVO", "LAB-CHARLIE"], access={"LAB-BRAVO": ["LAB-ECHO-1", "LAB-ECHO-2", "LAB-ECHO-3"], "LAB-CHARLIE": ["LAB-FOXTROT-1", "LAB-FOXTROT-2", "LAB-FOXTROT-3"]})
@@ -79,7 +79,8 @@ def test_an_access_switch_on_the_core_stands_in_the_row_under_it_beside_the_dist
 
 
 def test_lines_to_the_switches_below_leave_beside_the_icon_not_through_its_name():
-    page = _tree(**TREE)["pages"][0]
+    """On the compact rows (no zones).  Into another zone the line slants out of the side of the icon and drops (tests/test_topology_v28.py)."""
+    page = _tree(**TREE, zone_layout="off")["pages"][0]
     core = page.nodes["LAB-ALPHA"]
     centre = core.x + NODE_W / 2
     routed = [(c, page.routes[i]) for i, c in enumerate(page.connections) if "LAB-ALPHA" in (c.a, c.b) and i in page.routes]

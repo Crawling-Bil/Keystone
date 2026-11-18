@@ -37,8 +37,14 @@ def _plain(value: Any) -> Any:
     return value
 
 
+KEPT_ROLES = ("firewall", "loadbalancer")          # the reader of a FortiGate / PAN-OS / BIG-IP capture knows what the box is; every other role is worked out again from the name, the model and the cables
+
+
 def device_to_state(device: Device) -> dict[str, Any]:
-    return {f.name: _plain(getattr(device, f.name)) for f in dataclasses.fields(Device) if f.name not in ("key", "carried", "role_hint")}
+    state = {f.name: _plain(getattr(device, f.name)) for f in dataclasses.fields(Device) if f.name not in ("key", "carried", "role_hint")}
+    if device.role_hint in KEPT_ROLES:
+        state["role_hint"] = device.role_hint                            # without it a reopened PAN-OS firewall (model "PAN-OS firewall", a name with no word of a role) came back as an aggregation switch
+    return state
 
 
 def devices_to_state(devices: list[Device]) -> dict[str, Any]:
@@ -88,7 +94,7 @@ def device_from_state(raw: Any) -> Device:
             if not isinstance(value, list):
                 raise StateError("The saved neighbors are not a list.")
             device.halves = [_half(h) for h in value]
-        elif f.name in ("mac_table", "arp_table"):
+        elif f.name in ("mac_table", "arp_table", "fw_ifaces"):          # lists of dicts: a saved firewall keeps its interfaces and zones (they were read back as text before, and the zone check failed on a reopened run)
             setattr(device, f.name, _rows(value))
         elif f.name == "l3":
             device.l3 = _rows(value)
@@ -105,6 +111,8 @@ def device_from_state(raw: Any) -> Device:
                 setattr(device, f.name, {_text(k): (dict(v) if isinstance(v, dict) else v if isinstance(v, (int, list)) else _text(v)) for k, v in value.items()})
         else:
             setattr(device, f.name, _text(value))
+    if raw.get("role_hint") in KEPT_ROLES:
+        device.role_hint = raw["role_hint"]
     device.captured = True
     device.carried = True
     return device

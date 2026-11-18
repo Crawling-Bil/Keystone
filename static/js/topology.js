@@ -76,7 +76,7 @@
   });
   $("previous-state").addEventListener("change", renderFiles);
   // a file chosen in the styled pickers shows its name; options that make no sense with "exclude end points" step aside
-  ["previous-state", "previous"].forEach((role) => {
+  ["previous-state", "previous", "compare-with"].forEach((role) => {
     const picker = $(role), label = $(role + "-name");
     const show = () => { const f = picker.files[0]; label.textContent = f ? f.name : "No file chosen"; picker.closest(".tp-file").classList.toggle("has-file", !!f); };
     picker.addEventListener("change", show); picker.showName = show;
@@ -91,7 +91,7 @@
   ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("dragover"); }));
   drop.addEventListener("drop", (e) => addFiles([...e.dataTransfer.files]));
   $("group").addEventListener("change", groupWarning);
-  $("clear").addEventListener("click", () => { files = []; data = null; $("previous-state").value = ""; $("previous").value = ""; $("previous-state").showName(); $("previous").showName(); renderFiles(); result.classList.add("hidden"); empty.classList.remove("hidden"); setStatus(""); stopProgress(); root.dispatchEvent(new CustomEvent("tp:buildstart")); });
+  $("clear").addEventListener("click", () => { files = []; data = null; $("previous-state").value = ""; $("previous").value = ""; $("compare-with").value = ""; $("previous-state").showName(); $("previous").showName(); $("compare-with").showName(); renderFiles(); result.classList.add("hidden"); empty.classList.remove("hidden"); setStatus(""); stopProgress(); root.dispatchEvent(new CustomEvent("tp:buildstart")); });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -111,6 +111,7 @@
     body.append("infer_neighbors", $("infer").checked ? "1" : "0");
     body.append("include_hosts", $("hosts").checked ? "1" : "0");
     body.append("hide_mgmt", $("mgmt").checked ? "1" : "0");
+    body.append("mgmt_notes", $("mgmt-notes").checked ? "1" : "0");
     body.append("view", $("view").value);
     body.append("provider_hints", $("provider-hints").value);
     body.append("site_rules", $("site-rules").value);
@@ -120,12 +121,16 @@
     body.append("anonymize", $("anonymize").checked ? "1" : "0");
     body.append("line_style", $("line-style").value);
     body.append("line_shape", $("line-shape").value);
+    body.append("zone_layout", $("zone-layout").value);
+    body.append("zone_boxes", $("zone-boxes").checked ? "1" : "0");
     const buildId = newBuildId();
     body.append("progress_id", buildId);
     const previous = $("previous").files[0];
     if (previous) body.append("previous", previous, previous.name);
     const saved = $("previous-state").files[0];
     if (saved) body.append("previous_state", saved, saved.name);
+    const compare = $("compare-with").files[0];
+    if (compare) body.append("compare", compare, compare.name);
     root.dispatchEvent(new CustomEvent("tp:buildstart"));
     button.disabled = true;
     setStatus("");
@@ -168,6 +173,16 @@
       result.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     } catch (err) { setStatus(`The kept result could not be shown (${err && err.message ? err.message : err}). Build it again from the captures.`, true); }
   });
+
+  // A tab opened by "Open again all" in the Topology history comes here as /topology?open=<run id>: show that run once the page has loaded
+  function openFromAddress() {
+    let id = "";
+    try { id = new URLSearchParams(location.search).get("open") || ""; } catch (err) { id = ""; }
+    if (!/^[a-f0-9]{32}$/.test(id)) return;
+    try { window.history.replaceState(null, "", location.pathname); } catch (err) { /* the address stays: harmless */ }
+    root.dispatchEvent(new CustomEvent("tp:open", { detail: { id } }));
+  }
+  if (document.readyState === "complete") setTimeout(openFromAddress, 0); else window.addEventListener("load", openFromAddress, { once: true });
 
   function render() {
     const s = data.summary;
@@ -218,7 +233,7 @@
   }
   function visiblePages() { return data.pages.map((p, i) => ({ ...p, index: i })).filter((p) => p.view === activeView); }
   function renderPages() {
-    const views = [["l3over2", "L3 over L2"], ["l3route", "L3 route view"], ["ip", "IP view"], ["physical", "Physical view"], ["logical", "vPC view"], ["f5map", "F5 map"]].filter(([v]) => data.pages.some((p) => p.view === v));
+    const views = [["l3over2", "L3 over L2"], ["l3route", "L3 route view"], ["ip", "IP view"], ["physical", "L2 Physical View"], ["logical", "vPC view"], ["f5map", "F5 map"]].filter(([v]) => data.pages.some((p) => p.view === v));
     $("viewbar").innerHTML = views.length > 1 ? views.map(([v, label]) =>
       `<button type="button" class="an-btn small${v === activeView ? " primary" : ""}" data-view="${v}" aria-pressed="${v === activeView}">${label}</button>`).join("") : "";
     let shown = visiblePages();
@@ -235,8 +250,24 @@
   // Zoom, pan and a full-window copy of the diagram: a 60-device network is unreadable inside a 900 px frame.
   let zoom = 100;
   const canvas = $("canvas");
-  canvas.insertAdjacentHTML("beforebegin", `<div class="tp-zoom" role="group" aria-label="Diagram zoom"><button type="button" class="an-btn small" data-zoom="out" aria-label="Zoom out">-</button><span data-role="zoom-level" aria-live="polite">100%</span><button type="button" class="an-btn small" data-zoom="in" aria-label="Zoom in">+</button><button type="button" class="an-btn small" data-zoom="fit">Fit width</button><button type="button" class="an-btn small" data-zoom="open">Open in new tab</button><span class="an-hint">Ctrl + wheel zooms, drag to move.</span></div>`);
+  canvas.insertAdjacentHTML("beforebegin", `<div class="tp-zoom" role="group" aria-label="Diagram zoom"><button type="button" class="an-btn small" data-zoom="out" aria-label="Zoom out">-</button><span data-role="zoom-level" aria-live="polite">100%</span><button type="button" class="an-btn small" data-zoom="in" aria-label="Zoom in">+</button><button type="button" class="an-btn small" data-zoom="fit">Fit width</button><button type="button" class="an-btn small" data-zoom="open">Open in new tab</button><button type="button" class="an-btn small primary" data-zoom="zones" aria-pressed="true" title="Show or hide the box round each zone">Zone boxes</button><span class="an-hint">Ctrl + wheel zooms, drag to move.</span><span class="an-hint tp-zone-note" data-role="zone-note" hidden></span></div>`);
+  let zonesOn = true;
+  function applyZones() {
+    const boxes = canvas.querySelector(".zone-boxes");
+    const boxGroups = canvas.querySelectorAll(".zone-boxes");
+    const button = root.querySelector('[data-zoom="zones"]');
+    const note = root.querySelector('[data-role="zone-note"]');
+    const why = (data && data.pages && data.pages[activePage] && data.pages[activePage].zone_note) || "";
+    if (button) {
+      button.disabled = !boxes;                                  // a page without boxes says why, next to the button, instead of a button that does nothing
+      button.setAttribute("aria-pressed", String(!!boxes && zonesOn)); button.classList.toggle("primary", !!boxes && zonesOn);
+      button.title = boxes ? "Show or hide the box round each zone" : (why || "This page has no zone boxes");
+    }
+    if (note) { note.hidden = !!boxes || !why; note.textContent = boxes ? "" : why; }
+    boxGroups.forEach((group) => { group.style.display = zonesOn ? "" : "none"; });
+  }
   function applyZoom() {
+    applyZones();
     const svg = canvas.querySelector("svg");
     if (svg) { svg.style.width = zoom + "%"; svg.style.minWidth = zoom > 100 ? "0" : ""; }
     const label = root.querySelector("[data-role=zoom-level]");
@@ -244,7 +275,8 @@
   }
   function setZoom(value) { zoom = Math.max(25, Math.min(800, Math.round(value))); applyZoom(); }
   function openCopy() {
-    const svg = data.pages[activePage].svg;
+    const shown = canvas.querySelector("svg");
+    const svg = shown ? shown.outerHTML : data.pages[activePage].svg;
     const page = `<!doctype html><meta charset="utf-8"><title>${esc(data.pages[activePage].name)}</title><body style="margin:0;background:#fff">${svg}</body>`;
     const url = URL.createObjectURL(new Blob([page], { type: "text/html" }));
     window.open(url, "_blank", "noopener");
@@ -255,6 +287,7 @@
     if (b.dataset.zoom === "in") setZoom(zoom * 1.25);
     else if (b.dataset.zoom === "out") setZoom(zoom / 1.25);
     else if (b.dataset.zoom === "fit") setZoom(100);
+    else if (b.dataset.zoom === "zones") { zonesOn = !zonesOn; applyZones(); }
     else openCopy();
   });
   canvas.addEventListener("wheel", (e) => { if (e.ctrlKey) { e.preventDefault(); setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1)); } }, { passive: false });

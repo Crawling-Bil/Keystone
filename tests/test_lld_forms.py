@@ -12,7 +12,7 @@ import pytest
 from docx.oxml.ns import qn
 
 from core.docgen import forms
-from features.lld_generator import forms_service, service, store
+from features.lld_generator import service, store
 
 API = "/lld-generator/api"
 

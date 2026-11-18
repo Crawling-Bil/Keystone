@@ -12,7 +12,9 @@ from . import labels
 from .graph import Graph
 from .layout import NODE_H, NODE_W
 from .scene import Page
-from .titles import TITLE_LEFT, title_width
+from .spatial import BoxGrid
+from .textwidth import text_width, widest
+from .titles import TITLE_LEFT, title_width, CENTRE_LEFT, ZONE_LEFT
 
 CHAR_W = 5.4          # width of one character at font-size 10
 LABEL_H = 13
@@ -21,8 +23,12 @@ MID_FRACTIONS = (0.5, 0.42, 0.58, 0.35, 0.65, 0.28, 0.72, 0.2, 0.8, 0.14, 0.86)
 SHIFTS = (0, 13, -13, 26, -26)
 MID_SHIFTS = SHIFTS + (40, -40, 56, -56, 72)       # a centre label may stand further off its line (two devices side by side: the arc runs under their captions)
 WIDE_FRACTIONS = tuple(f / 25 for f in range(2, 24))      # second search: every 4 % of the line
+DENSE_BUDGET = 400       # labels per page that may use it
+DENSE_FRACTIONS = tuple(f / 50 for f in range(2, 49))       # third search, for a label that still stands on a device or another label
+DENSE_SHIFTS = tuple(sign * n * 11 for n in range(0, 21) for sign in ((1, -1) if n else (1,)))
 WIDE_SHIFTS = (0, 14, -14, 28, -28, 42, -42, 56, -56, 70, -70, 84, -84, 100, -100, 130, -130, 160, -160)
 CELL = 120.0          # grid cell of the line index used to find the lines a label would sit on
+EDGE = 1e-6           # a corner this close to a line counts as touching it: that case is left to the exact clipping test
 
 Rect = tuple[float, float, float, float]
 
@@ -39,17 +45,23 @@ def _node_boxes(page: Page, graph: Graph) -> list[Rect]:
         node = graph.nodes[key]
         lines = [line for line in labels.node_lines(node) if line]
         if lines:
-            half = max(len(line[:34]) for line in lines) * 6.6 / 2
+            half = widest(lines) / 2                          # measured, not guessed (``textwidth``)
             cx = pos.x + NODE_W / 2
             boxes.append((cx - half, pos.y + NODE_H + 3, cx + half, pos.y + NODE_H + 18 + 14 * len(lines)))
     for frame in page.pair_boxes.values():              # the frame title strip
         boxes.append((frame.x, frame.y, frame.x + frame.w, frame.y + 24))
     for title, x, y, w, h in page.end_boxes:             # the name of a frame of end points, where it stands when no line is in its way (``titles``): a port label keeps off it
         boxes.append((x + 4, y + 6, x + TITLE_LEFT + title_width(title), y + 28))
+    for title, x, y, w, h in page.centers:               # the frame round the centre: its name (where it stands when no line is in the way) is kept clear of port labels too
+        boxes.append((x + 4, y + 2, min(x + w, x + CENTRE_LEFT + text_width(title, 11.0) + 8), y + 24))
+    for title, _kind, x, y, w, h in page.zones:          # ... and the name of a zone box
+        boxes.append((x + 4, y + 6, min(x + w, x + ZONE_LEFT + text_width(title, 15.0) + 0.5 * len(title) + 8), y + 34))
     return boxes
 
 
-def _hit(rect: Rect, others: list[Rect]) -> int:
+def _hit(rect: Rect, others: list[Rect] | BoxGrid) -> int:
+    if isinstance(others, BoxGrid):                       # the same count, through a grid
+        return others.count(rect)
     x0, y0, x1, y1 = rect
     return sum(1 for a, b, c, d in others if x0 < c and x1 > a and y0 < d and y1 > b)
 
@@ -104,6 +116,12 @@ class _LineIndex:
                     if owner == own or owner in seen:
                         continue
                     if right < x0 or left > x1 or bottom < y0 or top > y1:       # the segment's box misses the label: it cannot cross it
+                        continue
+                    ax, ay = a
+                    dx, dy = b[0] - ax, b[1] - ay
+                    c1, c2 = (x0 - ax) * dy - (y0 - ay) * dx, (x1 - ax) * dy - (y0 - ay) * dx
+                    c3, c4 = (x0 - ax) * dy - (y1 - ay) * dx, (x1 - ax) * dy - (y1 - ay) * dx
+                    if (c1 > EDGE and c2 > EDGE and c3 > EDGE and c4 > EDGE) or (c1 < -EDGE and c2 < -EDGE and c3 < -EDGE and c4 < -EDGE):      # all four corners on one side of the line: it misses
                         continue
                     if _clips(rect, a, b):
                         seen.add(owner)
@@ -162,10 +180,35 @@ def _on_the_drop(page: Page, index: int, slot: str, points: list[tuple[float, fl
     return None
 
 
+def _on_the_bus_drop(page: Page, index: int, slot: str, points: list[tuple[float, float]], w: float, h: float, blocked: list[Rect]) -> tuple[float, float, float] | None:
+    """The spot for the label of the parent end of a bus line (``scene._route_bus``): on the line's own drop, the first height under the lane that nothing covers.  The lines of a bus
+    share their lane, so a label beside the lane would belong to every one of them; on its own drop it is the line's alone."""
+    if index not in page.bus or len(points) < 5:
+        return None
+    parent_is_a = points[0][1] < points[-1][1]
+    if slot != ("a" if parent_is_a else "b"):
+        return None
+    k = len(points) - 3 if parent_is_a else 1                              # the drop is the segment k: from the lane down to the child (a to b), or from the child up to the lane (b to a)
+    (xs, ys), (xe, ye) = points[k], points[k + 1]
+    if abs(xs - xe) > 0.5 or abs(ye - ys) < h + 12:
+        return None
+    top, bottom = min(ys, ye), max(ys, ye)
+    before = sum(((q[0] - p[0]) ** 2 + (q[1] - p[1]) ** 2) ** 0.5 for p, q in zip(points[:k], points[1:k + 1]))
+    y = top + h / 2 + 5                                                    # just under the lane, then down
+    while y <= bottom - h / 2 - 3:
+        rect = (xs - w / 2, y - h / 2, xs + w / 2, y + h / 2)
+        if not _hit(rect, blocked):
+            return xs, y, before + abs(y - ys)
+        y += DROP_STEP
+    return None
+
+
 def place_labels(page: Page, graph: Graph, show_ports: bool = True) -> None:
     page.label_pos = {}
     obstacles = _node_boxes(page, graph)
+    obstacle_grid = BoxGrid(obstacles)
     taken: list[Rect] = []
+    taken_grid = BoxGrid()
     lines = _LineIndex()
     for index, conn in enumerate(page.connections):
         drawn = _polyline(page, index, conn)
@@ -187,12 +230,14 @@ def place_labels(page: Page, graph: Graph, show_ports: bool = True) -> None:
         for slot, text in items:
             if text:
                 jobs.append((index, points, total, slot, text))
+    dense_left = DENSE_BUDGET
     for index, points, total, slot, text in jobs:
         w, h = _size(text, slot == "mid")
-        spot = _on_the_drop(page, index, slot, points, w, h, obstacles + taken) if slot in ("a", "b") else None
+        spot = (_on_the_drop(page, index, slot, points, w, h, obstacles + taken) or _on_the_bus_drop(page, index, slot, points, w, h, obstacles + taken)) if slot in ("a", "b") else None
         if spot is not None:                                  # a comb line: the port at the switch is written on the line's own drop, one band below the one before
             page.label_pos[(index, slot)] = (spot[0], spot[1], spot[2] / total)
             taken.append((spot[0] - w / 2 - 1, spot[1] - h / 2 - 1, spot[0] + w / 2 + 1, spot[1] + h / 2 + 1))
+            taken_grid.add(taken[-1])
             continue
         if slot == "mid":
             distances = [total * f for f in MID_FRACTIONS]
@@ -205,7 +250,7 @@ def place_labels(page: Page, graph: Graph, show_ports: bool = True) -> None:
             for shift in (MID_SHIFTS if slot == "mid" else SHIFTS):
                 cx, cy = x + nx * shift, y + ny * shift
                 rect = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-                score = _hit(rect, obstacles) * 6 + _hit(rect, taken) * 4 + (1 if shift else 0) + (1 if abs(shift) > 26 else 0)
+                score = _hit(rect, obstacle_grid) * 6 + _hit(rect, taken_grid) * 4 + (1 if shift else 0) + (1 if abs(shift) > 26 else 0)
                 if best is not None and score >= best[0]:                  # already no better than the best spot: the lines under it cannot change that
                     continue
                 score += lines.crossed(rect, index, float("inf") if best is None else best[0] - score)
@@ -224,7 +269,7 @@ def place_labels(page: Page, graph: Graph, show_ports: bool = True) -> None:
                 for shift in WIDE_SHIFTS:
                     cx, cy = x + nx * shift, y + ny * shift
                     rect = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-                    score = _hit(rect, obstacles) * 6 + _hit(rect, taken) * 4 + abs(shift) // 28 + (1 if shift else 0)
+                    score = _hit(rect, obstacle_grid) * 6 + _hit(rect, taken_grid) * 4 + abs(shift) // 28 + (1 if shift else 0)
                     if score >= best[0]:
                         continue
                     score += lines.crossed(rect, index, best[0] - score)
@@ -232,8 +277,27 @@ def place_labels(page: Page, graph: Graph, show_ports: bool = True) -> None:
                         best = (score, cx, cy, (total * fraction if slot != "b" else total * (1 - fraction)) / total)
                 if best[0] < 4:
                     break
+        if best is not None and best[0] >= 4 and slot in ("a", "b", "mid") and dense_left > 0:          # the wide search found nothing either (a full mesh, an arc over a cable): every 2 % of the line, up to 220 px off it; a page pays for this search a limited number of times
+            dense_left -= 1
+            for fraction in DENSE_FRACTIONS:
+                along = total * fraction if slot != "b" else total * (1 - fraction)
+                if slot != "mid" and fraction > 0.8:
+                    continue
+                x, y, nx, ny = _at(points, along)
+                for shift in DENSE_SHIFTS:
+                    cx, cy = x + nx * shift, y + ny * shift
+                    rect = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+                    score = _hit(rect, obstacle_grid) * 6 + _hit(rect, taken_grid) * 4 + abs(shift) // 40 + (1 if shift else 0)
+                    if score >= best[0]:
+                        continue
+                    score += lines.crossed(rect, index, best[0] - score)
+                    if score < best[0]:
+                        best = (score, cx, cy, along / total)
+                if best[0] < 4:
+                    break
         if best is None:
             continue
         _, cx, cy, t = best
         page.label_pos[(index, slot)] = (cx, cy, t)
         taken.append((cx - w / 2 - 1, cy - h / 2 - 1, cx + w / 2 + 1, cy + h / 2 + 1))
+        taken_grid.add(taken[-1])

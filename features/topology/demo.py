@@ -1,6 +1,6 @@
 """Demo captures for the Topology Builder's "Load demo data" button.
 
-Four sets of invented captures (documentation names, ``example.test``).  The first three are a small data center (10.20.0.0/16):
+Five sets of invented captures (documentation names, ``example.test``).  The first three are a small data center (10.20.0.0/16):
 
 * ``before``: two NX-OS core switches in a vPC pair, four IOS XE access switches dual-homed to both, one firewall that only the LLDP table mentions;
 * ``after``:  the same network after a change window: a fifth access switch, one access uplink pulled (ACC3 is now single-homed: TOPO-035) and one management address changed;
@@ -10,6 +10,8 @@ Four sets of invented captures (documentation names, ``example.test``).  The fir
 The fourth, ``multisite``, is a company: a head quarter (LAN zone, data-center zone, core, edge, WAN firewalls and routers; hostnames HQ-xxx) and six branches
 (JKT, SBY, YOG, MKS, MED, BAL; one router and three switches each, two MPLS providers per branch; the switches of JKT, SBY and YOG are a chain SW1 - SW2 - SW3, the ones of MKS, MED and BAL a star: SW1 with two downlinks SW2 and SW3) in 44 captures of five vendors (Cisco NX-OS and IOS XE, Aruba AOS-CX, Huawei VRP,
 FortiGate, Palo Alto) and a ready-made ``layout.drawio`` (the "Keep my layout" file: the head quarter page drawn tier by tier, WAN on top, then edge, core, the two zones, the LAN distribution pair and the access switches).  Addresses are private (10.0.0.0/8) with documentation prefixes for the providers.  The addressing plan is in docs/modules/topology-demo-multisite.md.
+
+The fifth, ``dcdrc``, is the same company with a disaster recovery site: the head quarter / data center (hostnames HQ-DC-xxx, 10.10.0.0/16, AS 65010), a complete copy of it as the DRC site (hostnames DRC-xxx, 10.30.0.0/16, AS 65030) and the same six branches, in 64 captures.  The two sites are joined by two dedicated DCI links between their edge pairs (OSPF area 0 across them) and by the same four MPLS providers.  Its ``layout.drawio`` draws the Overview with the HQ-DC box on the left and the DRC box on the right.  The design is in docs/modules/topology-demo-dcdrc.md.
 
 Build the first, pin it, build the second: the baseline banner shows the changes.  No customer capture is in these files.
 """
@@ -24,7 +26,8 @@ SETS = (
     {"id": "before", "label": "Data center today", "description": "Two vPC core switches and four access switches (6 captures)."},
     {"id": "after", "label": "After a change window", "description": "The same network with a new access switch, a pulled uplink (leaving one switch single-homed) and a changed management address (7 captures). Build it after pinning the first one."},
     {"id": "edge", "label": "Firewall and F5", "description": "Two vPC core switches with a FortiGate firewall and an F5 BIG-IP on port-channels (4 captures): the F5 map, the firewall and the L3 views."},
-    {"id": "multisite", "group": "auto", "layout": "layout.drawio", "label": "Head quarter and 6 branches", "description": "A company: head quarter with a LAN zone, a data-center zone, core, edge, WAN firewalls and routers, plus six branches over two MPLS providers each (44 captures from Cisco, Aruba, Huawei, FortiGate and Palo Alto). Loads with \"Automatic\" grouping (one page per site) and a ready-made layout of the head quarter page."},
+    {"id": "multisite", "group": "auto", "layout": "layout.drawio", "label": "HQ DC Branches", "description": "A company: head quarter with a LAN zone, a data-center zone, core, edge, WAN firewalls and routers, plus six branches over two MPLS providers each (44 captures from Cisco, Aruba, Huawei, FortiGate and Palo Alto). Loads with \"Automatic\" grouping (one page per site) and a ready-made layout of the head quarter page."},
+    {"id": "dcdrc", "group": "auto", "layout": "layout.drawio", "label": "HQ DC DRC Branches", "description": "The same company with a disaster recovery site: the HQ-DC site (head quarter LAN zone and data-center zone behind one core) on the left, a complete copy of it as the DRC site on the right with its own names and addresses, joined by two dedicated DCI links and by the same MPLS providers, plus the six branches (64 captures from Cisco, Aruba, Huawei, FortiGate and Palo Alto). Loads with \"Automatic\" grouping (one page per site) and a ready-made layout: the Overview shows HQ-DC and DRC side by side."},
 )
 
 

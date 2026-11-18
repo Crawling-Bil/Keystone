@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import io
-import re
 import sys
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -11,9 +10,8 @@ from xml.etree import ElementTree as ET
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
-from topology_samples import iosxe_capture, lab_dc, nxos_capture  # noqa: E402
+from topology_samples import iosxe_capture, lab_dc  # noqa: E402
 
-from features.topology.drawio import to_drawio  # noqa: E402
 from features.topology.labels import compress_ports  # noqa: E402
 from features.topology.names import canon_port, short_host, split_serial  # noqa: E402
 from features.topology.service import build_topology, links_table, to_csv  # noqa: E402
@@ -187,7 +185,7 @@ def test_groups_become_containers_and_extra_pages():
     result = build_topology(list(files.items()), group="prefix1")
     assert [p.name for p in result["pages"]] == ["Overview", "SITE1", "SITE2"]
     root = ET.fromstring(result["drawio"])
-    assert [d.get("name") for d in root.findall("diagram")] == ["Overview", "SITE1", "SITE2"]
+    assert [d.get("name") for d in root.findall("diagram")] == ["L2 Physical View", "SITE1", "SITE2"]
     assert result["summary"]["confirmed"] == 1
 
 
@@ -230,7 +228,7 @@ def test_build_returns_results_and_downloads(client):
     assert response.status_code == 200 and body["ok"] and body["summary"]["captured"] == 3
     assert body["pages"][0]["svg"].startswith("<svg")
     names = {d["name"] for d in body["downloads"]}
-    assert names == {"topology.drawio", "topology.xlsx", "links.csv", "devices.csv", "hosts.csv", "behind.csv", "bundles.csv", "findings.csv", "findings-by-device.csv",
+    assert names == {"topology.drawio", "topology.vsdx", "topology.xlsx", "links.csv", "devices.csv", "hosts.csv", "behind.csv", "bundles.csv", "findings.csv", "findings-by-device.csv",
                      "topology.json", "topology-report.html", "topology-print-a3.html", "keystone-topology-pack.zip", "run-settings.txt", "capture-priority.csv"}
     for download in body["downloads"]:
         fetched = client.get(download["url"])

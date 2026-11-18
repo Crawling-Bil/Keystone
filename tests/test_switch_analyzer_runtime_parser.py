@@ -199,13 +199,13 @@ show power-over-ethernet all
         self.assertEqual(runtime_parser.parse_poe(["hostname SW1"]), [])
 
     def test_cdp_detail_fallback_used_when_no_live_poe_table(self):
-        # Trimmed real excerpt: LXS-SWAC-GUEST-2960 never ran
+        # Trimmed real excerpt: LX1-SWAC-GUEST-2960 never ran
         # "show power inline" at all (only a "power inline never"
         # CONFIG line on unrelated ports), so its only real PoE data
         # is each connected AP's own "Power drawn" line in
         # "show cdp neighbors detail" — your own finding.
         lines = """
-LXS-SWAC-GUEST-2960#show cdp neighbors detail
+LX1-SWAC-GUEST-2960#show cdp neighbors detail
 -------------------------
 Device ID: LXS-WLC
 Platform: AIR-CT3504-K9,  Capabilities: Host
@@ -330,7 +330,7 @@ Switch/Stack Mac Address : aaaa.bbbb.cccc
 
     def test_huawei_standalone_with_elabel(self):
         # Fixture corrected against real S5735 hardware this round
-        # (PDC-DAYA-SWAC-05-S5735-FIX.txt, STR2-SWAC-1-HRGA-S5735-
+        # (PD1-SWAC-05-S5735-FIX.txt, SB2-SWAC-1-HRGA-S5735-
         # FIX.txt): the real "display device elabel brief" table is 5
         # columns — SlotID / Sub / Type / SN / P/N — not the 6-column
         # "Slot/Sub/Type/BoardName/BomID/BarCode" this test previously
@@ -373,7 +373,7 @@ MemberID Role     MAC              Priority   DeviceType              Descriptio
 
 class CdpNeighborWrappingRegressionTest(unittest.TestCase):
     """Regression test built from a real 'show cdp neighbors' capture
-    where a long Device ID (GTOPAS-SMG-SWDI-B-C9200) wraps onto its own
+    where a long Device ID (DEPO-DD-SWDI-B-C9200) wraps onto its own
     line, pushing Local Interface/Holdtime/Platform/Port ID onto the
     next — the exact real-world shape that produced a blank Local
     Interface and a garbled Neighbor ID in an earlier screenshot."""
@@ -386,7 +386,7 @@ Capability Codes: R - Router, T - Trans Bridge, B - Source Route Bridge
                   D - Remote, C - CVTA, M - Two-port Mac Relay
 
 Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID
-GTOPAS-SMG-SWDI-B-C9200
+DEPO-DD-SWDI-B-C9200
                  Gig 1/1/1         172              S I   C9200L-24 Gig 2/1/1
 
 Total cdp entries displayed : 1
@@ -394,7 +394,7 @@ Total cdp entries displayed : 1
         result = runtime_parser.parse_neighbors(lines)
         self.assertEqual(len(result), 1)
         neighbor = result[0]
-        self.assertEqual(neighbor["neighbor_id"], "GTOPAS-SMG-SWDI-B-C9200")
+        self.assertEqual(neighbor["neighbor_id"], "DEPO-DD-SWDI-B-C9200")
         self.assertEqual(neighbor["local_interface"], "Gig 1/1/1")
         self.assertEqual(neighbor["remote_interface"], "Gig 2/1/1")
 
@@ -405,11 +405,11 @@ Total cdp entries displayed : 1
         lines = """
 SW1#show cdp neighbors
 Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID
-GTOPAS-SMG-SWDI-B-C9200
+DEPO-DD-SWDI-B-C9200
                  Gig 1/1/1         172              S I   C9200L-24 Gig 2/1/1
 SW1#show cdp neighbors detail
 -------------------------
-Device ID: GTOPAS-SMG-SWDI-B-C9200
+Device ID: DEPO-DD-SWDI-B-C9200
 Entry address(es):
   IP address: 172.29.65.3
 Platform: cisco C9200L-24P-4G,  Capabilities: Switch IGMP
@@ -475,14 +475,14 @@ Total entries displayed: 1
         lines = """
 SW1#show lldp neighbors
 Device ID           Local Intf     Hold-time  Capability      Port ID
-GTOPAS-SMG-SWDI-B-C9200
+DEPO-DD-SWDI-B-C9200
                      Gi1/1/1        120        B,R             Gi2/1/1
 Total entries displayed: 1
 """.strip().splitlines()
         result = runtime_parser.parse_neighbors(lines)
         lldp = [n for n in result if n["protocol"] == "LLDP"]
         self.assertEqual(len(lldp), 1)
-        self.assertEqual(lldp[0]["neighbor_id"], "GTOPAS-SMG-SWDI-B-C9200")
+        self.assertEqual(lldp[0]["neighbor_id"], "DEPO-DD-SWDI-B-C9200")
         self.assertEqual(lldp[0]["local_interface"], "Gi1/1/1")
         self.assertEqual(lldp[0]["remote_interface"], "Gi2/1/1")
 
@@ -542,7 +542,7 @@ SW1#show cdp neighbors detail
   Port : 8
   Device ID : X303W
   Address Type : IP
-  Address      : 10.85.214.66
+  Address      : 10.220.214.66
   Platform     : X303W
   Capability   : Host Phone
   Device Port  : WAN PORT
@@ -551,7 +551,7 @@ SW1#show cdp neighbors detail
 ------------------------------------------------------------------------------
 
   Port : 8
-  Device ID : 10.85.214.66
+  Device ID : 10.220.214.66
   Address Type : IP
   Platform     : Version:2.12.20
   Capability   : Switch Phone
@@ -713,7 +713,7 @@ class VersionParsingRegressionTest(unittest.TestCase):
         # elsewhere in the same file instead.
         lines = """
 ; JL356A Configuration Editor; Created on release #YC.16.06.0006
-hostname "TTC-SWAC-PABXGA1-2540"
+hostname "DC1-SWAC-PABXGA1-2540"
 module 1 type jl356a
 show system
   Software revision  : YC.16.06.0006        Base MAC Addr      : 02a114-c15dc0
@@ -754,7 +754,7 @@ cisco WS-C2960X-24PS-L (APM86XXX) processor
         self.assertEqual(result["os_version"], "17.6.3")
 
     def test_cisco_own_identity_not_hijacked_by_huawei_neighbor_banner(self):
-        # Real, currently-active bug on GTOPAS-MKS-SWCODI-C3650.txt (a
+        # Real, currently-active bug on DEPO-AA-SWCODI-C3650.txt (a
         # real Cisco Catalyst 3650 stack backup, part of this project's
         # live Cisco-to-Huawei migration): "show lldp neighbors
         # detail"'s neighbor System Description field verbatim-echoes
@@ -766,17 +766,17 @@ cisco WS-C2960X-24PS-L (APM86XXX) processor
         # line further down the file was never even reached, so Model
         # came back completely blank.
         lines = """
-GTOPAS-MKS-SWCODI-C3650#show inventory
+DEPO-AA-SWCODI-C3650#show inventory
 NAME: "c36xx Stack", DESCR: "c36xx Stack"
 PID: WS-C3650-24TS-S   , VID: V04  , SN: FDO2218E1CQ
-GTOPAS-MKS-SWCODI-C3650#show lldp neighbors detail
+DEPO-AA-SWCODI-C3650#show lldp neighbors detail
 Local Intf: Gi1/0/22
-System Name: GTOPAS-MKS-SWDI-A-S5731
+System Name: DEPO-AA-SWDI-A-S5731
 System Description:
 Huawei Switch S5731-S24P4X
 Huawei Versatile Routing Platform Software
 VRP (R) software, Version 5.170 (S5731 V200R022C00SPC500)
-GTOPAS-MKS-SWCODI-C3650#show version
+DEPO-AA-SWCODI-C3650#show version
 Cisco IOS Software [Denali], Catalyst L3 Switch Software (CAT3K_CAA-UNIVERSALK9-M), Version 16.3.6, RELEASE SOFTWARE (fc3)
 cisco WS-C3650-24TS (MIPS) processor (revision R0) with 864936K/6147K bytes of memory.
 """.strip().splitlines()
@@ -789,8 +789,8 @@ cisco WS-C3650-24TS (MIPS) processor (revision R0) with 864936K/6147K bytes of m
     def test_cisco_model_prefers_show_inventory_chassis_pid(self):
         # 'show version's own hardware line frequently omits the SKU
         # suffix real 'show inventory' carries in its PID field —
-        # confirmed on GTOPAS-PKU-SWCO-C3650.txt (stack) and
-        # TTC-SWDI-C-3560.txt (standalone): "cisco WS-C3650-24TS (MIPS)
+        # confirmed on DEPO-CC-SWCO-C3650.txt (stack) and
+        # DC1-SWDI-C-3560.txt (standalone): "cisco WS-C3650-24TS (MIPS)
         # processor" vs. the real orderable "WS-C3650-24TS-S".
         lines = """
 SW1#show inventory
@@ -866,8 +866,8 @@ show power-over-ethernet all
 
 class HuaweiVersionModelTest(unittest.TestCase):
     """Regression coverage for parse_version()'s Huawei branch — fixtures
-    trimmed from 2 real S5735 stack-member captures (PDC-DAYA-SWAC-05-
-    S5735-FIX.txt, STR2-SWAC-1-HRGA-S5735-FIX.txt). Previously the
+    trimmed from 2 real S5735 stack-member captures (PD1-SWAC-05-
+    S5735-FIX.txt, SB2-SWAC-1-HRGA-S5735-FIX.txt). Previously the
     generic Cisco fallback (a bare 'Version X' search) fired FIRST and
     matched these same real banners, so the Huawei-specific branch was
     dead code and every real Huawei device came back with model="".
@@ -905,7 +905,7 @@ class HuaweiVersionModelTest(unittest.TestCase):
 
 
 class HuaweiInventoryStackTest(unittest.TestCase):
-    """Fixture trimmed from PDC-DAYA-SWAC-05-S5735-FIX.txt (a real
+    """Fixture trimmed from PD1-SWAC-05-S5735-FIX.txt (a real
     confirmed 2-member stack). The old elabel-brief regex assumed 6
     columns in the wrong order (real is 5: SlotID/Sub/Type/SN/P-N) and
     the old stack-row regex had MAC before Role (real order is Role
@@ -953,7 +953,7 @@ class HuaweiInventoryStackTest(unittest.TestCase):
 
 class CiscoStackTest(unittest.TestCase):
     """Fixture trimmed from a real Catalyst 2960X backup
-    (PDC-DAYA-SWAC-05-2960.txt). Confirmed two independent real-world
+    (PD1-SWAC-05-2960.txt). Confirmed two independent real-world
     gaps: the real role value is "Master" (missing from the old
     Active/Standby/Member alternation), and the real command was typed
     abbreviated as "sh switch" (missing from the old keyword list).
@@ -974,7 +974,7 @@ class CiscoStackTest(unittest.TestCase):
 
 
 class HuaweiEthTrunkTest(unittest.TestCase):
-    """Fixture trimmed from a real STR2-SWAC-1-HRGA-S5735-FIX.txt
+    """Fixture trimmed from a real SB2-SWAC-1-HRGA-S5735-FIX.txt
     'display eth-trunk' block. The old code looked for "Operate status"
     (real field is "Operating Status" — a typo) and expected member rows
     to say Up/Down (real values are Selected/Unselect), so trunk status

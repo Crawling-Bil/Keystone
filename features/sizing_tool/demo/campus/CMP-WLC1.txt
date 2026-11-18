@@ -1,0 +1,387 @@
+------------------ show version ------------------
+Cisco IOS XE Software, Version 17.09.06
+CMP-WLC1 uptime is 14 weeks, 2 days, 1 hour, 7 minutes
+
+------------------ show inventory ------------------
+NAME: "Chassis 1", DESCR: "Cisco Catalyst 9800-L Wireless Controller"
+PID: C9800-L-F-K9      , VID: V02  , SN: FCL2640C0A1
+
+NAME: "Power Supply 0", DESCR: "Cisco Catalyst 9800-L Power Supply"
+PID: PWR-C1-350WAC-P   , VID: V01  , SN: DCA2641B0C2
+
+------------------ show running-config ------------------
+hostname CMP-WLC1
+license udi pid C9800-L-F-K9 sn FCL2640C0A1
+username admin privilege 15 secret 9 $9$REDACTED
+wireless management interface Vlan150
+interface Vlan150
+ ip address 10.50.150.10 255.255.255.0
+wireless country ID
+radius server ISE-1
+ address ipv4 10.50.40.50 auth-port 1812 acct-port 1813
+wireless profile policy PP-CORP
+ aaa-override
+ vlan 120
+ no shutdown
+wireless profile policy PP-GUEST
+ vlan 110
+ no shutdown
+wireless tag site ST-CAMPUS
+ ap-profile AP-CAMPUS
+ description "campus"
+wireless tag policy PT-CAMPUS
+ wlan CORP policy PP-CORP
+ wlan GUEST policy PP-GUEST
+wireless tag rf RT-DEFAULT
+ 24ghz-rf-policy default
+wlan CORP 1 Corp-WiFi
+ security dot1x authentication-list ISE
+ no shutdown
+wlan GUEST 2 Guest-WiFi
+ security wpa psk set-key ascii 0 REDACTED
+ security wpa akm psk
+ no shutdown
+ap profile AP-CAMPUS
+ country ID
+ ssh
+ap aaaa.bbbb.0001
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0002
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0003
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0004
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0005
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0006
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0007
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0008
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0009
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.000a
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.000b
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.000c
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.000d
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.000e
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.000f
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0010
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0011
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0012
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0013
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0014
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0015
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0016
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0017
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+ap aaaa.bbbb.0018
+ policy-tag PT-CAMPUS
+ site-tag ST-CAMPUS
+
+------------------ show ap summary ------------------
+Number of APs: 24
+
+AP Name                          Slots AP Model             Ethernet MAC   Radio MAC      CC   RD   IP Address                                State        Location
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+CMP-AP01                         2     C9120AXI-F           aaaa.bbbb.0001 cccc.dddd.0001 ID   -E   10.50.120.11                              Registered   Floor 1
+CMP-AP02                         2     C9120AXI-F           aaaa.bbbb.0002 cccc.dddd.0002 ID   -E   10.50.120.12                              Registered   Floor 2
+CMP-AP03                         2     C9120AXI-F           aaaa.bbbb.0003 cccc.dddd.0003 ID   -E   10.50.120.13                              Registered   Floor 3
+CMP-AP04                         2     C9120AXI-F           aaaa.bbbb.0004 cccc.dddd.0004 ID   -E   10.50.120.14                              Registered   Floor 4
+CMP-AP05                         2     C9120AXI-F           aaaa.bbbb.0005 cccc.dddd.0005 ID   -E   10.50.120.15                              Registered   Floor 5
+CMP-AP06                         2     C9120AXI-F           aaaa.bbbb.0006 cccc.dddd.0006 ID   -E   10.50.120.16                              Registered   Floor 6
+CMP-AP07                         2     C9120AXI-F           aaaa.bbbb.0007 cccc.dddd.0007 ID   -E   10.50.120.17                              Registered   Floor 7
+CMP-AP08                         2     C9120AXI-F           aaaa.bbbb.0008 cccc.dddd.0008 ID   -E   10.50.120.18                              Registered   Floor 8
+CMP-AP09                         2     C9120AXI-F           aaaa.bbbb.0009 cccc.dddd.0009 ID   -E   10.50.120.19                              Registered   Floor 9
+CMP-AP10                         2     C9120AXI-F           aaaa.bbbb.000a cccc.dddd.000a ID   -E   10.50.120.20                              Registered   Floor 10
+CMP-AP11                         2     C9120AXI-F           aaaa.bbbb.000b cccc.dddd.000b ID   -E   10.50.120.21                              Registered   Floor 11
+CMP-AP12                         2     C9120AXI-F           aaaa.bbbb.000c cccc.dddd.000c ID   -E   10.50.120.22                              Registered   Floor 12
+CMP-AP13                         2     C9130AXI-E           aaaa.bbbb.000d cccc.dddd.000d ID   -E   10.50.120.23                              Registered   Hall 1
+CMP-AP14                         2     C9130AXI-E           aaaa.bbbb.000e cccc.dddd.000e ID   -E   10.50.120.24                              Registered   Hall 2
+CMP-AP15                         2     C9130AXI-E           aaaa.bbbb.000f cccc.dddd.000f ID   -E   10.50.120.25                              Registered   Hall 3
+CMP-AP16                         2     C9130AXI-E           aaaa.bbbb.0010 cccc.dddd.0010 ID   -E   10.50.120.26                              Registered   Hall 4
+CMP-AP17                         2     C9130AXI-E           aaaa.bbbb.0011 cccc.dddd.0011 ID   -E   10.50.120.27                              Registered   Hall 5
+CMP-AP18                         2     C9130AXI-E           aaaa.bbbb.0012 cccc.dddd.0012 ID   -E   10.50.120.28                              Registered   Hall 6
+CMP-AP19                         2     C9130AXI-E           aaaa.bbbb.0013 cccc.dddd.0013 ID   -E   10.50.120.29                              Registered   Hall 7
+CMP-AP20                         2     C9130AXI-E           aaaa.bbbb.0014 cccc.dddd.0014 ID   -E   10.50.120.30                              Registered   Hall 8
+CMP-AP21                         2     C9105AXW-E           aaaa.bbbb.0015 cccc.dddd.0015 ID   -E   10.50.120.31                              Registered   Outdoor 1
+CMP-AP22                         2     C9105AXW-E           aaaa.bbbb.0016 cccc.dddd.0016 ID   -E   10.50.120.32                              Registered   Outdoor 2
+CMP-AP23                         2     C9105AXW-E           aaaa.bbbb.0017 cccc.dddd.0017 ID   -E   10.50.120.33                              Registered   Outdoor 3
+CMP-AP24                         2     C9105AXW-E           aaaa.bbbb.0018 cccc.dddd.0018 ID   -E   10.50.120.34                              Registered   Outdoor 4
+
+------------------ show ap tag summary ------------------
+Number of APs: 24
+
+AP Name                           AP Mac           Site Tag Name                     Policy Tag Name                   RF Tag Name                       Misconfigured    Tag Source
+--------------------------------------------------------------------------------------------------------------------------------------------
+CMP-AP01                          aaaa.bbbb.0001   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP02                          aaaa.bbbb.0002   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP03                          aaaa.bbbb.0003   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP04                          aaaa.bbbb.0004   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP05                          aaaa.bbbb.0005   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP06                          aaaa.bbbb.0006   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP07                          aaaa.bbbb.0007   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP08                          aaaa.bbbb.0008   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP09                          aaaa.bbbb.0009   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP10                          aaaa.bbbb.000a   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP11                          aaaa.bbbb.000b   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP12                          aaaa.bbbb.000c   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP13                          aaaa.bbbb.000d   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP14                          aaaa.bbbb.000e   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP15                          aaaa.bbbb.000f   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP16                          aaaa.bbbb.0010   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP17                          aaaa.bbbb.0011   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP18                          aaaa.bbbb.0012   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP19                          aaaa.bbbb.0013   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP20                          aaaa.bbbb.0014   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP21                          aaaa.bbbb.0015   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP22                          aaaa.bbbb.0016   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP23                          aaaa.bbbb.0017   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+CMP-AP24                          aaaa.bbbb.0018   ST-CAMPUS                         PT-CAMPUS                         RT-DEFAULT                        No               Static
+
+------------------ show ap config general ------------------
+Cisco AP Name   : CMP-AP01
+=================================================
+AP Serial Number                                : FGL2600001
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP02
+=================================================
+AP Serial Number                                : FGL2600002
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP03
+=================================================
+AP Serial Number                                : FGL2600003
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP04
+=================================================
+AP Serial Number                                : FGL2600004
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP05
+=================================================
+AP Serial Number                                : FGL2600005
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP06
+=================================================
+AP Serial Number                                : FGL2600006
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP07
+=================================================
+AP Serial Number                                : FGL2600007
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP08
+=================================================
+AP Serial Number                                : FGL2600008
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP09
+=================================================
+AP Serial Number                                : FGL2600009
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP10
+=================================================
+AP Serial Number                                : FGL2600010
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP11
+=================================================
+AP Serial Number                                : FGL2600011
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP12
+=================================================
+AP Serial Number                                : FGL2600012
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP13
+=================================================
+AP Serial Number                                : FGL2600013
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP14
+=================================================
+AP Serial Number                                : FGL2600014
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP15
+=================================================
+AP Serial Number                                : FGL2600015
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP16
+=================================================
+AP Serial Number                                : FGL2600016
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP17
+=================================================
+AP Serial Number                                : FGL2600017
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP18
+=================================================
+AP Serial Number                                : FGL2600018
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP19
+=================================================
+AP Serial Number                                : FGL2600019
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP20
+=================================================
+AP Serial Number                                : FGL2600020
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP21
+=================================================
+AP Serial Number                                : FGL2600021
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP22
+=================================================
+AP Serial Number                                : FGL2600022
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP23
+=================================================
+AP Serial Number                                : FGL2600023
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+Cisco AP Name   : CMP-AP24
+=================================================
+AP Serial Number                                : FGL2600024
+Software Version                                : 17.9.6.40
+AP Mode                                         : Local
+Primary Cisco Controller Name                   : CMP-WLC1
+Secondary Cisco Controller Name                 : Not Configured
+
+------------------ show redundancy ------------------
+     Operating Redundancy Mode = sso
+                 Hardware Mode = Duplex
+
+------------------ show license summary ------------------
+License Usage:
+  License                 Entitlement Tag               Count Status
+  -----------------------------------------------------------------------------
+  air-network-advantage   (AIR-DNA-A)                      24 IN USE
+  network-advantage       (C9800-L-NW)                      1 IN USE
+
+------------------ show wireless summary ------------------
+Max APs supported                : 250
+Max clients supported            : 5000
+

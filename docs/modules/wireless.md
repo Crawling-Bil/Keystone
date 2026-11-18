@@ -14,6 +14,10 @@ Every workspace is locked to the picked controller. A file from the other vendor
 
 `display current-configuration`, optionally the AP Info CSV/XLSX, and the VAP, AP group and profile tables.
 
+### Terminal logs and runtime tables
+
+A capture is often a terminal log with the whole session typed again (and partly typed or failed commands). Every table is read once: the access points, AP groups and interfaces are counted once however often the session repeats. `display ap all` adds model, state, clients, uptime and the `P` flag (insufficient PoE: a warning finding); `display radio all` adds the runtime radio table (state, channel and width, EIRP now and maximum, clients, channel utilisation, working mode) to Radio Planning; `display ap lldp neighbor brief` gives the switch and port of every access point (also used by the Topology Builder); `display lldp neighbor` gives the full neighbour names that the brief table cuts. Code: `features/wireless_center/huawei_runtime.py`. Huawei reference: [Wireless Access Controller (AC and Fit AP) CLI-based Configuration Guide](https://support.huawei.com/enterprise/en/doc/EDOC1100096325).
+
 ### Radio Planning tab
 
 Reads the radio settings of every AP (`ap-id ...` → `radio 0/1/2`) and AP group in the `wlan` view, resolves which one applies (the AP overrides its group) and shows per AP and radio: power mode (Fixed when `calibrate auto-txpower-select disable`), EIRP and where it comes from, channel and channel mode, antenna gain, work mode, radio profile, enabled or disabled. Plus a summary per site (prefix of the AP name), AP group radio settings, and radio-2g/5g, RRM and air-scan profiles. Exported as three extra sheets.

@@ -147,14 +147,14 @@ class InterfaceRoutedTest(CiscoTranslatorTestBase):
         interface = Interface(name="Vlan20")
         interface.ip_address = "10.2.2.1"
         interface.subnet_mask = "255.255.255.0"
-        interface.helper_addresses = ["10.85.10.10", "10.85.10.11"]
+        interface.helper_addresses = ["10.220.10.10", "10.220.10.11"]
         interface.ospf_process = 1
         interface.ospf_area = "0.0.0.0"
         config = self._config()
         config.interfaces.append(interface)
         output = "\n".join(self.translator.translate(config))
-        self.assertIn(" ip helper-address 10.85.10.10", output)
-        self.assertIn(" ip helper-address 10.85.10.11", output)
+        self.assertIn(" ip helper-address 10.220.10.10", output)
+        self.assertIn(" ip helper-address 10.220.10.11", output)
         self.assertIn(" ip ospf 1 area 0.0.0.0", output)
 
 

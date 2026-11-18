@@ -8,7 +8,7 @@
 
 Keystone adalah workspace lokal untuk engineer jaringan: satu aplikasi web di laptop engineer yang menggabungkan assessment, migrasi konfigurasi, dan operasi lifecycle perangkat multi-vendor. Semua data konfigurasi diproses di mesin engineer, tidak dikirim ke layanan eksternal.
 
-Per Oktober 2026, Keystone berada di versi 1.11.0 dengan 8 modul aktif (11 tool di dashboard), sekitar 105 ribu baris kode Python, dan 2.109 automated test yang semuanya lulus. Modul write-to-device (firmware upgrade paralel) sudah diuji end-to-end di switch Huawei S5735 produksi.
+Per November 2026, Keystone berada di versi 1.12.0 dengan 8 modul aktif (11 tool di dashboard), sekitar 105 ribu baris kode Python, dan lebih dari 5.400 automated test yang semuanya lulus. Modul write-to-device (firmware upgrade paralel) sudah diuji end-to-end di switch Huawei S5735 produksi.
 
 Dokumen ini mengunci scope produk, batas aman fitur yang menyentuh perangkat produksi, dan roadmap, supaya pengembangan berikutnya bisa dibagi ke lebih dari satu engineer.
 
@@ -64,7 +64,7 @@ Keystone terdiri dari 8 modul dalam tiga kelompok kerja: **Analyze** (baca dan n
 
 | Modul | Kelompok | Input | Output | Use case utama |
 | --- | --- | --- | --- | --- |
-| Wireless Analyzer | Analyze | Backup WLC Huawei / Cisco 9800, AP inventory CSV/XLSX | Dashboard, Excel assessment, Config Delta, AP Role Diff, As-built | Assessment wireless, validasi AP master, perbandingan controller TTC/HO |
+| Wireless Analyzer | Analyze | Backup WLC Huawei / Cisco 9800, AP inventory CSV/XLSX | Dashboard, Excel assessment, Config Delta, AP Role Diff, As-built | Assessment wireless, validasi AP master, perbandingan controller DC1/HO |
 | Switch Analyzer | Analyze | Running-config atau terminal capture | Health findings, sizing, compare dua capture, Excel | Pre-check dan post-check switch, assessment campus |
 | Router Analyzer | Analyze | Terminal capture atau show tech-support | Findings routing, BGP/OSPF, VPN, NAT, SD-WAN | Health check router dan overlay SD-WAN |
 | Firewall Analyzer | Analyze | Config atau capture firewall | Findings policy, NAT, VPN, profile, Excel | Review policy dan hardening firewall |

@@ -28,7 +28,7 @@ class BuildTemplateWorkbookTests(unittest.TestCase):
             row_number, record = rows[0]
             self.assertEqual(row_number, 2)
             self.assertEqual(record["esn"], "2102311LDL0000000806")
-            self.assertEqual(record["hostname"], "TTC-SWAC-NEW-01")
+            self.assertEqual(record["hostname"], "DC1-SWAC-NEW-01")
             self.assertEqual(record["mgmt_ip"], "10.50.1.11")
         finally:
             os.unlink(path)

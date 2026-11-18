@@ -34,6 +34,7 @@ flat vsys's worth of `set` lines and has no vsys boundary to find.
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from core.safe_xml import fromstring as safe_fromstring
 from pathlib import Path
 from typing import Optional
 
@@ -193,7 +194,7 @@ class PaloAltoXmlConfigParser:
     def parse_text(self, content: str, source_file: str = "") -> PaloAltoNativeConfig:
         content = content.lstrip("\ufeff")  # tolerate a stray UTF-8 BOM some export tools prepend
         try:
-            root = ET.fromstring(content)
+            root = safe_fromstring(content)
         except ET.ParseError as exc:
             raise PaloAltoXmlParseError(f"Not well-formed XML: {exc}") from exc
         if root.tag != "config":

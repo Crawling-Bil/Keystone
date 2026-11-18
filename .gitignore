@@ -46,3 +46,14 @@ features/lifecycle_manager/config/settings.json
 # ---- Keep the folder structure via .gitkeep, ignore the actual images. ----
 features/lifecycle_manager/firmware/*/*
 !features/lifecycle_manager/firmware/*/.gitkeep
+
+# ---- Private overrides: real customer values that must never be pushed ----
+# Loaded locally when present (see profiles/tam_standard.py and configuration_studio/service.py); the repository ships invented samples instead.
+features/configuration_studio/mappings/local/
+features/configuration_studio/converter_engine/profiles/local/
+tests/.leak_needles.local
+
+# ---- Coverage output ----
+.coverage
+.coverage.*
+htmlcov/

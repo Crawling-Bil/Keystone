@@ -67,7 +67,7 @@
 ## AP Role Diff workspace
 
 - Keep AP Role Diff as a separate top-level Wireless Analyzer workspace because it compares live operational state, not running configuration.
-- Use equal TTC and HO upload cards; accept AP Info CSV/XLSX or complete `display ap all` TXT/LOG captures.
+- Use equal DC1 and HO upload cards; accept AP Info CSV/XLSX or complete `display ap all` TXT/LOG captures.
 - Match AP identity by MAC, then serial, then AP name. Never use AP ID across WLCs as a stable identity.
 - Treat Normal as active and Standby as peer standby; call out dual-active, no-active, missing-peer, and non-ready backup states with text labels.
 - Keep Expected Allocation optional and provide a downloadable template. When supplied, clearly distinguish actual role from intended role.
@@ -75,9 +75,9 @@
 - Keep detailed role output in horizontally scrollable tables and provide a multi-sheet Excel export.
 - Keep a plain-language Status Guide visible in the AP Role Diff workspace. Explain Normal, Standby, Idle, and Fault with meaning and next action.
 - Clarify that Standby is healthy when the peer WLC reports Normal; do not style Standby as an error.
-- Include the same status and TTC/HO pairing guidance in accessible badge descriptions and the Excel export.
+- Include the same status and DC1/HO pairing guidance in accessible badge descriptions and the Excel export.
 - Recognize both `AP Group` and Huawei `Group name` headers without requiring users to rename columns.
 - Place AP Group mapping in its own result tab with a compact group summary followed by AP-level drill-down.
-- Use TTC Group as the Mapping Group reference and fall back to HO Group only when the AP is absent from TTC.
+- Use DC1 Group as the Mapping Group reference and fall back to HO Group only when the AP is absent from DC1.
 - Distinguish Matched, Group Mismatch, Peer Group Missing, and Unassigned using text labels in addition to semantic color.
 - Keep group filtering keyboard-operable, expose filtered counts with `aria-live`, and preserve tables inside horizontal scroll wrappers.

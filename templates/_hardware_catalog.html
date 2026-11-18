@@ -91,33 +91,5 @@
     {% endfor %}
     </div>
 </details>
-<script>
-(() => {
-  const root = document.getElementById("hardware-catalog");
-  if (!root) return;
-  const nodes = () => root.querySelectorAll("details.hw-node");
-  root.querySelectorAll("[data-hw-action]").forEach(button => {
-    button.addEventListener("click", () => {
-      const open = button.dataset.hwAction === "expand";
-      nodes().forEach(node => { node.open = open; });
-    });
-  });
-  const picker = document.getElementById("hw-model-picker");
-  if (!picker) return;
-  // Router page: pick one model, every other model and every branch without it is hidden, the branches above it open.
-  picker.addEventListener("change", () => {
-    const wanted = picker.value;
-    root.querySelectorAll("details.hw-model").forEach(card => {
-      card.classList.toggle("is-hidden", !!wanted && card.dataset.model !== wanted);
-    });
-    root.querySelectorAll("details.hw-node:not(.hw-model)").forEach(branch => {
-      const has = !wanted || branch.querySelector("details.hw-model:not(.is-hidden)");
-      branch.classList.toggle("is-hidden", !has);
-      if (wanted && has) branch.open = true;
-    });
-    const shown = root.querySelector("details.hw-model:not(.is-hidden)");
-    if (wanted && shown) shown.open = true;
-  });
-})();
-</script>
+<script src="{{ url_for('static', filename='js/hardware_catalog.js') }}"></script>
 {% endif %}

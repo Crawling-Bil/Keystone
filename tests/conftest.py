@@ -30,6 +30,7 @@ RUNTIME_NAMES = {"exports", "uploads", "data", "config", "firmware", "staging", 
 # Modules whose constants name those folders; core.database first, so nothing opens the real database.
 MODULES = (
     "core.database",
+    "core.audit_log",
     "features.topology.routes",
     "features.wireless_center.routes",
     "features.switch_analyzer.routes",
@@ -91,6 +92,8 @@ def _redirect_analyzer_exports() -> None:
 
 
 os.environ.setdefault("NES_SECRET_KEY", "test-run-key-not-used-outside-the-tests")
+# Private overrides (profiles/local, mappings/local) never take part in a test: the tests see the invented values that ship in the repository.
+os.environ["KEYSTONE_IGNORE_LOCAL"] = "1"
 _redirect_modules()
 _redirect_analyzer_exports()
 

@@ -78,7 +78,7 @@ class Interface:
 
     # VRRP (Huawei "vrrp vrid <id> virtual-ip <vip>" under an SVI/routed
     # interface) — the Huawei equivalent of hsrp_* above. Only the form
-    # confirmed on a real S5755 M-LAG pair (TTC-SWCODI-MN/BU-DMZ) is
+    # confirmed on a real S5755 M-LAG pair (DC1-SWCODI-MN/BU-DMZ) is
     # captured — a bare "vrrp vrid <id> virtual-ip <vip>" with no
     # priority/preempt/track sub-commands in either real source file.
     # service.py's analyzer surfaces whichever of hsrp_virtual_ip /
@@ -117,7 +117,7 @@ class Interface:
     # equivalent — "peer-link <n>" (Eth-Trunk carrying the M-LAG peer
     # session) and "dfs-group <n> m-lag <id>" (an Eth-Trunk bound to the
     # DFS group as an M-LAG member port). Confirmed real VRP syntax on a
-    # real S5755 M-LAG pair (TTC-SWCODI-MN/BU-DMZ). Only meaningful
+    # real S5755 M-LAG pair (DC1-SWCODI-MN/BU-DMZ). Only meaningful
     # alongside SwitchConfig.mlag_dfs_group_id.
     is_mlag_peer_link: bool = False
     mlag_id: Optional[int] = None
@@ -221,7 +221,7 @@ class Interface:
     # PBR application, Huawei-native form ("traffic-policy <name>
     # {inbound|outbound}", interface-view) -- the Huawei-side
     # counterpart of ip_policy_route_map above, confirmed real and
-    # LIVE DEPLOYED on a real S5755 (GTOPAS-MKS-SWCODI-S5755-FIX.txt:
+    # LIVE DEPLOYED on a real S5755 (DEPO-AA-SWCODI-S5755-FIX.txt:
     # "interface Vlanif109" / " traffic-policy LINTAS inbound"). See
     # models/switch.py's TrafficPolicy. TAM memory-keystone.md
     # Section 1ac.
@@ -264,7 +264,7 @@ class TrackObject:
     translation time (see huawei.py's translate_nqa); on real Huawei
     hardware it's a standalone numbered object in its own right,
     confirmed real VRP syntax (this project's own NQA + Track
-    template, draft_huawei_master.txt / ADM-SWCODI-S5755.txt).
+    template, draft_huawei_master.txt / AD1-SWCODI-S5755.txt).
     Exactly one of sla_id/nqa_name is set depending on which vendor's
     config this came from. Single-line in every real example seen in
     this project (no "delay up/down" sub-block captured).
@@ -280,9 +280,9 @@ class NqaTestInstance:
     Huawei "nqa test-instance admin <name>" -- the Huawei-native
     equivalent of Cisco's IpSlaEntry above. Confirmed real and LIVE
     DEPLOYED backing a Policy-Based Routing redirect
-    (GTOPAS-MKS-SWCODI-S5755-FIX.txt):
+    (DEPO-AA-SWCODI-S5755-FIX.txt):
 
-        nqa test-instance admin gtopas_mks_lintas
+        nqa test-instance admin depo_aa_transit
          test-type icmp
          destination-address ipv4 172.20.20.26
          timeout 1
@@ -290,7 +290,7 @@ class NqaTestInstance:
          start now
 
     "probe-count <n>" appears in this project's own draft template
-    (ADM-SWCODI-S5755.txt) but was absent from the real deployed
+    (AD1-SWCODI-S5755.txt) but was absent from the real deployed
     capture above, so it's parsed when present but never assumed.
     TAM memory-keystone.md Section 1ac.
     """
@@ -310,7 +310,7 @@ class TrafficClassifier:
     "if-match acl <n>" lines -- the match half of Huawei's MQC PBR
     chain (the Huawei-native equivalent of a Cisco route-map clause's
     "match ip address <acl>"). Confirmed real and LIVE DEPLOYED
-    (GTOPAS-MKS-SWCODI-S5755-FIX.txt): "traffic classifier LINTAS
+    (DEPO-AA-SWCODI-S5755-FIX.txt): "traffic classifier LINTAS
     type or" / "if-match acl 3001". TAM memory-keystone.md Section
     1ac.
     """
@@ -328,9 +328,9 @@ class TrafficBehavior:
     of Huawei's MQC PBR chain, the Huawei-native equivalent of a
     Cisco route-map clause's "set ip next-hop verify-availability
     ... track <id>". Confirmed real and LIVE DEPLOYED
-    (GTOPAS-MKS-SWCODI-S5755-FIX.txt): "traffic behavior LINTAS" /
+    (DEPO-AA-SWCODI-S5755-FIX.txt): "traffic behavior LINTAS" /
     "redirect nexthop 172.29.88.2 track nqa admin
-    gtopas_mks_lintas". TAM memory-keystone.md Section 1ac.
+    depo_aa_transit". TAM memory-keystone.md Section 1ac.
     """
     name: str
     redirect_next_hop: str = ""
@@ -356,7 +356,7 @@ class TrafficPolicy:
     <name> {inbound|outbound}" (see Interface.traffic_policy_inbound/
     outbound below) -- the Huawei-native equivalent of Cisco's "ip
     policy route-map <name>". Confirmed real and LIVE DEPLOYED
-    (GTOPAS-MKS-SWCODI-S5755-FIX.txt): "traffic policy LINTAS" /
+    (DEPO-AA-SWCODI-S5755-FIX.txt): "traffic policy LINTAS" /
     "classifier LINTAS behavior LINTAS precedence 5", applied on
     Vlanif109/Vlanif494 inbound. TAM memory-keystone.md Section 1ac.
     """
@@ -370,7 +370,7 @@ class EemPbrBinding:
     Cisco "event manager applet <name>" block whose actions toggle
     PBR on/off via "ip policy route-map <name>" / "no ip policy
     route-map <name>" CLI commands -- a REAL, currently-active
-    pattern on TAM 2026's Catalyst 3650 stacks (GTOPAS-PKU/MND/SMG/
+    pattern on TAM 2026's Catalyst 3650 stacks (DEPO-CC/MND/SMG/
     MKS-SWCO-C3650.txt real backups). In every one of those real
     captures the route-map is NEVER statically bound under any
     interface's own config (Interface.ip_policy_route_map stays
@@ -480,7 +480,7 @@ class SwitchConfig(BaseConfig):
     # NX-OS proves its own identity through syntax Catalyst IOS/IOS-XE
     # never uses (boot nxos, vrf context, vpc, a literal "mgmt0"
     # interface), so requiring a manual selector here would be pure
-    # friction — confirmed decision, memory-tam-2026-huawei-switch.md
+    # friction — confirmed decision, the project decision log
     # cross-project note / memory-keystone.md Section 1k. Empty string
     # means detection found no NX-OS-exclusive marker (treat as
     # classic IOS — the same REVIEW-CISCO passthrough behavior as

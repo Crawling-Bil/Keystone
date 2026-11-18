@@ -4,7 +4,6 @@ by the Router, Firewall and Load Balancer analyzers."""
 from __future__ import annotations
 
 import io
-import json
 import re
 from pathlib import Path
 

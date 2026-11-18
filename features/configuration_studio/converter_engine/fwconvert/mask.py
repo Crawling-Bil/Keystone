@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
+from core.safe_xml import fromstring as safe_fromstring
 
 HIDDEN = "<hidden>"
 
@@ -41,7 +42,7 @@ def mask_source(text: str) -> str:
     if stripped.startswith("<"):
         try:
             from features.firewall_analyzer import panorama_parse as pp
-            root = ET.fromstring(stripped)
+            root = safe_fromstring(stripped)
             pp.strip_secrets(root)
             body = ET.tostring(root, encoding="unicode")
             return body

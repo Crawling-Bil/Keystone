@@ -407,17 +407,17 @@ class PbrNqaTrackParsingTest(ParserGapTestBase):
     fixture below is trimmed real config, not invented: the NQA test-
     instance / traffic classifier / traffic behavior / traffic policy /
     interface application block is confirmed real and LIVE DEPLOYED
-    (GTOPAS-MKS-SWCODI-S5755-FIX.txt); the numbered "track <id> nqa
+    (DEPO-AA-SWCODI-S5755-FIX.txt); the numbered "track <id> nqa
     admin <name>" object form is confirmed real VRP syntax from this
     project's own NQA + Track templates (draft_huawei_master.txt /
-    ADM-SWCODI-S5755.txt). TAM memory-keystone.md Section 1ac.
+    AD1-SWCODI-S5755.txt). TAM memory-keystone.md Section 1ac.
     """
 
     def test_nqa_test_instance_body_is_captured(self):
         config = self.parse_text(
             "sysname SW1\n"
             "#\n"
-            "nqa test-instance admin gtopas_mks_lintas\n"
+            "nqa test-instance admin depo_aa_transit\n"
             " test-type icmp\n"
             " destination-address ipv4 172.20.20.26\n"
             " timeout 1\n"
@@ -427,7 +427,7 @@ class PbrNqaTrackParsingTest(ParserGapTestBase):
         )
         self.assertEqual(len(config.nqa_test_instances), 1)
         test = config.nqa_test_instances[0]
-        self.assertEqual(test.test_name, "gtopas_mks_lintas")
+        self.assertEqual(test.test_name, "depo_aa_transit")
         self.assertEqual(test.test_type, "icmp")
         self.assertEqual(test.destination, "172.20.20.26")
         self.assertEqual(test.timeout, 1)
@@ -466,7 +466,7 @@ class PbrNqaTrackParsingTest(ParserGapTestBase):
             " if-match acl 3001\n"
             "#\n"
             "traffic behavior LINTAS\n"
-            " redirect nexthop 172.29.88.2 track nqa admin gtopas_mks_lintas\n"
+            " redirect nexthop 172.29.88.2 track nqa admin depo_aa_transit\n"
             "#\n"
             "traffic policy LINTAS\n"
             " classifier LINTAS behavior LINTAS precedence 5\n"
@@ -482,7 +482,7 @@ class PbrNqaTrackParsingTest(ParserGapTestBase):
         behavior = config.traffic_behaviors[0]
         self.assertEqual(behavior.name, "LINTAS")
         self.assertEqual(behavior.redirect_next_hop, "172.29.88.2")
-        self.assertEqual(behavior.track_nqa_name, "gtopas_mks_lintas")
+        self.assertEqual(behavior.track_nqa_name, "depo_aa_transit")
         self.assertIsNone(behavior.track_id)
 
         self.assertEqual(len(config.traffic_policies), 1)

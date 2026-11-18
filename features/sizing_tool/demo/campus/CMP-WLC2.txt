@@ -1,0 +1,125 @@
+<CMP-WLC2>display version
+Huawei Versatile Routing Platform Software
+VRP (R) software, Version 5.170 (AirEngine6805 V200R021C10SPC100)
+Huawei AirEngine6805 uptime is 98 days, 4 hours, 31 minutes
+
+<CMP-WLC2>display esn
+ESN of device: 2102354TESTAC01
+
+<CMP-WLC2>display current-configuration
+sysname CMP-WLC2
+#
+vlan batch 130
+#
+interface Vlanif130
+ ip address 10.50.130.1 255.255.255.0
+#
+capwap source interface vlanif130
+#
+wlan
+regulatory-domain-profile name default
+ssid-profile name SSID-CORP
+ ssid Corp-WiFi
+ssid-profile name SSID-GUEST
+ ssid Guest-WiFi
+security-profile name SEC-CORP
+ security wpa2 dot1x aes
+vap-profile name VAP-CORP
+ forward-mode tunnel
+ service-vlan vlan-id 120
+ ssid-profile SSID-CORP
+ security-profile SEC-CORP
+vap-profile name VAP-GUEST
+ forward-mode tunnel
+ service-vlan vlan-id 110
+ ssid-profile SSID-GUEST
+ap-group name CAMPUS
+ regulatory-domain-profile default
+ vap-profile VAP-CORP wlan 1 radio all
+ vap-profile VAP-GUEST wlan 2 radio all
+ap-group name WAREHOUSE
+ regulatory-domain-profile default
+ vap-profile VAP-CORP wlan 1 radio all
+#
+ap-id 1 type-id 148 ap-mac 00e0-fc01-0011 ap-sn 2102354TEST0001
+ ap-name CMP-HAP01
+ ap-group CAMPUS
+#
+ap-id 2 type-id 148 ap-mac 00e0-fc02-0022 ap-sn 2102354TEST0002
+ ap-name CMP-HAP02
+ ap-group CAMPUS
+#
+ap-id 3 type-id 148 ap-mac 00e0-fc03-0033 ap-sn 2102354TEST0003
+ ap-name CMP-HAP03
+ ap-group CAMPUS
+#
+ap-id 4 type-id 148 ap-mac 00e0-fc04-0044 ap-sn 2102354TEST0004
+ ap-name CMP-HAP04
+ ap-group CAMPUS
+#
+ap-id 5 type-id 148 ap-mac 00e0-fc05-0055 ap-sn 2102354TEST0005
+ ap-name CMP-HAP05
+ ap-group CAMPUS
+#
+ap-id 6 type-id 148 ap-mac 00e0-fc06-0066 ap-sn 2102354TEST0006
+ ap-name CMP-HAP06
+ ap-group CAMPUS
+#
+ap-id 7 type-id 148 ap-mac 00e0-fc07-0077 ap-sn 2102354TEST0007
+ ap-name CMP-HAP07
+ ap-group CAMPUS
+#
+ap-id 8 type-id 148 ap-mac 00e0-fc08-0088 ap-sn 2102354TEST0008
+ ap-name CMP-HAP08
+ ap-group CAMPUS
+#
+ap-id 9 type-id 144 ap-mac 00e0-fc09-0099 ap-sn 2102354TEST0009
+ ap-name CMP-HAP09
+ ap-group WAREHOUSE
+#
+ap-id 10 type-id 144 ap-mac 00e0-fc0a-00aa ap-sn 2102354TEST0010
+ ap-name CMP-HAP10
+ ap-group WAREHOUSE
+#
+ap-id 11 type-id 144 ap-mac 00e0-fc0b-00bb ap-sn 2102354TEST0011
+ ap-name CMP-HAP11
+ ap-group WAREHOUSE
+#
+ap-id 12 type-id 144 ap-mac 00e0-fc0c-00cc ap-sn 2102354TEST0012
+ ap-name CMP-HAP12
+ ap-group WAREHOUSE
+#
+return
+
+<CMP-WLC2>display ap all
+Total AP information:
+nor  : normal          [12]
+------------------------------------------------------------------------------------------
+ID   MAC            Name        Group      IP            Type             State STA Uptime
+------------------------------------------------------------------------------------------
+1    00e0-fc01-0011 CMP-HAP01   CAMPUS     10.50.130.11  AirEngine5762-10 nor   6   12D:3H:20M
+2    00e0-fc02-0022 CMP-HAP02   CAMPUS     10.50.130.12  AirEngine5762-10 nor   7   12D:3H:20M
+3    00e0-fc03-0033 CMP-HAP03   CAMPUS     10.50.130.13  AirEngine5762-10 nor   8   12D:3H:20M
+4    00e0-fc04-0044 CMP-HAP04   CAMPUS     10.50.130.14  AirEngine5762-10 nor   9   12D:3H:20M
+5    00e0-fc05-0055 CMP-HAP05   CAMPUS     10.50.130.15  AirEngine5762-10 nor   10   12D:3H:20M
+6    00e0-fc06-0066 CMP-HAP06   CAMPUS     10.50.130.16  AirEngine5762-10 nor   11   12D:3H:20M
+7    00e0-fc07-0077 CMP-HAP07   CAMPUS     10.50.130.17  AirEngine5762-10 nor   12   12D:3H:20M
+8    00e0-fc08-0088 CMP-HAP08   CAMPUS     10.50.130.18  AirEngine5762-10 nor   13   12D:3H:20M
+9    00e0-fc09-0099 CMP-HAP09   WAREHOUSE  10.50.130.19  AirEngine6760-X1 nor   14   12D:3H:20M
+10   00e0-fc0a-00aa CMP-HAP10   WAREHOUSE  10.50.130.20  AirEngine6760-X1 nor   15   12D:3H:20M
+11   00e0-fc0b-00bb CMP-HAP11   WAREHOUSE  10.50.130.21  AirEngine6760-X1 nor   16   12D:3H:20M
+12   00e0-fc0c-00cc CMP-HAP12   WAREHOUSE  10.50.130.22  AirEngine6760-X1 nor   17   12D:3H:20M
+------------------------------------------------------------------------------------------
+Total: 12
+
+<CMP-WLC2>display license
+License state: Normal
+Active license file: CMP-WLC2-AE6805.dat
+Product name: AirEngine6805
+ESN: 2102354TESTAC01
+Item name                 Control value  Description
+----------------------------------------------------------------------
+WLAN-AC-AP-LIC           32             Number of manageable APs
+WLAN-AC-CARRIER           1              Carrier-grade features
+
+<CMP-WLC2>

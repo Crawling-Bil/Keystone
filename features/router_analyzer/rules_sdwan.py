@@ -131,7 +131,7 @@ def sdwan_tunnel_quality(ctx: Ctx):
     if none_met:
         limits = "; ".join(f"{c['name']}: loss {c['loss']}%, latency {c['latency']} ms, jitter {c['jitter']} ms" for c in classes[:6])
         out.append(F("RTR-SDW-060", "medium", "SD-WAN", f"{len(none_met)} of {len(stats)} overlay tunnels meet none of the SLA classes in the pushed policy", obj=_names([_tunnel_name(t) for t in none_met], 6),
-                     detail=f"Measured means: " + "; ".join(f"{_tunnel_name(t)} loss {t.get('mean_loss')}%, latency {t.get('mean_latency')} ms, jitter {t.get('mean_jitter')} ms" for t in none_met[:4]) + f". SLA classes: {limits}.",
+                     detail="Measured means: " + "; ".join(f"{_tunnel_name(t)} loss {t.get('mean_loss')}%, latency {t.get('mean_latency')} ms, jitter {t.get('mean_jitter')} ms" for t in none_met[:4]) + f". SLA classes: {limits}.",
                      recommendation="Application-aware routing compares these means with the class limits; traffic that matches a rule for such a tunnel moves to another tunnel or to the rule's backup color. Check the underlay of the transport.",
                      reference=R["sdwan_bfd_approute"]))
     lossy = [t for t in stats if (t.get("mean_loss") or 0) >= 5]

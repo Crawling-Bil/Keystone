@@ -38,7 +38,7 @@ def _star(prefix: str, extra: list[tuple[str, list[tuple]]] | None = None):
 def _demo_build():
     names = [f["name"] for f in next(s for s in demo.list_sets() if s["id"] == "multisite")["files"]]
     files = [(name, demo.read_file("multisite", name).decode("utf-8")) for name in names]
-    return build_topology(files, group="auto", view="physical")
+    return build_topology(files, group="auto", view="physical", zone_layout="off")        # these tests are about the compact rows
 
 
 def _page(result, name: str):

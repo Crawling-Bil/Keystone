@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file, send_from_directory
 from werkzeug.utils import secure_filename
 
 from core.database import log_activity
@@ -27,7 +27,7 @@ from .l3trace import trace
 from .layout_io import read_layout
 from .priority import COLUMNS as PRIORITY_COLUMNS, capture_priority
 from .runbook import RunbookError, build_runbook
-from . import evidence
+from . import changewindow, evidence
 from .report import build_print_set, bundles_table, build_report, download_name, make_pack, safe_name, settings_text, slug
 from .retention import DEFAULT_KEEP, DEFAULT_MAX_AGE_DAYS, prune_runs
 from .service import (GROUP_MODES, MAX_FILES, behind_table, build_topology, devices_table, hosts_table, links_table, read_devices, to_csv, to_json)
@@ -49,12 +49,17 @@ EXPORT_NAMES = {
     ANON_ZIP: "application/zip",
     "anonymization-map.csv": "text/csv",
     "topology.drawio": "application/vnd.jgraph.mxfile",
+    "topology.vsdx": "application/vnd.ms-visio.drawing",
     "topology.xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "links.csv": "text/csv",
     "devices.csv": "text/csv",
     "hosts.csv": "text/csv",
     "behind.csv": "text/csv",
     "capture-priority.csv": "text/csv",
+    "dr-parity.csv": "text/csv",
+    "firewall-zone-map.csv": "text/csv",
+    "firewall-bypass-paths.csv": "text/csv",
+    "f5-network-map.csv": "text/csv",
     "bundles.csv": "text/csv",
     "findings.csv": "text/csv",
     "findings-by-device.csv": "text/csv",
@@ -71,8 +76,9 @@ PACK_README = (
     "topology-print-a3.html One sheet per diagram page, each scaled to one A3 landscape sheet. Open in a browser and print to PDF (A3, no scaling), or print a range of sheets for the wall and the folder.\r\n"
     "diagrams/              One SVG per diagram page (L3 over L2, L3 route view, IP view, physical view and vPC view, as far as the captures allow).\r\n"
     "topology.drawio        Editable diagram for diagrams.net, one page per view (with 'All views': L3 over L2, L3 route, IP, physical, vPC). Move things, then upload it again under 'Keep my layout'.\r\n"
+    "topology.vsdx          The diagrams as a Visio drawing (one page per diagram page; lines are not glued to the boxes, edit the draw.io file for that).\r\n"
     "topology.xlsx          All tables in one workbook.\r\n"
-    "tables/                The same tables as CSV (findings-by-device.csv rolls the findings up per device; capture-priority.csv lists the captures to take next).\r\n"
+    "tables/                The same tables as CSV (findings-by-device.csv rolls the findings up per device; capture-priority.csv lists the captures to take next; dr-parity.csv sets a main site beside its recovery site, when the captures hold both).\r\n"
     "topology.json          Tables plus the saved state. Upload it under 'Add to a previous run' to continue with more captures.\r\n"
     "run-settings.txt       The options that were set on the page for this run (also in topology.json under 'build' and in the report). Send it with a question or a bug report.\r\n"
     "MANIFEST.sha256        SHA-256 of every file of this pack (sha256sum format).\r\n"
@@ -96,7 +102,8 @@ ANON_README = (
     "audit/                 The control table (CIS, NIST, PCI DSS, ISO 27001). Read audit/README.txt.\r\n"
 )
 LINE_STYLES = ("state", "speed")
-LINE_SHAPES = ("angled", "curved")
+LINE_SHAPES = ("angled", "curved", "orthogonal")
+ZONE_LAYOUTS = ("auto", "always", "off")
 VIEWS = ("all", "both", "physical", "logical", "ip", "l3route", "l3over2", "f5map")
 OVERLAY_SITES = ("captured", "all")
 DEFAULT_VIEW = "all"
@@ -149,6 +156,8 @@ def _write_run(target: Path, result: dict[str, Any], name_text: str, readme: str
     priority = capture_priority(graph)
     findings_rows = [{**{k: v for k, v in f.items() if k != "devices"}, "devices": ", ".join(f["devices"])} for f in result["findings"]]
     (target / "topology.drawio").write_text(result["drawio"], encoding="utf-8")
+    if result.get("vsdx"):
+        (target / "topology.vsdx").write_bytes(result["vsdx"])
     (target / "devices.csv").write_text(to_csv(devices), encoding="utf-8-sig", newline="")
     (target / "links.csv").write_text(to_csv(links), encoding="utf-8-sig", newline="")
     (target / "findings.csv").write_text(to_csv(findings_rows), encoding="utf-8-sig", newline="")
@@ -156,6 +165,14 @@ def _write_run(target: Path, result: dict[str, Any], name_text: str, readme: str
     (target / "hosts.csv").write_text(to_csv(hosts), encoding="utf-8-sig", newline="")
     (target / "behind.csv").write_text(to_csv(behind), encoding="utf-8-sig", newline="")
     (target / "bundles.csv").write_text(to_csv(bundles), encoding="utf-8-sig", newline="")
+    if result.get("dr_parity"):
+        (target / "dr-parity.csv").write_text(to_csv(result["dr_parity"]), encoding="utf-8-sig", newline="")
+    if result.get("fw_zone_map"):
+        (target / "firewall-zone-map.csv").write_text(to_csv(result["fw_zone_map"]), encoding="utf-8-sig", newline="")
+    if result.get("fw_bypass"):
+        (target / "firewall-bypass-paths.csv").write_text(to_csv(result["fw_bypass"]), encoding="utf-8-sig", newline="")
+    if result.get("f5_table"):
+        (target / "f5-network-map.csv").write_text(to_csv(result["f5_table"]), encoding="utf-8-sig", newline="")
     if priority:
         (target / "capture-priority.csv").write_text(to_csv(priority), encoding="utf-8-sig", newline="")
     l3 = {"links": result["l3_links"], "routes": result["l3_routes"], "unresolved": result["l3_unresolved"], "overlay": result["l3_overlay"], "sites": result["l3_sites"]}
@@ -167,7 +184,7 @@ def _write_run(target: Path, result: dict[str, Any], name_text: str, readme: str
             (target / "l3-sdwan-sites.csv").write_text(to_csv(result["l3_sites"]), encoding="utf-8-sig", newline="")
         (target / "_trace.json").write_text(json.dumps(result["l3_trace"], separators=(",", ":")), encoding="utf-8")
     progress.report("write", 0.3, "Excel workbook")
-    (target / "topology.xlsx").write_bytes(to_xlsx(result["summary"], devices, links, hosts, result["findings"], behind, bundles, result["findings_by_device"], l3, priority))
+    (target / "topology.xlsx").write_bytes(to_xlsx(result["summary"], devices, links, hosts, result["findings"], behind, bundles, result["findings_by_device"], l3, priority, result.get("dr_parity")))
     (target / "topology.json").write_text(to_json(graph, result["findings"], result["devices"], result["settings"]), encoding="utf-8")
     progress.report("write", 0.6, "Report")
     report = build_report(graph, result["summary"], result["findings"], devices, links, hosts, behind, result["svgs"], result["skipped"],
@@ -177,14 +194,20 @@ def _write_run(target: Path, result: dict[str, Any], name_text: str, readme: str
     print_set = build_print_set(result["svgs"], name_text or "Network topology documentation", result["settings"].get("created", ""))
     (target / "topology-print-a3.html").write_text(print_set, encoding="utf-8")
     pack = {"README.txt": readme, "topology-report.html": report, "topology-print-a3.html": print_set}
-    for name in ("topology.drawio", "topology.xlsx", "topology.json", "run-settings.txt", "links.csv", "devices.csv", "hosts.csv", "behind.csv", "bundles.csv", "capture-priority.csv", "findings.csv", "findings-by-device.csv", "l3-links.csv", "l3-routes.csv", "l3-sdwan-overlay.csv", "l3-sdwan-sites.csv"):
+    for name in ("topology.drawio", "topology.vsdx", "topology.xlsx", "topology.json", "run-settings.txt", "links.csv", "devices.csv", "hosts.csv", "behind.csv", "bundles.csv", "capture-priority.csv", "dr-parity.csv", "firewall-zone-map.csv", "firewall-bypass-paths.csv", "f5-network-map.csv", "findings.csv", "findings-by-device.csv", "l3-links.csv", "l3-routes.csv", "l3-sdwan-overlay.csv", "l3-sdwan-sites.csv"):
         if not (target / name).is_file():
             continue
         pack[("tables/" if name.endswith(".csv") else "") + name] = (target / name).read_bytes()
     for number, page in enumerate(result["svgs"], 1):
         pack[f"diagrams/{number:02d}-{slug(page['name'])}.svg"] = page["svg"]
     progress.report("write", 0.9, "Pack (zip)")
-    pack["audit/controls.csv"] = to_csv(evidence.control_rows(result["findings"], name_text or "Network topology")).encode("utf-8-sig")
+    control_table = evidence.control_rows(result["findings"], name_text or "Network topology")
+    pack["audit/controls.csv"] = to_csv(control_table).encode("utf-8-sig")
+    pack["audit/control-evidence.html"] = evidence.control_page(control_table, name_text or "Network topology", result["settings"].get("created", ""), len(inputs or [])).encode("utf-8")
+    if result.get("change_window"):                                                    # built with "Mark the changes since an earlier run": the page for the change record and every difference as a table
+        change = result["change_window"]
+        pack["change-window/change-window.html"] = changewindow.page(change["diff"], change["label"], name_text or "Network topology", result["settings"].get("created", "")).encode("utf-8")
+        pack["change-window/changes.csv"] = to_csv(change["diff"]["rows"] or [{c: "" for c in change["diff"]["columns"]}]).encode("utf-8-sig")
     if inputs:
         pack["audit/inputs.sha256"] = evidence.inputs_text(inputs)
     pack["audit/README.txt"] = evidence.audit_readme(bool(inputs))
@@ -202,10 +225,10 @@ def _download_filename(name: str, topology_name: str) -> str:
 
 
 def _pack_texts(pack: dict[str, Any]) -> dict[str, str]:
-    """The text inside every file of a pack, for the leftover scan (the workbook is read from the strings it stores)."""
+    """The text inside every file of a pack, for the leftover scan (the workbook and the Visio file are read from the XML parts they store)."""
     texts: dict[str, str] = {}
     for name, content in pack.items():
-        if name.endswith(".xlsx"):
+        if name.endswith((".xlsx", ".vsdx")):                      # both are ZIPs of XML: the text is compressed, so it is unpacked before it is searched
             try:
                 with zipfile.ZipFile(io.BytesIO(content)) as book:
                     texts[name] = " ".join(book.read(member).decode("utf-8", "replace") for member in book.namelist() if member.endswith(".xml"))
@@ -265,6 +288,14 @@ def _build(build: progress.Build | None = None):
             layout = read_layout(previous.read(30 * 1024 * 1024 + 1))
         except ValueError as exc:
             return jsonify({"ok": False, "error": str(exc)}), 400
+    compare_run, compare_label = None, "the earlier run"
+    compared = request.files.get("compare")
+    if compared and compared.filename:
+        try:
+            compare_run = load_run(compared.read(MAX_DIFF_BYTES + 1))
+            compare_label = f"the earlier run ({secure_filename(compared.filename)[:40]})"
+        except DiffError as exc:
+            return jsonify({"ok": False, "error": f"The earlier run to compare with: {exc}"}), 400
     line_style = request.form.get("line_style", "speed") if request.form.get("line_style") in LINE_STYLES else "speed"
     name_text = request.form.get("name", "").strip()[:60]
     created = _dt.datetime.now()
@@ -284,15 +315,18 @@ def _build(build: progress.Build | None = None):
         focus_sites=request.form.get("focus_sites", "")[:4000],
         group_gateways=request.form.get("group_l3", "1") != "0",
         hide_mgmt=request.form.get("hide_mgmt", "1") != "0",
+        mgmt_notes=request.form.get("mgmt_notes", "1") != "0",
         show_link_ips=request.form.get("show_link_ips", "1") != "0",
         bundle_members=request.form.get("bundle_members", "1") != "0",
         provider_hints=request.form.get("provider_hints", "")[:4000],
         site_rules=request.form.get("site_rules", "")[:4000],
         line_shape=request.form.get("line_shape", "angled") if request.form.get("line_shape") in LINE_SHAPES else "angled",
+        zone_layout=request.form.get("zone_layout", "auto") if request.form.get("zone_layout") in ZONE_LAYOUTS else "auto",
+        zone_boxes=request.form.get("zone_boxes", "1") != "0",
     )
     anonymize_too = request.form.get("anonymize", "0") == "1"
     with progress.tracking(build, 0.0, 55.0 if anonymize_too else 100.0):         # with an anonymized copy the first pass owns the first part of the bar
-        result = build_topology(files, name=name_text, created=created, layout=layout, previous=carried, **options)
+        result = build_topology(files, name=name_text, created=created, layout=layout, previous=carried, compare_with=compare_run, compare_label=compare_label, **options)
         graph = result["graph"]
         if not graph.nodes:
             return jsonify({"ok": False, "error": "No device could be read from these files.", "skipped": result["skipped"]}), 400
@@ -442,6 +476,7 @@ HISTORY_FILES = {
     "topology-report.html": "Report (HTML, print to PDF)",
     "topology-print-a3.html": "A3 print set (HTML, one sheet per page)",
     "topology.drawio": "draw.io diagram",
+    "topology.vsdx": "Visio drawing",
     "topology.xlsx": "Excel workbook",
     ANON_ZIP: "Anonymized pack (ZIP, safe to share)",
     "anonymization-map.csv": "Anonymization key (private: it holds the real names)",
@@ -471,6 +506,29 @@ def history_route():
     runs = history.list_runs(EXPORT_DIR, _max_age_days())
     return jsonify({"ok": True, "runs": runs, "keep": _keep_runs(), "max_age_days": _max_age_days(), "max_pinned": history.MAX_PINNED,
                     "pinned": sum(1 for r in runs if r["pinned"]), "total_size": history.disk_usage(EXPORT_DIR)})
+
+
+@bp.get("/api/history/download-all")
+def history_download_all_route():
+    """Every kept pack in one ZIP (one folder per run, and ``runs.csv`` as the index).  ``ids`` (comma separated) limits it to those runs, for the
+    list as filtered on the page; without it every kept run is included.  Runs without a pack are listed in ``runs.csv`` and not in the ZIP."""
+    raw = request.args.get("ids", "")
+    ids = None
+    if raw.strip():
+        ids = [part for part in re.split(r"[,\s]+", raw.strip()[:6000]) if part]
+        if not all(SAFE_IDENTIFIER.fullmatch(part) for part in ids):
+            return jsonify({"ok": False, "error": "Unknown run."}), 400
+    handle, included, skipped = history.bundle(EXPORT_DIR, _max_age_days(), ids)
+    if not included:
+        handle.close()
+        return jsonify({"ok": False, "error": "None of these runs has a documentation pack kept (they were built before packs were kept, or the files were removed)."}), 404
+    log_activity("Topology Builder", "Topology history downloaded", f"{len(included)} pack(s) · {len(skipped)} without a pack")
+    stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    response = send_file(handle, mimetype="application/zip", as_attachment=True, download_name=f"Keystone-topology-history-{stamp}.zip")
+    response.headers["X-Keystone-Packs"] = str(len(included))
+    response.headers["X-Keystone-Skipped"] = str(len(skipped))
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @bp.get("/api/baseline/<run_id>")

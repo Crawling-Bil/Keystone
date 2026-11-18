@@ -263,6 +263,8 @@ def _score(table: dict[str, list[tuple[str, int, str]]], text: str, cap: int) ->
 
 def _model_hint(identity: str, lines: list[str]) -> str:
     for pattern in (
+        r"^\s*(?:HUAWEI|Quidway)\s+([A-Za-z]{1,4}\d{3,5}[\w\-]*)(?:\s+Routing Switch)?\s+uptime is",      # VRP `display version`: "HUAWEI CE6881-48S6CQ uptime is ..."
+        r"^\s*device board \d+ board-type\s+([A-Za-z]{1,4}\d{3,5}[\w\-]*)",                              # VRP configuration: "device board 1 board-type CE6881-48S6CQ"
         r"\bPID:\s*([A-Za-z0-9][\w./\-]+)",
         r"DESCR:\s*\"?(WS-[CX]\S+|C9\S+)",
         r"^\s*cisco\s+(WS-\S+|Nexus\d*\s+\S+|C\d\S*|ISR\S*|ASR\S*|N\d\S*)",

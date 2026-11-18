@@ -115,12 +115,12 @@ class SwitchAnalyzerRoutesTests(unittest.TestCase):
 
 class DeviceFilenameStemTest(unittest.TestCase):
     def test_hostname_and_model_joined_with_underscore(self):
-        # Exact example the user asked for: GTOPAS-SMG-SWCO-C3650_WS-C3650-24TS
+        # Exact example the user asked for: DEPO-DD-SWCO-C3650_WS-C3650-24TS
         result = _device_filename_stem({
-            "hostname": "GTOPAS-SMG-SWCO-C3650",
+            "hostname": "DEPO-DD-SWCO-C3650",
             "os_version": {"model": "WS-C3650-24TS"},
         })
-        self.assertEqual(result, "GTOPAS-SMG-SWCO-C3650_WS-C3650-24TS")
+        self.assertEqual(result, "DEPO-DD-SWCO-C3650_WS-C3650-24TS")
 
     def test_falls_back_to_hostname_only_when_model_missing(self):
         result = _device_filename_stem({"hostname": "SW1", "os_version": {}})
@@ -136,7 +136,7 @@ class DeviceFilenameStemTest(unittest.TestCase):
 
     def test_unsafe_characters_are_sanitized(self):
         result = _device_filename_stem({
-            "hostname": "TTC SWCO PABXGA 3650",
+            "hostname": "DC1 SWCO PABXGA 3650",
             "os_version": {"model": "WS-C3650/24"},
         })
         self.assertNotIn(" ", result)

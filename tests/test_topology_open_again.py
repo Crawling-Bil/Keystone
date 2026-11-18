@@ -14,7 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from features.topology import demo, history, routes  # noqa: E402
+from features.topology import history, routes  # noqa: E402
 
 JS = Path(__file__).resolve().parents[1] / "static" / "js"
 

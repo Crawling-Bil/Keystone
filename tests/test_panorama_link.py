@@ -6,7 +6,6 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import pytest
 
 from features.firewall_analyzer import panorama_effective as pe
 from features.firewall_analyzer import panorama_link as pl

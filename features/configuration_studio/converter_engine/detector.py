@@ -349,6 +349,47 @@ class DeviceDetector:
         )
 
         # ==========================================
+        # HUAWEI WLC (AirEngine / AC6xxx)
+        # A VRP controller prints "sysname" and "interface vlanif" like a switch, so the markers that only a controller has
+        # (CAPWAP source, VAP / SSID / security / regulatory-domain profiles, "ap-id ... type-id", the AP and radio tables) decide.
+        # ==========================================
+
+        score = 0
+
+        markers = [
+            "capwap source",
+            "ap-group name",
+            "vap-profile name",
+            "ssid-profile name",
+            "security-profile name",
+            "regulatory-domain-profile name",
+            "display ap all",
+            "display radio all",
+            "display wlan service",
+        ]
+
+        hits = 0
+        for marker in markers:
+            if marker in text:
+                score += 10
+                hits += 1
+
+        if re.search(r"^\s*ap-id\s+\d+\s+type-id\s+\d+", text, re.MULTILINE):
+            score += 20
+            hits += 1
+
+        if hits >= 2:
+            score += 60          # outweighs the switch markers a VRP controller shares ("sysname", "interface vlanif", "display current-configuration")
+
+        candidates.append(
+            DetectionResult(
+                vendor="Huawei",
+                device_type="WLC",
+                confidence=score
+            )
+        )
+
+        # ==========================================
         # GET BEST RESULT
         # ==========================================
 

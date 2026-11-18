@@ -204,7 +204,7 @@ def parse_index_workbook(path):
     try:
         wb = openpyxl.load_workbook(path, data_only=True)
     except Exception as e:
-        raise ImportError_(f"File tidak bisa dibaca sebagai .xlsx: {e}")
+        raise ImportError_(f"File tidak bisa dibaca sebagai .xlsx: {e}") from e
 
     if "Index" not in wb.sheetnames:
         raise ImportError_("Workbook tidak punya sheet bernama 'Index'.")

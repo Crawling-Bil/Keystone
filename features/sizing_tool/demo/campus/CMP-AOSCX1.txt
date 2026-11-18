@@ -1,0 +1,76 @@
+CMP-AOSCX1# show version
+-----------------------------------------------------------------------------
+AOS-CX
+(c) Copyright 2017-2025 Hewlett Packard Enterprise Development LP
+-----------------------------------------------------------------------------
+Version      : FL.10.13.1000
+Build Date   : 2024-09-12 20:56:14 UTC
+Active Image : primary
+
+CMP-AOSCX1# show system
+Hostname               : CMP-AOSCX1
+Product Name           : JL664A 6300M 48G CL4 PoE 4SFP56 Switch
+Chassis Serial Nbr     : SG24520CX1
+Base MAC Address       : 0a:1b:00:00:02:61
+AOS-CX Version         : FL.10.13.1000
+Time Zone              : Asia/Jakarta
+
+CMP-AOSCX1# show system inventory
+
+Type                 Location        Product          Description                                        Serial           Hardware
+                                     Number                                                              Number           Version
+-------------------- --------------- ---------------- -------------------------------------------------- ---------------- -----------
+Chassis              1               JL664A           6300M 48G CL4 PoE 4SFP56 Switch                    SG24520CX1       1
+Power supply         1/1             JL086A           Aruba X372 54VDC 680W 100-240VAC Power Supply      CN24520PS1       1
+Power supply         1/2             JL086A           Aruba X372 54VDC 680W 100-240VAC Power Supply      CN24520PS2       1
+Fan                  1/1             JL664A-FAN       Fan tray                                           N/A              1
+Transceiver          1/1/49          J9150D           Aruba 10G SFP+ LC SR 300m MMF Transceiver          CN24520SX1       1
+Transceiver          1/1/50          J9150D           Aruba 10G SFP+ LC SR 300m MMF Transceiver          CN24520SX2       1
+
+CMP-AOSCX1# show running-config
+!Version AOS-CX FL.10.13.1000
+hostname CMP-AOSCX1
+user admin group administrator
+ntp server 10.50.40.10
+ntp enable
+ssh server vrf default
+vlan 1
+vlan 10
+    name USERS
+vlan 20
+    name VOICE
+vlan 30
+    name WIFI
+vlan 50
+    name MGMT
+spanning-tree
+spanning-tree mode mstp
+interface lag 1
+    no shutdown
+    description to CMP-CORE1
+    no routing
+    vlan trunk native 50
+    vlan trunk allowed 10,20,30,50
+    lacp mode active
+interface 1/1/49
+    no shutdown
+    description to CMP-CORE1 Te2/0/1
+    lag 1
+interface 1/1/50
+    no shutdown
+    description to CMP-CORE2 spare
+    lag 1
+interface 1/1/1
+    no shutdown
+    description phone
+    no routing
+    vlan access 10
+    poe-enable
+interface 1/1/2
+    no shutdown
+    description ap
+    no routing
+    vlan access 30
+interface vlan 50
+    ip address 10.50.50.31/24
+snmp-server vrf default

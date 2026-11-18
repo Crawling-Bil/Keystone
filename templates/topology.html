@@ -36,6 +36,7 @@
         <label class="tp-opt"><input type="checkbox" data-role="infer" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Infer neighbors where CDP/LLDP is silent</strong><small>Order of trust: ARP, then MAC address, then port description.</small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="routed" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Add routed /30 and /31 links found in interface addresses</strong><small></small></span></label>
         <label class="tp-opt"><input type="checkbox" data-role="mgmt" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Leave out-of-band management links (mgmt0) out of the picture</strong><small>They stay in links.csv.</small></span></label>
+        <label class="tp-opt"><input type="checkbox" data-role="mgmt-notes" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Draw the management switch links as notes</strong><small>The links from a management switch to routers, firewalls and other switches become a line of text under the device at the other end; its uplinks stay drawn. They stay in links.csv.</small></span></label>
         <label class="tp-opt" data-dep="no-exclude"><input type="checkbox" data-role="hosts"><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Draw end hosts learned from MAC tables</strong><small>Up to 3 per port, more become one box. Shown only when end points are drawn.</small></span></label>
       </fieldset>
       <span class="an-label">Device captures</span>
@@ -66,8 +67,13 @@
           <select class="an-select" data-role="view"><option value="all" selected>All views: L3 over L2, L3 route, IP, physical, vPC and F5 map in one file - default</option><option value="l3over2">L3 over L2 (L3 links drawn on top of the cables that carry them)</option><option value="l3route">L3 - Logical and Route (links proven by routing tables and neighbors)</option><option value="ip">L3 - Logical view only (shared subnets, interface addresses)</option><option value="both">L2 - Physical and vPC view</option><option value="physical">L2 - Physical view only</option><option value="logical">L2 - vPC view only</option><option value="f5map">F5 map only (virtual servers, pools, members, nodes of each BIG-IP)</option></select>
         </label>
         <label class="an-field"><span class="tp-sub">Line shape</span>
-          <select class="an-select" data-role="line-shape"><option value="angled" selected>Straight, bent once around a device</option><option value="curved">Curved around a device</option></select>
+          <select class="an-select" data-role="line-shape"><option value="angled" selected>Straight, bent once around a device</option><option value="curved">Curved around a device</option><option value="orthogonal">Orthogonal (right angles, lanes between the rows)</option></select>
         </label>
+        <label class="an-field"><span class="tp-sub">Zone layout</span>
+          <select class="an-select" data-role="zone-layout"><option value="auto" selected>Automatic: zones round the core on every page that has a centre, unless the compact rows have far fewer crossings</option><option value="always">Always: core in the middle, external zones above it, internal zones below it</option><option value="off">Off: the compact rows</option></select>
+          <small class="an-hint">A network with a core is drawn the way it is drawn by hand: the core in the middle, the way out (edge, WAN, extranet, internet, partners) above it, the user LAN and the server farm below it, and a zone with its own way out and its own servers (a DMZ) at the side.</small>
+        </label>
+        <label class="tp-opt"><input type="checkbox" data-role="zone-boxes" checked><span class="tp-box" aria-hidden="true"></span><span class="tp-opt-text"><strong>Draw a box round each zone</strong><small>A titled box per zone (WAN / BRANCH, LAN / USER, SERVER FARM ...). In the draw.io file the boxes are a locked layer named Zones: hide it in the Layers panel. In the preview use the Zone boxes button above the diagram.</small></span></label>
         <label class="an-field"><span class="tp-sub">Style lines by</span>
           <select class="an-select" data-role="line-style"><option value="speed" selected>Rated speed (1G, 10G, 25G, 40G, 100G)</option><option value="state">Link state (confirmed, one end, conflict)</option></select>
         </label>
@@ -96,6 +102,9 @@
       <div class="tp-field"><span class="an-label">Keep my layout</span>
         <label class="tp-file"><input type="file" data-role="previous" accept=".drawio,.xml"><span class="tp-file-btn">Choose file</span><span class="tp-file-name" data-role="previous-name">No file chosen</span></label>
         <small class="an-hint">Pick the topology.drawio you moved things in. Devices keep their position; new devices are placed beside them.</small></div>
+      <div class="tp-field"><span class="an-label">Mark the changes since an earlier run</span>
+        <label class="tp-file"><input type="file" data-role="compare-with" accept=".json,.zip"><span class="tp-file-btn">Choose file</span><span class="tp-file-name" data-role="compare-with-name">No file chosen</span></label>
+        <small class="an-hint">Pick the topology.json (or the keystone-topology-pack.zip) of an earlier run. The new diagrams get a layer on top: new devices and links in green, changed ones in amber, links that are gone as red dashed lines, and a note with the devices that left. Nothing moves.</small></div>
       </fieldset>
       <fieldset class="tp-card-box">
         <legend class="an-label">Share a safe copy (optional)</legend>
@@ -154,7 +163,7 @@
         <div class="tp-trace-result hidden" data-role="trace-result" aria-live="polite"></div>
         <div class="tp-l3-detail hidden" data-role="l3-detail" aria-live="polite"></div>
         <ul class="tp-legend" data-role="legend"></ul>
-        <p class="an-hint">Preview only. <strong>vPC view</strong>: each vPC pair is one frame and each bundle spanning the pair is one line (vPC id, member count, rated speed). <strong>Physical view</strong>: every cable. <strong>IP view</strong>: devices that share a subnet, with the interface and address at each end and a table of every interface address under the picture. Speeds are transceiver or port ratings, not negotiated rates. Drag nodes in draw.io, then upload that file under <em>Keep my layout</em> next time.</p>
+        <p class="an-hint">Preview only. <strong>vPC view</strong>: each vPC pair is one frame and each bundle spanning the pair is one line (vPC id, member count, rated speed), inside the same zone boxes as the physical page. <strong>L2 Physical View</strong>: every cable. <strong>IP view</strong>: devices that share a subnet, with the interface and address at each end and a table of every interface address under the picture. Speeds are transceiver or port ratings, not negotiated rates. Drag nodes in draw.io, then upload that file under <em>Keep my layout</em> next time.</p>
       </div>
       <div data-panel="findings" class="hidden" data-role="findings"></div>
       <div data-panel="links" class="hidden" data-role="links"></div>
@@ -273,6 +282,10 @@
         <select class="an-select" data-role="history-filter" aria-label="Show"><option value="all">All runs</option><option value="pinned">Pinned</option><option value="unpinned">Not pinned</option><option value="medium">With medium findings</option><option value="noted">With a note</option></select>
         <select class="an-select" data-role="history-sort" aria-label="Sort by"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="name">Name</option><option value="findings">Most findings</option><option value="devices">Most devices</option></select>
         <button type="button" class="an-btn small" data-role="history-compare" disabled>Compare selected (0 of 2)</button>
+        <span class="tp-history-clear" data-role="history-all-box">
+          <button type="button" class="an-btn small" data-act="open-all" disabled>Open again all</button>
+          <button type="button" class="an-btn small" data-act="download-all" disabled>Download all</button>
+        </span>
         <span class="tp-history-clear" data-role="history-clear-box">
           <button type="button" class="an-btn small" data-role="history-clear">Delete all unpinned</button>
         </span>

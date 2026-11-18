@@ -152,7 +152,7 @@ def _stage_firmware_for_device(device):
 def _esn_for_ip(client_ip):
     """Best-effort match of an SFTP client's IP back to a
     pre-registered device's ESN, so Activity feed entries can say
-    "STR2-SWAC-OT-TASTI-S5735 downloaded ..." instead of just an IP.
+    "SB2-SWAC-OT-TASTI-S5735 downloaded ..." instead of just an IP.
     Matches on mgmt_ip, which is what a device's ZTP-pushed .cfg sets
     it to be -- but during the ZTP window itself a device is normally
     still on its temporary DHCP-leased IP, not mgmt_ip yet, so this

@@ -178,7 +178,7 @@ def test_generate_fills_master_logo_acceptance_and_cleans_outputs(client, projec
 # ----------------------------------------------------------------- from LLD Index
 def test_lld_index_opens_and_reopens_the_same_project(client):
     from features.lld_index.routes import EXPORT_DIR  # noqa: F401  (patched by the fixture)
-    from tests.test_lld_index import FILES, INVENTORY, PROJECT
+    from tests.test_lld_index import INVENTORY, PROJECT
 
     def build():
         payload = {"project": dict(PROJECT, project_code="X1"), "technologies": ["switch"], "inventory": INVENTORY}

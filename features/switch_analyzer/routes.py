@@ -146,7 +146,7 @@ def _read_config_from_request(file_field: str, text_field: str) -> tuple[str, st
 
 
 def _device_filename_stem(result: dict) -> str:
-    """hostname_devicemodel, e.g. 'GTOPAS-SMG-SWCO-C3650_WS-C3650-24TS'
+    """hostname_devicemodel, e.g. 'DEPO-DD-SWCO-C3650_WS-C3650-24TS'
     — lets multiple single-device exports for the same hostname (a
     device re-analyzed after a config change, or the same hostname on
     different physical units) stay distinguishable by model, and

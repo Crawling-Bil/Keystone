@@ -56,6 +56,7 @@ class AssessmentAnalyzer:
         self._check_missing_group(aps, findings)
         self._check_missing_name(aps, findings)
         self._check_status(aps, findings)
+        self._check_power(aps, findings)
 
         order = {
             "CRITICAL": 0,
@@ -121,6 +122,30 @@ class AssessmentAnalyzer:
             "serial": ap.get("serial", ""),
             "status": ap.get("status", ""),
         }
+
+    def _check_power(self, aps, findings):
+        """``display ap all`` flags an AP with ``P`` in its ExtraInfo column when the switch port gives it less power than it asks for."""
+        for ap in aps:
+            if "P" not in str(ap.get("extra_info", "")).upper().split():
+                continue
+            finding = self._base(ap)
+            finding.update({
+                "severity": "WARNING",
+                "category": "AP Power",
+                "title": "AP reports insufficient power supply",
+                "reason": "The controller flags this AP with P (insufficient power supply): the switch port gives it less PoE than it needs, so the AP may run with radios or ports reduced.",
+                "possible_causes": [
+                    "The switch port is PoE (802.3af) where the AP needs PoE+ (802.3at) or more.",
+                    "The switch PoE budget is used up.",
+                    "A long or poor cable lowers the delivered power.",
+                ],
+                "recommendation": [
+                    "Check the PoE class and the power the switch port delivers to this AP.",
+                    "Check the PoE budget of the switch (see the Switch Analyzer sizing).",
+                    "Plan the access switch refresh with PoE+/UPoE ports for these APs.",
+                ],
+            })
+            findings.append(finding)
 
     def _check_missing_group(self, aps, findings):
         for ap in aps:

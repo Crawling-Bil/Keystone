@@ -1,0 +1,123 @@
+<CMP-HWSW1>display version
+Huawei Versatile Routing Platform Software
+VRP (R) software, Version 5.170 (S5735-L48P4X-A1 V200R022C00SPC500)
+Copyright (C) 2000-2023 HUAWEI TECH CO., LTD
+HUAWEI S5735-L48P4X-A1 Routing Switch uptime is 212 days, 3 hours, 14 minutes
+
+<CMP-HWSW1>display esn
+ESN of master board: 2102353410K0042
+
+<CMP-HWSW1>display device
+S5735-L48P4X-A1's Device status:
+Slot Sub  Type                   Online    Power    Register     Status   Role
+-------------------------------------------------------------------------------
+0    -    S5735-L48P4X-A1        Present   PowerOn  Registered   Normal   Master
+
+<CMP-HWSW1>display device elabel brief
+SlotID  Sub  Type                SN                    P/N
+-------------------------------------------------------------------
+0       -    S5735-L48P4X-A1     2102353410K0042       02353410
+        PWR1 PAC1000S56-CN       2102131835USS6318275  02131835
+        FAN1 FAN-023A-B          --                    --
+
+<CMP-HWSW1>display license
+Active license : flash:/CMP-HWSW1.dat
+License state : Normal
+Revoke ticket : No ticket
+Product name : S5735-L48P4X-A1
+Product version : V200R022
+License Serial No : LIC2602XXXXXXXXXX1
+Creator : Huawei Technologies Co., Ltd.
+Created Time : 2025-03-12 08:00:00
+Valid Date : 2025-03-12 - 2028-03-12
+
+Item name                    Item type    Value   Description
+SNS5SA10005                  Function     1       S5735-L Stacking and Basic Features
+
+<CMP-HWSW1>display interface transceiver
+10GE1/0/49 transceiver information:
+-------------------------------------------------------------
+Common information:
+  Transceiver Type                      :10G_BASE_LR_SFP
+  Connector Type                        :LC
+  Wavelength(nm)                        :1310
+  Transfer Distance(m)                  :10000(9um)
+  Digital Diagnostic Monitoring         :YES
+  Vendor Name                           :HUAWEI
+  Vendor Part Number                    :02310QRT
+  Vendor Serial Number                  :XV242100101
+
+10GE1/0/50 transceiver information:
+-------------------------------------------------------------
+Common information:
+  Transceiver Type                      :10G_BASE_LR_SFP
+  Connector Type                        :LC
+  Wavelength(nm)                        :1310
+  Transfer Distance(m)                  :10000(9um)
+  Digital Diagnostic Monitoring         :YES
+  Vendor Name                           :HUAWEI
+  Vendor Part Number                    :02310QRT
+  Vendor Serial Number                  :XV242100102
+
+<CMP-HWSW1>display poe information
+PoE Information:
+Port        Enable    Power(mW)  Current(mA) PD class
+GE0/0/1     Enable    15400      280         4
+GE0/0/2     Enable    7500       140         2
+GE0/0/3     Enable    0          0           0
+
+<CMP-HWSW1>display current-configuration
+#
+sysname CMP-HWSW1
+#
+vlan batch 10 20 30 50
+#
+vlan 10
+ name USERS
+#
+vlan 20
+ name VOICE
+#
+vlan 30
+ name WIFI
+#
+vlan 50
+ name MGMT
+#
+interface Vlanif50
+ ip address 10.50.50.21 255.255.255.0
+#
+interface Eth-Trunk1
+ description to CMP-CORE1
+ port link-type trunk
+ port trunk allow-pass vlan 10 20 30 50
+ mode lacp-dynamic
+#
+interface GigabitEthernet0/0/1
+ port link-type access
+ port default vlan 10
+ poe enable
+#
+interface GigabitEthernet0/0/2
+ port link-type access
+ port default vlan 10
+ poe enable
+#
+interface GigabitEthernet0/0/3
+ port link-type access
+ port default vlan 30
+ poe enable
+#
+interface 10GE1/0/49
+ description to CMP-CORE1 Te2/0/21
+ eth-trunk 1
+#
+interface 10GE1/0/50
+ description to CMP-CORE2 spare
+ eth-trunk 1
+#
+snmp-agent
+snmp-agent community read cipher %^%#REDACTED%^%#
+ntp-service unicast-server 10.50.40.10
+#
+return

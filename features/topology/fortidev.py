@@ -28,6 +28,7 @@ from .extract import Device, HalfEdge
 from .names import canon_port, short_host
 
 MAX_PREFIXES = 3000
+_INFRA_NAME = re.compile(r"^(?:ha\d*|mgmt\d*|modem\d*|npu\d+_vlink\d+|(?:ssl|naf|l2t)\.[^ ]+|fortilink\d*)$", re.I)
 _SPEED = re.compile(r"^(\d+)(?:auto|full|half)?$", re.I)
 
 
@@ -123,8 +124,11 @@ def device(data: dict[str, Any], source: str, vdom: str | None = None) -> Device
                     os_version=f"FortiOS {header.get('version', '')}".strip(), role_hint="firewall")
     l3: list[dict[str, Any]] = []
     state: dict[str, str] = {}
+    zone_of = {str(i): str(z.get("name", "")) for z in data.get("zones") or [] if vdom is None or str(z.get("vdom") or "root") == vdom for i in z.get("interfaces") or []}
     for row in rows:
         name = str(row.get("name", ""))
+        if str(row.get("type")) not in ("loopback", "tunnel") and not _INFRA_NAME.match(name):
+            device.fw_ifaces.append({"name": name, "zone": zone_of.get(name, name), "parent": str(row.get("parent", "")), "vlan": row.get("vlanid") or None, "type": str(row.get("type", ""))})   # a FortiGate interface that is in no zone is its own zone in a policy
         alias = str(row.get("alias") or row.get("description") or "")
         status = "up/up" if str(row.get("status", "up")) == "up" else "admin down"
         state[name] = status

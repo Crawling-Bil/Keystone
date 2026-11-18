@@ -17,11 +17,14 @@ https://docs.fortinet.com/document/fortigate/7.2.5/administration-guide/300428/e
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..analyzer_core.findings import finding
 from ..analyzer_core.result import table_section
 from .forti_resolve import Resolver
+
+if TYPE_CHECKING:  # only a type name here
+    from .forti_tree import FNode
 
 # Every page below was returned by a docs.fortinet.com search on 2026-10-17 (the search returns the page's own URL; they were not all opened).
 REF = {

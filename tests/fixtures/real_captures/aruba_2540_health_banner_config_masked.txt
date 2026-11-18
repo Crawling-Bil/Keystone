@@ -75,7 +75,7 @@ snmp-server community <REDACTED> unrestricted
 snmp-server host 10.255.0.3 community <REDACTED> trap-level all
 snmp-server host 10.255.0.4 community <REDACTED> trap-level all
 snmp-server contact "MKS-DVZV.SVU-2116" location "JJZ-YQNYADEI"
-aaa authentication local-user "kijang" group "Level-15"
+aaa authentication local-user "netadmin" group "Level-15"
 aaa authentication local-user "yaris" group "Level-10"
 aaa authentication local-user "recon" group "Level-15"
 vlan 1

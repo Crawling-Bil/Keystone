@@ -18,6 +18,7 @@ from __future__ import annotations
 import ipaddress
 import re
 import xml.etree.ElementTree as ET
+from core.safe_xml import fromstring as safe_fromstring
 
 from . import tables
 from .model import (Address, AddressGroup, Bgp, BgpPeer, FwModel, NatRule, Ospf, OspfArea, Policy, Port, Route, Service, ServiceEntry, ServiceGroup, VpnTunnel, Zone)
@@ -122,7 +123,7 @@ def tree_from_xml(text: str) -> PNode:
     head = text[:4000].lower()
     if "<!doctype" in head or "<!entity" in head:
         raise ValueError("A DOCTYPE or ENTITY declaration in the XML is refused.")
-    element = ET.fromstring(text.lstrip("﻿ \t\r\n"))
+    element = safe_fromstring(text.lstrip("﻿ \t\r\n"))
     root = PNode()
     budget = [MAX_NODES]
 
@@ -651,14 +652,14 @@ class PanReader:
             profile_name = gw.first("protocol", f"ikev{t.ike_version}", "ike-crypto-profile") or gw.first("protocol", "ikev1", "ike-crypto-profile")
             ike = ike_profiles.child(profile_name) if ike_profiles and profile_name else None
             if ike is None:
-                report.add("vpn", "tunnel", name, "review", (f"The IKE crypto profile {profile_name} is not in the configuration;" if profile_name else "The gateway names no IKE crypto profile;") + f" the FortiGate proposal is left at its default.", "forti_cli")
+                report.add("vpn", "tunnel", name, "review", (f"The IKE crypto profile {profile_name} is not in the configuration;" if profile_name else "The gateway names no IKE crypto profile;") + " the FortiGate proposal is left at its default.", "forti_cli")
             else:
                 t.ike_encryption, t.ike_hash, t.ike_dh = ike.keys("encryption"), ike.keys("hash"), ike.keys("dh-group")
                 t.ike_lifetime = _seconds(ike.child("lifetime"), 28800)
             ipsec_name = auto.first("ipsec-crypto-profile") if auto else ""
             esp = ipsec_profiles.child(ipsec_name) if ipsec_profiles and ipsec_name else None
             if esp is None:
-                report.add("vpn", "tunnel", name, "review", (f"The IPsec crypto profile {ipsec_name} is not in the configuration;" if ipsec_name else "The tunnel names no IPsec crypto profile;") + f" the FortiGate phase 2 proposal is left at its default.", "forti_cli")
+                report.add("vpn", "tunnel", name, "review", (f"The IPsec crypto profile {ipsec_name} is not in the configuration;" if ipsec_name else "The tunnel names no IPsec crypto profile;") + " the FortiGate phase 2 proposal is left at its default.", "forti_cli")
             else:
                 if esp.has("ah"):
                     report.add("vpn", "tunnel", name, "review", "An AH IPsec profile is not converted; the FortiGate phase 2 is written with ESP.", "forti_cli")

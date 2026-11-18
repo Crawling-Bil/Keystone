@@ -8,6 +8,7 @@ routes return them as JSON unchanged.
 """
 import json
 import os
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -20,6 +21,23 @@ DB_PATH = None
 
 def _db_path():
     return str(DB_PATH or database.DB_PATH)
+
+
+_COLUMN_NAME = re.compile(r"[a-z_][a-z0-9_]*")
+
+
+def _assignments(conn, table, fields):
+    """``col = ?, col = ?`` for an UPDATE, after checking every key is a real column of ``table``.
+
+    The column names are written into the SQL text (SQLite cannot bind an identifier), so safety must not depend on every caller
+    filtering its input first: a key that is not a column of the table, or not a plain lower-case identifier, raises ``ValueError``.
+    ``table`` is always one of this module's own constants.
+    """
+    columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}  # nosec B608 - table is a constant of this module
+    unknown = [key for key in fields if key not in columns or not _COLUMN_NAME.fullmatch(key)]
+    if unknown:
+        raise ValueError(f"Not a column of {table}: {', '.join(sorted(map(str, unknown)))}")
+    return ", ".join(f"{key} = ?" for key in fields)
 
 
 SCHEMA = """
@@ -187,8 +205,8 @@ def update_template(template_id, **fields):
     if "auto_numbered_levels" in fields:
         fields["auto_numbered_levels"] = json.dumps(fields["auto_numbered_levels"])
     with db_conn() as conn:
-        cols = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE lld_gen_templates SET {cols} WHERE id = ?", (*fields.values(), template_id))
+        cols = _assignments(conn, "lld_gen_templates", fields)
+        conn.execute(f"UPDATE lld_gen_templates SET {cols} WHERE id = ?", (*fields.values(), template_id))  # nosec B608 - cols checked above
     return get_template(template_id)
 
 
@@ -243,8 +261,8 @@ def update_project(project_id, **fields):
         return get_project(project_id)
     fields["updated_at"] = now()
     with db_conn() as conn:
-        cols = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE lld_gen_projects SET {cols} WHERE id = ?", (*fields.values(), project_id))
+        cols = _assignments(conn, "lld_gen_projects", fields)
+        conn.execute(f"UPDATE lld_gen_projects SET {cols} WHERE id = ?", (*fields.values(), project_id))  # nosec B608 - cols checked above
     return get_project(project_id)
 
 
@@ -327,8 +345,8 @@ def update_chapter(chapter_id, **fields):
     if not fields:
         return get_chapter(chapter_id)
     with db_conn() as conn:
-        cols = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE lld_gen_chapters SET {cols} WHERE id = ?", (*fields.values(), chapter_id))
+        cols = _assignments(conn, "lld_gen_chapters", fields)
+        conn.execute(f"UPDATE lld_gen_chapters SET {cols} WHERE id = ?", (*fields.values(), chapter_id))  # nosec B608 - cols checked above
     return get_chapter(chapter_id)
 
 
@@ -412,8 +430,8 @@ def update_block(block_id, content=None, order_index=None):
     if not fields:
         return get_block(block_id)
     with db_conn() as conn:
-        cols = ", ".join(f"{k} = ?" for k in fields)
-        conn.execute(f"UPDATE lld_gen_blocks SET {cols} WHERE id = ?", (*fields.values(), block_id))
+        cols = _assignments(conn, "lld_gen_blocks", fields)
+        conn.execute(f"UPDATE lld_gen_blocks SET {cols} WHERE id = ?", (*fields.values(), block_id))  # nosec B608 - cols checked above
     return get_block(block_id)
 
 

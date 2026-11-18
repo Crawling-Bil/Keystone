@@ -141,7 +141,7 @@ def omp(ctx: Ctx) -> list[dict[str, Any]]:
                                                                            ("via", "Chosen color"), ("tloc", "Chosen TLOC", "mono"), ("colors", "Path colors", "list"), ("statuses", "Path status", "list")], rows, group=GROUP,
                                       total=routes["prefix_count"], page_size=100,
                                       facets=[{"key": "vpn", "label": "VPN", "prefix": "VPN "}, {"key": "resolved", "label": "resolved path", "order": ["Yes", "No"]}],
-                                      hint=f"One row per prefix. 'Chosen' is the path the device marked C; a prefix without one is not installed in the VPN routing table."
+                                      hint="One row per prefix. 'Chosen' is the path the device marked C; a prefix without one is not installed in the VPN routing table."
                                            + (f" Only the first {MAX_OMP_ROWS:,} prefixes are listed." if routes["prefix_count"] > MAX_OMP_ROWS else "")))
     tlocs = ctx.get("sdwan_omp_tlocs")
     if tlocs:

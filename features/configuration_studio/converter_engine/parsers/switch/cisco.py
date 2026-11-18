@@ -723,7 +723,7 @@ class CiscoSwitchParser:
             # applet <name>" blocks whose actions turn "ip policy
             # route-map <name>" on/off in response to an SNMP-OID
             # link-state watch. A REAL, currently-active pattern on
-            # TAM 2026's Catalyst 3650 stacks (GTOPAS-PKU/MND/SMG/
+            # TAM 2026's Catalyst 3650 stacks (DEPO-CC/MND/SMG/
             # MKS-SWCO-C3650.txt real backups) -- the route-map is
             # NEVER statically bound under any interface's own config
             # in these real captures (Interface.ip_policy_route_map
@@ -2017,7 +2017,7 @@ class CiscoSwitchParser:
                 interface.mode = "routed"
                 return
 
-            # CIDR slash notation — "ip address 10.85.28.2/23" — is
+            # CIDR slash notation — "ip address 10.220.28.2/23" — is
             # NX-OS's default form (also valid on IOS-XE) and was
             # previously silently dropped entirely, real IP data loss
             # confirmed on a Cisco Nexus vPC config: the "len(parts) >=
@@ -2449,7 +2449,7 @@ class CiscoSwitchParser:
         #
         # Real production configs (confirmed on a Nexus 9108 vPC pair) also
         # use CIDR-combined destination+prefix with no separate mask token:
-        # ip route 0.0.0.0/0 10.85.3.26
+        # ip route 0.0.0.0/0 10.220.3.26
         # The len(parts) < 5 guard used to drop this form outright since it
         # is only 4 tokens, silently hiding default static routes.
 

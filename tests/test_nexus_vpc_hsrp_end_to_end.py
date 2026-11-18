@@ -14,7 +14,7 @@ class NexusVpcHsrpEndToEndTest(unittest.TestCase):
     """
     Full parse -> translate pipeline against a realistic slice of the
     real Nexus vPC backup config the user tested this project against
-    (TTC-SWCO-MN-N9108-DMZ) — covers everything raised in
+    (DC1-SWCO-MN-N9108-DMZ) — covers everything raised in
     memory-keystone.md Section 1k/1l/1m together, rather than each
     piece in isolation: mgmt0 out-of-band handling, block-boundary
     indentation (no false "global command" misattribution), CIDR-form
@@ -23,7 +23,7 @@ class NexusVpcHsrpEndToEndTest(unittest.TestCase):
     """
 
     NEXUS_CONFIG = """\
-hostname TTC-SWCO-MN-N9108-DMZ
+hostname DC1-SWCO-MN-N9108-DMZ
 !
 feature vpc
 !
@@ -58,12 +58,12 @@ interface port-channel20
 !
 interface Vlan300
   description SVI-DMZ
-  ip address 10.85.28.2/23
+  ip address 10.220.28.2/23
   hsrp 1
     preempt
     priority 120
     timers 1 3
-    ip 10.85.28.1
+    ip 10.220.28.1
 !
 interface Ethernet1/1
   switchport mode access
@@ -137,7 +137,7 @@ boot nxos bootflash:/nxos.bin
         svi = next(
             i for i in config.interfaces if i.name == "Vlan300"
         )
-        self.assertEqual(svi.ip_address, "10.85.28.2")
+        self.assertEqual(svi.ip_address, "10.220.28.2")
         self.assertEqual(svi.subnet_mask, "255.255.254.0")
 
         # --- HSRP correctly scoped under the SVI, not leaking into
@@ -146,7 +146,7 @@ boot nxos bootflash:/nxos.bin
         self.assertEqual(svi.hsrp_priority, 120)
         self.assertEqual(svi.hsrp_hello_interval, 1)
         self.assertEqual(svi.hsrp_hold_interval, 3)
-        self.assertEqual(svi.hsrp_virtual_ip, "10.85.28.1")
+        self.assertEqual(svi.hsrp_virtual_ip, "10.220.28.1")
         self.assertTrue(svi.hsrp_preempt)
 
         # --- now translate and check the Huawei draft end to end ---
@@ -192,7 +192,7 @@ boot nxos bootflash:/nxos.bin
 
         # HSRP -> VRRP; explicit "preempt" in source means no
         # preempt-default REVIEW note is needed (confirmed match)
-        self.assertIn(" vrrp vrid 1 virtual-ip 10.85.28.1", output)
+        self.assertIn(" vrrp vrid 1 virtual-ip 10.220.28.1", output)
         self.assertIn(" vrrp vrid 1 priority 120", output)
         self.assertIn(" vrrp vrid 1 timer advertise 1", output)
         self.assertIn("REVIEW-VRRP-HOLD-TIMER", output)

@@ -162,7 +162,7 @@ def test_svg_and_drawio_write_the_title_at_the_spot_the_engine_chose(monkeypatch
     pages = build_pages(graph)
     page = pages[0]
     assert page.end_boxes
-    monkeypatch.setattr(svg_module, "end_title_spot", lambda page, box, segments=None, rects=None: 37.0)
+    monkeypatch.setattr(svg_module, "end_title", lambda page, box, segments, rects: titles.Fitted(box[0], 37.0, 0))
     monkeypatch.setattr(drawio_module, "end_title_spot", lambda page, box, segments=None, rects=None: 37.0)
     markup = svg_module.to_svg(page, graph)
     xml = drawio_module.to_drawio(graph, pages=pages)
@@ -245,6 +245,8 @@ def test_no_two_different_cables_lie_on_each_other_outside_the_icons_on_the_demo
             for i, a in enumerate(segs):
                 for b in segs[i + 1:]:
                     if a[0] != b[0] and a[1] == b[1] and abs(a[2] - b[2]) < 2.0:
+                        if a[0] in page.bus and b[0] in page.bus and {page.connections[a[0]].a, page.connections[a[0]].b} & {page.connections[b[0]].a, page.connections[b[0]].b}:
+                            continue                                  # the lines of one bus share its lane by design (a bus is one lane with a drop for every cable): ``corpus.overlay`` leaves them out as well
                         total += max(0.0, min(a[4], b[4]) - max(a[3], b[3]))
     assert total < 40, total
 
@@ -257,7 +259,7 @@ def _captured(host: str, halves: list) -> Device:
     return dev
 
 
-def _half(port: str, name: str, remote_port: str, protocols: set[str], platform: str = "", caps: str = "", descr: str = "") -> "HalfEdge":
+def _half(port: str, name: str, remote_port: str, protocols: set[str], platform: str = "", caps: str = "", descr: str = ""):
     from features.topology.extract import HalfEdge
     return HalfEdge(local_port=port, remote_name=name, remote_port=remote_port, protocols=protocols, remote_platform=platform, remote_caps=caps, remote_descr=descr)
 

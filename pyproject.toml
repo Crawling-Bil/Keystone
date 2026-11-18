@@ -1,0 +1,9 @@
+# Tool settings only. Keystone is an application, not a package, so there is no [project] table.
+[tool.ruff]
+target-version = "py312"
+extend-exclude = ["exports", "uploads", "data", "logs", "firmware", "staging"]
+
+[tool.ruff.lint]
+# The blocking set (also run in CI as `ruff check .`): code that is wrong, not code that is merely untidy.
+#   F821 undefined name, F811 redefinition, B006 mutable default argument, B904 raise inside except without a cause.
+select = ["F821", "F811", "B006", "B904"]

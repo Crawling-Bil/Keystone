@@ -2,15 +2,28 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from . import labels
 from .graph import Graph
 from .layout import NODE_H, NODE_W
 from .scene import ROW_H, Page, PairBox, Shape, table_columns
 from .styles import line_look
-from .titles import end_title_spot, page_label_rects, page_segments
+from .titles import centre_title, end_title, page_label_rects, page_segments, zone_title
 
 _ROLE_GLYPH = {"loadbalancer": "LB", "segment": "NET", "core": "L3", "aggregation": "L3", "access": "L2", "switch": "L2", "firewall": "FW", "router": "RT", "wlc": "WLC",
                "fabric": "FI", "ap": "AP", "phone": "IP", "host": "PC", "server": "SRV", "cloud": "WAN"}
+
+
+def _server_glyph(x: float, y: float, colour: str) -> str:
+    """A rack server: three stacked units with a drive slot and a LED each (a server is a server whatever it is called: hypervisor, HCI node, blade, NIC string)."""
+    units = []
+    for i in range(3):
+        top = y + 14 + i * 16
+        units.append(f'<rect x="{x + 14:.0f}" y="{top:.0f}" width="{NODE_W - 28}" height="12" rx="2" fill="none" stroke="{colour}" stroke-width="2"/>'
+                     f'<line x1="{x + 20:.0f}" y1="{top + 6:.0f}" x2="{x + 40:.0f}" y2="{top + 6:.0f}" stroke="{colour}" stroke-width="2"/>'
+                     f'<circle cx="{x + NODE_W - 22:.0f}" cy="{top + 6:.0f}" r="2" fill="{colour}"/>')
+    return f'<g class="server-glyph" aria-label="server">' + "".join(units) + "</g>"
 
 
 def _rounded_path(points: list[tuple[float, float]], radius: float = 9.0) -> str:
@@ -55,9 +68,49 @@ def _origin(page: Page) -> tuple[float, float]:
     """Top-left corner of the picture: a bent line may leave the page on the left or top, and a viewBox that starts at 0 would cut it."""
     xs = [x for points in page.routes.values() for x, _ in points] + [p.x for p in page.nodes.values()] + [v[0] - 40 for v in page.label_pos.values()]
     ys = [y for points in page.routes.values() for _, y in points] + [p.y for p in page.nodes.values()] + [v[1] - 20 for v in page.label_pos.values()]
-    xs += [x for _, x, _, _, _ in page.end_boxes] + [shape.x for shape in page.shapes]
-    ys += [y for _, _, y, _, _ in page.end_boxes] + [shape.y for shape in page.shapes]
+    xs += [x for _, x, _, _, _ in page.end_boxes + page.centers] + [shape.x for shape in page.shapes] + [z[2] for z in page.zones]
+    ys += [y for _, _, y, _, _ in page.end_boxes + page.centers] + [shape.y for shape in page.shapes] + [z[3] for z in page.zones]
     return min(0.0, min(xs, default=0.0) - 30), min(0.0, min(ys, default=0.0) - 30)
+
+
+ZONE_LOOK = {                       # kind -> (fill, border): outside = warm, inside = green, a block with both = violet, the rest grey
+    "external": ("#FFF7EA", "#C77D1A"), "internal": ("#F0F8F2", "#3F8F55"), "tall": ("#F5F1FB", "#7152A8"),
+    "other": ("#F4F6F8", "#8FA0AE"), "management": ("#F4F6F8", "#8FA0AE"), "ghost": ("#F4F6F8", "#8FA0AE"), "core": ("#EEF4FA", "#2F6F9F"),
+}
+
+
+def zone_look(kind: str) -> tuple[str, str]:
+    return ZONE_LOOK.get(kind, ZONE_LOOK["other"])
+
+
+HALO = 'paint-order="stroke" stroke="{bg}" stroke-width="5" stroke-linejoin="round"'
+
+
+def _late_title(x: float, y: float, size: int, colour: str, text: str, background: str, extra: str = "") -> str:
+    """A frame title that a line still has to cross: written on top of the lines with a halo in the colour of the frame, so the line stops at the letters instead of striking them."""
+    return (f'<text class="title-on-top" x="{x:.0f}" y="{y:.0f}" font-size="{size}" font-weight="700" {extra}{HALO.format(bg=background)} fill="{colour}" pointer-events="none">{_esc(text)}</text>')
+
+
+def _zones(page: Page, graph: Any = None, show_ports: bool = True, late: list[str] | None = None) -> list[str]:
+    """The box round each zone: under everything else, in one group (class ``zone-boxes``) so that the page can hide it.  A name that a line must still cross goes into ``late`` (drawn
+    over the lines, in a group of the same class so the page hides it with the boxes)."""
+    if not page.zones:
+        return []
+    out = ['<g class="zone-boxes">']
+    segments = page_segments(page)
+    rects = page_label_rects(page, graph) if show_ports else []
+    for title, kind, x, y, w, h in page.zones:
+        fill, border = zone_look(kind)
+        fitted = zone_title(page, (title, kind, x, y, w, h), segments, rects)
+        dash = "2 6" if kind == "ghost" else "12 6"
+        on_top = fitted.hits > 0 and late is not None
+        out.append(f'<g class="zone zone-{kind}"><rect x="{x:.0f}" y="{y:.0f}" width="{w:.0f}" height="{h:.0f}" rx="16" fill="{fill}" stroke="{border}" stroke-width="2" stroke-dasharray="{dash}">'
+                   f'<title>Zone: {_esc(title)}</title></rect>'
+                   + ("" if on_top else f'<text x="{x + fitted.spot:.0f}" y="{y + 26:.0f}" font-size="15" font-weight="700" letter-spacing="0.5" fill="{border}">{_esc(title)}</text>') + '</g>')
+        if on_top:
+            late.append(_late_title(x + fitted.spot, y + 26, 15, border, title, fill, 'letter-spacing="0.5" '))
+    out.append("</g>")
+    return out
 
 
 def _tables(page: Page) -> list[str]:
@@ -150,22 +203,42 @@ def _f5_shapes(page: Page) -> tuple[list[str], list[str]]:
     return lines, boxes
 
 
-def to_svg(page: Page, graph: Graph, show_ports: bool = True, line_style: str = "state") -> str:
+def to_svg(page: Page, graph: Graph, show_ports: bool = True, line_style: str = "state", marks: Any = None) -> str:
+    """``marks``: the changes since an earlier run (``diffmark.Marks``): a layer on top of the diagram and a note band under it; nothing moves."""
     graph = page.graph or graph
     width, height = max(page.width + 40, 600), max(page.height + 40, 400)
     left, top = _origin(page)
     width, height = width - left, height - top
+    marked = marks is not None and not marks.empty and page.view not in ("f5map",)
+    picture_height, view_left, view_top = height, left, top                  # ``top`` is used again for label rows below
+    if marked:
+        from .diffmark import NOTE_H
+        height += NOTE_H
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{left:.0f} {top:.0f} {width:.0f} {height:.0f}" class="topology-svg" role="img" '
            f'aria-label="Network topology, page {_esc(page.name)}" font-family="Helvetica, Arial, sans-serif">']
+    late_zone: list[str] = []
+    late_frame: list[str] = []
+    out.extend(_zones(page, graph, show_ports, late_zone))
     for title, x, y, w, h in page.boxes:
         out.append(f'<rect x="{x:.0f}" y="{y:.0f}" width="{w:.0f}" height="{h:.0f}" fill="none" stroke="#000000" stroke-width="2"/>'
                    f'<text x="{x + 12:.0f}" y="{y + 26:.0f}" font-size="16" font-weight="700" fill="#8a5a50">{_esc(title)}</text>')
     title_segments = page_segments(page) if page.end_boxes else []
     title_labels = page_label_rects(page, graph) if page.end_boxes and show_ports else []
     for title, x, y, w, h in page.end_boxes:                 # end points grouped under one switch
-        spot = end_title_spot(page, (title, x, y, w, h), title_segments, title_labels)          # the name slides to a gap between lines
+        fitted = end_title(page, (title, x, y, w, h), title_segments, title_labels)          # the name slides to a gap between lines
         out.append(f'<rect x="{x:.0f}" y="{y:.0f}" width="{w:.0f}" height="{h:.0f}" rx="8" fill="#F7F9FB" stroke="#8FA0AE" stroke-width="1.5"><title>End points of {_esc(title)}</title></rect>'
-                   f'<text x="{x + spot:.0f}" y="{y + 20:.0f}" font-size="12" font-weight="700" fill="#3E4C59">{_esc(title)}</text>')
+                   + ("" if fitted.hits else f'<text x="{x + fitted.spot:.0f}" y="{y + 20:.0f}" font-size="12" font-weight="700" fill="#3E4C59">{_esc(title)}</text>'))
+        if fitted.hits:
+            late_frame.append(_late_title(x + fitted.spot, y + 20, 12, "#3E4C59", title, "#F7F9FB"))
+    centre_segments = title_segments or (page_segments(page) if page.centers else [])
+    centre_labels = title_labels or (page_label_rects(page, graph) if page.centers and show_ports else [])
+    for title, x, y, w, h in page.centers:                   # the centre of the network: its units in one frame
+        fitted = centre_title(page, (title, x, y, w, h), centre_segments, centre_labels)         # a shorter form of the name when the long one finds no gap between the lines
+        out.append(f'<rect class="centre-frame" x="{x:.0f}" y="{y:.0f}" width="{w:.0f}" height="{h:.0f}" rx="14" fill="#F2F8FC" stroke="#005073" stroke-width="2" stroke-dasharray="8 5">'
+                   f'<title>{_esc(title)}</title></rect>'
+                   + ("" if fitted.hits else f'<text x="{x + fitted.spot:.0f}" y="{y + 18:.0f}" font-size="11" font-weight="700" fill="#005073">{_esc(fitted.text)}</text>'))
+        if fitted.hits:
+            late_frame.append(_late_title(x + fitted.spot, y + 18, 11, "#005073", fitted.text, "#F2F8FC"))
     for frame in page.pair_boxes.values():
         out.append(f'<rect x="{frame.x:.0f}" y="{frame.y:.0f}" width="{frame.w:.0f}" height="{frame.h:.0f}" rx="14" fill="#F2F8FC" stroke="#005073" '
                    f'stroke-width="2" stroke-dasharray="8 5"><title>{_esc(frame.title)}</title></rect>'
@@ -225,6 +298,10 @@ def to_svg(page: Page, graph: Graph, show_ports: bool = True, line_style: str = 
             out.append(f'<text x="{lx:.0f}" y="{top:.1f}" font-size="10" font-weight="700" text-anchor="middle" '
                        f'paint-order="stroke" stroke="#fff" stroke-width="4" fill="#005073">'
                        + "".join(f'<tspan x="{lx:.0f}" dy="{0 if i == 0 else 11}">{_esc(row)}</tspan>' for i, row in enumerate(rows)) + '</text>')
+    if late_zone:
+        out.append('<g class="zone-boxes zone-titles">' + "".join(late_zone) + "</g>")
+    if late_frame:
+        out.append('<g class="frame-titles">' + "".join(late_frame) + "</g>")
     for key, pos in page.nodes.items():
         node = graph.nodes[key]
         ghost = key in page.ghosts or not node.captured
@@ -237,13 +314,23 @@ def to_svg(page: Page, graph: Graph, show_ports: bool = True, line_style: str = 
                      f'fill="{fill}" stroke="{stroke}" stroke-width="3" vector-effect="non-scaling-stroke"/>')
         else:
             shape = f'<rect x="{pos.x:.0f}" y="{pos.y:.0f}" width="{NODE_W}" height="{NODE_H}" rx="6" fill="{fill}" stroke="{stroke}" stroke-width="3"/>'
-        out.append(f'<g><title>{_esc(node.hostname)} {_esc(node.model)} {_esc(node.mgmt_ip)}</title>' + shape +
-                   f'<text x="{pos.x + NODE_W / 2:.0f}" y="{pos.y + NODE_H / 2 + 5:.0f}" font-size="15" font-weight="700" text-anchor="middle" fill="{stroke}">{_ROLE_GLYPH.get(node.role_hint, "?")}</text>')
+        units = max(int(getattr(node, "stack_members", 1) or 1), 2 if getattr(node, "svl_domain", "") else 1)
+        if units > 1 and node.role_hint not in ("segment", "cloud"):
+            behind = "".join(f'<rect class="stack-unit" x="{pos.x + 7 * step:.0f}" y="{pos.y - 7 * step:.0f}" width="{NODE_W}" height="{NODE_H}" rx="6" fill="{fill}" stroke="{stroke}" stroke-width="3"/>'
+                             for step in range(min(units, 4) - 1, 0, -1))
+            shape = behind + shape + f'<text class="stack-count" x="{pos.x + NODE_W - 6:.0f}" y="{pos.y + 16:.0f}" font-size="12" font-weight="700" text-anchor="end" fill="{stroke}">x{units}</text>'
+        glyph = (_server_glyph(pos.x, pos.y, stroke) if node.role_hint == "server" else
+                 f'<text x="{pos.x + NODE_W / 2:.0f}" y="{pos.y + NODE_H / 2 + 5:.0f}" font-size="15" font-weight="700" text-anchor="middle" fill="{stroke}">{_ROLE_GLYPH.get(node.role_hint, "?")}</text>')
+        out.append(f'<g><title>{_esc(node.hostname)} {_esc(node.model)} {_esc(node.mgmt_ip)}</title>' + shape + glyph)
         lines = [l for l in labels.node_lines(node) if l]
         for i, line in enumerate(lines):
             colour = ("#d90000" if node.captured and not ghost else "#7f7f7f") if i == 0 else ("#004a75" if i == 1 else "#222")
             out.append(f'<text x="{pos.x + NODE_W / 2:.0f}" y="{pos.y + NODE_H + 16 + 14 * i:.0f}" font-size="12" font-weight="700" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="4" stroke-linejoin="round" fill="{colour}">{_esc(line[:34])}</text>')
         out.append("</g>")
+    if marked:
+        from . import diffmark
+        out.append(diffmark.layer(page, graph, marks, centre, NODE_W, NODE_H))
+        out.append(diffmark.band(marks, view_left + 8, view_top + picture_height, width - 16))
     out.extend(_tables(page))
     out.append("</svg>")
     return "".join(out)

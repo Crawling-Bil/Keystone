@@ -9,7 +9,10 @@ The same spot is used by the SVG and by the draw.io file, so both pictures agree
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from . import labels
+from .textwidth import text_width
 from .layout import NODE_H, NODE_W
 
 TITLE_LEFT = 10.0              # px from the left border of the frame to the first letter, when nothing is in the way
@@ -85,23 +88,98 @@ def _hits(segment: tuple[float, float, float, float], left: float, top: float, r
     return t0 <= t1
 
 
-def end_title_spot(page, box: tuple[str, float, float, float, float], segments: list[tuple[float, float, float, float]] | None = None,
-                   rects: list[tuple[float, float, float, float]] | None = None) -> float:
-    """Distance from the left border of the frame to the first letter of its name: the left-most spot (sliding right in small steps) where no
-    line crosses the text and no port label (``rects``) stands on it; when every spot is blocked, the one with the fewest lines and labels on it."""
-    title, x, y, w, h = box
-    segments = page_segments(page) if segments is None else segments
-    width = title_width(title)
-    last = w - width - TITLE_LEFT + TITLE_PAD
-    best, best_hits = TITLE_LEFT, None
-    dx = TITLE_LEFT
+def _width(text: str, char_w: float, size: float | None, spacing: float) -> float:
+    """Width of a title: measured letter by letter at the type size when ``size`` is given, else ``char_w`` px a letter."""
+    return (text_width(text, size) + spacing * len(text) if size else char_w * len(text)) + 2 * TITLE_PAD
+
+
+def _search(page, box, segments, rects, text: str, char_w: float, left_edge: float, top: float, bottom: float, size: float | None = None, spacing: float = 0.0) -> tuple[float, int]:
+    """(distance from the left border to the first letter, lines and labels still on the text): the left-most spot, sliding right in small steps, where nothing is on the text;
+    when every spot is blocked, the one with the fewest."""
+    _title, x, y, w, h = box
+    width = _width(text, char_w, size, spacing)
+    last = max(w - width - left_edge + TITLE_PAD, left_edge)
+    best, best_hits = left_edge, None
+    dx = left_edge
     while True:
         left, right = x + dx - TITLE_PAD, x + dx - TITLE_PAD + width
-        hits = sum(1 for s in segments if _hits(s, left, y + TITLE_TOP, right, y + TITLE_BOTTOM))
-        hits += sum(1 for a, b, c, d in rects or () if a < right and c > left and b < y + TITLE_BOTTOM and d > y + TITLE_TOP)
+        hits = sum(1 for s in segments if _hits(s, left, y + top, right, y + bottom))
+        hits += sum(1 for a, b, c, d in rects or () if a < right and c > left and b < y + bottom and d > y + top)
         if best_hits is None or hits < best_hits:
             best, best_hits = dx, hits
         if hits == 0 or dx >= last:
             break
         dx = min(dx + SLIDE, last)
-    return best
+    return best, best_hits or 0
+
+
+def end_title_spot(page, box: tuple[str, float, float, float, float], segments: list[tuple[float, float, float, float]] | None = None,
+                   rects: list[tuple[float, float, float, float]] | None = None, char_w: float = CHAR_W, left_edge: float = TITLE_LEFT,
+                   top: float = TITLE_TOP, bottom: float = TITLE_BOTTOM) -> float:
+    """Distance from the left border of the frame to the first letter of its name: the left-most spot (sliding right in small steps) where no
+    line crosses the text and no port label (``rects``) stands on it; when every spot is blocked, the one with the fewest lines and labels on it.
+    The other arguments say how big the name is (``char_w`` px per letter), where it starts and which band below the top border it occupies: the zone boxes and the frame round the
+    centre use the same search with their own type size."""
+    segments = page_segments(page) if segments is None else segments
+    return _search(page, box, segments, rects, box[0], char_w, left_edge, top, bottom)[0]
+
+
+@dataclass(frozen=True)
+class Fitted:
+    """What a frame title came to: the text to write, where it starts, and how many lines or labels still stand on it (0 = clean)."""
+    text: str
+    spot: float
+    hits: int
+
+
+def short_variants(title: str) -> list[str]:
+    """The title and its shorter forms, longest first: 'CORE · 2 units · twin units' -> 'CORE · 2 units' -> 'CORE'.  A title without the dot separator has no shorter form."""
+    parts = [p for p in title.split(" \u00b7 ") if p]
+    return [" \u00b7 ".join(parts[:n]) for n in range(len(parts), 0, -1)] or [title]
+
+
+def fit_title(page, box: tuple, segments: list, rects: list, char_w: float, left_edge: float, top: float, bottom: float, shorten: bool = False, size: float | None = None, spacing: float = 0.0) -> Fitted:
+    """The best way to write a frame title: slide it along the strip to a clean gap; when no gap is wide enough and ``shorten`` is set, try its shorter forms (the full name stays
+    in the tooltip); when nothing is clean, the full title at the spot with the fewest hits (the caller then draws it on top of the lines with a white halo, ``Fitted.hits`` > 0)."""
+    title = box[0]
+    first = _search(page, box, segments, rects, title, char_w, left_edge, top, bottom, size, spacing)
+    if first[1] == 0 or not shorten:
+        return Fitted(title, first[0], first[1])
+    for text in short_variants(title)[1:]:
+        spot, hits = _search(page, box, segments, rects, text, char_w, left_edge, top, bottom, size, spacing)
+        if hits == 0:
+            return Fitted(text, spot, 0)
+    return Fitted(title, first[0], first[1])
+
+
+ZONE_CHAR_W = 9.6              # a 15 px bold title with letter spacing
+ZONE_LEFT = 16.0
+CENTRE_CHAR_W = 6.6            # an 11 px bold title
+CENTRE_LEFT = 10.0
+
+
+def zone_title(page, zone: tuple, segments: list, rects: list) -> Fitted:
+    """The zone name, fitted (see ``fit_title``)."""
+    title, _kind, x, y, w, h = zone
+    return fit_title(page, (title, x, y, w, h), segments, rects, ZONE_CHAR_W, ZONE_LEFT, 8.0, 34.0, size=15.0, spacing=0.5)
+
+
+def centre_title(page, frame: tuple, segments: list, rects: list) -> Fitted:
+    """The name of the frame round the centre of the network, fitted: its shorter forms are tried when the long one finds no clean gap between the lines."""
+    return fit_title(page, frame, segments, rects, CENTRE_CHAR_W, CENTRE_LEFT, 4.0, 24.0, shorten=True, size=11.0)
+
+
+def end_title(page, box: tuple, segments: list, rects: list) -> Fitted:
+    """The name of an end-point frame, fitted."""
+    return fit_title(page, box, segments, rects, CHAR_W, TITLE_LEFT, TITLE_TOP, TITLE_BOTTOM, size=12.0)
+
+
+def zone_title_spot(page, zone: tuple, segments: list, rects: list) -> float:
+    """Where the name of a zone box starts (px from its left border): it slides along the top strip to a gap between the lines that enter the box there."""
+    title, _kind, x, y, w, h = zone
+    return end_title_spot(page, (title, x, y, w, h), segments, rects, ZONE_CHAR_W, ZONE_LEFT, 8.0, 34.0)
+
+
+def centre_title_spot(page, frame: tuple, segments: list, rects: list) -> float:
+    """The same for the frame round the centre of the network (the core pair)."""
+    return end_title_spot(page, frame, segments, rects, CENTRE_CHAR_W, CENTRE_LEFT, 4.0, 24.0)

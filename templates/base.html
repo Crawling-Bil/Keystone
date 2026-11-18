@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Keystone{% endblock %}</title>
-    <script>(function(){try{var t=localStorage.getItem("nes-theme")||"dark";document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
+    <script src="{{ url_for('static', filename='js/theme-init.js') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/motion.css') }}">
     {% block head %}{% endblock %}

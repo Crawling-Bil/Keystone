@@ -901,7 +901,7 @@ _PLAIN_NAME_RE = re.compile(r"[\w.\-]+")
 def _acl_references(statements: list[tuple[str, list[str]]], definitions: list[dict[str, Any]]) -> dict[str, list[str]]:
     """Where an ACL is used OTHER than on an interface or a VTY line: a
     route-map / class-map / NAT / SNMP / traffic classifier names it. Returns
-    {acl: ["route-map GTOPAS permit 10", ...]}.
+    {acl: ["route-map DEPO permit 10", ...]}.
 
     A name counts when it stands apart: no letter, digit, "_", "." or "-" before or after it.  For a name made only of those characters that is the same as
     "the name is one of the words of the line" (a word = a run of those characters), so each line is cut into its words once and the names are looked up in

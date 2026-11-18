@@ -36,6 +36,18 @@ _SECTION_BREAK_RE = re.compile(
 _BARE_COMMAND_RE = re.compile(r"^(show|display|sh)\s+\S", re.IGNORECASE)
 
 
+_DASHED_COMMAND = re.compile(r"^-{5,}\s*((?:show|display|sh)\s.+?)\s*-{5,}$", re.IGNORECASE)
+
+
+def _is_command_line(text: str, keyword: str) -> bool:
+    """Is this (stripped, lower-case) line the command ``keyword``?  A prompt line ends with the command (``SW1#show version``); a ``show tech-support`` dump
+    heads every part ``------------------ show version ------------------``: the command is between the dashes."""
+    if text.endswith(keyword):
+        return True
+    found = _DASHED_COMMAND.match(text) if text.startswith("---") else None
+    return bool(found) and found.group(1).strip() == keyword
+
+
 _LOWER_CACHE: list[tuple[list[str], list[str]]] = []
 
 
@@ -82,7 +94,7 @@ def _extract_section(lines: list[str], keywords: list[str]) -> list[str]:
             # real collision hit on a real Aruba capture, since the brief
             # command's name is a literal prefix of the detail command's),
             # silently pulling the wrong, much longer section.
-            if text.endswith(keyword):
+            if _is_command_line(text, keyword):
                 start = index + 1
                 break
         if start is not None:
@@ -115,7 +127,7 @@ _CISCO_IF_BRIEF_ROW = re.compile(
 )
 # Real "display ip interface brief" output always has a trailing VPN-
 # instance column ("--" or a named instance like "management") after
-# Physical/Protocol — e.g. "Vlanif201    10.85.28.2/23    up    up    --".
+# Physical/Protocol — e.g. "Vlanif201    10.220.28.2/23    up    up    --".
 # The previous version of this regex required the line to END right
 # after the Protocol column with only trailing whitespace, so it could
 # NEVER match a real row — confirmed on a real S5755 draft capture,
@@ -458,7 +470,7 @@ def _parse_cdp_detail(lines: list[str]) -> list[dict]:
     return results
 
 
-_HUAWEI_LLDP_BLOCK_HEADER_RE = re.compile(r"^(\S+)\s+has\s+(\d+)\s+neighbor\(s\)", re.IGNORECASE)
+_HUAWEI_LLDP_BLOCK_HEADER_RE = re.compile(r"^(\S+)\s+has\s+(\d+)\s+neighbor(?:\(s\)|s)?\b", re.IGNORECASE)        # "has 1 neighbor(s):" (switches) or "has 1 neighbors:" (AirEngine AC)
 # a Huawei model name inside a system description: "Huawei Switch S5731-S24P4X", "HUAWEI CloudEngine S5735-L-V2", a bare "S5735-S24T4X"
 _HUAWEI_MODEL_RE = re.compile(r"\b(S\d{4}[A-Z0-9]*(?:-[A-Z0-9]+)*|CE\d{4,5}[A-Z0-9]*(?:-[A-Z0-9]+)*|AR\d{3,4}[A-Z0-9]*(?:-[A-Z0-9]+)*|"
                               r"AC\d{4}[A-Z0-9]*(?:-[A-Z0-9]+)*|USG\d+[A-Z0-9]*(?:-[A-Z0-9]+)*|AirEngine\d+[A-Z0-9]*(?:-[A-Z0-9]+)*)\b")
@@ -495,7 +507,7 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
         Port ID subtype                    :Interface Name
         Port ID                            :MEth0/0/0
         Port description                   :--
-        System name                        :TTC-SWCODI-BU-DMZ-S5755
+        System name                        :DC1-SWCODI-BU-DMZ-S5755
         System description                 :Huawei Switch
         Huawei YunShan OS
         ...
@@ -505,7 +517,7 @@ def _parse_huawei_lldp_detail(lines: list[str]) -> list[dict]:
 
     A port with no neighbor prints "<if> has 0 neighbor(s)" (no colon,
     no body) — every physical port on the switch gets one of these two
-    forms, confirmed on a real S5755 M-LAG pair capture (TTC-SWCODI-MN/
+    forms, confirmed on a real S5755 M-LAG pair capture (DC1-SWCODI-MN/
     BU-DMZ), which is also why this can't be parsed with a single
     fixed-width table the way the brief command can. "Device model
     name" is used as Platform here rather than the multi-line "System
@@ -901,7 +913,7 @@ def parse_neighbors(lines: list[str]) -> list[dict]:
     # / Exptime(s) / Neighbor Interface / Neighbor Device — the Exptime
     # digit is the SECOND column, not a trailing one. The previous
     # regex required the LAST token to be bare digits, which a real
-    # device-name last column ("TTC-SWCODI-BU-DMZ-S5755") never is —
+    # device-name last column ("DC1-SWCODI-BU-DMZ-S5755") never is —
     # confirmed on a real S5755 M-LAG pair capture, this never matched
     # a single row. The header-skip check was also looking for "local
     # intf" when the real header says "Local Interface", so it never
@@ -969,10 +981,12 @@ def parse_neighbors(lines: list[str]) -> list[dict]:
     # local ports at once, so de-duplicating by neighbor_id the way CDP
     # detail does would wrongly collapse those into one row).
     huawei_detail_results = _parse_huawei_lldp_detail(lines)
-    huawei_detail_local_ifaces = {item["local_interface"] for item in huawei_detail_results}
+    # The brief table says "GE0/0/1" where the detail dump says "GigabitEthernet0/0/1" (and cuts a long neighbour name with "..."): compare the
+    # canonical short form, or the cut brief row survives beside the full detail row and its neighbour never matches a captured device.
+    huawei_detail_local_ifaces = {_huawei_if_key(item["local_interface"]) for item in huawei_detail_results}
     results = [
         item for item in results
-        if not (item["protocol"] == "LLDP" and item["local_interface"] in huawei_detail_local_ifaces)
+        if not (item["protocol"] == "LLDP" and _huawei_if_key(item["local_interface"]) in huawei_detail_local_ifaces)
     ]
     results.extend(huawei_detail_results)
 
@@ -980,6 +994,19 @@ def parse_neighbors(lines: list[str]) -> list[dict]:
     results.extend(_parse_aruba_cdp_detail(lines))
 
     return results
+
+
+_HUAWEI_IF_LONG = (("xgigabitethernet", "XGE"), ("multige", "MGE"), ("gigabitethernet", "GE"), ("100ge", "100GE"), ("40ge", "40GE"), ("25ge", "25GE"), ("10ge", "10GE"),
+                   ("xge", "XGE"), ("ge", "GE"), ("ethernet", "Eth"))
+
+
+def _huawei_if_key(name: str) -> str:
+    """``GigabitEthernet0/0/1`` and ``GE0/0/1`` are one port."""
+    low = (name or "").strip().lower()
+    for long_name, short in _HUAWEI_IF_LONG:
+        if low.startswith(long_name):
+            return short + low[len(long_name):]
+    return low
 
 
 _ARUBA_CDP_PORT_RE = re.compile(r"^Port\s*:\s*(\S+)", re.IGNORECASE)
@@ -1182,8 +1209,8 @@ def parse_port_channels(lines: list[str]) -> list[dict]:
     # Huawei "display eth-trunk" is a multi-line block per trunk rather
     # than a single-line table, so it needs its own light state machine.
     #
-    # Confirmed against 2 real S5735 stack members (PDC-DAYA-SWAC-05 and
-    # STR2-SWAC-1-HRGA): the real status field is literally "Operating
+    # Confirmed against 2 real S5735 stack members (PD1-SWAC-05 and
+    # SB2-SWAC-1-HRGA): the real status field is literally "Operating
     # Status" (not "Operate status" — a plain typo in the old regex that
     # meant the trunk's status was never captured), and the real member
     # table's 2nd column is the LACP/manual SELECTION state — "Selected"
@@ -1282,8 +1309,8 @@ def parse_port_channels(lines: list[str]) -> list[dict]:
 
 # Real Huawei CLI's chassis-level "HUAWEI CloudEngine <model> uptime"
 # banner always truncates the model to just its FAMILY ("S5735-S-V2",
-# "S5755-H") — confirmed on 3 real captures (TTC-SWAC-C-S5735-FIX.txt,
-# TTC-SWCODI-MN-DMZ-S5755-FIX.txt, GTOPAS-MKS-SWCODI-S5755-FIX.txt,
+# "S5755-H") — confirmed on 3 real captures (DC1-SWAC-C-S5735-FIX.txt,
+# DC1-SWCODI-MN-DMZ-S5755-FIX.txt, DEPO-AA-SWCODI-S5755-FIX.txt,
 # the last a real 2-member stack). The FULL board type ("S5735-
 # S24P4XE-V2", "S5755-H48UM4Y2CZ") only ever appears elsewhere — the
 # same real captures confirm "display device elabel brief"'s Type
@@ -1323,8 +1350,8 @@ def _parse_cisco_chassis_pid(lines: list[str]) -> str:
     processor...") frequently omits the SKU suffix real 'show
     inventory' carries in its PID field ("WS-C3650-24TS" vs. the real
     orderable "WS-C3650-24TS-S") — confirmed on 2 real Catalyst
-    captures (GTOPAS-PKU-SWCO-C3650.txt, a stack, and the standalone
-    TTC-SWDI-C-3560.txt). 'show inventory's FIRST entry is always the
+    captures (DEPO-CC-SWCO-C3650.txt, a stack, and the standalone
+    DC1-SWDI-C-3560.txt). 'show inventory's FIRST entry is always the
     chassis/stack-level summary (NAME "1" on a standalone switch, NAME
     "c36xx Stack" on a stack) carrying that precise PID — every later
     entry in the same real captures (power supplies, stack ports,
@@ -1369,7 +1396,7 @@ def parse_version(lines: list[str]) -> dict:
     # From here on (NX-OS / Huawei / generic Cisco), detection is scoped
     # to the device's OWN "show version" (Cisco/NX-OS) / "display
     # version" (Huawei) command section instead of the whole capture —
-    # confirmed a real, currently-active bug on GTOPAS-MKS-SWCODI-
+    # confirmed a real, currently-active bug on DEPO-AA-SWCODI-
     # C3650.txt (a real Cisco Catalyst 3650 stack backup): its "show
     # lldp neighbors detail" section verbatim-echoes an adjacent Huawei
     # neighbor's own "System Description" field, which happens to
@@ -1470,8 +1497,8 @@ def parse_version(lines: list[str]) -> dict:
         # ("WS-C3650-24TS-S") over 'show version's own hardware line,
         # which real IOS-XE firmware frequently prints WITHOUT the SKU
         # suffix ("cisco WS-C3650-24TS (MIPS) processor...", missing
-        # the "-S") — confirmed on GTOPAS-PKU-SWCO-C3650.txt and
-        # TTC-SWDI-C-3560.txt (see _parse_cisco_chassis_pid). Only
+        # the "-S") — confirmed on DEPO-CC-SWCO-C3650.txt and
+        # DC1-SWDI-C-3560.txt (see _parse_cisco_chassis_pid). Only
         # falls back to the generic "show version" hardware-line regex
         # when the capture has no "show inventory" section at all.
         cisco_model = _parse_cisco_chassis_pid(lines)
@@ -2082,7 +2109,7 @@ def _parse_poe_from_cdp_detail(lines: list[str]) -> list[dict]:
     """Fallback PoE source: derive per-port power draw from 'show cdp
     neighbors detail' instead of a dedicated PoE show command.
 
-    Real-world finding (a real LXS-SWAC-GUEST-2960 capture never ran
+    Real-world finding (a real LX1-SWAC-GUEST-2960 capture never ran
     'show power inline' at all — only the 'power inline never' CONFIG
     line appears, on ports where PoE was explicitly disabled; there is
     no live PoE table in that capture to parse) — but every neighbor
@@ -2256,7 +2283,7 @@ _MLAG_FIELD_MAP = {
 _MLAG_ROW_RE = re.compile(r"^(Eth-Trunk\d+)\s+(\d+)\s+(\S+)\s+(\S+)", re.IGNORECASE)
 
 # Real Huawei CloudEngine M-LAG live status commands, confirmed on a
-# real S5755 M-LAG pair capture (TTC-SWCODI-MN/BU-DMZ) — "display
+# real S5755 M-LAG pair capture (DC1-SWCODI-MN/BU-DMZ) — "display
 # m-lag summary" / "display m-lag brief" above are a DIFFERENT,
 # apparently never-actually-seen-in-this-project command family that
 # never matched a single real capture; the real CLI verbs are all

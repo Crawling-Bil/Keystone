@@ -82,7 +82,7 @@ def test_vpc_line_label(dc):
 def test_drawio_holds_both_views_and_frames_connect():
     result = build_topology(list(lab_dc().items()))
     root = ET.fromstring(result["drawio"])
-    assert [d.get("name") for d in root.findall("diagram")] == ["Overview", "Overview (vPC view)"]
+    assert [d.get("name") for d in root.findall("diagram")] == ["L2 Physical View", "Overview (vPC view)"]
     logical = root.findall("diagram")[1]
     ids = {c.get("id") for c in logical.iter() if c.tag in ("mxCell", "object")}
     frames = [c for c in logical.iter("mxCell") if c.get("id", "").startswith("pb")]
@@ -93,7 +93,7 @@ def test_drawio_holds_both_views_and_frames_connect():
             assert cell.get("source") in ids and cell.get("target") in ids
 
 
-@pytest.mark.parametrize("view,expected", [("physical", ["Overview"]), ("logical", ["Overview (vPC view)"]), ("both", ["Overview", "Overview (vPC view)"])])
+@pytest.mark.parametrize("view,expected", [("physical", ["L2 Physical View"]), ("logical", ["Overview (vPC view)"]), ("both", ["L2 Physical View", "Overview (vPC view)"])])
 def test_view_option_selects_the_pages_of_the_diagram_file(view, expected):
     root = ET.fromstring(build_topology(list(lab_dc().items()), view=view)["drawio"])
     assert [d.get("name") for d in root.findall("diagram")] == expected
@@ -387,3 +387,16 @@ def test_a_diagram_file_with_both_views_is_read_back_as_a_layout():
     assert again["summary"]["layout_kept"] == first["summary"]["captured"] + first["summary"]["seen_only"]
     only_logical = read_layout(build_topology(list(lab_dc().items()), view="logical")["drawio"].encode())
     assert build_topology(list(lab_dc().items()), layout=only_logical)["summary"]["layout_kept"] > 0
+
+
+def test_the_physical_page_is_called_l2_physical_view_in_the_diagram_file_and_still_reads_as_the_old_overview():
+    from features.topology.layout_io import read_layout
+    from features.topology.scene import OVERVIEW_PAGE, PHYSICAL_TITLE, display_name
+    assert (display_name(OVERVIEW_PAGE), display_name("SITE1"), PHYSICAL_TITLE) == ("L2 Physical View", "SITE1", "L2 Physical View")
+    drawio = build_topology(list(lab_dc().items()), view="physical")["drawio"]
+    assert 'name="L2 Physical View"' in drawio and 'name="Overview"' not in drawio
+    assert set(read_layout(drawio.encode())) == {"Overview"}                         # the layout is keyed by the internal page name
+    old = drawio.replace('name="L2 Physical View"', 'name="Overview"')                 # a file saved before the rename
+    assert set(read_layout(old.encode())) == {"Overview"}
+    again = build_topology(list(lab_dc().items()), layout=read_layout(old.encode()))
+    assert again["summary"]["layout_kept"] > 0

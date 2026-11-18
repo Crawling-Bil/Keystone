@@ -101,10 +101,10 @@ def build_report(graph: Graph, summary: dict[str, Any], findings: list[dict], de
     if settings:
         out.append("<h2>Build options</h2><p class='note'>The options that were set on the page for this run (the same text is in run-settings.txt).</p><pre>" + _e(settings_text(settings, summary, notices)) + "</pre>")
     out.append("<h2>1. Diagrams</h2>")
-    out.append("<p class='note'>Physical view: every cable. vPC view: each vPC pair is one frame and each bundle that spans a pair is one line. IP view: devices that share a subnet, with the address at each end and a table of every interface address. "
+    out.append("<p class='note'>L2 Physical View: every cable. vPC view: each vPC pair is one frame and each bundle that spans a pair is one line. IP view: devices that share a subnet, with the address at each end and a table of every interface address. "
                "Black = confirmed from both ends, orange dashed = reported by one end only, red = the ends disagree, blue = vPC peer-link, grey box = seen by a neighbor but not captured.</p>")
     for page in svgs:
-        kind = {"logical": "vPC view", "ip": "IP view", "l3route": "L3 route view", "l3over2": "L3 over L2", "f5map": "F5 map (virtual servers, pools, members, nodes)"}.get(page.get("view"), "Physical view")
+        kind = {"logical": "vPC view", "ip": "IP view", "l3route": "L3 route view", "l3over2": "L3 over L2", "f5map": "F5 map (virtual servers, pools, members, nodes)"}.get(page.get("view"), "L2 Physical View")
         out.append(f"<h3>{_e(page['name'])} <span class='note'>({kind})</span></h3><div class='diagram'>{page['svg']}</div>")
     if l3 and l3.get("links"):
         out.append("<h3>L3 links</h3><p class='note'>One row per line of the L3 picture. Solid = something in the captures shows it working, dashed = configured only, red = broken. "
@@ -219,7 +219,7 @@ def build_print_set(svgs: list[dict], title: str, created: str = "") -> str:
     No scripts, no external files."""
     sheets = []
     for number, page in enumerate(svgs, 1):
-        kind = PRINT_KINDS.get(page.get("view"), "Physical view")
+        kind = PRINT_KINDS.get(page.get("view"), "L2 Physical View")
         sheets.append(f"<section class='sheet'><header><h1>{_e(page['name'])}</h1><span>{_e(kind)} - sheet {number} of {len(svgs)}</span></header>"
                       f"<div class='fit'>{page['svg']}</div><footer><span>{_e(title)}</span><span>Keystone Topology Builder{(' - ' + _e(created)) if created else ''}</span></footer></section>")
     return (f"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -235,21 +235,25 @@ SETTING_LABELS = (
     ("collapse_endpoints", "Collapse phones and hosts into one node per switch"),
     ("group_endpoints", "Group end points under the same switch (one frame per switch, named after it; applies when end points are drawn one by one; access points drawn one by one are framed even when this is off)"),
     ("collapse_aps", "Collapse access points into one node per switch (off = every access point with its own hostname, model and IP address)"),
+    ("zone_boxes", "Draw a box with a title round each zone (core in the middle, external zones above, internal zones below)"),
     ("show_ports", "Show port names on the lines"),
     ("infer_neighbors", "Infer neighbors where CDP/LLDP is silent (order of trust: ARP, then MAC address, then port description)"),
     ("show_link_ips", "Show the address of routed ports and routed port-channels next to the port name on the lines"),
     ("bundle_members", "Show the member ports of port-channels and Eth-Trunks next to the bundle name on the lines (Po12: Gi1/0/23-24)"),
     ("include_routed", "Add routed /30 and /31 links found in interface addresses"),
     ("hide_mgmt", "Leave out-of-band management links (mgmt0) out of the picture; they stay in links.csv"),
+    ("mgmt_notes", "Draw the links of a management switch to routers, firewalls and other switches as a note on the device at the other end (its uplinks stay drawn); they stay in links.csv"),
     ("include_hosts", "Draw end hosts learned from MAC tables (up to 3 per port, more become one box)"),
 )
 CHOICE_LABELS = {
     "group": {"auto": "Automatic (one page per site when the network is large)", "none": "One diagram", "prefix1": "Group by first hostname word (BGR, JKT, DRC)", "prefix2": "Group by first two hostname words (JKT-A02)",
               "prefix3": "Group by first three hostname words (JKT-GD1-LT1)",
               "sites": "Sites, smart (hostname families and cables: HQWANR1 and HQ-ACC1 are one site, LT2 and LT02 are one floor)"},
-    "view": {"all": "All views (L3 over L2, L3 route view, IP view, physical view, vPC view, F5 map in one file)", "both": "L2 - Physical and vPC view", "physical": "L2 - Physical view only", "logical": "L2 - vPC view only", "ip": "L3 - Logical view only (shared subnets, interface addresses)", "l3route": "L3 - Logical and Route", "l3over2": "L3 over L2", "f5map": "F5 map only (virtual servers, pools, members, nodes)"},
+    "view": {"all": "All views (L3 over L2, L3 route view, IP view, L2 physical view, vPC view, F5 map in one file)", "both": "L2 - Physical and vPC view", "physical": "L2 - Physical view only", "logical": "L2 - vPC view only", "ip": "L3 - Logical view only (shared subnets, interface addresses)", "l3route": "L3 - Logical and Route", "l3over2": "L3 over L2", "f5map": "F5 map only (virtual servers, pools, members, nodes)"},
     "overlay_sites": {"captured": "Only the sites I captured", "all": "Every site in the BFD tables"},
-    "line_shape": {"angled": "Straight, bent once around a device", "curved": "Curved around a device"},
+    "line_shape": {"angled": "Straight, bent once around a device", "curved": "Curved around a device", "orthogonal": "Orthogonal (right angles, lanes between the rows)"},
+    "zone_layout": {"auto": "Automatic (zones round the core on every page that has a centre, unless the compact rows have far fewer crossings)", "always": "Always (zones round the core wherever the network has one)",
+                    "off": "Off (the compact rows)", "off (kept the plain rows)": "Automatic, kept the compact rows (the zones would have cost many more crossings)"},
     "line_style": {"speed": "Rated speed (1G, 10G, 25G, 40G, 100G)", "state": "Link state (confirmed, one end, conflict)"},
 }
 
@@ -265,7 +269,7 @@ def settings_text(settings: dict[str, Any], summary: dict[str, Any] | None = Non
     for key, label in SETTING_LABELS:
         lines.append(f"  [{'on ' if settings.get(key) else 'off'}] {label}")
     lines.append("")
-    for key, title in (("group", "Grouping"), ("view", "Diagram file contains"), ("line_style", "Style lines by"), ("line_shape", "Line shape")):
+    for key, title in (("group", "Grouping"), ("view", "Diagram file contains"), ("line_style", "Style lines by"), ("line_shape", "Line shape"), ("zone_layout", "Zone layout")):
         lines.append(f"{title}: {CHOICE_LABELS[key].get(settings.get(key), settings.get(key, ''))}")
     if settings.get("group") == "auto":
         lines.append(f"Grouping applied by Automatic: {CHOICE_LABELS['group'].get(settings.get('group_used'), settings.get('group_used', ''))}")
@@ -285,6 +289,13 @@ def settings_text(settings: dict[str, Any], summary: dict[str, Any] | None = Non
         if len(check) > 40:
             lines.append(f"  ... and {len(check) - 40} more pages")
         lines.append(f"  Total: {sum(r['crossings'] for r in check)} crossings, {sum(r['through'] for r in check)} lines through another icon")
+    check_l3 = settings.get("layout_check_l3") or []
+    if check_l3:                                                        # the L3 over L2 and route pages are scored the same way, apart: they hold most of the crossings of a big network
+        lines += ["", "Layout check of the L3 pages (same rules; the cloud and subnet icons are counted as devices)"]
+        lines += [f"  {row['page']}: {row['devices']} devices, {row['crossings']} crossings, {row['through']} lines through another icon, {row['length']:,} px of line" for row in check_l3[:40]]
+        if len(check_l3) > 40:
+            lines.append(f"  ... and {len(check_l3) - 40} more pages")
+        lines.append(f"  Total: {sum(r['crossings'] for r in check_l3)} crossings, {sum(r['through'] for r in check_l3)} lines through another icon")
     if notices:
         lines += ["", "Notices"] + [f"  ! {text}" for text in notices]
     return "\r\n".join(lines) + "\r\n"

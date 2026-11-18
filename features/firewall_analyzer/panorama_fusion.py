@@ -11,6 +11,7 @@ The hook is ``AnalyzerSpec.merge_sources``: it receives every upload and returns
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
+from core.safe_xml import fromstring as safe_fromstring
 from collections import Counter
 from typing import Any
 
@@ -52,7 +53,7 @@ def _pan_device(text: Any) -> ET.Element | None:
     if not isinstance(text, str) or not text.lstrip().startswith("<"):
         return None
     try:
-        root = ET.fromstring(text)
+        root = safe_fromstring(text)
     except ET.ParseError:
         return None
     return root if root.tag == "config" and root.find("devices/entry") is not None and root.find("devices/entry/template-stack") is None else None

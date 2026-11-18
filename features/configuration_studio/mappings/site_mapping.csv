@@ -1,20 +1,20 @@
 Site,Description,Region,Role,DefaultHuaweiSeries
-ADM,Administration Office,Head Office,Access,S5735
-CCY,Camp Ccy,Site,Access,S5735
-GTOPAS-MKS,GTOPAS MKS,Mining,Core,S5755
-GTOPAS-MND,GTOPAS MND,Mining,Core,S5755
-GTOPAS-PKU,GTOPAS PKU,Mining,Core,S5755
-GTOPAS-SMG,GTOPAS SMG,Mining,Core,S5755
-DRC,Disaster Recovery Center,Data Center,Access,S5735
+AD1,Office site 1,Head Office,Access,S5735
+CY1,Camp site 1,Site,Access,S5735
+DEPO-AA,Depot A,Mining,Core,S5755
+DEPO-BB,Depot B,Mining,Core,S5755
+DEPO-CC,Depot C,Mining,Core,S5755
+DEPO-DD,Depot D,Mining,Core,S5755
+DR1,Recovery site 1,Data Center,Access,S5735
 HO,Head Office,Head Office,Core,S5755
-KRWT,Kerawat Site,Mining,Access,S5735
-LXS,Lexus Site,Mining,Access,S5735
-NGORO,Ngoro Site,Plant,Access,S5735
-NVDC,NVDC Data Center,Data Center,Core,S5755
-PDC-GILI,PDC Gili,Plant,Access,S5735
-PDC-DAYA,PDC Daya,Plant,Access,S5735
-SPLD,SPLD Plant,Plant,Access,S5735
-STRADM,Site Administration,Head Office,Core,S5755
-STR2,Site STR2,Mining,Access,S5735
-STR3,Site STR3,Mining,Access,S5735
-TTC,TTC Data Center,Data Center,Core,S5755
+KW1,Mining site 1,Mining,Access,S5735
+LX1,Mining site 2,Mining,Access,S5735
+NG1,Plant site 1,Plant,Access,S5735
+NV1,Data centre 2,Data Center,Core,S5755
+PD2,Plant site 3,Plant,Access,S5735
+PD1,Plant site 2,Plant,Access,S5735
+SP1,Plant site 4,Plant,Access,S5735
+SA1,Office site 2,Head Office,Core,S5755
+SB2,Mining site 3,Mining,Access,S5735
+SB3,Mining site 4,Mining,Access,S5735
+DC1,Data centre 1,Data Center,Core,S5755

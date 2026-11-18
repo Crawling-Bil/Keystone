@@ -57,7 +57,7 @@ def main() -> None:
     try:
         port = int(os.environ.get("NES_PORT", "8002"))
     except ValueError:
-        raise SystemExit("NES_PORT must be a number, for example 8010.")
+        raise SystemExit("NES_PORT must be a number, for example 8010.") from None
 
     check_bind(host)
 
@@ -88,8 +88,10 @@ def main() -> None:
     try:
         serve(app, host=host, port=port, threads=8, channel_timeout=600)
     except OSError as exc:
-        raise SystemExit(f"Keystone could not start on {host}:{port}: {exc}")
+        raise SystemExit(f"Keystone could not start on {host}:{port}: {exc}") from exc
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()          # needed once the program is packed into one .exe: the helper process that reads a very large capture (``features/topology/isolate.py``, start method "spawn") starts the program again; without this it would open a second Keystone instead
     main()

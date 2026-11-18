@@ -29,7 +29,7 @@ from .roles import _WORD_RULES, _by_rules
 _NETWORK_WORDS = {"firewall", "router", "loadbalancer", "wlc", "core", "aggregation", "access", "fabric", "ap"}
 
 _NOT_PHYSICAL = re.compile(r"^(vlan|vl\d|lo\d|loopback|tu\d|tunnel|nve|mgmt|null|cpu|sdwan|vmanage|nvi|bdi|irb|vxlan)", re.I)
-_PREFIX = re.compile(r"^(?:(?:up|down)?link\s*(?:to|-)?|to|link\s+to|connect(?:ed|ion)\s+to|conn(?:ect)?\s+to|trunk\s+to|->|>>|=>)\s*[-:_>]*\s*", re.I)
+_PREFIX = re.compile(r"^(?:(?:up|down)?link\s*\d*\s*(?:to|-)?|to|link\s+to|connect(?:ed|ion)\s+to|conn(?:ect)?\s+to|trunk\s+to|->|>>|=>)\s*[-:_>]*\s*", re.I)
 # "... - Port Eth1/17", "connected to HQEDGNX1 port eth 1/50", "to SW1 interface Gi0/1": the far port named after the word port / interface
 _PORT_WORD = re.compile(r"\b(?:port|interface|intf|int)\.?\s*[:#-]?\s*(?P<port>[A-Za-z][A-Za-z-]*\s?\d+(?:/\d+)+(?:\.\d+)?)\s*$", re.I)
 _NAME_PORT = re.compile(r"^(?P<name>[A-Za-z][A-Za-z0-9_.-]{2,})(?:\s+[-–]\s+|[\s:_,;]+)(?P<port>(?:[A-Za-z]{1,}[A-Za-z-]*)?\d+(?:/\d+)*(?:\.\d+)?)\s*$")
@@ -37,6 +37,8 @@ _STOP = {"LAN", "WAN", "UPLINK", "DOWNLINK", "LINK", "TRUNK", "ACCESS", "MGMT", 
          "PRINTER", "SPARE", "UNUSED", "TEST", "BACKUP", "PRIMARY", "SECONDARY", "INSIDE", "OUTSIDE", "DMZ", "CORE", "HA", "SYNC", "PEER", "VLAN",
          "SHUTDOWN", "RESERVED", "FREE", "NOT-USED", "NOUSE", "CLIENT", "CLIENTS", "STACK", "VSF", "VSX", "ISL", "KEEPALIVE"}
 _CLOUD_WORDS = {"INTERNET", "ISP", "PROVIDER", "TELCO", "MPLS", "METRO", "METRO-E", "VPN"}
+_SIDE_WORDS = re.compile(r"[-_\s](INSIDE|OUTSIDE|DMZ)$", re.I)       # the interface of the far device ("LINK-FW-PUB1-INSIDE"): the device is FW-PUB1
+CORROBORATION = 2                                                    # captured devices that must name the same far device before a plain layer-2 description makes a box
 _ROUTER_NAME = re.compile(r"(^|[-_])(RT|RTR|ROU|ROUTER|WANR|WANRT|CE|PE|ISR|ASR|SDW|EDGE|GW|GATEWAY)\d*", re.I)
 
 
@@ -74,6 +76,56 @@ def port_hint(text: str) -> str:
 
 def _is_physical(port: str) -> bool:
     return bool(port) and not _NOT_PHYSICAL.match(port)
+
+
+def _far_name(text: str) -> str:
+    """The device a description names, without the side of the far device it is cabled to ('LINK-FW-PUB1-INSIDE' -> 'FW-PUB1'); '' when it names none."""
+    name, _port = parse_description(text)
+    stripped = _SIDE_WORDS.sub("", name)
+    return stripped if len(stripped) >= 4 else name
+
+
+def _named_by(graph: Graph) -> dict[str, set[str]]:
+    """Normalised far-device name -> the captured devices that name it in a link description ('LINK-SW-TOR2B', 'UPLINK TO X'): only descriptions that
+    start with a link word count, a bare word on a port is a label."""
+    named: dict[str, set[str]] = {}
+    for key, node in graph.nodes.items():
+        if not node.captured:
+            continue
+        for port, text in node.descriptions.items():
+            if _is_physical(port) and _PREFIX.match((text or "").strip()):
+                name = _norm(_far_name(text))
+                if name and name not in _STOP:
+                    named.setdefault(name, set()).add(key)
+    return named
+
+
+_UPLINK_N = re.compile(r"^(?:UPLINK|UP-LINK|LINK|TO)[-_ ]?(\d{1,2})[-_ ]+(\S.*)$", re.I)
+
+
+def _family_member(graph: Graph, text: str, own: str) -> str:
+    """The numbered member of a shared family name that a description points at: ``UPLINK1-SW-AGG-DC`` on a top-of-rack switch is the uplink to unit 1 of the pair SW-AGG1-DC /
+    SW-AGG2-DC.  Only when exactly one device has that name with that number and the cable is not already known; the number of a port that is not the number of a unit is left alone
+    (no member carries it)."""
+    found = _UPLINK_N.match((text or "").strip())
+    if not found:
+        return ""
+    number, rest = found.group(1).lstrip("0") or "0", re.sub(r"\d+", "", _norm(found.group(2)))
+    if not rest:
+        return ""
+    hits = [key for key, node in graph.nodes.items()
+            if key != own and node.captured and node.role_hint not in ("host", "phone", "server") and re.sub(r"\d+", "", _norm(node.hostname)) == rest
+            and (re.sub(r"\D+", "", node.hostname).lstrip("0") or "0") == number]
+    return hits[0] if len(hits) == 1 else ""
+
+
+def _family_alias(graph: Graph, name: str) -> bool:
+    """Is ``name`` the shared name of several captured devices ('UPLINK1-SW-AGG-DC' on every ToR, the aggregation pair being SW-AGG1-DC and SW-AGG2-DC)?
+    Such a description names the pair, not a third box, so it makes none."""
+    bare = re.sub(r"\d+", "", _norm(name))
+    if not bare or _norm(name) in {_norm(n.hostname) for n in graph.nodes.values()}:
+        return False
+    return sum(1 for n in graph.nodes.values() if n.captured and re.sub(r"\d+", "", _norm(n.hostname)) == bare) >= 2
 
 
 def _evidence(graph: Graph) -> dict[str, set[str]]:
@@ -255,6 +307,8 @@ def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
     mac_owner = _mac_index(graph, ip_owner)
     facts: list[dict[str, Any]] = []
     claimed: dict[tuple[str, str], str] = {}                # (device, port) -> the device a description of this run put on the other end
+    named_by = _named_by(graph)
+    described: dict[str, dict[str, Any]] = {}              # far device nobody captured -> the layer-2 ports whose link description names it
     for key in sorted(k for k, n in graph.nodes.items() if n.captured):
         device = graph.nodes[key]
         routed = _routed_names(device)
@@ -269,7 +323,7 @@ def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
                 continue
             description = device.descriptions.get(port, "")
             name, far_port = parse_description(description)
-            desc_key = (_find_by_name(graph, description, key) or (_find_by_fragment(graph, name, key) if name else "")) if description else ""
+            desc_key = (_find_by_name(graph, description, key) or _family_member(graph, description, key) or (_find_by_fragment(graph, name, key) if name else "")) if description else ""
             if desc_key and not far_port:
                 far_port = port_hint(description)
             arp = peers.get(port, [])
@@ -304,9 +358,13 @@ def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
                 else:
                     far_key = _new_node(graph, label, far_ip, far_mac, "Router")
                 how = {"ARP"} | ({"DESC"} if name and _norm(name) not in _STOP else set())
+            layer2_name = _far_name(description) if _PREFIX.match(description.strip()) else ""
             if not far_key and name and (far_port or port in routed) and _norm(name) not in _STOP and _looks_like_device(name, far_port, port in routed):
                 far_key = _new_node(graph, name, "", "", "Router" if port in routed else "")
                 how = {"DESC"}
+            elif (not far_key and layer2_name and _norm(layer2_name) not in _STOP and not far_port and not _family_alias(graph, layer2_name)
+                  and (_looks_like_device(layer2_name, "", False) or len(named_by.get(_norm(layer2_name), ())) >= CORROBORATION)):
+                described.setdefault(_norm(layer2_name), {"name": layer2_name, "ports": []})["ports"].append((key, port, description))   # not drawn: see ``described_devices``
             if far_key:
                 far_key = pick_unit(graph, far_key, far_port)       # a description names the chassis and the port: the VDOM that owns that port
             if not far_key or far_key == key:
@@ -346,6 +404,12 @@ def infer_neighbors(graph: Graph) -> list[dict[str, Any]]:
                     claimed.setdefault((far_key, far_name), key)       # a description names the port on the far end too: another description claiming it is a conflict
             said = next((graph.nodes[k].hostname for k in (desc_key, mac_key) if k and k != far_key and k in graph.nodes), "")
             facts.append({"type": "inferred-link", "a": key, "a_port": port, "b": far_key, "b_port": far_name, "evidence": evidence, "ip": far_ip, "conflict": said})
+    for norm_name, found in sorted(described.items()):
+        if norm_name in {_norm(n.hostname) for n in graph.nodes.values()}:
+            continue                                         # a box of that name exists now (made from another port): the line is the inferred link's business
+        ports = sorted(set((k, p) for k, p, _d in found["ports"]))
+        facts.append({"type": "described-device", "name": found["name"], "ports": [{"device": graph.nodes[k].hostname, "port": p} for k, p in ports],
+                      "devices": sorted({graph.nodes[k].hostname for k, _p in ports})})
     return facts
 
 

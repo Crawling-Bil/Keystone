@@ -28,7 +28,7 @@ from typing import Any
 # captures: Cisco IOS/IOS-XE full names (GigabitEthernet1/0/1,
 # TenGigabitEthernet1/1/1, ...) and Huawei VRP's short numeric-prefixed
 # names (GE1/0/1, 10GE1/0/1, 25GE1/0/3, 100GE1/0/1 — from real TAM
-# draft configs ADM-SWCODI-S5755.txt / TTC-SWCODI-MN-DMZ-S5755.txt).
+# draft configs AD1-SWCODI-S5755.txt / DC1-SWCODI-MN-DMZ-S5755.txt).
 _PHYSICAL_PORT_TYPE_PREFIXES = [
     ("HundredGigE", "100G"), ("FortyGigabitEthernet", "40G"),
     ("TwentyFiveGigE", "25G"), ("TenGigabitEthernet", "10G"),
@@ -42,16 +42,20 @@ _LOGICAL_PREFIXES = [
     ("Vlanif", "SVI"), ("Vlan", "SVI"),
     ("Loopback", "Loopback"), ("LoopBack", "Loopback"),
     ("MEth", "Management"), ("mgmt", "Management"),
+    # NX-OS prints "port-channel101", IOS-XE "Tunnel0" / "BDI735", Huawei "Bridge-Aggregation"; none of them is a port to buy
+    ("Tunnel", "Tunnel"), ("BDI", "BDI"), ("Null", "Null"), ("nve", "VXLAN"), ("Bridge-Aggregation", "Port-Channel"), ("Virtual-Template", "Virtual"),
+    ("AppGigabitEthernet", "AppHosting"),             # Catalyst 9000 application-hosting port: internal, nothing to cable
 ]
+_LOGICAL_NUMBERED = re.compile(r"^(?:po|bvi|ve|ap)\d", re.IGNORECASE)
 _BARE_ETHERNET_RE = re.compile(r"^(Ethernet|Eth)\d", re.IGNORECASE)
 _BARE_NUMBER_RE = re.compile(r"^\d+$")
 
 # Transceiver "type" strings differ in exact spelling between vendors
 # for the SAME physical SFP/QSFP class — confirmed on real captures in
 # this project: Cisco IOS-XE's "show interface transceiver" calls one
-# "1000BaseSX SFP" (GTOPAS-SMG-SWCO-C3650), while ArubaOS-Switch's own
+# "1000BaseSX SFP" (DEPO-DD-SWCO-C3650), while ArubaOS-Switch's own
 # "show transceiver" table calls the identical transceiver class
-# "1000SX" (TTC-SWAC-PABXGA2-2540, port 25) — same purchasable part,
+# "1000SX" (DC1-SWAC-PABXGA2-2540, port 25) — same purchasable part,
 # different vendor's abbreviation. Counting those as two separate line
 # items would undercount how many of each real SFP class need
 # replacing. Only aliases CONFIRMED on real data here, or the
@@ -90,8 +94,10 @@ def _categorize_interface_type(name: str) -> str | None:
     the wrong speed tier or silently dropped.
     """
     for prefix, label in _LOGICAL_PREFIXES:
-        if name.startswith(prefix):
+        if name.lower().startswith(prefix.lower()):
             return None
+    if _LOGICAL_NUMBERED.match(name):
+        return None
     for prefix, label in _PHYSICAL_PORT_TYPE_PREFIXES:
         if name.startswith(prefix):
             return label

@@ -703,7 +703,7 @@ def analyse(clean: list[str]) -> dict[str, Any]:
         zero = [row for row in roots if row["priority"] == 0]
         if zero:
             findings.append(_finding("SW-NX-STP-ROOT-002", "low", f"Root priority 0 for VLAN {_short([str(row['vlan']) for row in zero], 6)}",
-                                     "show spanning-tree root: " + _short([f"{row['instance']} root {row['root']}" for row in zero]) + f" with priority 0, the lowest value there is. A bridge was set to priority 0 by hand (or a device is forcing the root); "
+                                     "show spanning-tree root: " + _short([f"{row['instance']} root {row['root']}" for row in zero]) + " with priority 0, the lowest value there is. A bridge was set to priority 0 by hand (or a device is forcing the root); "
                                      "nothing can take the root from it, and its failure moves the root to an unplanned bridge.", _short([row["instance"] for row in zero], 4), "stp"))
         far = [row for row in foreign if row["cost"] >= 10000]
         if far:

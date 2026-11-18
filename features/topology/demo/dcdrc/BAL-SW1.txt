@@ -1,0 +1,464 @@
+BAL-SW1#show version
+Cisco IOS XE Software, Version 17.09.04a
+Cisco IOS Software [Cupertino], Catalyst L3 Switch Software (CAT9K_LITE_IOSXE), Version 17.9.4a
+cisco C9200L-24P-4G (X86) processor with 1392510K/6147K bytes of memory.
+Processor board ID FCW2461L001
+BAL-SW1 uptime is 16 weeks, 2 days, 4 hours, 12 minutes
+
+BAL-SW1#show inventory
+NAME: "Switch 1",  DESCR: "C9200L-24P-4G"
+PID: C9200L-24P-4G     ,  VID: V01 ,  SN: FCW2461L001
+
+BAL-SW1#show running-config
+Building configuration...
+
+Current configuration : 9812 bytes
+!
+version 17.9
+service timestamps log datetime msec
+!
+hostname BAL-SW1
+!
+no aaa new-model
+ip routing
+
+ip domain name demo.example.test
+lldp run
+cdp run
+!
+vlan 10
+ name USERS
+!
+vlan 20
+ name WIFI
+!
+vlan 30
+ name VOICE
+!
+vlan 99
+ name MGMT
+!
+ip dhcp excluded-address 10.106.10.1 10.106.10.99
+ip dhcp pool BAL-USERS
+ network 10.106.10.0 255.255.255.0
+ default-router 10.106.10.1
+ dns-server 10.10.101.11
+ lease 0 8
+!
+ip dhcp excluded-address 10.106.20.1 10.106.20.99
+ip dhcp pool BAL-WIFI
+ network 10.106.20.0 255.255.255.0
+ default-router 10.106.20.1
+ dns-server 10.10.101.11
+ lease 0 8
+!
+ip dhcp excluded-address 10.106.30.1 10.106.30.99
+ip dhcp pool BAL-VOICE
+ network 10.106.30.0 255.255.255.0
+ default-router 10.106.30.1
+ dns-server 10.10.101.11
+ option 150 ip 10.10.102.30
+ lease 0 8
+!
+interface Vlan10
+ description USERS wired
+ ip address 10.106.10.1 255.255.255.0
+ ip ospf 1 area 0
+!
+interface Vlan20
+ description WIFI users
+ ip address 10.106.20.1 255.255.255.0
+ ip ospf 1 area 0
+!
+interface Vlan30
+ description VOICE phones
+ ip address 10.106.30.1 255.255.255.0
+ ip ospf 1 area 0
+!
+interface Vlan99
+ description MGMT
+ ip address 10.106.99.1 255.255.255.0
+ ip ospf 1 area 0
+!
+interface GigabitEthernet1/1/1
+ description to BAL-SW2 Gi1/1/2
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,20,30,99
+!
+interface GigabitEthernet1/1/4
+ description to BAL-SW3 Gi1/1/2
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,20,30,99
+!
+interface GigabitEthernet1/1/3
+ description to BAL-RTR1 Gi0/0/2 (OSPF)
+ no switchport
+ ip address 10.106.0.2 255.255.255.192
+ ip ospf network point-to-point
+ ip ospf 1 area 0
+!
+interface GigabitEthernet1/0/1
+ description BAL-PC1
+ switchport access vlan 10
+ switchport mode access
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/2
+ description BAL-PC2
+ switchport access vlan 10
+ switchport mode access
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/3
+ description BAL-PHONE1
+ switchport access vlan 10
+ switchport mode access
+ switchport voice vlan 30
+ spanning-tree portfast
+!
+interface GigabitEthernet1/0/4
+ description BAL-AP1
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 20,99
+!
+router ospf 1
+ router-id 10.106.255.11
+ log-adjacency-changes
+ passive-interface default
+ no passive-interface GigabitEthernet1/1/3
+!
+line vty 0 15
+ transport input ssh
+!
+end
+
+BAL-SW1#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        U - in use      N - not in use, no aggregation
+
+Number of channel-groups in use: 0
+Number of aggregators:           0
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+
+
+BAL-SW1#show cdp neighbors detail
+-------------------------
+Device ID:BAL-SW2.demo.example.test
+Entry address(es): 
+  IP address: 10.106.99.12
+Platform: cisco C9200L-24P-4G,  Capabilities: Switch IGMP
+Interface: GigabitEthernet1/1/1,  Port ID (outgoing port): GigabitEthernet1/1/2
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 99
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.106.99.12
+-------------------------
+Device ID:BAL-SW3.demo.example.test
+Entry address(es): 
+  IP address: 10.106.99.13
+Platform: cisco C9200L-24P-4G,  Capabilities: Switch IGMP
+Interface: GigabitEthernet1/1/4,  Port ID (outgoing port): GigabitEthernet1/1/2
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 99
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.106.99.13
+-------------------------
+Device ID:BAL-RTR1.demo.example.test
+Entry address(es): 
+  IP address: 10.106.255.1
+Platform: cisco ISR4331/K9,  Capabilities: Router Switch IGMP
+Interface: GigabitEthernet1/1/3,  Port ID (outgoing port): GigabitEthernet0/0/2
+Holdtime : 150 sec
+
+Version :
+Cisco IOS XE Software
+
+advertisement version: 2
+Native VLAN: 1
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.106.255.1
+-------------------------
+Device ID:SEP02E100006201
+Entry address(es): 
+  IP address: 10.106.30.101
+Platform: cisco IP Phone 8851,  Capabilities: Host Phone Two-port Mac Relay
+Interface: GigabitEthernet1/0/3,  Port ID (outgoing port): Port 1
+Holdtime : 140 sec
+
+Version :
+Cisco endpoint
+
+advertisement version: 2
+Native VLAN: 30
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.106.30.101
+-------------------------
+Device ID:BAL-AP1
+Entry address(es): 
+  IP address: 10.106.99.21
+Platform: cisco AIR-AP2802I-E-K9,  Capabilities: Trans-Bridge Source-Route-Bridge IGMP
+Interface: GigabitEthernet1/0/4,  Port ID (outgoing port): GigabitEthernet0
+Holdtime : 140 sec
+
+Version :
+Cisco endpoint
+
+advertisement version: 2
+Native VLAN: 99
+Duplex: full
+Mgmt address(es): 
+  IPv4 address: 10.106.99.21
+
+BAL-SW1#show lldp neighbors detail
+------------------------------------------------
+Local Intf: Gi1/1/1
+Chassis id: 0a1b.0000.0162
+Port id: Gi1/1/2
+Port Description: GigabitEthernet1/1/2
+System Name: BAL-SW2
+
+System Description: 
+C9200L-24P-4G access
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.106.99.12
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/1/4
+Chassis id: 0a1b.0000.0163
+Port id: Gi1/1/2
+Port Description: GigabitEthernet1/1/2
+System Name: BAL-SW3
+
+System Description: 
+C9200L-24P-4G access
+
+Time remaining: 108 seconds
+System Capabilities: B,R
+Enabled Capabilities: B,R
+Management Addresses:
+    IP: 10.106.99.13
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/1/3
+Chassis id: 0a1b.0000.0160
+Port id: Gi0/0/2
+Port Description: GigabitEthernet0/0/2
+System Name: BAL-RTR1
+
+System Description: 
+ISR4331/K9 router
+
+Time remaining: 108 seconds
+System Capabilities: R
+Enabled Capabilities: R
+Management Addresses:
+    IP: 10.106.255.1
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/1
+Chassis id: 02c0.0000.6101
+Port id: 02c0.0000.6101
+Port Description: 
+System Name: BAL-PC1
+
+System Description: 
+Demo workstation
+
+Time remaining: 108 seconds
+System Capabilities: O
+Enabled Capabilities: O
+Management Addresses:
+    IP: 10.106.10.101
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/2
+Chassis id: 02c0.0000.6102
+Port id: 02c0.0000.6102
+Port Description: 
+System Name: BAL-PC2
+
+System Description: 
+Demo workstation
+
+Time remaining: 108 seconds
+System Capabilities: O
+Enabled Capabilities: O
+Management Addresses:
+    IP: 10.106.10.102
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/3
+Chassis id: 02e1.0000.6201
+Port id: 1
+Port Description: 
+System Name: BAL-PHONE1
+
+System Description: 
+Cisco IP Phone 8851
+
+Time remaining: 108 seconds
+System Capabilities: T
+Enabled Capabilities: T
+Management Addresses:
+    IP: 10.106.30.101
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+Local Intf: Gi1/0/4
+Chassis id: 02a9.0000.6401
+Port id: Gi0
+Port Description: 
+System Name: BAL-AP1
+
+System Description: 
+Cisco access point
+
+Time remaining: 108 seconds
+System Capabilities: W
+Enabled Capabilities: W
+Management Addresses:
+    IP: 10.106.99.21
+Auto Negotiation - supported, enabled
+Physical media capabilities:
+    1000baseT(FD)
+Media Attachment Unit type: 30
+Vlan ID: 1
+
+------------------------------------------------
+
+Total entries displayed: 7
+BAL-SW1#show interfaces status
+
+Port      Name               Status       Vlan       Duplex  Speed Type
+Gi1/1/1   to BAL-SW2 Gi1/1/2 connected    trunk      a-full  a-1000 10/100/1000BaseTX
+Gi1/1/4   to BAL-SW3 Gi1/1/2 connected    trunk      a-full  a-1000 10/100/1000BaseTX
+Gi1/1/3   to BAL-RTR1 Gi0/0/ connected    routed     a-full  a-1000 10/100/1000BaseTX
+Gi1/0/1   BAL-PC1            connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/2   BAL-PC2            connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/3   BAL-PHONE1         connected    10         a-full  a-1000 10/100/1000BaseTX
+
+BAL-SW1#show ip interface brief
+Interface                  IP-Address      OK? Method Status                Protocol
+Vlan10                    10.106.10.1     YES manual up                    up
+Vlan20                    10.106.20.1     YES manual up                    up
+Vlan30                    10.106.30.1     YES manual up                    up
+Vlan99                    10.106.99.1     YES manual up                    up
+GigabitEthernet1/1/3      10.106.0.2      YES manual up                    up
+
+BAL-SW1#show mac address-table
+          Mac Address Table
+-------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+  10    02c0.0000.6101    DYNAMIC     Gi1/0/1
+  10    02c0.0000.6102    DYNAMIC     Gi1/0/2
+  30    02e1.0000.6201    DYNAMIC     Gi1/0/3
+  99    02a9.0000.6401    DYNAMIC     Gi1/0/4
+  20    02f1.0000.6301    DYNAMIC     Gi1/0/4
+  20    02f1.0000.6302    DYNAMIC     Gi1/0/4
+  10    02c0.0000.6103    DYNAMIC     Gi1/1/1
+  10    02c0.0000.6104    DYNAMIC     Gi1/1/1
+  30    02e1.0000.6202    DYNAMIC     Gi1/1/1
+  99    02a9.0000.6402    DYNAMIC     Gi1/1/1
+  20    02f1.0000.6303    DYNAMIC     Gi1/1/1
+  20    02f1.0000.6304    DYNAMIC     Gi1/1/1
+  10    02c0.0000.6105    DYNAMIC     Gi1/1/4
+  10    02c0.0000.6106    DYNAMIC     Gi1/1/4
+  30    02e1.0000.6203    DYNAMIC     Gi1/1/4
+  99    02a9.0000.6403    DYNAMIC     Gi1/1/4
+  20    02f1.0000.6305    DYNAMIC     Gi1/1/4
+  20    02f1.0000.6306    DYNAMIC     Gi1/1/4
+Total Mac Addresses for this criterion: 18
+
+BAL-SW1#show ip arp
+Protocol  Address          Age (min)  Hardware Addr   Type   Interface
+Internet  10.106.10.101      3   02c0.0000.6101  ARPA   Vlan10
+Internet  10.106.10.102      3   02c0.0000.6102  ARPA   Vlan10
+Internet  10.106.30.101      3   02e1.0000.6201  ARPA   Vlan30
+Internet  10.106.99.21       3   02a9.0000.6401  ARPA   Vlan99
+Internet  10.106.20.101      3   02f1.0000.6301  ARPA   Vlan20
+Internet  10.106.20.102      3   02f1.0000.6302  ARPA   Vlan20
+Internet  10.106.10.103      3   02c0.0000.6103  ARPA   Vlan10
+Internet  10.106.10.104      3   02c0.0000.6104  ARPA   Vlan10
+Internet  10.106.30.102      3   02e1.0000.6202  ARPA   Vlan30
+Internet  10.106.99.22       3   02a9.0000.6402  ARPA   Vlan99
+Internet  10.106.20.103      3   02f1.0000.6303  ARPA   Vlan20
+Internet  10.106.20.104      3   02f1.0000.6304  ARPA   Vlan20
+Internet  10.106.10.105      3   02c0.0000.6105  ARPA   Vlan10
+Internet  10.106.10.106      3   02c0.0000.6106  ARPA   Vlan10
+Internet  10.106.30.103      3   02e1.0000.6203  ARPA   Vlan30
+Internet  10.106.99.23       3   02a9.0000.6403  ARPA   Vlan99
+Internet  10.106.20.105      3   02f1.0000.6305  ARPA   Vlan20
+Internet  10.106.20.106      3   02f1.0000.6306  ARPA   Vlan20
+Internet  10.106.99.12       3   0a1b.0000.0162  ARPA   Vlan99
+Internet  10.106.99.13       3   0a1b.0000.0163  ARPA   Vlan99
+Internet  10.106.0.1         3   0a1b.0000.0160  ARPA   GigabitEthernet1/1/3
+
+BAL-SW1#show ip route
+Codes: L - local, C - connected, S - static, R - RIP, M - mobile, B - BGP
+       D - EIGRP, O - OSPF, IA - OSPF inter area, E1/E2 - OSPF external type 1/2
+
+Gateway of last resort is 10.106.0.1 to network 0.0.0.0
+
+O*E2     0.0.0.0/0 [110/1] via 10.106.0.1, 3d04h, Gi1/1/3
+
+BAL-SW1#show ip ospf neighbor
+
+Neighbor ID     Pri   State           Dead Time   Address         Interface
+10.106.255.1      1   FULL/BDR         00:00:33    10.106.0.1      Gi1/1/3
+
+BAL-SW1#

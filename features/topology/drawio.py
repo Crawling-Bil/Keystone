@@ -12,9 +12,10 @@ from xml.etree import ElementTree as ET
 from . import labels
 from .graph import Connection, Graph
 from .layout import NODE_H, NODE_W
-from .scene import Page, build_pages
+from .scene import Page, build_pages, display_name
 from .styles import SPEED_TIERS, line_look
-from .titles import end_title_spot, page_label_rects, page_segments
+from .svg import zone_look
+from .titles import centre_title, end_title_spot, page_label_rects, page_segments, zone_title_spot
 
 ICON_POINTS = ("points=[[0.015,0.015,0],[0.985,0.015,0],[0.985,0.985,0],[0.015,0.985,0],[0.25,0,0],[0.5,0,0],[0.75,0,0],"
                "[1,0.25,0],[1,0.5,0],[1,0.75,0],[0.75,1,0],[0.5,1,0],[0.25,1,0],[0,0.75,0],[0,0.5,0],[0,0.25,0]];")
@@ -42,13 +43,14 @@ def _esc(text: str) -> str:
 
 
 def _label(node, ghost: bool) -> str:
-    host, model, ip = labels.node_lines(node)
+    host, model, ip, *more = labels.node_lines(node)
     host_colour = "#d90000" if node.captured and not ghost else "#7f7f7f"
     lines = [f'<font color="{host_colour}"><b>{_esc(host)}</b></font>']
     if model:
         lines.append(f'<font color="#004a75"><b>{_esc(model)}</b></font>')
     if ip:
         lines.append(f"<b>{_esc(ip)}</b>")
+    lines += [f'<font color="#7F7F7F"><b>{_esc(text)}</b></font>' for text in more]            # the management note (mgmtnotes.py)
     return "<br>".join(lines)
 
 
@@ -68,8 +70,19 @@ def _node_style(node, ghost: bool) -> tuple[str, int, int]:
     return f"sketch=0;{ICON_POINTS}{LABEL_STYLE}aspect=fixed;shape=mxgraph.cisco19.rect;fillColor={fill};strokeColor={stroke};prIcon={icon};", NODE_W, NODE_H
 
 
+def stack_units(node) -> int:
+    """Chassis behind one node: the members of a stack, 2 for a StackWise Virtual / VSS pair, else 1."""
+    return max(int(getattr(node, "stack_members", 1) or 1), 2 if getattr(node, "svl_domain", "") else 1)
+
+
 def _add_node(root: ET.Element, ident: str, key: str, node, pos, ghost: bool) -> None:
     style, w, h = _node_style(node, ghost)
+    units = stack_units(node)
+    for step in range(min(units, 4) - 1, 0, -1):                      # a stack or a virtual pair is drawn as the boxes it is: the shadows lie behind the icon
+        shadow = ET.SubElement(root, "mxCell", {"id": f"{ident}-unit{step}", "value": "", "vertex": "1", "connectable": "0", "parent": "1",
+                                                "style": "rounded=1;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#005073;strokeWidth=2;"})
+        ET.SubElement(shadow, "mxGeometry", {"x": f"{pos.x + (NODE_W - w) / 2 + 7 * step:.0f}", "y": f"{pos.y + (NODE_H - h) / 2 - 7 * step:.0f}",
+                                             "width": str(w), "height": str(h), "as": "geometry"})
     obj = ET.SubElement(root, "object", {"label": _label(node, ghost), "id": ident, "hostname": node.hostname,
                                          "model": node.model, "mgmt_ip": node.mgmt_ip, "role": node.role_hint, "node_key": key,
                                          "serial": ", ".join(sorted(node.serials)), "captured": "yes" if node.captured else "no",
@@ -86,13 +99,40 @@ def _edge_style(graph: Graph, conn: Connection, line_style: str, curved: bool = 
     return LINE_STYLE + f"strokeColor={colour};strokeWidth={width:g};" + ("dashed=1;" if dashed else "") + ("curved=1;" if curved else "")
 
 
+SIDE_TOLERANCE = 1.5      # a bend this close to the side of an icon is a side exit
+
+
+def side_exit(waypoints: list[tuple[float, float]] | None, shape: tuple[float, float, float, float] | None) -> tuple[float, float] | None:
+    """The fixed exit of a line that leaves the side of an icon (``scene._route_sides``): its only bend lies on the left or right edge of the icon.
+    Returns ``(exitX, exitY)`` as fractions of the icon (0 or 1, and how far down), or None for any other line.  In draw.io a fixed exit point stays on the side
+    of the icon when the icon is moved, where a bend point would be left behind.  https://www.drawio.com/doc/faq/connector-styles"""
+    if not waypoints or len(waypoints) != 1 or shape is None:
+        return None
+    (x, y), (gx, gy, w, h) = waypoints[0], shape
+    if not (gy - SIDE_TOLERANCE <= y <= gy + h + SIDE_TOLERANCE):
+        return None
+    for fraction, edge in ((0.0, gx), (1.0, gx + w)):
+        if abs(x - edge) <= SIDE_TOLERANCE + 0.5:                   # the bend points are written rounded to whole pixels
+            return fraction, min(1.0, max(0.0, (y - gy) / h))
+    return None
+
+
 def _add_edge(root: ET.Element, ident: str, conn: Connection, graph: Graph, ids: dict[str, str], show_ports: bool,
-              waypoints: list[tuple[float, float]] | None = None, line_style: str = "state", spots: dict[str, float] | None = None, curved: bool = False, comb: bool = False) -> None:
+              waypoints: list[tuple[float, float]] | None = None, line_style: str = "state", spots: dict[str, float] | None = None, curved: bool = False, comb: bool = False,
+              shapes: dict[str, tuple[float, float, float, float]] | None = None) -> None:
     if curved and comb:
         curved = False                                    # a comb line keeps all its corners; draw.io rounds them (rounded=1)
     if curved and waypoints and len(waypoints) > 2:
         waypoints = waypoints[2::4]                       # draw.io smooths a few points into one curve
-    style = _edge_style(graph, conn, line_style, curved and bool(waypoints)) + ("rounded=1;arcSize=12;" if comb and waypoints else "")
+    fixed = ""
+    if not curved and not comb and shapes:
+        for end, key in (("exit", conn.a), ("entry", conn.b)):
+            spot = side_exit(waypoints, shapes.get(key))
+            if spot is not None:
+                fixed = f"{end}X={spot[0]:g};{end}Y={spot[1]:.3f};{end}Dx=0;{end}Dy=0;{end}Perimeter=0;"
+                waypoints = None                                  # the fixed point is the bend: the line runs from it straight to the other icon
+                break
+    style = _edge_style(graph, conn, line_style, curved and bool(waypoints)) + ("rounded=1;arcSize=12;" if comb and waypoints else "") + fixed
     members = "; ".join(f"{l.a_port} <-> {l.b_port} [{l.state}]" for l in conn.links)
     obj = ET.SubElement(root, "object", {"label": "", "id": ident, "state": conn.state, "kind": conn.kind,
                                          "protocols": "/".join(sorted(conn.protocols)), "links": members,
@@ -239,7 +279,7 @@ def _title_block(root: ET.Element, index: int, title: str, created: _dt.datetime
 def _diagram(page: Page, graph: Graph, index: int, show_ports: bool, line_style: str = "state", title: str = "",
              created: _dt.datetime | None = None) -> ET.Element:
     graph = page.graph or graph
-    diagram = ET.Element("diagram", {"id": f"page-{index}", "name": page.name})
+    diagram = ET.Element("diagram", {"id": f"page-{index}", "name": display_name(page.name)})
     width, height = max(int(page.width) + 200, 1100), max(int(page.height) + 260, 850)
     model = ET.SubElement(diagram, "mxGraphModel", {"dx": "1420", "dy": "942", "grid": "1", "gridSize": "10", "guides": "1",
                                                     "tooltips": "1", "connect": "1", "arrows": "1", "fold": "1", "page": "1",
@@ -247,8 +287,19 @@ def _diagram(page: Page, graph: Graph, index: int, show_ports: bool, line_style:
                                                     "math": "0", "shadow": "0"})
     root = ET.SubElement(model, "root")
     ET.SubElement(root, "mxCell", {"id": "0"})
+    if page.zones:                                                       # the zone boxes are a layer of their own, under the diagram: one click in the Layers panel hides them
+        ET.SubElement(root, "mxCell", {"id": f"{index}-zones", "value": "Zones", "style": "locked=1;", "parent": "0"})
     ET.SubElement(root, "mxCell", {"id": "1", "parent": "0"})
     _title_block(root, index, title, created or _dt.datetime.now())
+    zone_segments = page_segments(page) if page.zones or page.centers else []
+    zone_labels = page_label_rects(page, graph) if (page.zones or page.centers) and show_ports else []
+    for n, (zone_title, kind, x, y, w, h) in enumerate(page.zones):
+        fill, border = zone_look(kind)
+        zone_spot = zone_title_spot(page, (zone_title, kind, x, y, w, h), zone_segments, zone_labels)         # the name slides to a gap between lines, as in the SVG
+        cell = ET.SubElement(root, "mxCell", {"id": f"{index}-zone-{n}", "value": _esc(zone_title), "vertex": "1", "parent": f"{index}-zones",
+                                              "style": f"rounded=1;arcSize=3;whiteSpace=wrap;html=1;fillColor={fill};strokeColor={border};strokeWidth=2;dashed=1;dashPattern=12 6;"
+                                                       f"verticalAlign=top;align=left;spacingLeft={zone_spot - 2:.0f};spacingTop=6;fontStyle=1;fontSize=15;fontColor={border};"})
+        ET.SubElement(cell, "mxGeometry", {"x": f"{x:.0f}", "y": f"{y:.0f}", "width": f"{w:.0f}", "height": f"{h:.0f}", "as": "geometry"})
     for n, (box_title, x, y, w, h) in enumerate(page.boxes):
         cell = ET.SubElement(root, "mxCell", {"id": f"{index}-box-{n}", "value": box_title,
                                               "style": "rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;fontStyle=1;fontSize=14;fontColor=#000000;",
@@ -261,6 +312,13 @@ def _diagram(page: Page, graph: Graph, index: int, show_ports: bool, line_style:
         cell = ET.SubElement(root, "mxCell", {"id": f"{index}-endbox-{n}", "value": _esc(box_title), "vertex": "1", "parent": "1",
                                               "style": "rounded=1;arcSize=3;whiteSpace=wrap;html=1;fillColor=#F7F9FB;strokeColor=#8FA0AE;strokeWidth=1.5;"
                                                        "verticalAlign=top;align=left;spacingLeft=" + f"{spot:.0f}" + ";spacingTop=4;fontStyle=1;fontSize=12;fontColor=#3E4C59;"})
+        ET.SubElement(cell, "mxGeometry", {"x": f"{x:.0f}", "y": f"{y:.0f}", "width": f"{w:.0f}", "height": f"{h:.0f}", "as": "geometry"})
+    for n, (frame_title, x, y, w, h) in enumerate(page.centers):         # the centre of the network: its units in one frame
+        fitted = centre_title(page, (frame_title, x, y, w, h), zone_segments, zone_labels)             # a shorter form of the name when the long one finds no gap between the lines, as in the SVG
+        centre_spot = fitted.spot
+        cell = ET.SubElement(root, "mxCell", {"id": f"{index}-centre-{n}", "value": _esc(fitted.text), "vertex": "1", "parent": "1",
+                                              "style": "rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#F2F8FC;strokeColor=#005073;strokeWidth=2;dashed=1;"
+                                                       "verticalAlign=top;align=left;spacingLeft=" + f"{centre_spot:.0f}" + ";spacingTop=2;fontStyle=1;fontSize=11;fontColor=#005073;"})
         ET.SubElement(cell, "mxGeometry", {"x": f"{x:.0f}", "y": f"{y:.0f}", "width": f"{w:.0f}", "height": f"{h:.0f}", "as": "geometry"})
     ids: dict[str, str] = {}
     for n, frame in enumerate(page.pair_boxes.values()):
@@ -276,10 +334,14 @@ def _diagram(page: Page, graph: Graph, index: int, show_ports: bool, line_style:
     _add_shapes(root, page, index, shape_ids)
     for key, pos in sorted(page.nodes.items(), key=lambda item: (item[1].y, item[1].x)):
         _add_node(root, ids[key], key, graph.nodes[key], pos, key in page.ghosts)
+    geometry_of = {}
+    for key, pos in page.nodes.items():                               # where each icon is drawn: a fixed exit point is a fraction of it
+        _style, w, h = _node_style(graph.nodes[key], key in page.ghosts)
+        geometry_of[key] = (round(pos.x + (NODE_W - w) / 2), round(pos.y + (NODE_H - h) / 2), float(w), float(h))
     for n, conn in enumerate(page.connections):
         ports_on = show_ports and not (page.view == "logical" and conn.kind == "peer-link")   # the frame already says "peer-link"
         spots = {slot: f"{2 * share - 1:.2f}" for (i, slot), (_, _, share) in page.label_pos.items() if i == n}
-        _add_edge(root, f"e{index}-{n}", conn, graph, ids, ports_on, page.routes.get(n), line_style, spots, page.curved, page.curved and n in page.comb_source)
+        _add_edge(root, f"e{index}-{n}", conn, graph, ids, ports_on, page.routes.get(n), line_style, spots, page.curved, page.curved and n in page.comb_source, geometry_of)
     for n, table in enumerate(page.tables):
         _add_table(root, f"{index}-tbl-{n}", table)
     legend_y = max([page.height] + [t.y + t.h for t in page.tables]) + 20

@@ -504,7 +504,7 @@ def _format_ip_with_mask(ip_address: str, subnet_mask: str = "") -> str:
     "x.x.x.x/y" (falls back to the bare IP when no usable mask is
     available — never invents one). Also passes through an already-
     CIDR value untouched, which covers Huawei's "display ip interface
-    brief" ("IP Address/Mask" column prints e.g. "10.85.28.2/23" as a
+    brief" ("IP Address/Mask" column prints e.g. "10.220.28.2/23" as a
     single token already) once that command's own row-parsing is fixed
     to actually match real output (see runtime_parser._HUAWEI_IF_BRIEF_ROW).
     """
@@ -816,7 +816,7 @@ def _apply_vpc_mlag_config_fallback(
         <id> m-lag <member-id>" — SwitchConfig.mlag_dfs_group_id /
         Interface.is_mlag_peer_link / Interface.mlag_id, populated by
         huawei.py. Confirmed real VRP syntax on a real S5755 M-LAG
-        pair (TTC-SWCODI-MN/BU-DMZ).
+        pair (DC1-SWCODI-MN/BU-DMZ).
     So when there's no live status, fall back to reporting that
     configuration instead of leaving the tab blank — clearly labeled
     "configured (not active)" rather than an up/down state, since
@@ -1148,7 +1148,7 @@ def _build_dhcp(config, interfaces: list[dict[str, Any]]) -> dict[str, Any]:
 
     Every field this reads was validated against real capture data this
     round: Cisco "ip dhcp pool"/"ip helper-address"/"ip dhcp snooping
-    ..." (TTC-SWCO-PABXGA-3650, GTOPAS-PKU-SWCO-C3650, TTC-SWAC-LAN-
+    ..." (DC1-SWCO-PABXGA-3650, DEPO-CC-SWCO-C3650, DC1-SWAC-LAN-
     2960) all worked already; Huawei's "dhcp snooping enable ipv4" /
     "dhcp snooping enable vlan <range>" / "dhcp snooping trusted" did
     NOT (see huawei.py's parser fixes this same round) — those real
@@ -1395,9 +1395,9 @@ def _build_pbr_summary(config) -> dict[str, Any]:
       "traffic-policy <name> {inbound|outbound}" under an interface.
 
     Every field here traces back to real capture data confirmed this
-    round (GTOPAS-MKS/PKU/MND/SMG-SWCO-C3650.txt for the Cisco side,
-    GTOPAS-MKS-SWCODI-S5755-FIX.txt for the live-deployed Huawei side,
-    draft_huawei_master.txt / ADM-SWCODI-S5755.txt for the Huawei
+    round (DEPO-AA/PKU/MND/SMG-SWCO-C3650.txt for the Cisco side,
+    DEPO-AA-SWCODI-S5755-FIX.txt for the live-deployed Huawei side,
+    draft_huawei_master.txt / AD1-SWCODI-S5755.txt for the Huawei
     numbered-track-object template form) — see TAM
     memory-keystone.md Section 1ac. Single Device's Routing tab and
     Compare Devices' Routes section both read this same structure (no
